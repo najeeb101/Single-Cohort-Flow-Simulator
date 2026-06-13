@@ -13,7 +13,9 @@
       "Bash(py -c \"import pandas as pd; df = pd.read_csv\\('data/qu_raw/qu_registered.csv', sep=';'\\); print\\(df[df['Major'].str.contains\\('omputer', case=False, na=False\\)]['Major'].unique\\(\\)\\)\")",
       "Bash(py scripts/analyze_qu_data.py)",
       "Bash(py -c ' *)",
-      "WebFetch(domain:www.csulb.edu)"
+      "WebFetch(domain:www.csulb.edu)",
+      "Bash(python -c \"import json; c = json.load\\(open\\('data/curriculum.json'\\)\\); print\\([x for x in c if x['id'].startswith\\('CMPE'\\)]\\)\")",
+      "Bash(py -c \"import json; data=json.load\\(open\\('data/curriculum.json'\\)\\); [print\\(c\\) for c in data if c['id'] in \\('CMPE355','CMPS323','CMPS405','CMPS303'\\)]\")"
     ]
   }
 }

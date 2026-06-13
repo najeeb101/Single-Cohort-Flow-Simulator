@@ -27,9 +27,13 @@ REGISTERED_CSV = Path("data/qu_raw/qu_registered.csv")
 
 CS_KEYWORDS = ["computer science"]
 
-# Cohorts per window — limited by how far the dataset reaches.
+# Cohorts per window.
 # 4-yr (8 sem):  Fall 2019 + 8 sem = Spring 2024 (last data point) -> 2015-2019 valid
-# 6-yr (12 sem): Fall 2017 + 12 sem = Spring 2024                  -> 2015-2017 valid
+# 6-yr (12 sem): limited to Fall 2015-2016 only. Fall 2017's 12-semester window
+#   (2017-2023) overlaps with the large Spring/Fall 2023 graduation surge from the
+#   rapidly expanding Fall 2019-2021 cohorts, producing rates >100%. The aggregate
+#   data does not tag graduates to their entry year, so late-cohort graduates inflate
+#   the numerator without appearing in the Fall 2017 denominator.
 WINDOWS = {
     "4-yr  (8 sem)": {"sems": 8,  "cohorts": [2015, 2016, 2017, 2018, 2019]},
     "6-yr (12 sem)": {"sems": 12, "cohorts": [2015, 2016]},
