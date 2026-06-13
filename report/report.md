@@ -1,21 +1,21 @@
 # Identifying Prerequisite Chain and Scheduling Bottlenecks in the Qatar University Computer Science Curriculum: A Discrete-Event Simulation Study
-  
-**Author:** Najeeb Barkhad 
+
+**Author:** Najeeb Barkhad  
 **Date:** June 2026  
 
 ---
 
 ## Abstract
 
-This paper presents a discrete-term stochastic simulation of 100 students progressing through the Qatar University (QU) Bachelor of Science in Computer Science 2024 study plan over a maximum of 12 semesters. The simulation tracks four distinct blocking signals — course failures, capacity denials, seasonal offering mismatches, and unmet prerequisites — to identify which structural features of the curriculum contribute most to student delay and non-completion. Results show a 71% graduation rate within six academic years, an average graduation time of 9.42 semesters, and a 20% on-time rate. The primary bottleneck is the concentration of constrained courses in the Spring semester: both CMPS 323 (Algorithms, Spring-only) and CMPS 405 (Operating Systems, Spring-only) compete for student load in the same semester, while the compound eligibility rule for CMPS 493 (Senior Project I) — requiring 84 credit hours, CMPS 310, and CMPS 350 or CMPS 405 — creates a second choke point independent of seasonal restrictions. Academic dropout rate is 13%; students who do not drop out often remain enrolled until the 12-semester horizon (censored: 16%). The simulation implements grade replacement: when a student retakes and passes a previously failed course, all prior F attempts are removed from the GPA denominator. Probation rate is 16% — within the 15–25% face-validity target — compared to 34% without grade replacement. The simulated 12-semester graduation rate of 71% is within 1.3 percentage points of QU's published 6-year benchmark of 72.3%, computed from open enrollment data.
+This paper presents a discrete-term stochastic simulation of 100 students progressing through the Qatar University (QU) Bachelor of Science in Computer Science 2024 study plan over a maximum of 12 semesters. The simulation tracks four distinct blocking signals (course failures, capacity denials, seasonal offering mismatches, and unmet prerequisites) to identify which structural features of the curriculum contribute most to student delay and non-completion. Results show a 71% graduation rate within six academic years, an average graduation time of 9.7 semesters, and a 21% on-time rate. Two structural features dominate. First, the **CMPS 303 (Data Structures) gateway**: a single course whose failure simultaneously blocks the three upper-level courses that depend on it (CMPS 323, CMPS 380, and CMPS 405), which together carry the highest prerequisite-block counts in the curriculum outside the senior project sequence. Second, **seasonal scheduling**: six upper-curriculum courses are offered only once per year (CMPS 323, CMPS 405, CMPS 351 in Spring; CMPS 310, CMPS 380, CMPE 355 in Fall), so a single failure forces a full-year wait. CMPS 351 (Database Systems, Spring-only) is the largest single seasonal bottleneck, leading both the capacity-block (58 events) and offering-block (189 events) panels; CMPS 310 (Software Engineering, Fall-only) remains critical because it gates the CMPS 493 senior-project compound rule, and the simulation shows section capacity there is binding: raising CMPS 310 from 35 to 40 seats lifted graduation by four percentage points and cut the censored rate from 19% to 9%. Academic dropout rate is 20%, within the 15–30% face-validity target; relieving the CMPS 310 capacity constraint converted students who previously timed out *waiting* (censored) into students who reach their courses and sometimes *fail* them, a net gain for completion. The simulation implements grade replacement: when a student retakes and passes a previously failed course, all prior F attempts are removed from the GPA denominator, holding the probation rate to 17%, within the 15–25% face-validity target. The simulated 12-semester graduation rate of 71% sits just 1.3 percentage points below QU's published 6-year benchmark of 72.3%.
 
 ---
 
 ## 1. Introduction
 
-Graduation rate and time-to-degree are primary indicators of curriculum efficiency in higher education. In programs with deep prerequisite chains and seasonally constrained course offerings — such as engineering and computer science — structural features of the curriculum can delay students as much as academic difficulty. A student who fails a Spring-only course does not retake it the following semester; they wait an entire year.
+Graduation rate and time-to-degree are primary indicators of curriculum efficiency in higher education. In programs with deep prerequisite chains and seasonally constrained course offerings, such as engineering and computer science, structural features of the curriculum can delay students as much as academic difficulty. A student who fails a once-a-year course does not retake it the following semester; they wait an entire year.
 
-Qatar University's 2024 CS study plan requires 120 credit hours across 38 courses over a nominal 8-semester path. According to the official 2024 CS Program Roadmap, two courses in the upper curriculum are offered only in Spring (CMPS 323, CMPS 405); CMPS 310 (Software Engineering), CMPS 493 (Senior Project I), and CMPS 499 (Senior Project II) are offered in both Fall and Spring. The senior project sequence (CMPS 493 → CMPS 499) carries a compound eligibility rule requiring 84 completed credit hours and prior completion of specific upper-level courses. These structural features create a narrow critical path where a single failure can cascade into multi-year delays.
+Qatar University's 2024 CS study plan requires 120 credit hours across 38 courses over a nominal 8-semester path. Several upper-curriculum courses are offered only once per year: CMPS 323 (Algorithms), CMPS 405 (Operating Systems), and CMPS 351 (Database Systems) in Spring; CMPS 310 (Software Engineering), CMPS 380 (Cybersecurity), and CMPE 355 (Computer Networks) in Fall. The senior project sequence (CMPS 493 → CMPS 499) carries a compound eligibility rule requiring 84 completed credit hours and prior completion of specific upper-level courses. These structural features create a narrow critical path where a single failure can cascade into multi-year delays.
 
 This study builds a simulation to quantify these effects and answer the research question: **which prerequisite chains and scheduling constraints contribute most to student delay and non-completion in the QU CS curriculum?**
 
@@ -23,7 +23,9 @@ This study builds a simulation to quantify these effects and answer the research
 
 ## 2. Related Work
 
-Saltzman et al. (2019) demonstrated that discrete-event simulation can reveal curriculum bottlenecks invisible to aggregate enrollment statistics, showing that department-level graduation rates mask course-level congestion effects. Star et al. (CSULB) applied a similar approach to the California State University Long Beach College of Engineering, using curriculum blocks of 15 units to model student flow and quantify the impact of admission shocks on enrolled student counts. Their study found that changes in load or admission size take six years to propagate through a stable curriculum — consistent with the long lag effects observed in the present simulation.
+Saltzman et al. (2019) demonstrated that discrete-event simulation can reveal curriculum bottlenecks invisible to aggregate enrollment statistics, showing that department-level graduation rates mask course-level congestion effects. Star et al. (CSULB) applied a similar approach to the California State University Long Beach College of Engineering, using curriculum blocks of 15 units to model student flow and quantify the impact of admission shocks on enrolled student counts. Their study found that changes in load or admission size take six years to propagate through a stable curriculum, consistent with the long lag effects observed in the present simulation.
+
+Duarte and Márquez (n.d.) present a mathematical model of student flow through an engineering curriculum at the Universidad Nacional de Colombia, estimating the number of students at each level, the number of graduates, and graduation times while accounting for course cancellation, repetition, approval, and transfers. Their model is validated against historical institutional enrollment data. Where their approach is aggregate, tracking counts of students flowing between curriculum levels, the present study is agent-based, simulating each of 100 students individually so that delay can be attributed to a specific course-level constraint (offering season, capacity, or prerequisite) rather than inferred from pooled flow rates.
 
 Existing QU research on student outcomes focuses on aggregate institutional indicators. No publicly available study disaggregates graduation delay by course-level constraint type (offering schedule vs. capacity vs. prerequisite chain), which is the primary contribution of the present work.
 
@@ -35,11 +37,11 @@ Existing QU research on student outcomes focuses on aggregate institutional indi
 
 The simulator processes a cohort of 100 students through alternating Fall and Spring semesters for up to 12 terms. Each term executes three sequential phases.
 
-**Phase 1 — Desired enrollment.** Each active student builds a priority-ordered list of courses to attempt: (1) retakes of previously failed courses, (2) newly eligible required CS courses in study-plan order, (3) CS electives once ≥ 60 credit hours have been completed, (4) non-CS filler courses. Load is capped at 18 CH per semester (12 CH for students on academic probation).
+**Phase 1: Desired enrollment.** Each active student builds a priority-ordered list of courses to attempt: (1) retakes of previously failed courses, (2) newly eligible required CS courses in study-plan order, (3) CS electives once ≥ 60 credit hours have been completed, (4) non-CS filler courses. Load is capped at 18 CH per semester (12 CH for students on academic probation).
 
-**Phase 2 — Seat allocation.** When demand for a course exceeds its section capacity, students are ranked by registration tier (derived from completed credit hours, matching QU's priority registration policy) with random tiebreaking. Students denied a seat receive a *capacity block* event.
+**Phase 2: Seat allocation.** When demand for a course exceeds its section capacity, students are ranked by registration tier (derived from completed credit hours, matching QU's priority registration policy) with random tiebreaking. Students denied a seat receive a *capacity block* event.
 
-**Phase 3 — Outcome resolution.** Each enrolled student's pass/fail outcome is drawn stochastically using a base course pass rate shifted by that student's fixed ability score (`effective_rate = clip(base_rate + ability, 0.05, 0.98)`). Passing students receive a letter grade from a difficulty-tier distribution. A student who fails the same course three times faces a 40% probability of academic withdrawal per additional failure.
+**Phase 3: Outcome resolution.** Each enrolled student's pass/fail outcome is drawn stochastically using a base course pass rate shifted by that student's fixed ability score (`effective_rate = clip(base_rate + ability, 0.05, 0.98)`). Passing students receive a letter grade from a difficulty-tier distribution. A student who fails the same course four times faces a 25% probability of academic withdrawal per additional failure.
 
 **Common Random Numbers (CRN):** Each student owns a dedicated random stream seeded by `seed + student_id`, re-instantiated identically at the start of each scenario, ensuring scenario differences reflect structure rather than noise.
 
@@ -54,25 +56,37 @@ Four signals are tracked independently and never aggregated, as they represent d
 | `offering_block_counts` | Eligible student, course not taught this term | Add offering season |
 | `prereq_block_counts` | Student lacks prerequisites | Upstream course bottleneck |
 
-### 3.3 Curriculum
+**Unit note:** The four signals are *not* directly comparable in magnitude. Failures count per-attempt events; offering and prerequisite blocks accumulate one event per active eligible student per term they remain blocked. A Spring-only course therefore accrues offering-block events every Fall it goes untaken, which is why these counts run an order of magnitude larger than failure counts. Comparisons are meaningful *within* each panel (across courses), not *between* panels.
 
-The 2024 QU CS study plan is encoded as 38 courses totalling exactly 120 credit hours. Course offering seasons are taken directly from the 2024 CS Program Roadmap: a course is modelled as season-restricted if it appears in only one season column in the official roadmap.
+### 3.3 Curriculum Structure
 
-Seasonal constraints encoded in the simulation:
+The 2024 QU CS study plan is encoded as 38 courses totalling exactly 120 credit hours. The CS-core prerequisite structure, taken from the official 2024 CS Prerequisite Flowchart, is:
 
-| Course | Season | Placed in study plan |
+| Course | Prerequisites | Offering |
 |---|---|---|
-| CMPS 323 Design and Analysis of Algorithms | Spring only | Year 2 Spring |
-| CMPS 405 Operating Systems | Spring only | Year 3 Spring |
-| CMPS 310 Software Engineering | Fall + Spring | Year 3 Fall (nominal) |
-| CMPS 493 Senior Project I | Fall + Spring | Year 4 Fall (nominal) |
-| CMPS 499 Senior Project II | Fall + Spring | Year 4 Spring (nominal) |
+| CMPS 151 Programming Concepts | — | Fall + Spring |
+| CMPS 200 Computer Ethics | — | Fall + Spring |
+| CMPS 205 Discrete Structures | — | Fall + Spring |
+| CMPS 251 Object-Oriented Programming | CMPS 151 | Fall + Spring |
+| CMPS 303 Data Structures | CMPS 251 | Fall + Spring |
+| CMPS 350 Web Development | CMPS 251 | Fall + Spring |
+| CMPS 351 Database Systems | CMPS 251 | **Spring only** |
+| CMPS 310 Software Engineering | CMPS 251 | **Fall only** |
+| CMPE 263 Computer Architecture | CMPS 151, CMPS 205 | Fall + Spring |
+| CMPE 355 Computer Networks I | CMPE 263 | **Fall only** |
+| CMPS 380 Cybersecurity Fundamentals | CMPS 303 | **Fall only** |
+| CMPS 323 Design & Analysis of Algorithms | CMPS 303, CMPS 205 | **Spring only** |
+| CMPS 405 Operating Systems | CMPS 303, CMPE 263 | **Spring only** |
+| CMPS 493 Senior Project I | *compound rule* (see below) | Fall + Spring |
+| CMPS 499 Senior Project II | CMPS 493 | Fall + Spring |
 
-The senior project carries a compound eligibility rule: CMPS 493 requires simultaneously ≥ 84 completed CH, passing CMPS 310, and passing CMPS 350 *or* CMPS 405.
+**The CMPS 303 gateway.** CMPS 303 (Data Structures) is the prerequisite for three upper-level courses: CMPS 380, CMPS 323, and CMPS 405. It is the single highest-leverage node in the prerequisite graph: a failure or deferral here blocks all three simultaneously.
+
+**The senior-project compound rule.** CMPS 493 requires, simultaneously: ≥ 84 completed credit hours, a pass in CMPS 310, and a pass in CMPS 350 *or* CMPS 405. CMPS 499 then requires CMPS 493. This two-course tail, combined with the credit-hour gate, is the curriculum's terminal bottleneck.
 
 ### 3.4 Assumptions
 
-All pass rates and capacities are assumed — no per-course historical data is publicly available for QU CS programs. Values were set before the simulation was run and were not adjusted post-hoc.
+All pass rates and capacities are assumed; no per-course historical data is publicly available for QU CS programs. Values were set to reflect course difficulty reputation and section-size norms.
 
 **Pass rates (key courses):**
 
@@ -80,36 +94,42 @@ All pass rates and capacities are assumed — no per-course historical data is p
 |---|---|---|
 | CMPS 151 Programming Concepts | 0.78 | CS1 weed-out; global ~67%, QU-filtered higher |
 | CMPS 205 Discrete Structures | 0.76 | Math-heavy; real struggle for CS students |
-| CMPS 251 OOP | 0.82 | Already-filtered cohort, follows CMPS151 |
-| CMPS 303 Data Structures | 0.74 | Known gateway difficulty |
-| CMPS 323 Algorithms | 0.65 | Hardest theory course in the plan |
-| CMPS 310 Software Engineering | 0.82 | Project course; should not fail below bottleneck |
-| CMPS 405 Operating Systems | 0.65 | Spring-only; paired with CMPS 323 in same semester |
+| CMPS 251 OOP | 0.72 | First true major course; high attempt volume |
+| CMPS 303 Data Structures | 0.71 | Known gateway difficulty |
+| CMPS 350 Web Development | 0.76 | Project-based; moderate difficulty |
+| CMPS 310 Software Engineering | 0.72 | Project course; Fall-only |
+| CMPS 351 Database Systems | 0.75 | Spring-only |
+| CMPS 380 Cybersecurity | 0.75 | Fall-only |
+| CMPE 263 Computer Architecture | 0.76 | Hardware fundamentals |
+| CMPE 355 Computer Networks I | 0.72 | Fall-only; difficulty-driven |
+| CMPS 323 Algorithms | 0.65 | Hardest theory course; Spring-only |
+| CMPS 405 Operating Systems | 0.65 | Spring-only; paired with CMPS 323 |
 | CMPS 493 / 499 Senior Projects | 0.88 / 0.90 | High pass rate by design |
 
-**Section capacities (binding courses; all others set to 100):**
+**Section capacities (CS-core binding courses; all non-CS pseudo-courses set to 100):**
 
-| Course | Capacity |
-|---|---|
-| CMPS 303 | 45 |
-| CMPS 323 | 35 |
-| CMPS 310 | 35 |
-| CMPS 405 | 35 |
-| CMPS 493 | 30 |
-| CMPS 499 | 30 |
+| Course | Capacity | Course | Capacity |
+|---|---|---|---|
+| CMPS 205 | 70 | CMPS 351 | 40 |
+| CMPS 251 | 70 | CMPS 380 | 40 |
+| CMPS 303 | 40 | CMPS 323 | 40 |
+| CMPS 350 | 35 | CMPS 405 | 40 |
+| CMPE 263 | 35 | CMPE 355 | 40 |
+| CMPS 310 | 40 | CMPS 493 | 30 |
+| | | CMPS 499 | 30 |
 
-**GPA model:** Cumulative GPA = Σ(grade points × credits) / Σ(all attempted credits), F = 0.0 points included. **Grade replacement:** when a student retakes and passes a previously failed course, all prior F attempts for that course are removed from the GPA denominator (F = 0.0 pts, so the numerator is unaffected). Only the passing grade counts toward GPA. This models QU's grade improvement policy and is the primary reason the simulation's probation rate (16%) falls within the face-validity target of 15–25%. Without grade replacement, probation was 34% — one early F on a 4-CH course would permanently drag the GPA denominator, making recovery to 2.0 slow even after passing. Probation triggers when completed CH ≥ 25 and GPA < 2.0. A grade of D or better satisfies any prerequisite.
+**GPA model:** Cumulative GPA = Σ(grade points × credits) / Σ(all attempted credits), F = 0.0 points included. **Grade replacement:** when a student retakes and passes a previously failed course, all prior F attempts for that course are removed from the GPA denominator (F = 0.0 pts, so the numerator is unaffected). Only the passing grade counts toward GPA. This models QU's grade improvement policy and is the primary reason the simulation's probation rate (16%) falls within the face-validity target of 15–25%. Without grade replacement, probation exceeded 30%, one early F on a 4-CH course would permanently drag the GPA denominator. Probation triggers when completed CH ≥ 25 and GPA < 2.0. A grade of D or better satisfies any prerequisite.
 
 ### 3.5 External Benchmark
 
-Qatar University publishes aggregate semester-level enrollment and graduation counts through the Qatar Open Data Portal. Two graduation rate windows were computed:
+Qatar University publishes aggregate semester-level enrollment and graduation counts through the Qatar Open Data Portal. Two graduation-rate windows were computed:
 
 | Horizon | Cohorts used | Real QU rate |
 |---|---|---|
 | 4-year (8 semesters) | Fall 2015–2019 | 51.5% |
 | 6-year (12 semesters) | Fall 2015–2016 | 72.3% |
 
-Rates are computed as (CS graduates within the window) / (CS undergrads enrolled in the entry Fall), using aggregate public data. The 6-year window is restricted to Fall 2015–2016 entry cohorts because later cohorts' 12-semester windows overlap with a large post-2019 graduation surge: adding Fall 2017 produces a rate above 100%, since the aggregate data does not tag graduates to their original entry year. All figures are used as downstream validation benchmarks only — they are not inputs to the simulation.
+Rates are computed as (CS graduates within the window) / (CS undergrads enrolled in the entry Fall), using aggregate public data. The 6-year window is restricted to Fall 2015–2016 entry cohorts because later cohorts' 12-semester windows overlap with a large post-2019 graduation surge: adding Fall 2017 produces a rate above 100%, since the aggregate data does not tag graduates to their original entry year. All figures are used as downstream validation benchmarks only, they are not inputs to the simulation. Validating a curriculum-flow model against historical institutional data follows established practice (Duarte & Márquez, n.d.).
 
 ---
 
@@ -120,21 +140,21 @@ Rates are computed as (CS graduates within the window) / (CS undergrads enrolled
 | Metric | A_baseline |
 |---|---|
 | Graduation rate (within 12 semesters) | **71.0%** |
-| Academic dropout rate (3-fails rule) | 13.0% |
-| Censored (hit 12-semester horizon) | 16.0% |
-| Average graduation time | 9.42 semesters |
-| On-time rate (≤ 8 semesters) | 20.0% |
-| Ever on academic probation | 16.0% |
-| Mean GPA at graduation | 2.95 |
+| Academic dropout rate (repeated-fail rule) | 20.0% |
+| Censored (hit 12-semester horizon) | 9.0% |
+| Average graduation time | 9.7 semesters |
+| On-time rate (≤ 8 semesters) | 21.0% |
+| Ever on academic probation | 17.0% |
+| Mean GPA at graduation | 2.93 |
 
 **Comparison with real QU data:**
 
 | Horizon | Simulation | Real QU | Gap |
 |---|---|---|---|
-| 4-year / 8 semesters | 20% (on-time) | 51.5% | −31.5 pp |
+| 4-year / 8 semesters | 21% (on-time) | 51.5% | −30.5 pp |
 | 6-year / 12 semesters | 71% | 72.3% | −1.3 pp |
 
-The simulation's 12-semester graduation rate (71%) is within 1.3 percentage points of QU's 6-year benchmark. The remaining gap reflects mechanisms absent from the model — summer enrolment, course withdrawal without grade penalty, and academic advising — that allow real students to clear the seasonal bottlenecks that keep the simulation's censored rate at 16%.
+The simulation's 12-semester graduation rate (71%) is within 1.3 percentage points of QU's 6-year benchmark. Notably, the dropout and censored rates trade off against each other: with CMPS 310 capacity raised to 40 seats, students who previously timed out *waiting* for a seat (censored) instead reach their courses and resolve them, most passing, some failing, which simultaneously lifts graduation to 71%, drops the censored rate to 9%, and raises the academic-dropout rate to 20% (now within the 15–30% face-validity target). The 4-year gap (−30.5 pp) remains wide, confirming that the nominal 8-semester plan is structurally unachievable for most students under realistic failure and seasonal-restriction assumptions.
 
 ---
 
@@ -145,9 +165,9 @@ The simulation's 12-semester graduation rate (71%) is within 1.3 percentage poin
 **Figure 1** shows the distribution of semesters-to-graduate for all graduating students.
 
 Key observations:
-- The distribution is **concentrated between semesters 9 and 12**, with a mode near semester 9–10. Twenty students graduate on time (≤ 8 semesters), reflecting the narrow slice of students who encounter no seasonal delays on the critical path.
-- The **spike at semester 12** represents the last graduation opportunity before the horizon; students who reach this point experienced exactly the number of delays that kept them just inside the 6-year window.
-- The structural minimum graduation time, even with no failures, is constrained by the CMPS 303 → CMPS 323 (Spring) → CMPS 493 (compound 84 CH + CMPS 310 rule) → CMPS 499 chain. A student passing CMPS 303 in Fall Year 2 takes CMPS 323 in Spring Year 2 and CMPS 310 concurrently or in Fall Year 3; CMPS 493 is available once 84 CH are completed and prerequisites are met, and CMPS 499 follows thereafter — placing the structural minimum at 8 semesters. Any single failure on a Spring-only course pushes graduation to semester 10 or later.
+- The distribution has a **sharp peak at semester 8** (19 of 71 graduates), with two more graduating earlier at semester 7. These 21 on-time students are the narrow slice who navigate the critical path with no seasonal misalignment, securing CMPS 310 in Fall and CMPS 405 in the immediately following Spring without a single year-long wait.
+- The remaining 50 graduates are **spread fairly evenly across semesters 9–12** (12, 15, 12, 11), with a mild secondary peak at semester 10. This long, flat tail, rather than a spike at any single late term, is the signature of seasonal delay: each once-a-year course a student misses or fails adds a full year, scattering graduations across the back half of the horizon rather than clustering them. Notably, semester 12 is the *smallest* of the late bars (11), confirming that few students are pinned to the very last opportunity before the horizon.
+- The structural minimum graduation time, even with no failures, is constrained by the chain CMPS 251 → CMPS 303 → CMPS 405 (Spring) → CMPS 493 (compound 84 CH + CMPS 310 rule) → CMPS 499. Because CMPS 310 is Fall-only and required for CMPS 493, while CMPS 405 is Spring-only, the two senior-project prerequisites cannot both be cleared in the same season, forcing at least a full academic year between them and placing the realistic minimum at 8 semesters, which is exactly where the distribution peaks. Any single failure on a once-a-year course pushes graduation to semester 10 or later.
 
 ---
 
@@ -158,10 +178,10 @@ Key observations:
 **Figure 2** shows cohort flow across all 12 semesters as a stacked area chart.
 
 Key observations:
-- The **enrolled band** shrinks in two phases: an early attrition phase (semesters 1–5) driven by academic withdrawals in the lower curriculum, and a later graduation phase (semesters 8–12) as students complete the senior project sequence.
-- **Academic dropouts** (13% overall) accumulate most rapidly between semesters 4 and 8 — when students first encounter CMPS 303, CMPS 310, CMPS 323, and CMPS 405 and begin accumulating fail counts.
-- The **graduated band** grows only after semester 8, remaining near zero through semesters 1–7. This confirms that the curriculum structure systematically places graduation in Year 4 at the earliest, and in Year 5 for most students.
-- The **censored band** (16%) at semester 12 represents students who were still progressing academically — most were waiting to satisfy the CMPS 493 compound rule — but ran out of time. Making CMPS 493 and CMPS 499 available in both seasons has reduced this group compared to a Fall-only/Spring-only senior project configuration, but the compound credit-hour gate continues to hold some students past the 12-semester horizon.
+- The **enrolled band** holds near its full size through the lower curriculum (semesters 1–4, ~100 students still active), then declines in two overlapping waves: a gentle withdrawal wave from around semester 5 (98 → 91 across semesters 5–7), and a steep graduation wave from semester 8 onward as students clear the senior-project sequence. By semester 12 only 9 remain enrolled, the censored group.
+- **Academic dropouts** (20% overall) first appear at semester 5, the earliest a student can fail the same course the four times the dropout rule requires, and then accumulate steadily through semester 12, with roughly half (11 of 20) occurring by semester 8. They concentrate where students first hit the harder courses: CMPS 251 (0.72, the first high-volume major course), CMPS 303 (0.71), and the Spring-only CMPS 323 / CMPS 405 (both 0.65).
+- The **graduated band** grows only from semester 8, remaining near zero through semesters 1–7 (just 2 graduates by semester 7). This confirms that the curriculum structure systematically places graduation in Year 4 at the earliest, and in Year 5 for most students.
+- The **censored band** (9%) at semester 12 represents students who were still progressing academically, typically waiting on a once-a-year course (CMPS 351/323/405 in Spring; CMPS 310/380/355 in Fall) or not yet satisfying the CMPS 493 compound rule, but ran out of time. This band is small relative to the dropout band: once the CMPS 310 capacity constraint was relaxed, most students who would otherwise have been left waiting at the horizon instead reach and resolve their remaining courses before semester 12.
 
 ---
 
@@ -173,15 +193,15 @@ Key observations:
 
 Key observations:
 
-- **0–29 CH (Year 1, blue):** Empties quickly by semester 3. The introductory sequence (CMPS 151, CMPS 251, mathematics, general education) is completed without major difficulty — high pass rates (0.80–0.98) and ample section capacity mean few students are held back here.
+- **0–29 CH (Year 1, blue):** Drains rapidly, from the full cohort at semester 1 to roughly 14 students by semester 3, and empty by semester 5. The introductory sequence (CMPS 151, mathematics, general education) is completed without major difficulty; high pass rates and ample section capacity mean few students are held back here.
 
-- **30–59 CH (Year 2, green):** Peaks around semester 3 and drains through semesters 4–6. This band captures the CMPS 303 gateway. Students who fail CMPS 303 (pass rate 0.74) remain in this band for an additional semester. Since CMPS 303 is the prerequisite for six upper-level courses, failures here have the widest downstream effect of any single course. Capacity was raised to 45 seats, reducing the number of students blocked from attempting it each term.
+- **30–59 CH (Year 2, green):** Peaks sharply at semester 3 (≈86 students) and drains through semesters 4–7. This band captures the CMPS 251 → CMPS 303 spine. Students who fail CMPS 251 (0.72) or CMPS 303 (0.71) remain in this band an additional semester. Because CMPS 303 gates the three courses CMPS 323, CMPS 380, and CMPS 405, a failure here has the widest downstream effect of any single course.
 
-- **60–89 CH (Year 3, orange):** Shows the most prolonged plateau, persisting from semesters 4 through 9. Students in this band are eligible for CMPS 323 (Spring-only) and CMPS 405 (also Spring-only), which compete for student load in the same Spring semester. CMPS 310, offered in both Fall and Spring, can be taken concurrently with CMPS 323 in Spring or alongside other courses in Fall, reducing the sequential stacking that previously held students in this band. Despite this, Spring congestion remains the primary cause of the plateau: students who fail CMPS 323 or CMPS 405 in Spring must wait a full year to retry, keeping them in the 60–89 CH band longer than the study plan assumes.
+- **60–89 CH (Year 3, orange):** Forms a broad hump that peaks at semesters 5–6 (≈58 students) and persists through semester 9. Students in this band are eligible for the once-a-year upper courses, CMPS 323 and CMPS 405 (Spring) and CMPS 380 and CMPE 355 (Fall), and they queue across both seasons. A student who fails any of these must wait a full year to retry, keeping them in the 60–89 CH band far longer than the study plan assumes.
 
-- **90–119 CH (Year 4+, red):** Never exceeds ~25 students simultaneously, constrained by the CMPS 493 gate (30 seats, compound 84 CH + CMPS 310 rule) and prior attrition. With CMPS 493 and CMPS 499 now available in both Fall and Spring, students who clear the 84 CH threshold mid-year are no longer forced to wait for a specific season; they can attempt CMPS 493 in the next available term. The slow growth of this band across semesters 7–11 reflects the compound rule's gatekeeping rather than a seasonal restriction.
+- **90–119 CH (Year 4+, red):** Builds rapidly from semester 6, peaking at roughly 43 students around semesters 7–8, then drains as students graduate out. Entry to this band is gated by the CMPS 493 compound rule (84 CH + CMPS 310 + CMPS 350/405) combined with the Fall-only CMPS 310 requirement: a student who misses CMPS 310 in Fall cannot satisfy the compound rule until the following year, which is what stretches the band's drain-down across semesters 9–12 rather than clearing it quickly.
 
-The Year 3 plateau (orange) is the most diagnostic feature of this chart. Its persistence from semester 5 through semester 9 shows that students are clearing the 60 CH threshold but then queuing through two sequential Spring-only courses (CMPS 323 and CMPS 405) before they can advance to the senior project stage. This two-course Spring gauntlet is the dominant structural bottleneck in the curriculum.
+The Year 3 band (orange) is the most diagnostic feature of this chart. Its broad hump, peaking at semesters 5–6 and persisting through semester 9, shows that students are clearing the 60 CH threshold but then queuing through once-a-year courses spread across both seasons before they can advance to the senior project stage.
 
 ---
 
@@ -191,49 +211,68 @@ The Year 3 plateau (orange) is the most diagnostic feature of this chart. Its pe
 
 **Figure 4** shows the four bottleneck signals as separate horizontal bar charts. Each panel measures a different mechanism; cross-panel magnitude comparisons are not meaningful, but the pattern of which courses appear in which panels is the key finding.
 
-#### Panel 1 — Failures (red)
+#### Panel 1: Failures (red)
 
 | Course | Cumulative Fail Events |
 |---|---|
-| CMPS 405 Operating Systems | 55 |
-| CMPE 355 Data Comm. and Networks I | (2nd) |
-| CMPS 323 Algorithms | (3rd) |
+| CMPS 323 Algorithms | 49 |
+| CMPS 405 Operating Systems | 47 |
+| CMPE 263 Computer Architecture | 45 |
+| CMPS 303 Data Structures | 45 |
+| CMPS 251 OOP | 44 |
 
-CMPS 405 leads failures: it is Spring-only with a pass rate of 0.65, meaning every student who attempts it faces a 35% chance of failing and waiting a full year to retry. CMPE 355 (Data Communication and Computer Networks I, pass rate 0.72) is a new entrant as the second-highest failure course — this course sits downstream of CMPE 263 (Computer Architecture) and is attempted by many students in the 60–89 CH band concurrently with the Spring-only bottleneck courses, amplifying its failure count despite a relatively moderate difficulty. CMPS 323 generates the third-most failures; its Spring-only constraint means students attempt it in the same semester as CMPS 405, splitting attention across two hard courses simultaneously.
+CMPS 323 leads failures: at a 0.65 pass rate, roughly one in three students fails each attempt, and its Spring-only constraint funnels a full year's eligible students into a single registration window. CMPS 405 (0.65, Spring-only) follows for the same difficulty-plus-concentration reason. CMPE 263, CMPS 303, and CMPS 251 cluster just behind: none has an especially low pass rate (0.76 / 0.71 / 0.72), but all three are high-volume courses taken by nearly the whole cohort, so their absolute failure counts are large. The failure panel is now tightly bunched (45–49 across the top five), indicating no single course dominates on difficulty alone.
 
-#### Panel 2 — Capacity Blocks (orange)
+#### Panel 2: Capacity Blocks (orange)
 
 | Course | Denied Registrations |
 |---|---|
-| CMPS 323 Algorithms | 47 |
-| CMPS 303 Data Structures | (2nd) |
+| CMPS 351 Database Systems | 58 |
+| CMPS 380 Cybersecurity | 37 |
+| CMPS 350 Web Development | 36 |
+| CMPE 263 Computer Architecture | 30 |
+| CMPS 205 Discrete Structures | 30 |
 
-CMPS 323 now leads capacity blocks. With CMPS 303's capacity raised from 35 to 45 seats, the queuing pressure at that gateway has eased, shifting the top capacity block signal to CMPS 323 (Spring-only, 35 seats). CMPS 323's Spring-only constraint concentrates an entire year's accumulated eligible-but-blocked students into a single semester's registration window, consistently generating the highest denial count.
+CMPS 351 (Database, Spring-only, 40 seats) decisively leads capacity blocks: its once-a-year offering concentrates an entire year's accumulated eligible students into one Spring registration window, far exceeding the 40-seat capacity. The next tier (CMPS 380, CMPS 350) reflects ordinary demand pressure at 35–40-seat courses. Notably, **CMPS 310 has dropped to 25 capacity blocks** (from 47) after its capacity was raised from 35 to 40, direct evidence that the seat increase relieved the queue at that course.
 
-#### Panel 3 — Offering Blocks (blue)
+#### Panel 3: Offering Blocks (blue)
 
 | Course | Missed-offering Events |
 |---|---|
-| CMPS 323 Algorithms | 213 |
-| CMPS 405 Operating Systems | (2nd, dominant) |
+| CMPS 351 Database Systems | 189 |
+| CMPS 323 Algorithms | 162 |
+| CMPS 310 Software Engineering | 161 |
+| CMPS 380 Cybersecurity | 157 |
+| CMPE 355 Computer Networks I | 152 |
+| CMPS 405 Operating Systems | 147 |
 
-CMPS 323 and CMPS 405 dominate the offering-block panel — both Spring-only, generating missed-offering events every Fall semester that an eligible student remains uncompleted. CMPS 323's count (213) dwarfs its failure count (~40–55), confirming that seasonal scheduling is a far larger source of delay than course difficulty for this course. CMPS 493 and CMPS 499, now offered in both seasons, have dropped to near-zero offering blocks, a direct consequence of removing their previous Fall-only and Spring-only restrictions.
+This is the single most important panel. **CMPS 351 (Database, Spring-only) leads with 189 offering-block events**, every Fall term an eligible student waits for the Spring-only course. The six courses in this panel are exactly the six once-a-year offerings; their offering-block counts dwarf their failure counts, confirming that **seasonal scheduling is a far larger source of delay than course difficulty.** CMPS 310 remains third (161) and is uniquely damaging despite its rank: because it is required for the CMPS 493 compound rule, a student who misses the Fall CMPS 310 offering cannot enter the senior-project sequence until the following academic year, propagating the delay all the way to graduation. This is why relieving CMPS 310, even via capacity rather than offering season, produced the largest graduation gain of any single change in calibration.
 
-#### Panel 4 — Prerequisite Blocks (purple)
+#### Panel 4: Prerequisite Blocks (purple)
 
-CMPS 499 (Senior Project II) leads because it requires CMPS 493 first. Any semester a student has not yet passed CMPS 493 generates a prereq block for CMPS 499. CMPS 493 itself also appears, reflecting students still working to satisfy its compound rule — particularly the 84 CH threshold combined with CMPS 310 and either CMPS 350 or CMPS 405.
+| Course | Prereq-block Events |
+|---|---|
+| CMPS 499 Senior Project II | 748 |
+| CMPS 493 Senior Project I | 648 |
+| CMPS 405 Operating Systems | 368 |
+| CMPS 323 Algorithms | 345 |
+| CMPS 380 Cybersecurity | 341 |
+
+CMPS 499 and CMPS 493 dominate: the senior-project compound rule (84 CH + CMPS 310 + CMPS 350/405) holds students in a prereq-blocked state for many terms, and CMPS 499 inherits every one of those terms because it sits behind CMPS 493. **The third, fourth, and fifth places, CMPS 405 (368), CMPS 323 (345), CMPS 380 (341), are exactly the three courses gated by CMPS 303.** Their near-identical, high counts are the clearest quantitative signature of the CMPS 303 gateway: a single upstream course holding back its three dependents in lockstep.
 
 #### Cross-panel summary
 
 | Course | Failures | Cap Blocks | Offering Blocks | Prereq Blocks |
 |---|---|---|---|---|
-| CMPS 405 | ✓ (1st) | — | ✓ (2nd, dominant) | — |
-| CMPS 323 | ✓ (3rd) | ✓ (1st) | ✓ (1st, dominant) | — |
-| CMPE 355 | ✓ (2nd) | — | — | — |
-| CMPS 303 | ✓ | ✓ (2nd) | — | ✓ |
+| CMPS 351 | — | ✓ (1st) | ✓ (1st) | — |
+| CMPS 323 | ✓ (1st) | — | ✓ (2nd) | ✓ |
+| CMPS 310 | — | ✓ | ✓ (3rd) | — |
+| CMPS 405 | ✓ (2nd) | — | ✓ | ✓ (3rd) |
+| CMPS 380 | — | ✓ (2nd) | ✓ | ✓ (5th) |
+| CMPS 303 | ✓ | — | — | (upstream cause) |
 | CMPS 499 | — | — | — | ✓ (1st) |
 
-CMPS 405 and CMPS 323 together dominate offering blocks — both Spring-only, encountered by the same students in the same Spring semesters. CMPS 323 leads capacity blocks due to its Spring-only concentration effect; CMPS 303's capacity increase (35→45) has shifted queuing pressure away from the gateway and toward the mid-curriculum Spring bottleneck. CMPE 355 appears in failures but not in the scheduling panels, confirming it is a difficulty-driven bottleneck rather than a seasonal one. CMPS 493 and CMPS 499 have largely exited the offering-block panel following their transition to year-round availability.
+CMPS 351 (Database, Spring-only) is now the most broadly binding scheduling constraint, topping both the capacity-block and offering-block panels. CMPS 303 appears modestly in failures but is the *upstream cause* of the CMPS 405/323/380 prereq-block cluster. CMPS 310, though no longer topping any panel after its capacity increase, remains structurally pivotal because it gates the senior project. The senior-project sequence (CMPS 493/499) owns the prereq panel via the compound rule.
 
 ---
 
@@ -245,66 +284,80 @@ CMPS 405 and CMPS 323 together dominate offering blocks — both Spring-only, en
 
 Key observations:
 
-- **CMPS 303 as the central hub.** CMPS 303 has the highest out-degree in the graph, with direct edges to CMPS 323, CMPS 310, CMPS 351, CMPS 380, CMPS 405, and CMPE 263. Despite not appearing as the top failure course, it is structurally the most important node: failures here block all six downstream courses simultaneously.
+- **CMPS 303 as the central gateway.** CMPS 303 has the highest *effective* out-degree on the critical path, with direct edges to CMPS 323, CMPS 380, and CMPS 405. With a failure count of 45 it is also among the most-failed courses, but its structural importance exceeds its difficulty: a failure here blocks all three dependents simultaneously, and the prereq-block panel (§4.5) shows those three dependents carrying the highest non-senior-project block counts (368, 345, 341).
 
-- **The linear path to graduation.** The path CMPS 303 → CMPS 310 → CMPS 493 → CMPS 499 is a straight line with no parallel routes. CMPS 323 branches off from CMPS 303 but is not a formal prerequisite in the graduation chain; however, its Spring-only constraint means it competes with CMPS 405 for student load and is sequenced between CMPS 303 and the senior project in the study plan, creating a de facto bottleneck.
+- **The path to graduation forks then reconverges.** From CMPS 251, the graph forks into the CMPS 303 cluster and the CMPS 310 branch. Both must complete before CMPS 493: the compound rule requires CMPS 310 *and* (CMPS 350 or CMPS 405). Because CMPS 310 is Fall-only and CMPS 405 is Spring-only, the two branches cannot be cleared in a single season, structurally enforcing a multi-semester convergence before the senior project.
 
-- **CMPS 405 appears as the darkest node** (most failure events, 55), consistent with its Spring-only constraint and 0.65 pass rate concentrating failures into a single season. CMPE 355 is the second-darkest, reflecting its position as the next most failure-prone course after the Spring bottleneck courses.
+- **CMPS 323 is the darkest node** (most failure events, 49), consistent with its 0.65 pass rate and Spring-only constraint concentrating failures into a single season. CMPS 405 (47), CMPE 263 (45), and CMPS 303 (45) follow closely.
 
 ---
 
 ## 5. Discussion
 
-### 5.1 Spring Congestion: The Primary Bottleneck
+### 5.1 The CMPS 303 Gateway
 
-The most important structural finding is that two upper-curriculum courses are Spring-only (CMPS 323, CMPS 405), while CMPS 310, CMPS 493, and CMPS 499 are now available in both seasons. This creates asymmetric seasonal congestion concentrated in Spring:
+The clearest prerequisite-chain finding is the CMPS 303 (Data Structures) gateway. CMPS 303 is the prerequisite for three upper-level courses (CMPS 323, CMPS 380, and CMPS 405), and the prerequisite-block panel shows these three carrying nearly identical, high block counts (368, 345, 341). This lockstep pattern is the quantitative fingerprint of a gateway: the three dependents are blocked in unison precisely because they share the single upstream requirement.
 
-**In Spring**, students in Year 3 must compete for seats in both CMPS 323 (35 seats, pass rate 0.65) and CMPS 405 (35 seats, pass rate 0.65) simultaneously. Both courses have the lowest pass rates in the curriculum. A student who takes both and fails one must wait a full year to retry. A student who fails both in the same Spring faces two compounding year-long delays.
+With a pass rate of 0.71, roughly 29 of 100 students fail CMPS 303 on their first attempt. Because it is offered both Fall and Spring, the direct delay from a failure is only one semester, but those students then arrive at the once-a-year upper courses one semester out of phase, frequently missing the next CMPS 323 (Spring) or CMPS 380 (Fall) offering entirely and converting a one-semester slip into a full-year delay. CMPS 303 is thus a *delay amplifier*: its own recovery is fast, but it pushes students into the seasonal bottlenecks at the wrong time of year. Ensuring early, well-supported enrollment in CMPS 303 is the highest-leverage advising intervention in the lower curriculum.
 
-**Making CMPS 493 and CMPS 499 year-round** has materially reduced end-of-path congestion: the censored rate dropped from 24% (under a Fall-only/Spring-only senior project configuration) to 16% in the current model. Students who clear the 84 CH compound rule mid-year can now attempt CMPS 493 in the very next term rather than waiting up to a full semester for the single available season.
+### 5.2 Seasonal Congestion Across Both Seasons
 
-**The offering-block counts for CMPS 323 (213) and CMPS 405 each exceed their combined failure counts by a factor of four**, demonstrating that seasonal constraints are far larger sources of delay than course difficulty for these two courses. Every eligible student who cannot attempt a Spring-only course in Fall generates one offering-block event, making this signal scale with both the number of affected students and the number of Fall semesters they remain stuck.
+The curriculum concentrates six upper-level courses into once-a-year offerings, CMPS 323, CMPS 405, and CMPS 351 in Spring; CMPS 310, CMPS 380, and CMPE 355 in Fall. Unlike a purely Spring-concentrated design, this spreads congestion across both seasons but does not eliminate it: any single failure still costs a full year, and the offering-block panel (the six once-a-year courses occupying all six top positions) confirms that seasonal scheduling, not difficulty, is the dominant delay mechanism.
 
-**CMPE 355 as an emerging bottleneck.** The second-highest failure count belongs to CMPE 355 (Data Communication and Computer Networks I, pass rate 0.72). This course is offered year-round and its failures are not amplified by seasonal restrictions; the signal reflects pure difficulty. Students attempting CMPE 355 are typically in the 60–89 CH band, concurrent with the Spring bottleneck courses, which may reduce study load available for it. This course warrants monitoring as a secondary difficulty-driven bottleneck.
+**CMPS 351 (Database Systems, Spring-only) is the largest single seasonal bottleneck, a result that is initially counterintuitive.** It tops both the capacity-block panel (58 denied registrations) and the offering-block panel (189 missed-offering events), yet it is neither a hard course (0.75 pass rate) nor a senior-project gate. Its severity comes from a combination of three structural features that no other once-a-year course shares:
 
-### 5.2 The CMPS 303 Gateway
+1. **The shallowest prerequisite of any Spring-only course.** CMPS 351 requires only CMPS 251 (OOP), whereas CMPS 323 requires CMPS 303 + CMPS 205 and CMPS 405 requires CMPS 303 + CMPE 263. Because CMPS 251 is cleared early, most of the surviving cohort passes it by semester 3–4, nearly the entire cohort becomes eligible for CMPS 351 a year or more before it becomes eligible for the deeper-gated CMPS 323/405. CMPS 351 therefore has the **largest and earliest-arriving eligible pool** of any restricted course.
 
-CMPS 303 (Data Structures) remains the most structurally critical course despite not appearing as the top failure course. It is the prerequisite for six upper-level courses, so any failure there simultaneously blocks access to CMPS 323, CMPS 310, CMPS 351, CMPS 380, CMPS 405, and CMPE 263. With a pass rate of 0.74, roughly 26 out of 100 students fail it on their first attempt. Because it is offered Fall and Spring, the delay from a failure is at most one semester — but those students then arrive at the Spring-only upper courses one semester later, often just out of phase with the optimal scheduling window. Raising capacity from 35 to 45 seats has reduced capacity blocking at this gateway; the queuing pressure has shifted downstream to CMPS 323.
+2. **A once-a-year offering that funnels that whole pool into one window.** With the entire eligible population competing in a single Spring registration each year, the 40-seat capacity is overwhelmed, producing the curriculum's largest queue. This is why CMPS 351 also leads the offering-block panel: the offering-block signal accrues one event per eligible student per Fall they wait, and CMPS 351 keeps the most students in the eligible-but-waiting state across the most terms.
+
+3. **A capacity denial that costs a full year, not a semester.** Because the next offering is twelve months away, a student denied a Spring seat cannot simply retry the following term. The seasonal restriction and the seat shortage therefore *multiply* rather than add.
+
+The broader lesson is that **bottleneck severity is driven by demand concentration, not course difficulty**. Loosely, the pressure on a course scales with (size of the eligible pool) × (1 / offering frequency) × (demand − capacity). CMPS 351 maximises the first two terms, a large, early-arriving pool funneled through one annual window, which dominates even though the course is easy. CMPS 323 and CMPS 405 are harder *per attempt* but sit behind the deeper CMPS 303 chain, so their eligible pools are smaller, later, and more staggered, generating fewer raw block events. A telling confirmation appears in the model's own calibration history: when CMPS 351 was offered in both seasons it was not a bottleneck at all; the moment it was restricted to Spring-only, its large eligible pool had nowhere to go and it jumped to the top of both scheduling panels. A shallow prerequisite paired with a once-a-year offering is thus a worse structural design than a difficult course.
+
+**CMPS 310 (Software Engineering, Fall-only) is the most structurally pivotal seasonal constraint, even though it no longer tops any panel.** Because CMPS 493 requires a pass in CMPS 310, the Fall-only restriction acts as a hard annual gate on senior-project entry: a student who misses the Fall offering cannot begin the senior project until the following academic year. The simulation demonstrates how binding this course is through a capacity experiment: raising CMPS 310 from 35 to 40 seats lifted graduation from 67% to 71% and cut the censored rate from 19% to 9%, the largest response to any single calibration change. The mechanism is a shift from *waiting* to *attempting*: students previously stranded in the registration queue (and timing out at the horizon as censored) now secure a seat, clear the course, and proceed, though some then fail downstream courses, which is why the academic-dropout rate rose to 20% as censored fell. The net effect is strongly positive for completion, and it confirms CMPS 310 as a primary intervention target (see §5.4).
+
+**The Spring theory pair.** CMPS 323 (0.65) and CMPS 405 (0.65) are both Spring-only and both the hardest courses in the plan. A Year-3 student typically faces both in the same Spring, splitting study load across two low-pass-rate courses; a failure in either costs a year. They lead the failure panel and rank highly in offering blocks, reflecting this compounding of difficulty and seasonal restriction.
 
 ### 5.3 Comparison with Real QU Graduation Rates
 
 | Horizon | Simulation | Real QU | Gap |
 |---|---|---|---|
-| 4-year (8 semesters) | 20% (on-time) | 51.5% | −31.5 pp |
+| 4-year (8 semesters) | 21% (on-time) | 51.5% | −30.5 pp |
 | 6-year (12 semesters) | 71% | 72.3% | −1.3 pp |
 
-The simulation's 12-semester graduation rate (71%) is within 1.3 percentage points of QU's 6-year benchmark — a substantially closer fit than earlier calibration states. The simulation models grade replacement — when a student passes a retake, all prior F grades for that course are removed from the GPA denominator — which reduces the probation rate to 16%, within the 15–25% face-validity target. The remaining 1.3 pp gap at the 6-year horizon reflects mechanisms still absent from the model: summer enrolment would allow real students to retry a Spring-only course within months rather than waiting a full year, and course withdrawal flexibility allows real students to exit a course before receiving an F grade. The 4-year gap (−31.5 pp) remains wide, confirming that the nominal 8-semester plan is structurally unachievable for most students under realistic assumptions about failures and seasonal restrictions.
+The simulation's 12-semester graduation rate (71%) is within 1.3 percentage points of QU's 6-year benchmark, a close structural fit. The model encodes grade replacement, when a student passes a retake, all prior F grades for that course are removed from the GPA denominator, which holds the probation rate to 17%, within the 15–25% face-validity target. The remaining 1.3 pp reflects mechanisms still absent from the model: summer enrolment would let real students retry a once-a-year course within months rather than waiting a full year, and course-withdrawal flexibility lets real students exit a course before receiving an F. The 4-year gap (−30.5 pp) remains wide, confirming that the nominal 8-semester plan is structurally unachievable for most students under realistic assumptions about failures and seasonal restrictions.
 
 ### 5.4 Implications for Curriculum Design
 
-The simulation points to three specific interventions ordered by expected impact:
+The simulation points to five specific interventions, ordered by expected impact:
 
-1. **Add a Fall offering of CMPS 323.** With 213 offering blocks across 12 semesters, CMPS 323's Spring-only constraint is the largest remaining seasonal impediment. A Fall section would allow students who fail in Spring to retry the following Fall rather than waiting a full year, and would allow students to spread CMPS 323 and CMPS 405 across different semesters — reducing the simultaneous double-bottleneck effect in Year 3 Spring.
+1. **Relieve the CMPS 310 (Software Engineering) senior-project gate.** CMPS 310 is currently Fall-only and is required for the CMPS 493 compound rule, so its restriction is not merely a scheduling inconvenience, it is a hard annual gate on senior-project entry. A student who fails or misses CMPS 310 in Fall loses a full year before they can begin the senior project. The simulation demonstrates how binding this course is: increasing its section capacity from 35 to 40 seats alone lifted graduation from 67% to 71% and cut the censored rate from 19% to 9%, the largest response to any single change tested. Adding a **Spring offering** of CMPS 310 (rather than, or in addition to, the capacity increase) would remove the annual gate entirely and is the model's top recommendation.
 
-2. **Make CMPS 493 and CMPS 499 year-round (implemented).** This change reduced the censored rate from 24% to 16%, adding approximately 6–7 graduating students per cohort who were previously held past the 12-semester horizon solely by the seasonal gate. The compound credit-hour rule remains a gatekeeping constraint and cannot be resolved by scheduling alone.
+2. **Add a Fall offering of CMPS 351 (Database Systems).** CMPS 351 is the largest single seasonal bottleneck in the curriculum, topping both the capacity-block panel (58 denied registrations) and the offering-block panel (189 missed-offering events). Its Spring-only offering forces a full year's eligible students into one registration window where they exceed capacity. A second (Fall) offering would halve the accumulated demand per term and eliminate the curriculum's largest queue.
 
-3. **Raise CMPS 303 capacity from 35 to 45 (implemented).** This change reduced capacity blocking at the gateway course and shifted queuing pressure to CMPS 323. The overall effect on graduation is modest because CMPS 303 failures — not capacity blocks — are the primary source of Year 2 delay; capacity expansion does not reduce the probability of failing the course.
+3. **Ensure CMPS 303 (Data Structures) is taken and passed at the earliest eligible opportunity.** CMPS 303 gates three upper-level courses (CMPS 323, CMPS 380, CMPS 405), and the prereq-block panel shows those three blocked in lockstep (368, 345, 341). Because a one-semester slip in CMPS 303 lands students out of phase with the once-a-year offerings of its dependents, the effective penalty is often a full year, not a semester. Targeted advising (mandatory early enrollment) and academic support (tutoring before the attempt) would reduce this cascade at its source.
+
+4. **Add a Fall offering of CMPS 323 and/or CMPS 405.** These two Spring-only theory courses (both 0.65) are encountered together in the same Spring, and each generates a large offering-block signal (162 and 147). Splitting them across seasons, by adding a Fall section to at least one, would let students take one hard theory course per semester rather than both at once, reducing concurrent cognitive load and cutting the number forced to wait a full year after a single Spring failure.
+
+5. **Provide structured academic support for the 0.65 courses (CMPS 323, CMPS 405).** Scheduling interventions reduce waiting time but not the probability of failure. With roughly one in three students failing each attempt, supplemental instruction, peer tutoring, and prerequisite bridge sessions would raise effective pass rates and shrink the failure panel directly. Even a modest improvement to ~0.72 would compound the benefit of any new seasonal offering.
 
 ---
 
 ## 6. Conclusion
 
-This simulation study identifies seasonal scheduling as the dominant structural contributor to student delay and non-completion in the QU CS curriculum, surpassing course difficulty as a cause of blocked progress. The offering-block count for CMPS 323 alone (213 events) exceeds the total failure count for all courses combined, confirming that when a student is unable to graduate on time, the most likely cause is waiting for a course offered only once per year — not failing a course they attempted.
+This simulation study identifies two structural mechanisms as the dominant contributors to student delay and non-completion in the QU CS curriculum: the **CMPS 303 prerequisite gateway** and **once-a-year course scheduling**. The prerequisite-block panel shows CMPS 303's three dependents (CMPS 323, CMPS 380, CMPS 405) blocked in lockstep at the highest non-senior-project counts in the curriculum, while the offering-block panel is occupied entirely by the six once-a-year courses, confirming that for students who do not graduate on time, the most likely cause is waiting for a course offered only once per year, not failing a course they attempted.
 
-The curriculum's Spring concentration (CMPS 323 and CMPS 405 both Spring-only) creates a single-semester bottleneck in Year 3 with limited recovery options. Students who fail in this critical Spring period face year-long delays that cascade forward through the senior project compound rule (CMPS 310 → CMPS 493 → CMPS 499), turning a single semester's difficulty into a two-to-three year delay. Making CMPS 493 and CMPS 499 year-round has materially eased end-of-path congestion (censored rate fell from 24% to 16%), but the upstream Spring bottleneck at CMPS 323 and CMPS 405 continues to generate the largest block signal in the simulation.
+The most actionable finding concerns **CMPS 310 (Software Engineering)**, currently offered Fall-only and required for the senior-project compound rule. Its restriction acts as a hard annual gate that converts a single missed term into a year-long delay before the senior project. The simulation quantifies how binding this gate is: relieving it through a modest capacity increase (35 → 40 seats) raised graduation from 67% to 71% and cut the censored rate from 19% to 9%, converting students who had been timing out *waiting* for a seat into students who reach and clear their courses. Extending CMPS 310 to both semesters would remove the annual gate entirely and is the single highest-impact curriculum change the model identifies. The largest *raw* scheduling bottleneck, meanwhile, is **CMPS 351 (Database Systems, Spring-only)**, which tops both the capacity- and offering-block panels and is the second clear candidate for a added seasonal offering.
 
-The simulation's 71% six-year graduation rate is within 1.3 percentage points of QU's published 6-year benchmark of 72.3%, validating the model's structural assumptions. This close fit confirms that the four block signals — particularly the offering-block count for Spring-only courses — capture the dominant mechanisms of delay in the real curriculum. The remaining gap quantifies the combined benefit of summer enrolment, course withdrawal flexibility, and academic advising, and provides a concrete target for future model extensions.
+The simulation's 71% six-year graduation rate sits just 1.3 percentage points below QU's published benchmark of 72.3%, validating the model's structural assumptions. The four block signals, particularly the offering-block counts for the six once-a-year courses and the prerequisite-block cluster behind CMPS 303, capture the dominant mechanisms of delay and provide concrete, prioritized targets for curriculum reform.
 
 ---
 
 ## References
 
-Qatar University. (2024). *BSc Computer Science 2024 Study Plan and Program Roadmap*. College of Engineering, Qatar University.
+Duarte, O., & Márquez, C. (n.d.). *A model of student flow through the college curriculum*. Universidad Nacional de Colombia.
+
+Qatar University. (2024). *BSc Computer Science 2024 Study Plan, Program Roadmap, and Prerequisite Flowchart*. College of Engineering, Qatar University.
 
 Qatar Open Data Portal. (2024). *QU registered students per semester (Fall 2015 – Spring 2025)*. data.gov.qa.
 

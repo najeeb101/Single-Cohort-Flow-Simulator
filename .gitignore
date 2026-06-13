@@ -1,0 +1,42 @@
+# ---- Python ----
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+build/
+dist/
+
+# ---- Virtual environments ----
+.venv/
+venv/
+env/
+ENV/
+
+# ---- Testing / coverage ----
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+
+# ---- Claude Code ----
+# Keep the shared project settings; ignore personal/local state.
+.claude/*
+!.claude/settings.json
+.claude/settings.local.json
+
+# ---- IDE / editor ----
+.vscode/
+.idea/
+*.swp
+*~
+
+# ---- OS noise ----
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ---- Project-specific (OPTIONAL — see note below) ----
+# outputs/        # generated figures + CSV. Leave COMMITTED so report.md renders on GitHub.
+# data/qu_raw/    # downloaded QU open-data CSVs (validation only; re-downloadable via scripts/analyze_qu_data.py)

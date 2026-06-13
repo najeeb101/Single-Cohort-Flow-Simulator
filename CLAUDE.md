@@ -62,7 +62,8 @@ src/
 
 ## Key Constraints
 
-- CMPS493 is **Fall-only**; CMPS323, CMPS405, CMPS499 are **Spring-only**; CMPS310 is offered Fall + Spring
+- **Spring-only:** CMPS323, CMPS405, CMPS351. **Fall-only:** CMPS310, CMPS380, CMPE355. All other courses (incl. CMPS493, CMPS499) are offered Fall + Spring.
+- CMPS303 is the gateway course: it is the prerequisite for CMPS323, CMPS380, CMPS405 (unlocks exactly these three)
 - CMPS493 compound rule: requires CMPS310 + (CMPS350 OR CMPS405) + completed_ch ≥ 84
 - D or better satisfies any prerequisite
 - GPA = Σ(grade_points × credits) / Σ(all_attempted_credits) — F = 0.0 pts included in denominator

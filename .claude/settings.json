@@ -15,7 +15,9 @@
       "Bash(py -c ' *)",
       "WebFetch(domain:www.csulb.edu)",
       "Bash(python -c \"import json; c = json.load\\(open\\('data/curriculum.json'\\)\\); print\\([x for x in c if x['id'].startswith\\('CMPE'\\)]\\)\")",
-      "Bash(py -c \"import json; data=json.load\\(open\\('data/curriculum.json'\\)\\); [print\\(c\\) for c in data if c['id'] in \\('CMPE355','CMPS323','CMPS405','CMPS303'\\)]\")"
+      "Bash(py -c \"import json; data=json.load\\(open\\('data/curriculum.json'\\)\\); [print\\(c\\) for c in data if c['id'] in \\('CMPE355','CMPS323','CMPS405','CMPS303'\\)]\")",
+      "PowerShell(cd \"c:\\\\Users\\\\ACER\\\\Documents\\\\GitHub\\\\Single-Cohort-Flow-Simulator\"; $env:PYTHONPATH=\".\"; py scripts\\\\_dump_blocks.py)",
+      "Bash(gh pr *)"
     ]
   }
 }
