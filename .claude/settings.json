@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -m pytest tests/ -v)",
+      "PowerShell(Get-Command python3, py -ErrorAction SilentlyContinue)",
+      "PowerShell(Get-Command python -ErrorAction SilentlyContinue)",
+      "PowerShell(py -m pip install matplotlib networkx pytest --quiet)",
+      "PowerShell(py -c \"import matplotlib, networkx, pytest; print\\('OK'\\)\")",
+      "Bash(py -m pytest tests/ -v --tb=short)",
+      "Bash(py run.py)",
+      "WebFetch(domain:www.data.gov.qa)",
+      "Bash(python -c \"import pandas as pd; df = pd.read_csv\\('data/qu_raw/qu_registered.csv', sep=';'\\); print\\(df[df['Major'].str.contains\\('omputer', case=False, na=False\\)]['Major'].unique\\(\\)\\)\")",
+      "Bash(py -c \"import pandas as pd; df = pd.read_csv\\('data/qu_raw/qu_registered.csv', sep=';'\\); print\\(df[df['Major'].str.contains\\('omputer', case=False, na=False\\)]['Major'].unique\\(\\)\\)\")",
+      "Bash(py scripts/analyze_qu_data.py)",
+      "Bash(py -c ' *)",
+      "WebFetch(domain:www.csulb.edu)"
+    ]
+  }
+}

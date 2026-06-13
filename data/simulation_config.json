@@ -1,0 +1,26 @@
+{
+  "seed": 42,
+  "cohort_size": 100,
+  "max_terms": 12,
+  "normal_load_ch": 18,
+  "probation_load_ch": 12,
+  "probation_gpa_threshold": 2.0,
+  "probation_min_ch": 25,
+  "dropout_fails_threshold": 4,
+  "dropout_prob_on_repeated_fail": 0.25,
+  "ability_sd": 0.15,
+  "ability_clip": 0.30,
+  "grade_tiers": {
+    "hard_max": 0.72,
+    "medium_max": 0.82,
+    "hard":   {"A": 0.08, "B+": 0.15, "B": 0.32, "C+": 0.22, "C": 0.18, "D": 0.05},
+    "medium": {"A": 0.12, "B+": 0.18, "B": 0.33, "C+": 0.22, "C": 0.13, "D": 0.02},
+    "easy":   {"A": 0.25, "B+": 0.25, "B": 0.25, "C+": 0.12, "C": 0.10, "D": 0.03}
+  },
+  "scenarios": [
+    {
+      "name": "A_baseline",
+      "capacity_multiplier": 1.0
+    }
+  ]
+}
