@@ -7,7 +7,9 @@
 
 ## Abstract
 
-This paper presents a discrete-term stochastic simulation of 100 students progressing through the Qatar University (QU) Bachelor of Science in Computer Science 2024 study plan over a maximum of 12 semesters. The simulation tracks four distinct blocking signals (course failures, capacity denials, seasonal offering mismatches, and unmet prerequisites) to identify which structural features of the curriculum contribute most to student delay and non-completion. Results show a 71% graduation rate within six academic years, an average graduation time of 9.7 semesters, and a 21% on-time rate. Two structural features dominate. First, the **CMPS 303 (Data Structures) gateway**: a single course whose failure simultaneously blocks the three upper-level courses that depend on it (CMPS 323, CMPS 380, and CMPS 405), which together carry the highest prerequisite-block counts in the curriculum outside the senior project sequence. Second, **seasonal scheduling**: six upper-curriculum courses are offered only once per year (CMPS 323, CMPS 405, CMPS 351 in Spring; CMPS 310, CMPS 380, CMPE 355 in Fall), so a single failure forces a full-year wait. CMPS 351 (Database Systems, Spring-only) is the largest single seasonal bottleneck, leading both the capacity-block (58 events) and offering-block (189 events) panels; CMPS 310 (Software Engineering, Fall-only) remains critical because it gates the CMPS 493 senior-project compound rule, and the simulation shows section capacity there is binding: raising CMPS 310 from 35 to 40 seats lifted graduation by four percentage points and cut the censored rate from 19% to 9%. Academic dropout rate is 20%, within the 15–30% face-validity target; relieving the CMPS 310 capacity constraint converted students who previously timed out *waiting* (censored) into students who reach their courses and sometimes *fail* them, a net gain for completion. The simulation implements grade replacement: when a student retakes and passes a previously failed course, all prior F attempts are removed from the GPA denominator, holding the probation rate to 17%, within the 15–25% face-validity target. The simulated 12-semester graduation rate of 71% sits just 1.3 percentage points below QU's published 6-year benchmark of 72.3%.
+This study uses a discrete-term, agent-based simulation to identify where students lose time in the Qatar University (QU) Bachelor of Science in Computer Science 2024 study plan. A cohort of 100 students is simulated over 12 regular semesters, with each term modeling course selection, seat allocation, pass/fail outcomes, probation, dropout, and graduation. Rather than treating non-completion as a single outcome, the model records four separate bottleneck signals: course failures, capacity denials, missed offerings, and unmet prerequisites. This separation makes it possible to distinguish academic difficulty from structural constraints such as annual course offerings and prerequisite chains.
+
+In the baseline scenario, 71% of students graduate within six academic years, close to QU's published 72.3% benchmark, but only 21% graduate on time within eight semesters. The strongest delay mechanisms are not isolated course failures but curriculum structure. CMPS 303 (Data Structures) acts as a gateway: students who fail or delay it are simultaneously blocked from CMPS 323, CMPS 380, and CMPS 405. Seasonal scheduling is the second dominant mechanism. Six upper-curriculum courses are offered only once per year, causing a single missed or failed attempt to become a full-year delay. CMPS 351 produces the largest raw scheduling bottleneck, leading both capacity blocks (58) and offering blocks (189), while CMPS 310 remains the most strategically important intervention point because it gates entry into the senior project sequence. These results suggest that the highest-impact reforms are adding additional offerings for CMPS 310 and CMPS 351, reducing the CMPS 303 gateway effect through early support, and separating high-difficulty Spring-only courses across more registration windows.
 
 ---
 
@@ -92,19 +94,19 @@ All pass rates and capacities are assumed; no per-course historical data is publ
 
 | Course | Pass Rate | Rationale |
 |---|---|---|
-| CMPS 151 Programming Concepts | 0.78 | CS1 weed-out; global ~67%, QU-filtered higher |
-| CMPS 205 Discrete Structures | 0.76 | Math-heavy; real struggle for CS students |
-| CMPS 251 OOP | 0.72 | First true major course; high attempt volume |
-| CMPS 303 Data Structures | 0.71 | Known gateway difficulty |
-| CMPS 350 Web Development | 0.76 | Project-based; moderate difficulty |
-| CMPS 310 Software Engineering | 0.72 | Project course; Fall-only |
-| CMPS 351 Database Systems | 0.75 | Spring-only |
-| CMPS 380 Cybersecurity | 0.75 | Fall-only |
-| CMPE 263 Computer Architecture | 0.76 | Hardware fundamentals |
-| CMPE 355 Computer Networks I | 0.72 | Fall-only; difficulty-driven |
-| CMPS 323 Algorithms | 0.65 | Hardest theory course; Spring-only |
-| CMPS 405 Operating Systems | 0.65 | Spring-only; paired with CMPS 323 |
-| CMPS 493 / 499 Senior Projects | 0.88 / 0.90 | High pass rate by design |
+| CMPS 151 Programming Concepts | 0.78 | First programming course; students are still building syntax, debugging, and problem-decomposition habits |
+| CMPS 205 Discrete Structures | 0.76 | Introduces proof, logic, sets, relations, and combinatorics before many students have mature CS theory skills |
+| CMPS 251 OOP | 0.72 | First major programming step after CS1; object-oriented design, larger assignments, and abstraction make it an early progression filter |
+| CMPS 303 Data Structures | 0.71 | Combines implementation, algorithmic thinking, and prerequisite pressure for several upper-level courses |
+| CMPS 350 Web Development | 0.76 | Applied project course; demanding but more concrete than theory-heavy courses |
+| CMPS 310 Software Engineering | 0.72 | Requires team/project execution and documentation, creating coordination and delivery risk beyond exams |
+| CMPS 351 Database Systems | 0.75 | Combines data modeling, SQL, and design concepts; moderate technical load rather than a primary failure course |
+| CMPS 380 Cybersecurity | 0.75 | Introduces specialized concepts but is less mathematically intensive than algorithms or operating systems |
+| CMPE 263 Computer Architecture | 0.76 | Shifts students toward hardware-level reasoning, representation, and low-level execution models |
+| CMPE 355 Computer Networks I | 0.72 | Combines protocols, layered abstractions, and quantitative reasoning, so it is modeled below the mid-tier applied courses |
+| CMPS 323 Algorithms | 0.65 | Most theory-intensive required course, emphasizing proofs, asymptotic analysis, and abstract problem solving |
+| CMPS 405 Operating Systems | 0.65 | Conceptually dense systems course combining concurrency, memory, processes, scheduling, and low-level reasoning |
+| CMPS 493 / 499 Senior Projects | 0.88 / 0.90 | Taken after major prerequisites; students are advanced and receive supervision, so failure is less common |
 
 **Section capacities (CS-core binding courses; all non-CS pseudo-courses set to 100):**
 
@@ -118,7 +120,7 @@ All pass rates and capacities are assumed; no per-course historical data is publ
 | CMPS 310 | 40 | CMPS 493 | 30 |
 | | | CMPS 499 | 30 |
 
-**GPA model:** Cumulative GPA = Σ(grade points × credits) / Σ(all attempted credits), F = 0.0 points included. **Grade replacement:** when a student retakes and passes a previously failed course, all prior F attempts for that course are removed from the GPA denominator (F = 0.0 pts, so the numerator is unaffected). Only the passing grade counts toward GPA. This models QU's grade improvement policy and is the primary reason the simulation's probation rate (16%) falls within the face-validity target of 15–25%. Without grade replacement, probation exceeded 30%, one early F on a 4-CH course would permanently drag the GPA denominator. Probation triggers when completed CH ≥ 25 and GPA < 2.0. A grade of D or better satisfies any prerequisite.
+**GPA model:** Cumulative GPA = Σ(grade points × credits) / Σ(all attempted credits), F = 0.0 points included. **Grade replacement:** when a student retakes and passes a previously failed course, all prior F attempts for that course are removed from the GPA denominator (F = 0.0 pts, so the numerator is unaffected). Only the passing grade counts toward GPA. This models QU's grade improvement policy and is the primary reason the simulation's probation rate (17%) falls within the face-validity target of 15–25%. Without grade replacement, probation exceeded 30%, one early F on a 4-CH course would permanently drag the GPA denominator. Probation triggers when completed CH ≥ 25 and GPA < 2.0. A grade of D or better satisfies any prerequisite.
 
 ### 3.5 External Benchmark
 

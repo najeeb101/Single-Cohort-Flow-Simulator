@@ -177,7 +177,7 @@ When a student passes a course, their letter grade is sampled from a weighted di
 A grade of **D or better** satisfies a prerequisite. There is no minimum-grade requirement enforced. This is a simplification documented here and in `docs/assumptions.md`.
 
 ### 4.7 GPA and Academic Probation
-- Cumulative GPA = Σ(grade_points × credits) / Σ(completed_credits)
+- Cumulative GPA = Σ(grade_points × credits) / Σ(attempted_credits)
 - **Probation trigger**: `completed_ch ≥ 25 AND gpa < 2.0`
 - **Effect**: max semester load reduced to 12 CH (normal: 18 CH)
 - **Recovery**: `gpa ≥ 2.0` → normal load restored next semester

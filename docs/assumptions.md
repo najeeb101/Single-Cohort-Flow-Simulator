@@ -1,7 +1,7 @@
 # Simulation Assumptions
 
 This document records every assumption made in the Single-Cohort Flow Simulator.
-All assumptions were made before coding and are not changed post-hoc to improve results.
+Assumptions are documented here and were fixed before the final baseline run; calibration choices are noted explicitly where they affect the reported results.
 
 ---
 
@@ -35,25 +35,25 @@ All assumptions were made before coding and are not changed post-hoc to improve 
 ## C. Per-Course Pass Rates
 
 Pass rates are **assumed**; no public per-course failure data exists for QU CS programs.
-They were calibrated to face-validity targets (see §F below) and follow QU course difficulty reputation:
+They were set by curricular role and expected difficulty, then checked against the face-validity targets in §K. Lower rates are assigned to courses that introduce a new level of abstraction, combine mathematical reasoning with programming, or sit on high-pressure prerequisite paths. Higher rates are assigned to low-credit, capstone, and broad general-education requirements where students are expected to receive more structured completion support.
 
 | Course | Base Rate | Difficulty Rationale |
 |---|---|---|
-| CMPS151 | 0.78 | Introductory programming, CS1 weed-out; global ~67%, QU-filtered higher |
-| CMPS200 | 0.98 | 1-CH ethics course |
-| CMPS205 | 0.76 | Discrete mathematics, math-heavy; real struggle for CS students |
-| CMPS251 | 0.72 | OOP, first true major course; high attempt volume |
-| CMPS303 | 0.71 | Data Structures, known gateway bottleneck |
-| CMPS350 | 0.76 | Web Development, project-based; moderate |
-| CMPS351 | 0.75 | Database Systems, Spring-only |
-| CMPS323 | 0.65 | Algorithms, hardest theory course; Spring-only |
-| CMPS310 | 0.72 | Software Engineering, project course; Fall-only |
-| CMPS380 | 0.75 | Cybersecurity, Fall-only |
-| CMPE263 | 0.76 | Computer Architecture, hardware fundamentals |
-| CMPE355 | 0.72 | Computer Networks I, Fall-only; difficulty-driven |
-| CMPS405 | 0.65 | Operating Systems, Spring-only; paired with CMPS323 |
-| CMPS493/499 | 0.88 / 0.90 | Senior Project, high pass rate by design |
-| Non-CS / GED | 0.80–0.98 | Low difficulty; filler courses (MATH_2: 0.85, MATH_4/5: 0.82, PHYS_1: 0.84) |
+| CMPS151 | 0.78 | First programming course; many students are still building syntax, debugging, and problem-decomposition habits |
+| CMPS200 | 0.98 | Low-credit ethics requirement with limited technical barrier |
+| CMPS205 | 0.76 | Discrete structures introduces proof, logic, sets, relations, and combinatorics before many students have mature CS theory skills |
+| CMPS251 | 0.72 | First major programming step after CS1; object-oriented design, larger assignments, and abstraction make it an early progression filter |
+| CMPS303 | 0.71 | Data structures combines implementation, algorithmic thinking, and prerequisite pressure for several upper-level courses |
+| CMPS350 | 0.76 | Applied web-development course; project work is demanding but more concrete than theory-heavy courses |
+| CMPS351 | 0.75 | Database course with modeling, SQL, and design concepts; moderate technical load rather than a primary failure course |
+| CMPS323 | 0.65 | Algorithms is the most theory-intensive required course, emphasizing proofs, asymptotic analysis, and abstract problem solving |
+| CMPS310 | 0.72 | Software engineering requires team/project execution and documentation, creating coordination and delivery risk beyond exams |
+| CMPS380 | 0.75 | Cybersecurity introduces specialized concepts but remains less mathematically intensive than algorithms or operating systems |
+| CMPE263 | 0.76 | Computer architecture shifts students toward hardware-level reasoning, representation, and low-level execution models |
+| CMPE355 | 0.72 | Networks combines protocols, layered abstractions, and quantitative reasoning, so it is modeled below the mid-tier applied courses |
+| CMPS405 | 0.65 | Operating systems is conceptually dense, combining concurrency, memory, processes, scheduling, and low-level systems reasoning |
+| CMPS493/499 | 0.88 / 0.90 | Senior project courses occur after major prerequisites; students are advanced and receive supervision, so failure is less common |
+| Non-CS / GED | 0.80–0.98 | Broad service and general-education courses vary by technical load; math/science are moderate, English/GED are high-completion |
 
 ---
 
