@@ -1,2 +1,2 @@
-scenario,graduation_rate,academic_dropout_rate,censored_rate,avg_graduation_time,on_time_rate,probation_rate,mean_gpa_at_grad,top_fail_1,top_fail_2,top_capacity_block_1,top_offering_block_1,top_prereq_block_1
-A_baseline,0.710,0.200,0.090,9.69,0.210,0.170,2.933,CMPS323,CMPS405,CMPS351,CMPS351,CMPS499
+scenario,graduation_rate,academic_dropout_rate,censored_rate,avg_graduation_time,on_time_rate,probation_rate,mean_gpa_at_grad,top_fail_1,top_capacity_block_1,top_offering_block_1,top_prereq_block_1
+A_baseline,0.703,0.270,0.028,8.79,0.347,0.195,2.927,CMPS251,CMPS303,CMPS310,CMPS499

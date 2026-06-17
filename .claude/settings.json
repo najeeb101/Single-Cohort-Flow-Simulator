@@ -17,7 +17,18 @@
       "Bash(python -c \"import json; c = json.load\\(open\\('data/curriculum.json'\\)\\); print\\([x for x in c if x['id'].startswith\\('CMPE'\\)]\\)\")",
       "Bash(py -c \"import json; data=json.load\\(open\\('data/curriculum.json'\\)\\); [print\\(c\\) for c in data if c['id'] in \\('CMPE355','CMPS323','CMPS405','CMPS303'\\)]\")",
       "PowerShell(cd \"c:\\\\Users\\\\ACER\\\\Documents\\\\GitHub\\\\Single-Cohort-Flow-Simulator\"; $env:PYTHONPATH=\".\"; py scripts\\\\_dump_blocks.py)",
-      "Bash(gh pr *)"
+      "Bash(gh pr *)",
+      "PowerShell(git remote get-url origin)",
+      "Bash(py -m pytest tests/ -q)",
+      "Bash(py -m http.server 8011)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" http://localhost:8011/index.html)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" http://localhost:8011/app.js)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" http://localhost:8011/style.css)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" http://localhost:8011/flow_timeline.json)",
+      "Bash(py scripts/size_sections.py)",
+      "Bash(py -m pytest tests/test_capacity.py -v)",
+      "Bash(git checkout *)",
+      "Bash(git add *)"
     ]
   }
 }

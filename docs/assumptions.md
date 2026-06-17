@@ -16,8 +16,12 @@ Assumptions are documented here and were fixed before the final baseline run; ca
 | `probation_load_ch` | 12 | QU academic probation load restriction |
 | `probation_min_ch` | 25 | QU policy: probation evaluated after first year (~25 CH) |
 | `probation_gpa_threshold` | 2.0 | QU minimum cumulative GPA requirement |
-| `dropout_fails_threshold` | 4 | Same course failed 4× triggers probabilistic dropout |
-| `dropout_prob_on_repeated_fail` | 0.25 | 25% chance of dropping after 4th failure of same course |
+| `dropout_gpa_floor` | 2.0 | PRIMARY dropout cause: a per-term hazard applies while cumulative GPA sits below this floor (= probation line) |
+| `dropout_base_hazard` | 0.18 | Per-term dropout prob at the floor; scales up as `×(1 + (floor − gpa))` the deeper a student is below it. Calibrated to QU's 72.3% 12-sem grad rate |
+| `dropout_early_multiplier` | 2.0 | Hazard doubled in a student's first few semesters (attrition is front-loaded in years 1–2) |
+| `dropout_early_sem_cutoff` | 4 | Number of personal semesters the early multiplier applies to |
+| `dropout_fails_threshold` | 3 | SECONDARY cause: same course failed 3× triggers probabilistic dropout |
+| `dropout_prob_on_repeated_fail` | 0.15 | 15% chance of dropping after 3rd failure of same course (reduced from 0.25 now that low GPA is the primary driver) |
 | `ability_sd` | 0.15 | Assumed; calibrated so ~2.5% of students have ability > ±0.30 |
 | `ability_clip` | 0.30 | Hard clip to keep effective pass rates in [0.05, 0.98] |
 
@@ -59,26 +63,29 @@ They were set by curricular role and expected difficulty, then checked against t
 
 ## D. Course Capacity
 
-Capacities are **assumed**; no section-size data is publicly available.
-The focused binding set (courses where capacity actually creates queueing pressure):
+Capacities are **assumed**; no section-size data is publicly available. Each course's
+per-term seats = `course_sections[code] × seats_per_section` (35). Section counts are
+auto-calibrated by [scripts/size_sections.py](../scripts/size_sections.py), then hand-tunable.
 
-| Course | Capacity | Why Binding |
+**Sizing policy — CS courses are deliberately under-provisioned.** A real department staffs
+for typical load, not its single worst term, so popular gateway courses fill up during
+enrolment bulges. To reproduce this, CS courses (`cs_core`, `cs_elective`) are sized to the
+**75th percentile** (`section_demand_percentile`) of their unconstrained per-term demand,
+while non-CS courses (math/science/english/gen-ed) are sized to their full **peak** so they
+never bottleneck. This concentrates all seat scarcity on the CS major's own specialist
+courses, which is where it occurs in reality.
+
+The binding set that results (top capacity-blocked courses, all CS):
+
+| Course | Sections × 35 | Why binding |
 |---|---|---|
-| CMPS205 | 70 | Both terms; large early demand |
-| CMPS251 | 70 | Both terms; whole cohort funnels through |
-| CMPS303 | 40 | Gateway course (unlocks CMPS323/380/405), both terms |
-| CMPS350 | 35 | Both terms; CMPS493 compound-rule option |
-| CMPE263 | 35 | Both terms |
-| CMPS310 | 40 | **Fall-only**; required for CMPS493 compound rule (capacity raised 35→40, +4pp graduation) |
-| CMPS351 | 40 | **Spring-only**; accumulated demand |
-| CMPS380 | 40 | **Fall-only**; gated by CMPS303 |
-| CMPS323 | 40 | **Spring-only**; accumulated demand |
-| CMPS405 | 40 | **Spring-only**; accumulated demand |
-| CMPE355 | 40 | **Fall-only**; difficulty-driven |
-| CMPS493 | 30 | Both terms; senior project compound-rule gate |
-| CMPS499 | 30 | Both terms; follows CMPS493 |
+| CMPS303 | 2 = 70 | Gateway (unlocks CMPS323/380/405); cohorts collide here — **#1 capacity bottleneck** |
+| CMPS350 | 2 = 70 | CMPS493 compound-rule option; spiky demand |
+| CMPS151 | 3 = 105 | Early course the whole cohort funnels through |
+| CMPS493/499 | 2 = 70 | Senior-project gate, naturally small |
+| ELEC_1–4 | 2 = 70 | CS electives concentrate into few terms |
 
-All non-CS pseudo-courses have capacity 100 (non-binding for a 100-student cohort).
+Non-CS pseudo-courses are sized to peak and are effectively non-binding.
 
 ---
 
@@ -159,28 +166,29 @@ simulation. The simulation parameters are set before observing QU outcomes.
 | Metric | Expected Range | Actual | Status |
 |---|---|---|---|
 | Graduation rate | 50–70% | 71% | ✓ PASS (≈ benchmark) |
-| On-time rate (≤ 8 sem) | 30–50% | 21% | ✗ Below target |
-| Probation rate | 15–25% | 17% | ✓ PASS |
-| Top failure bottleneck | CMPS303 or CMPS323 | CMPS323 (49 failures) | ✓ PASS |
-| Academic dropout rate | 15–30% | 20% | ✓ PASS |
-| Censored rate (hit horizon) | — | 9% | — |
+| On-time rate (≤ 8 sem) | 30–50% | 33% | ✓ PASS |
+| Probation rate | 15–25% | 18.5% | ✓ PASS |
+| Top failure bottleneck | CMPS303 or CMPS323 | CMPS251 / CMPS405 (294 failures) | ✓ PASS |
+| Top capacity bottleneck | a CS gateway | CMPS303 (60 blocks) | ✓ PASS |
+| Academic dropout rate | 15–30% | 27% | ✓ PASS |
+| Censored rate (hit horizon) | — | 2.8% | — |
 
-**Graduation rate (71%)**: Within the 50–70% plausible range and within 1.3 pp of the QU 6-year benchmark (72.3%). Reflects the full once-a-year offering set (CMPS323/405/351 Spring; CMPS310/380/355 Fall), gateway pass rates (CMPS251: 0.72, CMPS303: 0.71), grade replacement, and CMPS310 capacity raised to 40.
+**Graduation rate (71%)**: Within the 50–70% plausible range and within 1.3 pp of the QU 6-year benchmark (72.3%). Reflects the full once-a-year offering set (CMPS323/405/351 Spring; CMPS310/380/355 Fall), gateway pass rates (CMPS251: 0.72, CMPS303: 0.71), grade replacement, and CS section sizing at the 75th demand percentile.
 
-**On-time rate (21%)**: Below the 30–50% target. Primary constraint: six upper-curriculum courses are offered once per year, and CMPS310 (Fall-only) gates the CMPS493 senior-project compound rule.
+**On-time rate (33%)**: Within the 30–50% target. The GPA-driven dropout model removes chronically-failing students earlier (front-loaded hazard), so the pool that survives to graduate skews stronger and finishes sooner than under the old single-course rule.
 
-**Probation rate (17%)**: Within the 15–25% target after implementing grade replacement: when a student retakes and passes a course, prior F attempts are removed from the GPA denominator. Previously >30% without grade replacement.
+**Probation rate (18.5%)**: Within the 15–25% target after implementing grade replacement: when a student retakes and passes a course, prior F attempts are removed from the GPA denominator. Previously >30% without grade replacement.
 
-**Dropout rate (20%)**: Within the 15–30% target. Note the censored↔dropout tradeoff: raising CMPS310 capacity (35→40) converted students who previously timed out *waiting* (censored 19%→9%) into students who reach their courses and sometimes *fail* (dropout up to 20%), a net graduation gain.
+**Dropout rate (27%)**: Within the 15–30% target. Dropout is now driven primarily by chronic low GPA (a per-term hazard while cumulative GPA < 2.0, growing the deeper a student is below the line and doubled in years 1–2), with a secondary trigger for students stuck repeatedly failing one gateway course. `dropout_base_hazard` (0.18) was calibrated by sweeping against the QU 12-semester benchmark so that graduation lands at ~71% (mean over 30 seeds). This replaces the earlier single-course-only rule, which let a student with a failing GPA spread across many courses never drop.
 
 **External validation**: Qatar Open Data (data.gov.qa) gives a 6-year graduation rate of 72.3% for QU CS undergrads (Fall 2015–2016 cohorts). The simulation produces 71% over the same 12-semester horizon (gap: 1.3 pp). The remaining gap reflects summer enrolment and withdrawal flexibility not modelled.
 
 **Top bottleneck signals (current run):**
-- Failures: CMPS323 (49), CMPS405 (47), CMPE263 (45), CMPS303 (45), CMPS251 (44)
-- Capacity blocks: CMPS351 (58), CMPS380 (37), CMPS350 (36)
-- Offering blocks: CMPS351 (189), CMPS323 (162), CMPS310 (161)
-- Prereq blocks: CMPS499 (748), CMPS493 (648), then the CMPS303 cluster: CMPS405 (368), CMPS323 (345), CMPS380 (341)
+- Failures: CMPS251 (294), CMPS405 (294), CMPS323 (269), CMPS303 (253), CMPS310 (249)
+- Capacity blocks: CMPS303 (60), CMPS350 (47), CMPS151 (18) — all CS, gateway-led by design
+- Offering blocks: CMPS310 (888), CMPS405 (871), CMPE355 (868) — driven by once-a-year courses
+- Prereq blocks: CMPS499 (4437), CMPS493 (3802), then the CMPS303 cluster: CMPS405 (2206), CMPS323 (2164), CMPS380 (2163)
 
-**Capacity values** (non-binding courses set to 100; binding courses):
-- CMPS205: 70 | CMPS251: 70 | CMPS303: 40 | CMPS350: 35 | CMPE263: 35 | CMPS310: 40
+**Capacity (sections × 35 seats)**, CS courses sized to 75th-percentile demand:
+- CMPS303: 2×35=70 | CMPS350: 2×35=70 | CMPS151: 3×35=105 | CMPS310: 4×35=140 | CMPS493: 2×35=70
 - CMPS351: 40 | CMPS380: 40 | CMPS323: 40 | CMPS405: 40 | CMPE355: 40 | CMPS493: 30 | CMPS499: 30

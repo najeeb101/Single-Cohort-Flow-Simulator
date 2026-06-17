@@ -1,5 +1,9 @@
 # Technical Design Document
-## Single-Cohort Flow Simulator: Qatar University CS Program
+## CS Flow Simulator: Qatar University CS Program
+
+> **Note (multi-cohort extension):** §§1–10 below describe the per-student mechanics, which still
+> hold exactly. The simulator now runs **many cohorts on a shared seat pool** with an incumbent
+> warm start and emits a frontend timeline. See **§11. Multi-Cohort Extension** for that layer.
 
 ---
 
@@ -195,7 +199,7 @@ Subject to: Normal ≤ 18 CH | Probation ≤ 12 CH | Summer ≤ 12 CH (normal) /
 ### 4.9 Dropout Rules
 | Trigger | Probability |
 |---|---|
-| Same course failed 4 times (`dropout_fails_threshold`) | 25% dropout per additional failure (`dropout_prob_on_repeated_fail`) |
+| Same course failed 3 times (`dropout_fails_threshold`) | 25% dropout per additional failure (`dropout_prob_on_repeated_fail`) |
 | Exceeded 12-semester maximum | Censored (counted as non-completion, not academic dropout) |
 
 ### 4.10 Status Transitions
@@ -441,7 +445,7 @@ See `docs/assumptions.md §K` for the full discussion. The probation rate falls 
 | Metric | Description |
 |---|---|
 | Graduation rate | % of 100 students graduating within 12 semesters |
-| Academic dropout rate | % who trigger the repeated-fail dropout rule (4 fails of same course → 25% per additional fail) |
+| Academic dropout rate | % who trigger the repeated-fail dropout rule (3 fails of same course → 25% per additional fail) |
 | Censored rate | % still enrolled when the 12-semester horizon is hit |
 | Average graduation time | Mean semesters among graduates |
 | On-time graduation | % graduating in ≤ 8 semesters |
@@ -450,3 +454,40 @@ See `docs/assumptions.md §K` for the full discussion. The probation rate falls 
 | Top capacity block | Course with most denied seat-allocation requests |
 | Top offering block | Course with most eligible-but-not-offered events |
 | Top prereq block | Course with most prerequisite-not-met events |
+
+---
+
+## 11. Multi-Cohort Extension
+
+The model layers a **steady-state university** on top of the single-student mechanics in §§1–10.
+
+### 11.1 Admissions & the global clock
+- `num_cohorts` study cohorts of `cohort_size` are admitted every `admit_interval_terms` (default: 4 cohorts, yearly Fall → entry terms 0, 2, 4, 6).
+- `num_incumbent_cohorts` prior cohorts are admitted at **negative** terms (−2, −4, −6) as a *warm start* — they are fully simulated from their negative entry forward, so by global term 0 they already occupy gateway seats. No fake state; the global loop simply starts earlier: `start_term = −num_incumbent_cohorts × admit_interval`, `end_term = (num_cohorts−1) × admit_interval + max_terms`.
+- `term_season` is unchanged and works for negative indices (`−6 % 2 == 0` → Fall).
+
+### 11.2 Personal vs. global time
+Each horizon rule uses `personal_semester = global_term − entry_term + 1`, so every student gets exactly `max_terms` semesters measured from their own admission. GRADUATED/DELAYED/CENSORED and `graduation_times` are all personal-time based. Headline metrics are scoped to **study cohorts** (`entry_term ≥ 0`); incumbents appear only in the per-cohort ledger.
+
+### 11.3 Shared seat pool (the core dynamic)
+All active students from all cohorts enter the same Phase-2 allocation. Because requesters are already sorted by `registration_tier(completed_ch)`, seniors from older cohorts outrank freshmen automatically — a delayed senior class starves incoming freshmen of gateway seats, and congestion compounds cohort over cohort. This is the phenomenon the model exists to study.
+
+### 11.4 Sections model (capacity)
+Per-term seats for a course = `course_sections[code] × seats_per_section` (default section size 35). `scripts/size_sections.py` auto-calibrates `course_sections` to each course's **peak per-term demand** under unconstrained seats (`sections = ceil(peak_demand / seats_per_section)`) and writes the integer map into the config; it is then hand-tunable (add/cut sections per course — the realistic lever an administrator pulls). This replaces an earlier global `capacity_scale` multiplier: section counts now vary by course (gateway/intro courses get more sections than niche ones — e.g. the Spring-only CMPS323/CMPS405 calibrate to the most sections because delayed students concentrate there). Demand-matched sizing yields a well-resourced baseline (~80% graduation, little capacity blocking); trimming a course's sections re-introduces scarcity to study a specific bottleneck. Scenario `capacity_overrides` still apply as a section multiplier for what-if experiments.
+
+### 11.5 Identity, RNG, determinism
+Study cohorts get `cohort_id` `0..n−1`; incumbents `−1, −2, −3`. Globally-unique `student_id = (cohort_id + num_incumbent_cohorts) × cohort_size + i`; RNG seed remains `seed + student_id`, so CRN and full determinism are preserved.
+
+### 11.6 Per-cohort post-mortems & admissions recommendation
+Four `*_by_cohort` block counters (`cohort_id → {course → count}`) let each cohort report *where it got stuck*. `compute_admissions_recommendation` is a single-run heuristic: it scores the representative study cohort against four `admission_targets` (graduation rate, time-to-degree, seats-denied-per-student, throughput stability), takes the binding (worst) slack factor, and scales next year's intake by it (growth capped at 1.25×).
+
+### 11.7 Outputs & the frontend contract
+Beyond the legacy reports, the engine emits `flow_timeline.json`:
+- `meta` — stage nodes, cohort registry, and the static prerequisite **graph** (course nodes + prereq/senior-project edges).
+- `frames` — one per semester: per-course stats (capacity/registered/granted/denied/pass/fail/waiting/full) and per-cohort stage **node counts + flows** (`from → to` counts, e.g. Year2 → Year3).
+- `summary` — headline metrics (+ Monte Carlo CIs), per-cohort metrics + bottlenecks, and the admissions recommendation.
+
+The `frontend/` web app (no build, no external libraries) lays out the graph by longest-path layering and replays the frames as an animation, ending in a dashboard rendered from `summary`. A later phase may add an AI step that classifies a raw prerequisite chart into `curriculum.json`; the export is producer-agnostic, so that step would change nothing downstream.
+
+### 11.8 Monte Carlo
+`run_monte_carlo` re-runs the baseline across `n_runs` seeds (`base_seed + k`) and reports mean ± 95% CI per headline metric. The canonical timeline/animation stays on the single base seed (deterministic for the frontend); the CIs only annotate the dashboard.

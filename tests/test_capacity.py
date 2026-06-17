@@ -21,7 +21,7 @@ CONFIG_STUB = {
     "probation_gpa_threshold": 2.0,
     "probation_min_ch": 25,
     "dropout_fails_threshold": 3,
-    "dropout_prob_on_repeated_fail": 0.40,
+    "dropout_prob_on_repeated_fail": 0.25,
     "ability_sd": 0.15,
     "ability_clip": 0.30,
     "grade_tiers": {
@@ -158,12 +158,14 @@ def test_capacity_multiplier_scales_seats():
 
 
 def test_capacity_override_per_course():
-    scenario = {
+    # Capacity is now sections × seats_per_section; an override scales that base.
+    base = _sim({"name": "base", "capacity_multiplier": 1.0})
+    course = base.curriculum["CMPS303"]
+    base_cap = base._effective_capacity(course)
+
+    sim = _sim({
         "name": "override_test",
         "capacity_multiplier": 1.0,
         "capacity_overrides": {"CMPS303": 1.5},
-    }
-    sim = _sim(scenario)
-    course = sim.curriculum["CMPS303"]
-    expected = math.floor(course.capacity * 1.5)
-    assert sim._effective_capacity(course) == expected
+    })
+    assert sim._effective_capacity(course) == math.floor(base_cap * 1.5)

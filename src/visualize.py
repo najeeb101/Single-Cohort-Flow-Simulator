@@ -280,6 +280,122 @@ def plot_curriculum_stage_flow(
 
 
 # ------------------------------------------------------------------ #
+# 6. University enrollment over the global timeline (multi-cohort)    #
+# ------------------------------------------------------------------ #
+
+def _aggregate_by_term(cohort_snapshots: list[dict]) -> dict[int, dict]:
+    agg: dict[int, dict] = {}
+    for row in cohort_snapshots:
+        t = row["global_term"]
+        a = agg.setdefault(t, {"active": 0, "delayed": 0, "graduated": 0,
+                               "dropped": 0, "censored": 0})
+        for k in a:
+            a[k] += row[k]
+    return agg
+
+
+def plot_university_enrollment(result: SimulationResult, output_path: Path) -> None:
+    agg = _aggregate_by_term(result.history.cohort_snapshots)
+    if not agg:
+        return
+    terms = sorted(agg)
+    enrolled  = [agg[t]["active"] + agg[t]["delayed"] for t in terms]
+    graduated = [agg[t]["graduated"] for t in terms]
+    dropped   = [agg[t]["dropped"] for t in terms]
+    censored  = [agg[t]["censored"] for t in terms]
+
+    fig, ax = plt.subplots(figsize=(11, 5.5))
+    ax.stackplot(
+        terms, enrolled, graduated, dropped, censored,
+        labels=["Still enrolled", "Graduated", "Academic dropout", "Censored"],
+        colors=["#4878d0", "#6acc65", "#d65f5f", "#b47cc7"], alpha=0.85,
+    )
+    ax.axvline(0, color="black", linestyle=":", linewidth=1.0)
+    ax.text(0.2, ax.get_ylim()[1] * 0.95, "study cohort 0 enters", fontsize=8, va="top")
+    ax.set_xlabel("Global term (negative = incumbent warm-up)")
+    ax.set_ylabel("Students (whole university)")
+    ax.set_title("University Population Over Time — build-up to steady state")
+    ax.set_xlim(min(terms), max(terms))
+    ax.set_ylim(bottom=0)
+    ax.legend(loc="upper left", fontsize=9)
+    ax.grid(axis="y", linestyle="--", alpha=0.3)
+    fig.tight_layout()
+    fig.savefig(output_path, dpi=150)
+    plt.close(fig)
+
+
+# ------------------------------------------------------------------ #
+# 7. Per-cohort flow (active head-count vs global term)               #
+# ------------------------------------------------------------------ #
+
+def plot_cohort_flow(result: SimulationResult, output_path: Path) -> None:
+    by_cohort: dict[int, list[tuple[int, int]]] = {}
+    for row in result.history.cohort_snapshots:
+        by_cohort.setdefault(row["cohort_id"], []).append(
+            (row["global_term"], row["active"] + row["delayed"])
+        )
+    if not by_cohort:
+        return
+
+    fig, ax = plt.subplots(figsize=(11, 5.5))
+    for idx, cid in enumerate(sorted(by_cohort)):
+        pts = sorted(by_cohort[cid])
+        xs = [p[0] for p in pts]
+        ys = [p[1] for p in pts]
+        incumbent = cid < 0
+        ax.plot(xs, ys, marker="o", markersize=3, linewidth=2,
+                linestyle="--" if incumbent else "-",
+                color=_DEFAULT_COLORS[idx % len(_DEFAULT_COLORS)],
+                alpha=0.6 if incumbent else 1.0,
+                label=f"{'incumbent ' if incumbent else 'cohort '}{cid}")
+    ax.axvline(0, color="black", linestyle=":", linewidth=1.0)
+    ax.set_xlabel("Global term")
+    ax.set_ylabel("Still enrolled (Active + Delayed)")
+    ax.set_title("Per-Cohort Flow — later cohorts progress slower under shared-seat congestion")
+    ax.set_ylim(bottom=0)
+    ax.legend(fontsize=8, ncol=2)
+    ax.grid(axis="y", linestyle="--", alpha=0.3)
+    fig.tight_layout()
+    fig.savefig(output_path, dpi=150)
+    plt.close(fig)
+
+
+# ------------------------------------------------------------------ #
+# 8. Course utilization heatmap (course × semester)                   #
+# ------------------------------------------------------------------ #
+
+def plot_utilization_heatmap(result: SimulationResult, output_path: Path) -> None:
+    from src.analytics import build_course_utilization
+    rows = build_course_utilization(result)
+    if not rows:
+        return
+
+    terms = sorted({r["term"] for r in rows})
+    courses = sorted({r["course"] for r in rows})
+    tindex = {t: i for i, t in enumerate(terms)}
+    cindex = {c: i for i, c in enumerate(courses)}
+
+    import numpy as np
+    grid = np.full((len(courses), len(terms)), np.nan)
+    for r in rows:
+        grid[cindex[r["course"]], tindex[r["term"]]] = r["utilization"]
+
+    fig, ax = plt.subplots(figsize=(min(1 + 0.5 * len(terms), 16),
+                                    max(4, 0.28 * len(courses))))
+    im = ax.imshow(grid, aspect="auto", cmap="YlOrRd", vmin=0, vmax=1.2)
+    ax.set_xticks(range(len(terms)))
+    ax.set_xticklabels(terms, fontsize=7)
+    ax.set_yticks(range(len(courses)))
+    ax.set_yticklabels(courses, fontsize=6)
+    ax.set_xlabel("Global term")
+    ax.set_title("Seat Utilization (granted / capacity) — red = oversubscribed")
+    plt.colorbar(im, ax=ax, label="utilization", fraction=0.025)
+    fig.tight_layout()
+    fig.savefig(output_path, dpi=150)
+    plt.close(fig)
+
+
+# ------------------------------------------------------------------ #
 # Master save function                                                #
 # ------------------------------------------------------------------ #
 
@@ -290,9 +406,17 @@ def save_all_figures(
     figures_dir: Path,
 ) -> None:
     figures_dir.mkdir(parents=True, exist_ok=True)
+    baseline = results.get("A_baseline") or next(iter(results.values()))
 
-    plot_funnel(results, figures_dir / "funnel.png")
-    print("  Saved funnel.png")
+    # Multi-cohort university views (global timeline).
+    plot_university_enrollment(baseline, figures_dir / "university_enrollment.png")
+    print("  Saved university_enrollment.png")
+
+    plot_cohort_flow(baseline, figures_dir / "cohort_flow.png")
+    print("  Saved cohort_flow.png")
+
+    plot_utilization_heatmap(baseline, figures_dir / "utilization_heatmap.png")
+    print("  Saved utilization_heatmap.png")
 
     plot_graduation_histogram(results, figures_dir / "graduation_histogram.png")
     print("  Saved graduation_histogram.png")
@@ -302,15 +426,9 @@ def save_all_figures(
         plot_bottlenecks(result, figures_dir / f"bottlenecks_{name}.png")
         print(f"  Saved bottlenecks_{name}.png")
 
-    # Network for baseline scenario
-    baseline = results.get("A_baseline") or next(iter(results.values()))
+    # Prerequisite network for baseline scenario
     plot_curriculum_network(
         baseline, curriculum, config,
         figures_dir / "curriculum_network.png",
     )
     print("  Saved curriculum_network.png")
-
-    # Stage flow: one per scenario
-    for name, result in results.items():
-        plot_curriculum_stage_flow(result, figures_dir / f"stage_flow_{name}.png")
-        print(f"  Saved stage_flow_{name}.png")

@@ -1,0 +1,8 @@
+metric,mean,ci_low,ci_high,stdev,n_runs
+graduation_rate,0.7076,0.7021,0.7131,0.0153,30
+academic_dropout_rate,0.2520,0.2464,0.2576,0.0157,30
+censored_rate,0.0404,0.0369,0.0439,0.0098,30
+avg_graduation_time,8.8691,8.8544,8.8837,0.0409,30
+on_time_rate,0.3365,0.3307,0.3423,0.0161,30
+probation_rate,0.2111,0.2067,0.2154,0.0122,30
+mean_gpa_at_graduation,2.9249,2.9236,2.9261,0.0036,30

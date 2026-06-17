@@ -1,30 +1,40 @@
-# Single-Cohort Flow Simulator
+# CS Flow Simulator — Multi-Cohort University Model
 
-A discrete-term, agent-based simulation of 100 students progressing through Qatar University's
-Bachelor of Science in Computer Science (2024 study plan) over up to 12 semesters.
+A discrete-term, agent-based simulation of students progressing through Qatar University's
+Bachelor of Science in Computer Science (2024 study plan) over up to 12 semesters each.
 
 **Research question:** *which prerequisite chains and scheduling constraints contribute most to
 student delay and non-completion?*
 
-Rather than reporting only a graduation rate, the simulator separates **why** students get stuck
-into four independent signals — course failures, capacity denials, seasonal offering mismatches,
-and unmet prerequisites — so each bottleneck points to a different real-world fix.
+It models a **steady-state university**: a new cohort is admitted every year, several incumbent
+cohorts are seeded as a warm start, and **all cohorts compete for one shared pool of course seats**
+— so a delayed senior class starves incoming freshmen of gateway seats and congestion compounds
+cohort over cohort. Rather than reporting only a graduation rate, the simulator separates **why**
+students get stuck into four independent signals — course failures, capacity denials, seasonal
+offering mismatches, and unmet prerequisites — so each bottleneck points to a different fix.
+
+An included **web frontend** animates the prerequisite flow chart semester by semester and ends in
+a dashboard with per-cohort outcomes and a next-year admissions recommendation.
 
 ---
 
-## Key results (baseline scenario, seed 42)
+## Key results (baseline, seed 42 · 4 study + 3 incumbent cohorts of 100 · 35 seats/section)
 
 | Metric | Value |
 |---|---|
-| Graduation rate (within 6 years) | **71%** (QU benchmark: 72.3%) |
-| Average graduation time | 9.7 semesters |
-| On-time rate (≤ 8 semesters) | 21% |
-| Academic dropout | 20% |
-| Censored (hit 12-semester horizon) | 9% |
+| Graduation rate (study cohorts, within 6 years) | **~71%** (QU benchmark: 72.3%) |
+| Average graduation time | ~8.8 semesters |
+| On-time rate (≤ 8 semesters) | ~35% |
+| Academic dropout (3 fails of a course → 25% per extra fail) | ~27% |
+| Censored (hit 12-semester horizon) | ~2% |
+| Monte Carlo (30 seeds) | graduation **69.1%**, 95% CI 68.5–69.7% |
+| Admissions recommendation | ~57 students/year |
 
-**Two dominant bottlenecks identified:** the **CMPS 303** prerequisite gateway (blocks three
-downstream courses at once) and **once-a-year course scheduling** (six courses offered only in
-Fall or only in Spring). Full analysis in [report/report.md](report/report.md).
+Course capacity is modelled as **sections** (`course_sections × seats_per_section`), auto-calibrated
+to each course's peak demand — so the baseline is an *adequately-resourced* university and the
+residual delay comes from **prerequisite chains** (the **CMPS 303** gateway, which blocks three
+downstream courses) and **once-a-year scheduling** (six Fall-only/Spring-only courses) rather than
+raw seat shortage. Trim a course's sections in `course_sections` to study a capacity bottleneck.
 
 ---
 
@@ -53,19 +63,37 @@ py -m pip install -r requirements.txt
 py run.py
 ```
 
-This runs the baseline scenario and writes all outputs to `outputs/`:
+This runs the baseline scenario and writes all outputs to `outputs/` plus the frontend data file:
 
 ```
 outputs/
 ├── figures/
-│   ├── funnel.png                    # cohort survivorship over 12 terms
+│   ├── university_enrollment.png     # whole-university population over the global timeline
+│   ├── cohort_flow.png               # per-cohort head-count (later cohorts lag)
+│   ├── utilization_heatmap.png       # course × semester seat utilization
 │   ├── graduation_histogram.png      # time-to-graduate distribution
 │   ├── bottlenecks_A_baseline.png    # 4-panel: fail / capacity / offering / prereq blocks
-│   ├── curriculum_network.png        # prerequisite graph, shaded by failure count
-│   └── stage_flow_A_baseline.png     # students per credit-hour band over time
+│   └── curriculum_network.png        # prerequisite graph, shaded by failure count
 └── reports/
-    └── simulation_summary.csv        # headline metrics + top bottleneck per signal
+    ├── simulation_summary.csv        # headline metrics + top bottleneck per signal
+    ├── cohort_flow.csv               # per-cohort, per-semester ledger
+    ├── cohort_summary.csv            # per-cohort outcomes + where each got stuck
+    ├── course_utilization.csv        # course × semester demand vs. capacity
+    ├── monte_carlo.csv               # mean ± 95% CI over many seeds
+    └── flow_timeline.json            # frontend contract (also copied to frontend/)
 ```
+
+### View the animated flow chart + dashboard
+
+```bash
+cd frontend
+py -m http.server 8000        # then open http://localhost:8000
+```
+
+The web app (no build step, no external libraries) replays the run semester by semester: course
+nodes fill and flag as seats fill, a stage panel shows Year 1→4 progression per cohort, and a
+**Dashboard** button opens the end-of-run KPIs (with confidence intervals), the admissions
+recommendation, and the per-cohort post-mortem.
 
 ### Run the tests
 
@@ -73,8 +101,10 @@ outputs/
 py -m pytest tests/ -v
 ```
 
-33 tests cover determinism, the 120-credit-hour reconciliation, graduation detection,
-prerequisite logic, capacity allocation, and probation.
+46 tests cover determinism, the 120-credit-hour reconciliation, graduation detection,
+prerequisite logic, capacity allocation, probation, and the multi-cohort layer (staggered
+admissions, the incumbent warm start, shared-seat priority, per-cohort metrics, the admissions
+recommendation, the timeline-JSON contract, and Monte Carlo).
 
 ### (Optional) Recompute the real-world QU benchmark
 
@@ -94,10 +124,22 @@ All inputs are data-driven — no code changes needed to re-tune the model:
 
 | File | Contents |
 |---|---|
-| `data/curriculum.json` | The 38 courses: prerequisites, offering seasons, pass rates, capacities. **Source of truth.** |
-| `data/simulation_config.json` | Cohort size, seed, load caps, probation/dropout rules, grade distributions, scenario definitions. |
+| `data/curriculum.json` | The 38 courses: prerequisites, offering seasons, pass rates, per-cohort capacities. **Source of truth.** |
+| `data/simulation_config.json` | Cohort size, seed, load caps, probation/dropout rules, grade distributions, and the multi-cohort settings below. |
 
-To experiment, edit a value (e.g. a course's `capacity` or `offering`) and re-run `py run.py`.
+Key multi-cohort knobs in `simulation_config.json`:
+
+| Key | Meaning |
+|---|---|
+| `num_cohorts` | study cohorts admitted (default 4) |
+| `num_incumbent_cohorts` | prior cohorts seeded before term 0 as a warm start (default 3) |
+| `admit_interval_terms` | terms between admissions (2 = yearly, Fall) |
+| `seats_per_section` | class size; per-term seats for a course = `course_sections[code] × seats_per_section` |
+| `course_sections` | per-course number of sections (auto-calibrated by `scripts/size_sections.py`, then hand-tunable) |
+| `admission_targets` | health thresholds driving the intake recommendation |
+| `monte_carlo` | `{enabled, n_runs, base_seed}` for confidence intervals |
+
+To experiment, edit a value — e.g. add a section to a bottleneck course in `course_sections`, change a course's `offering`, or adjust `seats_per_section` — and re-run `py run.py`. To re-derive the section counts from demand, run `py scripts/size_sections.py`.
 
 ---
 
@@ -107,16 +149,18 @@ To experiment, edit a value (e.g. a course's `capacity` or `offering`) and re-ru
 src/
 ├── models/
 │   ├── course.py      # Course dataclass + load_curriculum()
-│   ├── student.py     # Student state, GPA, eligibility, course selection
+│   ├── student.py     # Student state, GPA, eligibility, cohort_id/entry_term, curriculum_stage()
 │   └── semester.py    # term index → Fall/Spring season + year
-├── simulator.py       # Simulator engine (3-phase per-term loop) + History + SimulationResult
-├── analytics.py       # compute_metrics(), build_summary_csv()
+├── simulator.py       # Simulator (staggered admission + 3-phase per-term loop) + History
+├── analytics.py       # metrics, per-cohort metrics, admissions rec, curriculum graph, flow_timeline JSON, CSVs
+├── montecarlo.py      # run_monte_carlo() — mean ± 95% CI over many seeds
 ├── visualize.py       # figure generation
 └── utils.py           # load_json(), grade_tier()
 
+frontend/    index.html, style.css, app.js (animated flow chart + dashboard; reads flow_timeline.json)
 data/        curriculum.json, simulation_config.json, qu_raw/ (validation data)
 outputs/     figures/ and reports/ (generated by run.py)
-tests/       pytest suite
+tests/       pytest suite (46 tests)
 docs/        technical_design.md, assumptions.md
 report/      report.md (the write-up)
 run.py       entry point
@@ -126,19 +170,22 @@ run.py       entry point
 
 ## How the model works (in brief)
 
-Each term runs a three-phase loop:
+A new cohort is admitted each year onto one shared seat pool; incumbent cohorts are seeded at
+negative terms so the university starts partly full. Each term runs a three-phase loop over **all**
+active students from every cohort:
 
 1. **Desired enrollment** — every active student builds a priority-ordered wish-list
    (retakes → required CS → electives → filler), capped at 18 credit hours (12 on probation).
 2. **Seat allocation** — when demand exceeds a course's capacity, students are ranked by
-   completed credit hours (QU's registration priority); the overflow is logged as a capacity block.
+   completed credit hours (QU's registration priority), so seniors from older cohorts outrank
+   freshmen; the overflow is logged as a capacity block.
 3. **Outcome resolution** — pass/fail is drawn against each student's ability-adjusted pass rate;
-   passers receive a sampled letter grade. Dropout, probation, graduation, and the four block
-   signals are then updated.
+   passers receive a sampled letter grade. Dropout, probation, graduation (on each student's own
+   12-semester clock), and the four block signals are then updated.
 
 Every student owns a fixed random stream seeded by `seed + student_id` (**Common Random Numbers**),
-so the simulation is fully **deterministic** and any structural change can be read as a clean
-causal effect. Full mechanics: [docs/technical_design.md](docs/technical_design.md).
+so the simulation is fully **deterministic**. Full mechanics:
+[docs/technical_design.md](docs/technical_design.md).
 
 ---
 

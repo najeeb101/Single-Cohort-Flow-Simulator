@@ -30,10 +30,41 @@ def registration_tier(completed_ch: int) -> int:
     return 5
 
 
+def curriculum_stage(student: "Student") -> str:
+    """Flow-chart node for a student: terminal status wins, else CH band.
+
+    Band cutoffs match History.record_snapshot in simulator.py.
+    """
+    if student.status == "GRADUATED":
+        return "Graduated"
+    if student.status == "DROPPED":
+        return "Dropped"
+    if student.status == "CENSORED":
+        return "Censored"
+    ch = student.completed_ch
+    if ch < 30:
+        return "Year1"
+    if ch < 60:
+        return "Year2"
+    if ch < 90:
+        return "Year3"
+    return "Year4"
+
+
 class Student:
-    def __init__(self, student_id: int, seed: int) -> None:
+    def __init__(
+        self,
+        student_id: int,
+        seed: int,
+        cohort_id: int = 0,
+        entry_term: int = 0,
+    ) -> None:
         self.student_id = student_id
         self._seed = seed
+        self.cohort_id = cohort_id
+        self.entry_term = entry_term
+        # Previous flow-chart stage, used to derive term-over-term flows for the timeline.
+        self.prev_stage: str | None = None
         # Stable tiebreak for seat allocation — never consumes the course RNG stream
         self.tiebreak_token: int = hash((seed, student_id)) & 0xFFFF_FFFF
         self._reset_rng_and_state()
@@ -56,6 +87,8 @@ class Student:
         self.status: str = "ACTIVE"
         self.on_probation: bool = False
         self.ever_probation: bool = False
+        self.prev_stage = None
+        self.grad_semester: int | None = None  # personal semester at graduation
 
     def reset(self, seed: int) -> None:
         """Re-instantiate RNG and wipe state for a new scenario (CRN)."""
@@ -68,6 +101,10 @@ class Student:
 
     def is_active(self) -> bool:
         return self.status in ("ACTIVE", "DELAYED")
+
+    @property
+    def is_incumbent(self) -> bool:
+        return self.cohort_id < 0
 
     def has_passed(self, code: str) -> bool:
         return code in self.completed_courses and self.completed_courses[code] in PASSING_GRADES
