@@ -28,7 +28,8 @@
       "Bash(py scripts/size_sections.py)",
       "Bash(py -m pytest tests/test_capacity.py -v)",
       "Bash(git checkout *)",
-      "Bash(git add *)"
+      "Bash(git add *)",
+      "Bash(grep -E \"__pycache__|\\\\.pyc$|^outputs/\")"
     ]
   }
 }
