@@ -1,0 +1,42 @@
+import type { CohortMetric } from "@/types/simulation";
+import { pct } from "@/lib/format";
+
+// Faithful port of frontend/app.js::renderCohortsTable().
+export default function CohortsTable({ cohorts }: { cohorts: CohortMetric[] }) {
+  return (
+    <section className="py-6">
+      <h2 className="mb-4 flex items-center gap-2 text-[15px] font-bold">
+        <span className="grid h-6 w-6 place-items-center rounded-[7px] border border-border-2 bg-surface-2 text-xs font-bold text-accent">4</span>
+        Per-cohort outcomes <span className="text-xs font-normal text-muted">— &amp; where they got stuck</span>
+      </h2>
+      <div className="overflow-auto rounded-2xl border border-border bg-surface">
+        <table className="w-full border-collapse text-[12.5px]">
+          <thead>
+            <tr>
+              {["Cohort", "n", "Grad", "Dropout", "Censored", "Avg sem", "Top seat-block", "Top prereq-block", "Top fail"].map((h) => (
+                <th key={h} className="sticky top-0 whitespace-nowrap border-b border-border bg-surface px-3 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wide text-muted">
+                  {h}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {cohorts.map((c) => (
+              <tr key={c.cohort_id} className={c.is_incumbent ? "italic text-muted" : ""}>
+                <td className="whitespace-nowrap border-b border-border px-3 py-2.5">{c.is_incumbent ? "inc " : ""}{c.cohort_id}</td>
+                <td className="whitespace-nowrap border-b border-border px-3 py-2.5">{c.n}</td>
+                <td className="whitespace-nowrap border-b border-border px-3 py-2.5">{pct(c.graduation_rate)}</td>
+                <td className="whitespace-nowrap border-b border-border px-3 py-2.5">{pct(c.academic_dropout_rate)}</td>
+                <td className="whitespace-nowrap border-b border-border px-3 py-2.5">{pct(c.censored_rate)}</td>
+                <td className="whitespace-nowrap border-b border-border px-3 py-2.5">{c.avg_time_to_degree.toFixed(1)}</td>
+                <td className="whitespace-nowrap border-b border-border px-3 py-2.5">{c.top_capacity_block || "—"}</td>
+                <td className="whitespace-nowrap border-b border-border px-3 py-2.5">{c.top_prereq_block || "—"}</td>
+                <td className="whitespace-nowrap border-b border-border px-3 py-2.5">{c.top_fail || "—"}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+}

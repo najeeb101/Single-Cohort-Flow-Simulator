@@ -1,0 +1,42 @@
+@import "tailwindcss";
+
+/* Palette ported from frontend/style.css for visual continuity with the existing
+   dependency-free dashboard — not pixel parity, just not a jarring switch. */
+:root {
+  --bg: #0b0f17;
+  --surface: #141a24;
+  --surface-2: #1b2330;
+  --border: rgba(255, 255, 255, 0.08);
+  --border-2: rgba(255, 255, 255, 0.14);
+  --ink: #e7ecf3;
+  --muted: #8b97ab;
+  --faint: #5d6878;
+  --accent: #5b8cff;
+  --maroon: #a51c45;
+  --good: #51c878;
+  --warn: #e8b84b;
+  --bad: #e3725b;
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-border: var(--border);
+  --color-border-2: var(--border-2);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-faint: var(--faint);
+  --color-accent: var(--accent);
+  --color-maroon: var(--maroon);
+  --color-good: var(--good);
+  --color-warn: var(--warn);
+  --color-bad: var(--bad);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+body {
+  background: var(--bg);
+  color: var(--ink);
+}

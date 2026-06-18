@@ -4,7 +4,7 @@
 **To:** Academic Capacity Intelligence Platform (ACIP) — a deployable, multi-tenant higher-education analytics & planning product
 **Owner:** Najeeb Barkhad
 **Target:** Real deployable product (not a demo)
-**Status:** Phase 0 complete — `DataSource` seam done (forward-simulation population only, per `src/datasource.py`'s own scoping note); curriculum-as-data (§2.1) done, including `registration_tier()`'s seat-priority CH bands (`registration_tier_thresholds` in config, no longer hardcoded); engine-as-service boundary (§2.3) done via `src/service.py::run_simulation`. Phase 1 started on three fronts: the FastAPI wrapper (`src/api.py` — `GET /health`, `GET /meta`, `POST /simulate`, no DB/auth) is done, and now has a frontend (`frontend/`'s live what-if panel, §3.2 — fully done both ends); §2.2 measured calibration (`src/calibration.py` — pass-rate, dropout-hazard, and load-cap fitting) and the §2.4 replay/fit mode are built and exercised end-to-end on the *synthetic* incumbent cohorts (`scripts/calibrate_from_history.py`), including a holdout validation harness — every calibration function consumes only the canonical `StudentRecord`/`EnrollmentRecord`/`OutcomeRecord` schema, so a future `RealDataSource` extraction is the only thing that changes when/if real data arrives (still undecided per the advisor). `RealDataSource` itself remains unbuilt — there is no real data yet to build it against.
+**Status:** Phase 0 complete — `DataSource` seam done (forward-simulation population only, per `src/datasource.py`'s own scoping note); curriculum-as-data (§2.1) done, including `registration_tier()`'s seat-priority CH bands (`registration_tier_thresholds` in config, no longer hardcoded); engine-as-service boundary (§2.3) done via `src/service.py::run_simulation`. Phase 1 done on all three fronts: the FastAPI wrapper (`src/api.py`), §3.2's live what-if panel (both backend and the `frontend/` slider UI), and §2.2 measured calibration (`src/calibration.py` — pass-rate, dropout-hazard, and load-cap fitting) + the §2.4 replay/fit mode with a holdout validation harness, all exercised end-to-end on the *synthetic* incumbent cohorts (`scripts/calibrate_from_history.py`) — every calibration function consumes only the canonical `StudentRecord`/`EnrollmentRecord`/`OutcomeRecord` schema, so a future `RealDataSource` extraction is the only thing that changes when/if real data arrives (still undecided per the advisor; `RealDataSource` itself remains unbuilt). Phase 2 started: `web/` (Next.js/TypeScript) is a slice-1 dashboard on top of the same API — see §3 for what's in slice 1 vs. deferred.
 **Data strategy (per advisor):** Build and prove the entire product on **synthetic data first**. Real student data will be provided *after* the platform demonstrates value, and will be **plugged into the same data seam** — no engine rewrite. This makes synthetic-first the sanctioned path, not a fallback.
 
 ---
@@ -114,7 +114,16 @@ Both must emit the **same canonical schema**. Define that schema *now*, modeled 
 **Exit criteria:** calibration + validation run automatically (done); "swap to real data" is a `DataSource` config change with the harness ready to grade it (true today for the calibration/validation path — still blocked on `RealDataSource` itself not existing, which needs real data to exist first).
 
 ### Phase 2 — Web MVP + the "proof of worth" demo *(your four strengths, productized)*
-- Next.js/TypeScript app with: Cohort Analytics (M2), Student Flow / Sankey (M3), Course Bottleneck (M4), Admission Simulator (M7), Scenario Planning (M8).
+**Status: slice 1 done.** `web/` is a real Next.js/TypeScript app (App Router, Tailwind v4) talking
+directly to `src/api.py` (`GET /meta`, `POST /simulate` — no backend changes needed, the
+contract already existed and is tested). It ports Cohort Analytics (M2), Course Bottleneck
+(M4), Admission Simulator (M7), and Scenario Planning (M8 — the live what-if sliders) as
+real React components. **Deliberately deferred to a slice 2**, confirmed with the user
+rather than assumed: the animated semester-by-semester curriculum graph (Student Flow /
+Sankey, M3 — the single most complex piece of `frontend/app.js`), the static figures, and
+retiring `frontend/` (which stays the full-featured dashboard until slice 2 closes the gap).
+
+- Next.js/TypeScript app with: Cohort Analytics (M2), Student Flow / Sankey (M3 — slice 2), Course Bottleneck (M4), Admission Simulator (M7), Scenario Planning (M8).
 - Seat-based Capacity dashboard (M5 partial — the part you already have).
 - Single tenant, single program, one admin user. No faculty/rooms, no ML yet.
 - **This phase produces the artifact that unlocks the real data** (see §3.1).

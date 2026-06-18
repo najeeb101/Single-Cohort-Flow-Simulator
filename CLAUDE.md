@@ -32,6 +32,11 @@ py scripts/calibrate_from_history.py
 # Run the HTTP API (no DB/auth — Phase 1 wrapper around run_simulation; see acip_transformation_plan.md §2.3/§3.2)
 py -m uvicorn src.api:app --reload --port 8001
 
+# Run the Next.js dashboard (Phase 2 slice 1 — talks to the API above, see web/README.md).
+# Must open http://localhost:3000, not 127.0.0.1:3000 — Next.js 16 dev mode blocks
+# cross-origin dev requests from origins not in `allowedDevOrigins`.
+cd web && npm install && npm run dev   # then open http://localhost:3000
+
 # Run tests
 py -m pytest tests/ -v
 
@@ -58,6 +63,8 @@ src/
 ├── visualize.py          # save_all_figures() + per-figure functions
 └── utils.py              # load_json(), grade_tier()
 frontend/              # dependency-free web app: index.html, style.css, app.js (reads flow_timeline.json)
+web/                   # Next.js/TypeScript dashboard (Phase 2 slice 1) — talks to src/api.py directly,
+                       # not outputs/. No animated curriculum graph yet (deferred); see web/README.md.
 ```
 
 `data/curriculum.json` is the source of truth — 38 courses, 120 CH total. Never overwrite it.
