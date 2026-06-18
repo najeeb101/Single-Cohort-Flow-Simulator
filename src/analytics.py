@@ -52,6 +52,13 @@ def _top1_code(counter: dict) -> str:
     return top[0][0] if top else ""
 
 
+def _histogram(values: list[int]) -> list[tuple[int, int]]:
+    counts: dict[int, int] = {}
+    for v in values:
+        counts[v] = counts.get(v, 0) + 1
+    return sorted(counts.items())
+
+
 # ------------------------------------------------------------------ #
 # Headline metrics (scoped to study cohorts)                          #
 # ------------------------------------------------------------------ #
@@ -78,6 +85,7 @@ def compute_metrics(result: "SimulationResult") -> dict:
         "academic_dropout_rate":  len(dropped) / total,
         "censored_rate":          len(censored) / total,
         "avg_graduation_time":    avg_time,
+        "graduation_time_distribution": _histogram(times),
         "on_time_rate":           on_time_count / total,
         "probation_rate":         prob_count / total,
         "mean_gpa_at_graduation": mean_gpa,

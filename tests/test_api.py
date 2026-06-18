@@ -39,11 +39,13 @@ def test_simulate_default_matches_run_simulation():
     expected_top_capacity = [list(pair) for pair in expected["metrics"].pop("top_capacity_blocks")]
     expected_top_offering = [list(pair) for pair in expected["metrics"].pop("top_offering_blocks")]
     expected_top_prereq = [list(pair) for pair in expected["metrics"].pop("top_prereq_blocks")]
+    expected_grad_dist = [list(pair) for pair in expected["metrics"].pop("graduation_time_distribution")]
     actual_metrics = dict(body["metrics"])
     assert actual_metrics.pop("top_fail_courses") == expected_top_fail
     assert actual_metrics.pop("top_capacity_blocks") == expected_top_capacity
     assert actual_metrics.pop("top_offering_blocks") == expected_top_offering
     assert actual_metrics.pop("top_prereq_blocks") == expected_top_prereq
+    assert actual_metrics.pop("graduation_time_distribution") == expected_grad_dist
     assert actual_metrics == expected["metrics"]
     assert body["flow_timeline"]["meta"]["graph"] == expected["flow_timeline"]["meta"]["graph"]
 

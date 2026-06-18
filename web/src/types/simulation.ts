@@ -4,6 +4,7 @@
 // needs a matching edit here.
 
 export type TopList = [code: string, count: number][];
+export type Histogram = [semester: number, count: number][];
 
 export interface GraphNode {
   code: string;
@@ -98,6 +99,7 @@ export interface Headline {
   academic_dropout_rate: number;
   censored_rate: number;
   avg_graduation_time: number;
+  graduation_time_distribution: Histogram;
   on_time_rate: number;
   probation_rate: number;
   mean_gpa_at_graduation: number;

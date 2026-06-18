@@ -64,7 +64,9 @@ src/
 └── utils.py              # load_json(), grade_tier()
 frontend/              # dependency-free web app: index.html, style.css, app.js (reads flow_timeline.json)
 web/                   # Next.js/TypeScript dashboard (Phase 2) — talks to src/api.py directly, not
-                       # outputs/. Includes the animated curriculum graph; figures not ported yet.
+                       # outputs/. Includes the animated curriculum graph and the static figures
+                       # (ported as React/SVG); only the prerequisite-network diagram is excluded,
+                       # since the animated graph already covers that view interactively.
 ```
 
 `data/curriculum.json` is the source of truth — 38 courses, 120 CH total. Never overwrite it.

@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import pytest
 
+from src.analytics import compute_metrics
 from src.models.course import load_curriculum
 from src.models.student import Student, PASSING_GRADES
 from src.simulator import Simulator
@@ -58,6 +59,22 @@ def test_graduation_time_recorded_in_history():
 
     assert len(result.history.graduation_times) > 0
     assert all(1 <= t <= config["max_terms"] for t in result.history.graduation_times)
+
+
+def test_graduation_time_distribution_matches_history():
+    """compute_metrics' histogram must bucket every study-cohort graduation time exactly once."""
+    config     = load_json("data/simulation_config.json")
+    curriculum = load_curriculum("data/curriculum.json")
+
+    sim    = Simulator(curriculum, config, config["scenarios"][0])
+    result = sim.run()
+    metrics = compute_metrics(result)
+
+    dist = metrics["graduation_time_distribution"]
+    assert sum(count for _, count in dist) == len(result.history.graduation_times)
+    assert [sem for sem, _ in dist] == sorted({sem for sem, _ in dist})  # sorted, unique semesters
+    for sem, count in dist:
+        assert count == result.history.graduation_times.count(sem)
 
 
 def test_graduated_students_have_all_courses_passed():

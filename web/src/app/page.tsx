@@ -9,6 +9,7 @@ import AdmissionsRecommendation from "@/components/AdmissionsRecommendation";
 import HeadlineKpis from "@/components/HeadlineKpis";
 import CohortsTable from "@/components/CohortsTable";
 import BottlenecksPanel from "@/components/BottlenecksPanel";
+import FiguresSection from "@/components/FiguresSection";
 
 type Phase = "loading" | "ready" | "error";
 
@@ -121,10 +122,18 @@ export default function Home() {
       <HeadlineKpis headline={summary.headline} />
       <CohortsTable cohorts={summary.per_cohort} />
       <BottlenecksPanel bottlenecks={summary.top_bottlenecks} />
+      <FiguresSection
+        frames={data.flow_timeline.frames}
+        cohorts={chartMeta.cohorts}
+        graduationTimeDistribution={summary.headline.graduation_time_distribution}
+      />
 
       <p className="py-6 text-xs text-muted">
-        The static figures aren&apos;t ported to this app yet — see{" "}
-        <code className="rounded bg-black/35 px-1.5 py-0.5">frontend/</code> for those, or{" "}
+        The prerequisite network diagram (fail-count-colored, static layout) isn&apos;t
+        ported — the animated curriculum graph above already covers that view
+        interactively. See{" "}
+        <code className="rounded bg-black/35 px-1.5 py-0.5">frontend/</code> for the
+        original, or{" "}
         <a className="underline" href="http://localhost:8000/frontend/">http://localhost:8000/frontend/</a>.
       </p>
     </main>
