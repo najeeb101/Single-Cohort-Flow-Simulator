@@ -4,7 +4,7 @@
 **To:** Academic Capacity Intelligence Platform (ACIP) — a deployable, multi-tenant higher-education analytics & planning product
 **Owner:** Najeeb Barkhad
 **Target:** Real deployable product (not a demo)
-**Status:** Phase 0 complete — `DataSource` seam done (forward-simulation population only, per `src/datasource.py`'s own scoping note); curriculum-as-data (§2.1) done for compound rules (`rule_expr`) and enrollment category-priority (`enrollment_priority_tiers`) — `registration_tier()`'s seat-priority CH bands are a smaller still-hardcoded leftover; engine-as-service boundary (§2.3) done via `src/service.py::run_simulation`. Phase 1 not started: §2.2 measured calibration and the §2.4 replay/fit mode (historical transcripts) both still need the same prerequisite groundwork (transcript schema + replay-mode plumbing); the FastAPI wrapper around `run_simulation` has no such dependency and could start independently.
+**Status:** Phase 0 complete — `DataSource` seam done (forward-simulation population only, per `src/datasource.py`'s own scoping note); curriculum-as-data (§2.1) done for compound rules (`rule_expr`) and enrollment category-priority (`enrollment_priority_tiers`) — `registration_tier()`'s seat-priority CH bands are a smaller still-hardcoded leftover; engine-as-service boundary (§2.3) done via `src/service.py::run_simulation`. Phase 1 started on three fronts: the FastAPI wrapper (`src/api.py` — `GET /health`, `GET /meta`, `POST /simulate`, no DB/auth) is done, unblocking §3.2's live scenario slider on the backend side; §2.2 measured calibration (`src/calibration.py` — pass-rate + dropout-hazard fitting) and the §2.4 replay/fit mode are now built and exercised end-to-end on the *synthetic* incumbent cohorts (`scripts/calibrate_from_history.py`), including a holdout validation harness — every calibration function consumes only the canonical `StudentRecord`/`EnrollmentRecord`/`OutcomeRecord` schema, so a future `RealDataSource` extraction is the only thing that changes when/if real data arrives (still undecided per the advisor). `RealDataSource` itself remains unbuilt — there is no real data yet to build it against.
 **Data strategy (per advisor):** Build and prove the entire product on **synthetic data first**. Real student data will be provided *after* the platform demonstrates value, and will be **plugged into the same data seam** — no engine rewrite. This makes synthetic-first the sanctioned path, not a fallback.
 
 ---
@@ -55,8 +55,16 @@ These are structural changes to the *existing* engine that get painful if deferr
 **Why now.** Multi-program is a product requirement; retrofitting it after the web app exists means touching every layer.
 
 ### 2.2 Calibration: assumed → measured
+**Status: started.** `src/calibration.py` + `scripts/calibrate_from_history.py` fit per-course
+pass rates (direct frequency from historical `EnrollmentRecord`s) and the dropout base
+hazard (binary-search re-running the engine, since `OutcomeRecord` carries no GPA
+trajectory to read it off directly) against the *synthetic* incumbent cohorts, then
+validate against a held-out cohort. Output is additive — a new `B_calibrated` scenario in
+`simulation_config.json`, never a write to `curriculum.json` or to the documented
+`A_baseline`/`dropout_base_hazard`.
+
 **Problem.** Pass rates, dropout hazards, load caps are config *guesses*. v2 already proved (see `report/report_v2.md`) that some of these are not even the binding levers.
-**Action.** Extend the `scripts/size_sections.py` calibration pattern so course pass rates, dropout parameters, and section demand are **fit from the partner institution's history**. The engine stays the same; its inputs become empirical.
+**Action.** Extend the `scripts/size_sections.py` calibration pattern so course pass rates, dropout parameters, and section demand are **fit from the partner institution's history**. The engine stays the same; its inputs become empirical. Done for pass rates + dropout hazard (above); section demand was already covered by `scripts/size_sections.py`. Still open: `normal_load_ch`/`probation_load_ch` and the dropout front-loading multiplier remain assumed — lower priority since report_v2.md shows the dropout knobs aren't the binding lever.
 **Why now.** This is the difference between "a simulator" and "a digital twin." It also reuses your existing calibration discipline directly.
 
 ### 2.3 Engine-as-service boundary
@@ -81,7 +89,7 @@ Both must emit the **same canonical schema**. Define that schema *now*, modeled 
 
 **Two modes the engine must support against this schema:**
 1. **Forward simulation** — generate a future population and flow it (current behavior; what the dashboards animate).
-2. **Replay/fit** — consume *historical* transcripts to (a) calibrate pass rates / dropout hazards (§2.2) and (b) validate that the engine reproduces known cohorts. Synthetic mode fakes the history; real mode supplies it. **Same code path.**
+2. **Replay/fit** — consume *historical* transcripts to (a) calibrate pass rates / dropout hazards (§2.2) and (b) validate that the engine reproduces known cohorts. Synthetic mode fakes the history; real mode supplies it. **Same code path.** Status: built and exercised (`src/calibration.py`, driven by `scripts/calibrate_from_history.py`) — every function in it takes only `StudentRecord`/`EnrollmentRecord`/`OutcomeRecord` lists, never a `SimulationResult` or `DataSource` directly, so swapping the synthetic source for a real one only changes where those three lists come from.
 
 **Why now.** This is the difference between "plug in the real data" being a one-day swap versus a second project. It is the contract the advisor's hand-off depends on, so it must be designed before the product is built around it.
 
@@ -98,10 +106,10 @@ Both must emit the **same canonical schema**. Define that schema *now*, modeled 
 **Exit criteria:** the engine runs end-to-end reading *only* through `DataSource`; the existing `tests/` suite still passes (behavior pinned on QU CS); a documented schema a real SIS export can be mapped onto.
 
 ### Phase 1 — Calibration + validation harness *(reuses the core)*
-- Implement §2.2 measured calibration: fit pass rates / dropout hazards from the (synthetic) historical transcripts via the replay path.
-- Build the validation harness that checks the engine reproduces a held-out cohort — run it on synthetic now; it becomes the real-data acceptance test later, unchanged.
-- Wrap the engine behind FastAPI (§2.3). **No database yet** — persist the canonical schema as typed models + JSON/CSV (or SQLite if querying is needed). Postgres is deferred to the real-data hand-off (Phase 2.5) and multi-tenant deployment (Phase 5), when data is large, relational, and not regenerable.
-**Exit criteria:** calibration + validation run automatically; "swap to real data" is a `DataSource` config change with the harness ready to grade it.
+- ✅ Implement §2.2 measured calibration: fit pass rates / dropout hazards from the (synthetic) historical transcripts via the replay path — `src/calibration.py` + `scripts/calibrate_from_history.py`.
+- ✅ Build the validation harness that checks the engine reproduces a held-out cohort — run it on synthetic now; it becomes the real-data acceptance test later, unchanged.
+- ✅ Wrap the engine behind FastAPI (§2.3) — `src/api.py`. **No database yet** — persist the canonical schema as typed models + JSON/CSV (or SQLite if querying is needed). Postgres is deferred to the real-data hand-off (Phase 2.5) and multi-tenant deployment (Phase 5), when data is large, relational, and not regenerable.
+**Exit criteria:** calibration + validation run automatically (done); "swap to real data" is a `DataSource` config change with the harness ready to grade it (true today for the calibration/validation path — still blocked on `RealDataSource` itself not existing, which needs real data to exist first).
 
 ### Phase 2 — Web MVP + the "proof of worth" demo *(your four strengths, productized)*
 - Next.js/TypeScript app with: Cohort Analytics (M2), Student Flow / Sankey (M3), Course Bottleneck (M4), Admission Simulator (M7), Scenario Planning (M8).
@@ -144,6 +152,8 @@ The advisor releases real data once the synthetic platform demonstrates value, s
 Treat these four as Phase 2's acceptance criteria; agree them with the advisor *up front* so "worth it" is a checklist, not a judgment call.
 
 ### 3.2 Live scenario slider — design sketch
+**Backend status: done.** `src/api.py` now exposes `POST /simulate` (scenario overrides in, the same `flow_timeline` contract back out) and `GET /meta` (curriculum graph + slider-relevant config), both calling existing engine pieces unchanged. What's left is the frontend half below — a control panel wired into `frontend/` that calls these endpoints.
+
 **Inspiration.** Liaison/Othot's student-success dashboard lets a user drag a lever (e.g. a scholarship) and see a real-time re-forecast. The mechanism doesn't transfer (that's a trained ML model; this engine is mechanistic), but the *interaction pattern* directly matches what §3.1's acceptance criterion #1 already asks for: "shown live via the scenario sliders, with confidence intervals, not a static chart."
 
 **Target shape (Phase 2, once the FastAPI wrapper from Phase 1 exists).**

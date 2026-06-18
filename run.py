@@ -1,18 +1,20 @@
-"""Entry point: load → run scenario(s) → analyze → render → CSV + frontend JSON."""
+"""Entry point: load → run scenario(s) → analyze → render → CSV + outputs/.
+
+The frontend (frontend/) is server-only: it fetches its data and figures straight from
+outputs/ over HTTP (see frontend/app.js), so nothing here writes into frontend/ at all.
+Serve from the repo root (py -m http.server) and open http://localhost:<port>/frontend/.
+"""
 from __future__ import annotations
 
-import shutil
 from pathlib import Path
 
 from src.analytics import (
     build_cohort_flow_csv,
     build_cohort_summary_csv,
     build_course_utilization_csv,
-    build_flow_timeline_js,
     build_flow_timeline_json,
     build_monte_carlo_csv,
     build_summary_csv,
-    flow_timeline_payload,
 )
 from src.models.course import load_curriculum
 from src.montecarlo import run_monte_carlo
@@ -53,7 +55,15 @@ def main() -> None:
         print(f"  Top failure           : {m['top_fail_courses'][:1]}")
         print(f"  Top cap-block         : {m['top_capacity_blocks'][:1]}")
 
-    baseline_name = "A_baseline" if "A_baseline" in results else next(iter(results))
+    # The frontend animates exactly one scenario. Prefer the calibrated scenario (measured
+    # pass rates) over the assumed baseline when both exist — the whole point of fitting
+    # pass rates from history is to show real numbers, not guesses, on the live dashboard.
+    for preferred in ("B_calibrated", "A_baseline"):
+        if preferred in results:
+            baseline_name = preferred
+            break
+    else:
+        baseline_name = next(iter(results))
     baseline = results[baseline_name]
 
     # Monte Carlo confidence intervals on the baseline.
@@ -77,15 +87,10 @@ def main() -> None:
     if monte_carlo:
         build_monte_carlo_csv(monte_carlo, reports_dir / "monte_carlo.csv")
 
-    # Frontend data: write the JSON, plus an inlined data.js so the page runs from file://
-    # (just double-click frontend/index.html — no local server needed).
-    payload = flow_timeline_payload(baseline, curriculum, monte_carlo=monte_carlo)
+    # Frontend data: the frontend fetches this file directly from outputs/reports/ over HTTP.
     build_flow_timeline_json(baseline, curriculum, reports_dir / "flow_timeline.json", monte_carlo)
-    frontend_dir = Path("frontend")
-    build_flow_timeline_json(baseline, curriculum, frontend_dir / "flow_timeline.json", monte_carlo)
-    build_flow_timeline_js(payload, frontend_dir / "data.js")
     print("  Saved simulation_summary.csv, cohort_flow.csv, cohort_summary.csv,")
-    print("        course_utilization.csv, monte_carlo.csv, flow_timeline.json + frontend/data.js")
+    print("        course_utilization.csv, monte_carlo.csv, flow_timeline.json")
 
     # Admissions recommendation headline.
     rec = runs[baseline_name]["admissions_recommendation"]
@@ -96,18 +101,13 @@ def main() -> None:
         print(f"  Binding criterion  : {rec['binding_criterion']} "
               f"(slack {rec['binding_slack']:.2f})")
 
-    # Figures — generate, then copy into the frontend so the page can display them.
+    # Figures — the frontend loads these straight from outputs/figures/ over HTTP.
     print("\nGenerating figures...")
     figures_dir = Path("outputs/figures")
     save_all_figures(results, curriculum, config, figures_dir)
 
-    frontend_figs = frontend_dir / "figures"
-    frontend_figs.mkdir(parents=True, exist_ok=True)
-    for png in figures_dir.glob("*.png"):
-        shutil.copy2(png, frontend_figs / png.name)
-    print(f"  Copied figures into {frontend_figs}/")
-
-    print("\nDone. Open frontend/index.html directly in a browser (no server needed).")
+    print("\nDone. Serve from the repo root (py -m http.server) and open "
+          "http://localhost:<port>/frontend/.")
 
 
 if __name__ == "__main__":

@@ -23,7 +23,10 @@
 
 <div id="loaderr" class="error hidden">
   Could not load the simulation data. Run <code>py run.py</code> first (it writes
-  <code>frontend/data.js</code> and the figures), then re-open this page.
+  <code>outputs/reports/flow_timeline.json</code> and the figures), make sure you're
+  serving this page over HTTP from the repo root (<code>py -m http.server</code>, then
+  open <code>http://localhost:&lt;port&gt;/frontend/</code> — opening this file directly
+  won't work), and reload.
 </div>
 
 <main id="app" class="wrap hidden">
@@ -126,7 +129,6 @@
 
 </main>
 
-<script src="data.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

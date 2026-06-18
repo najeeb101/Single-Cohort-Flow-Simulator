@@ -54,9 +54,26 @@
   "probation_min_ch": 25,
   "_enrollment_priority_note": "Phase-1 desired-enrollment order, tried after retakes (which always come first and are not part of this list). Each tier is {categories: [...], min_ch?: N}; a student's eligible courses are bucketed into the first tier whose categories contains the course's category AND whose min_ch (default 0) the student's completed_ch already meets, then tiers are filled in order up to the load cap. A category absent from every tier, or gated by an unmet min_ch, is simply not enrolled that term. This is QU CS's policy (required courses, then cs_electives once junior-standing CH is reached, then service/gen-ed courses) expressed as data; a different program redefines its own tiers/categories here, not in student.py.",
   "enrollment_priority_tiers": [
-    {"categories": ["cs_core", "college_req"]},
-    {"categories": ["cs_elective"], "min_ch": 60},
-    {"categories": ["math", "science", "english", "gen_ed"]}
+    {
+      "categories": [
+        "cs_core",
+        "college_req"
+      ]
+    },
+    {
+      "categories": [
+        "cs_elective"
+      ],
+      "min_ch": 60
+    },
+    {
+      "categories": [
+        "math",
+        "science",
+        "english",
+        "gen_ed"
+      ]
+    }
   ],
   "dropout_gpa_floor": 2.0,
   "dropout_base_hazard": 0.18,
@@ -64,7 +81,7 @@
   "dropout_early_sem_cutoff": 4,
   "dropout_fails_threshold": 3,
   "dropout_prob_on_repeated_fail": 0.15,
-  "_dropout_note": "Dropout has two causes. PRIMARY (GPA): each term a student with completed_ch >= probation_min_ch and gpa < dropout_gpa_floor leaves with probability base_hazard*(1+(floor-gpa)), doubled (early_multiplier) in their first dropout_early_sem_cutoff semesters. SECONDARY (gateway): failing one course dropout_fails_threshold times drops them with prob dropout_prob_on_repeated_fail. CALIBRATION SCOPE: the only QU anchor (scripts/analyze_qu_data.py) is the AGGREGATE 72.3% 12-semester graduation rate — the open data is semester-level counts, not student-level histories, so dropout TIMING cannot be validated. The early_multiplier front-loading is a face-validity assumption, not a data fit. Note base_hazard does not control the graduation rate (it trades dropped<->censored); graduation is bound by gateway capacity (see _sections_note).",
+  "_dropout_note": "Dropout has two causes. PRIMARY (GPA): each term a student with completed_ch >= probation_min_ch and gpa < dropout_gpa_floor leaves with probability base_hazard*(1+(floor-gpa)), doubled (early_multiplier) in their first dropout_early_sem_cutoff semesters. SECONDARY (gateway): failing one course dropout_fails_threshold times drops them with prob dropout_prob_on_repeated_fail. CALIBRATION SCOPE: the only QU anchor (scripts/analyze_qu_data.py) is the AGGREGATE 72.3% 12-semester graduation rate \u2014 the open data is semester-level counts, not student-level histories, so dropout TIMING cannot be validated. The early_multiplier front-loading is a face-validity assumption, not a data fit. Note base_hazard does not control the graduation rate (it trades dropped<->censored); graduation is bound by gateway capacity (see _sections_note).",
   "ability_sd": 0.15,
   "ability_clip": 0.3,
   "grade_tiers": {
@@ -110,6 +127,50 @@
     {
       "name": "A_baseline",
       "capacity_multiplier": 1.0
+    },
+    {
+      "name": "B_calibrated",
+      "capacity_multiplier": 1.0,
+      "pass_rate_overrides": {
+        "CMPS151": 0.7164,
+        "CMPS200": 0.8969,
+        "CMPS205": 0.7243,
+        "CMPS251": 0.6643,
+        "CMPS350": 0.741,
+        "CMPS303": 0.6816,
+        "CMPE263": 0.7559,
+        "CMPS351": 0.7679,
+        "CMPS380": 0.7261,
+        "CMPS405": 0.6453,
+        "CMPS323": 0.6391,
+        "CMPS310": 0.6794,
+        "CMPE355": 0.6887,
+        "CMPS493": 0.8507,
+        "CMPS499": 0.8811,
+        "ELEC_1": 0.7595,
+        "ELEC_2": 0.75,
+        "ELEC_3": 0.7876,
+        "ELEC_4": 0.6969,
+        "SUPP_1": 0.8772,
+        "SUPP_2": 0.8929,
+        "MATH_1": 0.7625,
+        "MATH_2": 0.8485,
+        "MATH_3": 0.8178,
+        "MATH_4": 0.8182,
+        "MATH_5": 0.8106,
+        "PHYS_1": 0.8033,
+        "PHYS_2": 0.7924,
+        "CHEM_1": 0.8791,
+        "ENGL_1": 0.8811,
+        "ENGL_2": 0.8618,
+        "GED_1": 0.899,
+        "GED_2": 0.8889,
+        "GED_3": 0.8619,
+        "GED_4": 0.89,
+        "GED_5": 0.8687,
+        "GED_6": 0.8953,
+        "GED_7": 0.9448
+      }
     }
   ]
 }

@@ -72,23 +72,27 @@ outputs/
 │   ├── cohort_flow.png               # per-cohort head-count (later cohorts lag)
 │   ├── utilization_heatmap.png       # course × semester seat utilization
 │   ├── graduation_histogram.png      # time-to-graduate distribution
-│   ├── bottlenecks_A_baseline.png    # 4-panel: fail / capacity / offering / prereq blocks
+│   ├── bottlenecks_<scenario>.png    # 4-panel: fail / capacity / offering / prereq blocks, one per scenario
 │   └── curriculum_network.png        # prerequisite graph, shaded by failure count
 └── reports/
-    ├── simulation_summary.csv        # headline metrics + top bottleneck per signal
+    ├── simulation_summary.csv        # headline metrics + top bottleneck per signal, one row per scenario
     ├── cohort_flow.csv               # per-cohort, per-semester ledger
     ├── cohort_summary.csv            # per-cohort outcomes + where each got stuck
     ├── course_utilization.csv        # course × semester demand vs. capacity
     ├── monte_carlo.csv               # mean ± 95% CI over many seeds
-    └── flow_timeline.json            # frontend contract (also copied to frontend/)
+    ├── calibration_report.json       # written by scripts/calibrate_from_history.py (see below)
+    └── flow_timeline.json            # frontend contract for the scenario that feeds the dashboard (also copied to frontend/)
 ```
 
 ### View the animated flow chart + dashboard
 
 ```bash
-cd frontend
-py -m http.server 8000        # then open http://localhost:8000
+py -m http.server 8000        # from the repo root — then open http://localhost:8000/frontend/
 ```
+
+The frontend fetches its data and figures straight from `outputs/` over HTTP, so it must be
+served from the **repo root** (not `cd frontend` first) and won't work opened directly as a
+`file://` URL.
 
 The web app (no build step, no external libraries) replays the run semester by semester: course
 nodes fill and flag as seats fill, a stage panel shows Year 1→4 progression per cohort, and a
@@ -101,10 +105,35 @@ recommendation, and the per-cohort post-mortem.
 py -m pytest tests/ -v
 ```
 
-46 tests cover determinism, the 120-credit-hour reconciliation, graduation detection,
-prerequisite logic, capacity allocation, probation, and the multi-cohort layer (staggered
+82 tests cover determinism, the 120-credit-hour reconciliation, graduation detection,
+prerequisite logic, capacity allocation, probation, the multi-cohort layer (staggered
 admissions, the incumbent warm start, shared-seat priority, per-cohort metrics, the admissions
-recommendation, the timeline-JSON contract, and Monte Carlo).
+recommendation, the timeline-JSON contract, and Monte Carlo), the generic rule-expression
+evaluator, the historical-transcript export, the `run_simulation()` service boundary, the
+FastAPI wrapper, and the calibration/holdout-validation pipeline.
+
+### Fit pass rates + dropout hazard from history (optional)
+
+```bash
+py scripts/calibrate_from_history.py
+```
+
+There's no real institutional data yet, so this fits against the *synthetic* incumbent
+cohorts (which exist to stand in for "the institution's history" until real data is
+plugged in) and validates against a held-out cohort. It appends a `B_calibrated` scenario
+to `data/simulation_config.json` — additive, never touches `data/curriculum.json` or the
+original `A_baseline` — and writes a fit/validation report to
+`outputs/reports/calibration_report.json`. `run.py` then prefers `B_calibrated` (measured
+pass rates) over `A_baseline` (assumed) for the dashboard, when both exist.
+
+### Run the HTTP API (optional)
+
+```bash
+py -m uvicorn src.api:app --reload --port 8001
+```
+
+A thin wrapper (`GET /health`, `GET /meta`, `POST /simulate`) around the same engine, with
+no database or auth — see `docs/acip_transformation_plan.md` §2.3/§3.2 for where this is headed.
 
 ### (Optional) Recompute the real-world QU benchmark
 
@@ -148,21 +177,27 @@ To experiment, edit a value — e.g. add a section to a bottleneck course in `co
 ```
 src/
 ├── models/
-│   ├── course.py      # Course dataclass + load_curriculum()
-│   ├── student.py     # Student state, GPA, eligibility, cohort_id/entry_term, curriculum_stage()
-│   └── semester.py    # term index → Fall/Spring season + year
-├── simulator.py       # Simulator (staggered admission + 3-phase per-term loop) + History
-├── analytics.py       # metrics, per-cohort metrics, admissions rec, curriculum graph, flow_timeline JSON, CSVs
-├── montecarlo.py      # run_monte_carlo() — mean ± 95% CI over many seeds
-├── visualize.py       # figure generation
-└── utils.py           # load_json(), grade_tier()
+│   ├── course.py        # Course dataclass + load_curriculum()
+│   ├── student.py       # Student state, GPA, eligibility, cohort_id/entry_term, curriculum_stage()
+│   └── semester.py      # term index → Fall/Spring season + year
+├── datasource.py         # DataSource seam: canonical schema + SyntheticDataSource (population creation)
+├── rules.py              # evaluate_rule() / gate_edges() — generic compound prerequisite expressions
+├── simulator.py          # Simulator (staggered admission + 3-phase per-term loop) + History
+├── analytics.py          # metrics, per-cohort metrics, admissions rec, curriculum graph, flow_timeline JSON, CSVs
+├── service.py            # run_simulation() — no-file-I/O engine boundary; what api.py calls
+├── api.py                # FastAPI wrapper: GET /health, /meta, POST /simulate (no DB/auth)
+├── calibration.py        # fit_pass_rates(), fit_dropout_base_hazard(), validate_against_holdout()
+├── montecarlo.py         # run_monte_carlo() — mean ± 95% CI over many seeds
+├── visualize.py          # figure generation
+└── utils.py              # load_json(), grade_tier()
 
 frontend/    index.html, style.css, app.js (animated flow chart + dashboard; reads flow_timeline.json)
 data/        curriculum.json, simulation_config.json, qu_raw/ (validation data)
-outputs/     figures/ and reports/ (generated by run.py)
-tests/       pytest suite (46 tests)
-docs/        technical_design.md, assumptions.md
-report/      report.md (the write-up)
+outputs/     figures/ and reports/ (generated by run.py / scripts/calibrate_from_history.py)
+scripts/     size_sections.py, calibrate_from_history.py, analyze_qu_data.py
+tests/       pytest suite (82 tests)
+docs/        technical_design.md, assumptions.md, acip_transformation_plan.md
+report/      report_v2.md (current write-up), report.md (v1, single-cohort, superseded)
 run.py       entry point
 ```
 
@@ -191,6 +226,8 @@ so the simulation is fully **deterministic**. Full mechanics:
 
 ## Documentation
 
-- **[report/report.md](report/report.md)** — the research write-up: methodology, results, and recommendations.
+- **[report/report_v2.md](report/report_v2.md)** — the current research write-up (multi-cohort, shared-seat model): methodology, results, and recommendations.
+- **[report/report.md](report/report.md)** — the original v1 (single-cohort) write-up, kept as a historical snapshot; superseded by report_v2.md.
 - **[docs/technical_design.md](docs/technical_design.md)** — model architecture and execution walkthrough.
 - **[docs/assumptions.md](docs/assumptions.md)** — every assumption and parameter, with justification.
+- **[docs/acip_transformation_plan.md](docs/acip_transformation_plan.md)** — the plan for turning this into a deployable multi-tenant product, and what's already built toward it (`DataSource` seam, engine-as-a-service, FastAPI wrapper, measured calibration).

@@ -15,16 +15,13 @@ let playing = false;
 let timer = null;
 
 // ---------------------------------------------------------------- //
-// Load — prefer inlined data (file:// friendly), else fetch         //
+// Load — served from the repo root (py -m http.server); fetches     //
+// straight from outputs/, no copies into frontend/ needed.          //
 // ---------------------------------------------------------------- //
-if (window.FLOW_DATA) {
-  boot(window.FLOW_DATA);
-} else {
-  fetch("flow_timeline.json")
-    .then((r) => { if (!r.ok) throw new Error("not found"); return r.json(); })
-    .then(boot)
-    .catch(() => document.getElementById("loaderr").classList.remove("hidden"));
-}
+fetch("../outputs/reports/flow_timeline.json")
+  .then((r) => { if (!r.ok) throw new Error("not found"); return r.json(); })
+  .then(boot)
+  .catch(() => document.getElementById("loaderr").classList.remove("hidden"));
 
 function boot(data) {
   DATA = data;
@@ -465,17 +462,18 @@ function renderBottlenecks() {
 }
 
 function renderFigures() {
+  const scenario = DATA.meta.scenario || "A_baseline";
   const figs = [
     ["university_enrollment.png", "University population over time (build-up to steady state)"],
     ["cohort_flow.png", "Per-cohort head-count — later cohorts progress slower"],
     ["utilization_heatmap.png", "Seat utilization by course × semester"],
     ["graduation_histogram.png", "Time-to-graduate distribution"],
-    ["bottlenecks_A_baseline.png", "Bottleneck signals: fail / capacity / offering / prereq"],
+    [`bottlenecks_${scenario}.png`, "Bottleneck signals: fail / capacity / offering / prereq"],
     ["curriculum_network.png", "Prerequisite network, shaded by failure count"],
   ];
   document.getElementById("figures").innerHTML = figs.map(([file, cap]) =>
     `<div class="figure">
-       <img src="figures/${file}" alt="${cap}" onerror="this.parentElement.style.display='none'"/>
+       <img src="../outputs/figures/${file}" alt="${cap}" onerror="this.parentElement.style.display='none'"/>
        <div class="cap">${cap}</div>
      </div>`).join("");
 }

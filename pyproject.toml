@@ -9,6 +9,8 @@ requires-python = ">=3.11"
 dependencies = [
     "matplotlib",
     "networkx",
+    "fastapi",
+    "uvicorn",
 ]
 
 [tool.setuptools.packages.find]

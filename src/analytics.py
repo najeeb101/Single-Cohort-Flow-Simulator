@@ -410,6 +410,7 @@ def flow_timeline_payload(
 
     return {
         "meta": {
+            "scenario": result.scenario.get("name"),
             "stage_nodes": ["Admitted", "Year1", "Year2", "Year3", "Year4",
                             "Graduated", "Dropped", "Censored"],
             "cohorts": cohorts_meta,
@@ -447,15 +448,6 @@ def build_flow_timeline_json(
     with open(output_path, "w", encoding="utf-8") as f:
         json.dump(payload, f, indent=2)
     return payload
-
-
-def build_flow_timeline_js(payload: dict, output_path: Path) -> None:
-    """Inline the payload as `window.FLOW_DATA` so the page works from file:// (no server)."""
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    with open(output_path, "w", encoding="utf-8") as f:
-        f.write("window.FLOW_DATA = ")
-        json.dump(payload, f)
-        f.write(";\n")
 
 
 def _write_csv(output_path: Path, rows: list[dict]) -> None:
