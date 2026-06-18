@@ -492,7 +492,7 @@ Beyond the legacy reports, the engine emits `flow_timeline.json`:
 - `frames` — one per semester: per-course stats (capacity/registered/granted/denied/pass/fail/waiting/full) and per-cohort stage **node counts + flows** (`from → to` counts, e.g. Year2 → Year3).
 - `summary` — headline metrics (+ Monte Carlo CIs), per-cohort metrics + bottlenecks, and the admissions recommendation.
 
-The `frontend/` web app (no build, no external libraries) lays out the graph by longest-path layering and replays the frames as an animation, ending in a dashboard rendered from `summary`. A later phase may add an AI step that classifies a raw prerequisite chart into `curriculum.json`; the export is producer-agnostic, so that step would change nothing downstream.
+The `web/` Next.js dashboard lays out the graph by longest-path layering and replays the frames as an animation, ending in a dashboard rendered from `summary`. A later phase may add an AI step that classifies a raw prerequisite chart into `curriculum.json`; the export is producer-agnostic, so that step would change nothing downstream.
 
 ### 11.8 Monte Carlo
 `run_monte_carlo` re-runs the baseline across `n_runs` seeds (`base_seed + k`) and reports mean ± 95% CI per headline metric. The canonical timeline/animation stays on the single base seed (deterministic for the frontend); the CIs only annotate the dashboard.

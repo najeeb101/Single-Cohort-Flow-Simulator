@@ -114,7 +114,7 @@ Both must emit the **same canonical schema**. Define that schema *now*, modeled 
 **Exit criteria:** calibration + validation run automatically (done); "swap to real data" is a `DataSource` config change with the harness ready to grade it (true today for the calibration/validation path — still blocked on `RealDataSource` itself not existing, which needs real data to exist first).
 
 ### Phase 2 — Web MVP + the "proof of worth" demo *(your four strengths, productized)*
-**Status: slices 1–3 done.** `web/` is a real Next.js/TypeScript app (App Router,
+**Status: slices 1–4 done.** `web/` is a real Next.js/TypeScript app (App Router,
 Tailwind v4) talking directly to `src/api.py` (`GET /meta`, `POST /simulate` — no backend
 changes needed in slices 1–2, and only an additive field for slice 3, the contract
 already existed and is tested). It now ports
@@ -133,12 +133,15 @@ time-to-graduate distribution, seat-utilization heatmap) as dependency-free Reac
 matching `web/`'s existing no-chart-library convention (`CurriculumGraph`); three of the
 four needed no backend change (already in `flow_timeline.frames`), the histogram needed
 one additive field (`headline.graduation_time_distribution`, covered by
-`tests/test_graduation.py` + `tests/test_api.py`). **Deliberately not ported:** the
-prerequisite-network diagram (`curriculum_network.png`) — it's a static, fail-count-
-colored layout of the same graph the animated `CurriculumGraph` already renders
-interactively with live per-term utilization, so porting it would be redundant, not
-additive. **Still deferred:** retiring `frontend/` (which stays the fallback for that one
-diagram until/unless it's ever ported).
+`tests/test_graduation.py` + `tests/test_api.py`). Slice 4 ports the last figure —
+the prerequisite-network diagram (`curriculum_network.png`), as `PrerequisiteNetwork`
+— reusing the layered `computeLayout` positions already built for the animated
+`CurriculumGraph` (a spring layout, like the static PNG's, adds nothing a reader can't
+get from the layered one) and shading nodes by total failures summed across
+`flow_timeline.frames`, no backend change needed. With every figure ported, `frontend/`
+had no remaining reason to exist and was deleted; `src/visualize.py` still writes
+`curriculum_network.png` (and the rest) to `outputs/figures/` for the static
+report/README embeds.
 
 - Next.js/TypeScript app with: Cohort Analytics (M2), Student Flow / Sankey (M3), Course Bottleneck (M4), Admission Simulator (M7), Scenario Planning (M8).
 - Seat-based Capacity dashboard (M5 partial — the part you already have).
@@ -180,7 +183,7 @@ The advisor releases real data once the synthetic platform demonstrates value, s
 Treat these four as Phase 2's acceptance criteria; agree them with the advisor *up front* so "worth it" is a checklist, not a judgment call.
 
 ### 3.2 Live scenario slider — design sketch
-**Backend status: done.** `src/api.py` now exposes `POST /simulate` (scenario overrides in, the same `flow_timeline` contract back out) and `GET /meta` (curriculum graph + slider-relevant config), both calling existing engine pieces unchanged. What's left is the frontend half below — a control panel wired into `frontend/` that calls these endpoints.
+**Status: done (M8, `web/` slice 2).** `src/api.py` exposes `POST /simulate` (scenario overrides in, the same `flow_timeline` contract back out) and `GET /meta` (curriculum graph + slider-relevant config); `web/src/components/LiveWhatIfPanel.tsx` is the control panel that calls them. Rest of this section kept as the original design sketch.
 
 **Inspiration.** Liaison/Othot's student-success dashboard lets a user drag a lever (e.g. a scholarship) and see a real-time re-forecast. The mechanism doesn't transfer (that's a trained ML model; this engine is mechanistic), but the *interaction pattern* directly matches what §3.1's acceptance criterion #1 already asks for: "shown live via the scenario sliders, with confidence intervals, not a static chart."
 

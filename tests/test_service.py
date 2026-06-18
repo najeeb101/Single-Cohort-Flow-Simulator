@@ -59,9 +59,7 @@ def test_matches_manual_construction():
 def test_writes_no_files():
     config, curriculum = _setup()
     outputs_before = _snapshot(Path("outputs"))
-    frontend_before = _snapshot(Path("frontend"))
 
     run_simulation(curriculum, config, config["scenarios"][0])
 
     assert _snapshot(Path("outputs")) == outputs_before
-    assert _snapshot(Path("frontend")) == frontend_before

@@ -3,8 +3,8 @@
 No database, no auth — matches Phase 1's stated scope ("no database yet"). Every
 endpoint is a read-only view over one in-memory run; nothing here touches disk beyond
 the one-time module-load of curriculum/config. This is the prerequisite for §3.2's live
-scenario slider: a frontend control panel POSTs scenario overrides to /simulate and
-re-renders the same flow_timeline contract the static frontend already knows how to draw.
+scenario slider: web/'s LiveWhatIfPanel POSTs scenario overrides to /simulate and
+re-renders the same flow_timeline contract the dashboard already knows how to draw.
 """
 from __future__ import annotations
 
@@ -26,9 +26,9 @@ BASE_SCENARIO = BASE_CONFIG["scenarios"][0]
 
 app = FastAPI(title="Single-Cohort-Flow-Simulator API")
 
-# Local-dev only: the frontend (py -m http.server) and this API run on different
-# origins/ports. Tighten this before any real deployment (see plan §5/§8 — auth and
-# multi-tenancy are explicitly deferred, not yet built).
+# Local-dev only: the dashboard (web/, npm run dev on :3000) and this API (:8001) run on
+# different origins/ports. Tighten this before any real deployment (see plan §5/§8 — auth
+# and multi-tenancy are explicitly deferred, not yet built).
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],

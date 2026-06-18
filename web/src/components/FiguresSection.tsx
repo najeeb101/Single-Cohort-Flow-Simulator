@@ -1,22 +1,24 @@
-import type { CohortInfo, Frame, Histogram } from "@/types/simulation";
+import type { CohortInfo, Frame, Graph, Histogram } from "@/types/simulation";
 import UniversityEnrollmentChart from "@/components/UniversityEnrollmentChart";
 import CohortFlowChart from "@/components/CohortFlowChart";
 import GraduationHistogram from "@/components/GraduationHistogram";
 import UtilizationHeatmap from "@/components/UtilizationHeatmap";
+import PrerequisiteNetwork from "@/components/PrerequisiteNetwork";
 
 interface Props {
   frames: Frame[];
   cohorts: CohortInfo[];
   graduationTimeDistribution: Histogram;
+  graph: Graph;
 }
 
 // Ports the static figures from src/visualize.py (outputs/figures/*.png) as React/SVG —
-// university_enrollment, cohort_flow, graduation_histogram, utilization_heatmap. All
-// four are derived from `frames`/`headline`, already in the /simulate response, so this
-// is purely a new view over data the page already has. curriculum_network.png is
-// deliberately not ported: it's a static fail-count-colored layout of the same
-// prerequisite graph the animated CurriculumGraph above already renders interactively.
-export default function FiguresSection({ frames, cohorts, graduationTimeDistribution }: Props) {
+// university_enrollment, cohort_flow, graduation_histogram, utilization_heatmap,
+// curriculum_network (as PrerequisiteNetwork, using the layered layout already computed
+// for the animated CurriculumGraph rather than re-deriving a spring layout). All are
+// derived from `frames`/`graph`/`headline`, already in the /simulate response, so this
+// is purely a new view over data the page already has.
+export default function FiguresSection({ frames, cohorts, graduationTimeDistribution, graph }: Props) {
   return (
     <section className="py-6">
       <h2 className="mb-4 flex items-center gap-2 text-[15px] font-bold">
@@ -28,6 +30,7 @@ export default function FiguresSection({ frames, cohorts, graduationTimeDistribu
         <CohortFlowChart frames={frames} cohorts={cohorts} />
         <GraduationHistogram distribution={graduationTimeDistribution} />
         <UtilizationHeatmap frames={frames} />
+        <PrerequisiteNetwork graph={graph} frames={frames} />
       </div>
     </section>
   );

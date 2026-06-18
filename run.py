@@ -1,8 +1,8 @@
 """Entry point: load → run scenario(s) → analyze → render → CSV + outputs/.
 
-The frontend (frontend/) is server-only: it fetches its data and figures straight from
-outputs/ over HTTP (see frontend/app.js), so nothing here writes into frontend/ at all.
-Serve from the repo root (py -m http.server) and open http://localhost:<port>/frontend/.
+The dashboard (web/) doesn't read this script's output directly — it talks to src/api.py
+in memory via POST /simulate — but this is still how outputs/figures/ and
+outputs/reports/ (CSVs, flow_timeline.json) get written for the static report and README.
 """
 from __future__ import annotations
 
@@ -55,7 +55,7 @@ def main() -> None:
         print(f"  Top failure           : {m['top_fail_courses'][:1]}")
         print(f"  Top cap-block         : {m['top_capacity_blocks'][:1]}")
 
-    # The frontend animates exactly one scenario. Prefer the calibrated scenario (measured
+    # The dashboard animates exactly one scenario. Prefer the calibrated scenario (measured
     # pass rates) over the assumed baseline when both exist — the whole point of fitting
     # pass rates from history is to show real numbers, not guesses, on the live dashboard.
     for preferred in ("B_calibrated", "A_baseline"):
@@ -87,7 +87,7 @@ def main() -> None:
     if monte_carlo:
         build_monte_carlo_csv(monte_carlo, reports_dir / "monte_carlo.csv")
 
-    # Frontend data: the frontend fetches this file directly from outputs/reports/ over HTTP.
+    # Dashboard data: the same flow_timeline shape web/ gets back from POST /simulate.
     build_flow_timeline_json(baseline, curriculum, reports_dir / "flow_timeline.json", monte_carlo)
     print("  Saved simulation_summary.csv, cohort_flow.csv, cohort_summary.csv,")
     print("        course_utilization.csv, monte_carlo.csv, flow_timeline.json")
@@ -101,13 +101,13 @@ def main() -> None:
         print(f"  Binding criterion  : {rec['binding_criterion']} "
               f"(slack {rec['binding_slack']:.2f})")
 
-    # Figures — the frontend loads these straight from outputs/figures/ over HTTP.
+    # Figures — embedded in report/report_v2.md and ported as React/SVG in web/.
     print("\nGenerating figures...")
     figures_dir = Path("outputs/figures")
     save_all_figures(results, curriculum, config, figures_dir)
 
-    print("\nDone. Serve from the repo root (py -m http.server) and open "
-          "http://localhost:<port>/frontend/.")
+    print("\nDone. For the live dashboard: py -m uvicorn src.api:app --port 8001, "
+          "then cd web && npm run dev.")
 
 
 if __name__ == "__main__":

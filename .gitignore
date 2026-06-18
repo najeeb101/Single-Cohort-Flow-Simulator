@@ -40,6 +40,6 @@ desktop.ini
 # ---- Project-specific ----
 # outputs/figures/ stays COMMITTED: report/report.md embeds those PNGs so it renders on GitHub.
 # outputs/reports/ is regenerated raw data (CSV + the 16k-line flow_timeline.json) embedded
-# nowhere — keep it out of history. The frontend reads its own copy at frontend/flow_timeline.json.
+# nowhere — keep it out of history. web/ gets the same shape live from POST /simulate, not this file.
 outputs/reports/
 # data/qu_raw/    # downloaded QU open-data CSVs (validation only; re-downloadable via scripts/analyze_qu_data.py)

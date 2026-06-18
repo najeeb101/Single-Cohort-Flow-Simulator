@@ -126,16 +126,8 @@ export default function Home() {
         frames={data.flow_timeline.frames}
         cohorts={chartMeta.cohorts}
         graduationTimeDistribution={summary.headline.graduation_time_distribution}
+        graph={chartMeta.graph}
       />
-
-      <p className="py-6 text-xs text-muted">
-        The prerequisite network diagram (fail-count-colored, static layout) isn&apos;t
-        ported — the animated curriculum graph above already covers that view
-        interactively. See{" "}
-        <code className="rounded bg-black/35 px-1.5 py-0.5">frontend/</code> for the
-        original, or{" "}
-        <a className="underline" href="http://localhost:8000/frontend/">http://localhost:8000/frontend/</a>.
-      </p>
     </main>
   );
 }
