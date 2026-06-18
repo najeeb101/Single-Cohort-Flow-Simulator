@@ -5,6 +5,68 @@
 
 export type TopList = [code: string, count: number][];
 
+export interface GraphNode {
+  code: string;
+  title: string;
+  credits: number;
+  category: string;
+  offering: string[];
+  capacity: number;
+  study_plan_order: number;
+}
+
+export interface GraphEdge {
+  from: string;
+  to: string;
+  kind: "prereq" | "required" | "one_of";
+}
+
+export interface Graph {
+  nodes: GraphNode[];
+  edges: GraphEdge[];
+}
+
+export interface CourseFrameStat {
+  capacity: number;
+  sections: number;
+  registered: number;
+  granted: number;
+  denied: number;
+  passed: number;
+  failed: number;
+  prereq_waiting: number;
+  offering_blocked: number;
+  offered: boolean;
+  full: boolean;
+}
+
+export interface CohortFlow {
+  from: string;
+  to: string;
+  count: number;
+}
+
+export interface CohortStageBlock {
+  is_incumbent: boolean;
+  nodes: Record<string, number>;
+  flows: CohortFlow[];
+  seats_requested: number;
+  seats_denied: number;
+}
+
+export interface FrameStages {
+  cohorts: Record<string, CohortStageBlock>;
+  totals: { nodes: Record<string, number>; seats_requested: number; seats_denied: number };
+}
+
+export interface Frame {
+  term: number;
+  season: string;
+  label: string;
+  courses: Record<string, CourseFrameStat>;
+  stages: FrameStages;
+}
+
 export interface Criterion {
   name: string;
   observed: number;
@@ -76,11 +138,17 @@ export interface FlowTimelineSummary {
   top_bottlenecks: TopBottlenecks;
 }
 
+export interface CohortInfo {
+  id: number;
+  is_incumbent: boolean;
+  entry_term: number;
+}
+
 export interface FlowTimelineMeta {
   scenario: string | null;
   stage_nodes: string[];
-  cohorts: { id: number; is_incumbent: boolean; entry_term: number }[];
-  graph: { nodes: unknown[]; edges: unknown[] };
+  cohorts: CohortInfo[];
+  graph: Graph;
   seed: number;
   cohort_size: number;
   max_terms: number;
@@ -91,7 +159,7 @@ export interface FlowTimelineMeta {
 
 export interface FlowTimeline {
   meta: FlowTimelineMeta;
-  frames: unknown[]; // not consumed in this slice — the animated graph is deferred
+  frames: Frame[];
   summary: FlowTimelineSummary;
 }
 
@@ -103,7 +171,7 @@ export interface SimulateResponse {
 }
 
 export interface MetaResponse {
-  graph: { nodes: unknown[]; edges: unknown[] };
+  graph: Graph;
   course_sections: Record<string, number>;
   seats_per_section: number;
   baseline_scenario: Record<string, unknown> & { name: string };
