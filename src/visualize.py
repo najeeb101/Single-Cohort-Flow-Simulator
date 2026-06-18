@@ -20,7 +20,7 @@ if TYPE_CHECKING:
 # Colour palette                                                      #
 # ------------------------------------------------------------------ #
 _SCENARIO_COLORS = {
-    "A_baseline":          "#1f77b4",
+    "baseline":            "#1f77b4",
     "B_pass_intervention": "#ff7f0e",
     "C_add_sections":      "#2ca02c",
     "D_uncontended":       "#9467bd",
@@ -407,7 +407,7 @@ def save_all_figures(
     figures_dir: Path,
 ) -> None:
     figures_dir.mkdir(parents=True, exist_ok=True)
-    baseline = results.get("A_baseline") or next(iter(results.values()))
+    baseline = results.get("baseline") or next(iter(results.values()))
 
     # Multi-cohort university views (global timeline).
     plot_university_enrollment(baseline, figures_dir / "university_enrollment.png")

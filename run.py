@@ -55,15 +55,8 @@ def main() -> None:
         print(f"  Top failure           : {m['top_fail_courses'][:1]}")
         print(f"  Top cap-block         : {m['top_capacity_blocks'][:1]}")
 
-    # The dashboard animates exactly one scenario. Prefer the calibrated scenario (measured
-    # pass rates) over the assumed baseline when both exist — the whole point of fitting
-    # pass rates from history is to show real numbers, not guesses, on the live dashboard.
-    for preferred in ("B_calibrated", "A_baseline"):
-        if preferred in results:
-            baseline_name = preferred
-            break
-    else:
-        baseline_name = next(iter(results))
+    # The dashboard animates exactly one scenario.
+    baseline_name = next(iter(results))
     baseline = results[baseline_name]
 
     # Monte Carlo confidence intervals on the baseline.

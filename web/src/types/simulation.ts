@@ -172,12 +172,31 @@ export interface SimulateResponse {
   flow_timeline: FlowTimeline;
 }
 
+export interface EnrollmentPriorityTier {
+  categories: string[];
+  min_ch?: number;
+}
+
 export interface MetaResponse {
   graph: Graph;
   course_sections: Record<string, number>;
+  course_pass_rates: Record<string, number>;
   seats_per_section: number;
   baseline_scenario: Record<string, unknown> & { name: string };
   cohort_size: number;
+  num_cohorts: number;
+  num_incumbent_cohorts: number;
+  admit_interval_terms: number;
+  max_terms: number;
+  seed: number;
+  dropout_gpa_floor: number;
+  dropout_base_hazard: number;
+  dropout_early_multiplier: number;
+  dropout_early_sem_cutoff: number;
+  dropout_fails_threshold: number;
+  dropout_prob_on_repeated_fail: number;
+  registration_tier_thresholds: number[];
+  enrollment_priority_tiers: EnrollmentPriorityTier[];
 }
 
 export interface ScenarioRequest {
@@ -186,5 +205,19 @@ export interface ScenarioRequest {
   offering_overrides?: Record<string, string[]>;
   pass_rate_overrides?: Record<string, number>;
   cohort_size?: number;
+  num_cohorts?: number;
+  num_incumbent_cohorts?: number;
+  admit_interval_terms?: number;
+  max_terms?: number;
+  seed?: number;
+  course_sections_overrides?: Record<string, number>;
+  dropout_gpa_floor?: number;
+  dropout_base_hazard?: number;
+  dropout_early_multiplier?: number;
+  dropout_early_sem_cutoff?: number;
+  dropout_fails_threshold?: number;
+  dropout_prob_on_repeated_fail?: number;
+  registration_tier_thresholds?: number[];
+  enrollment_priority_tiers?: EnrollmentPriorityTier[];
   include_monte_carlo?: boolean;
 }
