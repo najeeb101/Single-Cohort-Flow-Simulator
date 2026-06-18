@@ -17,6 +17,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
 from src.calibration import (
     cohort_metrics_from_records,
     fit_dropout_base_hazard,
+    fit_load_cap,
     fit_pass_rates,
     observed_dropout_rate,
     split_by_admission_term,
@@ -103,6 +104,28 @@ def test_observed_dropout_rate():
     ]
     assert observed_dropout_rate(outcomes) == pytest.approx(0.5)
     assert observed_dropout_rate([]) == 0.0
+
+
+# ─── fit_load_cap ─────────────────────────────────────────────────────────── #
+
+def test_fit_load_cap_percentile_of_per_student_term_credits():
+    # Student 1 takes 18 CH every term; student 2 takes 12 CH every term.
+    enrollments = (
+        [EnrollmentRecord(1, 0, "CMPS151", "A", 9, 1), EnrollmentRecord(1, 0, "CMPS200", "A", 9, 1)]
+        + [EnrollmentRecord(2, 0, "CMPS151", "A", 6, 1), EnrollmentRecord(2, 0, "CMPS200", "A", 6, 1)]
+    )
+    fitted = fit_load_cap(enrollments, percentile=1.0)  # max
+    assert fitted["observed_load_percentile"] == pytest.approx(18)
+    assert fitted["n_student_terms"] == 2
+
+    fitted_min = fit_load_cap(enrollments, percentile=0.0)
+    assert fitted_min["observed_load_percentile"] == pytest.approx(12)
+
+
+def test_fit_load_cap_empty():
+    fitted = fit_load_cap([])
+    assert fitted["observed_load_percentile"] is None
+    assert fitted["n_student_terms"] == 0
 
 
 # ─── split_by_admission_term ─────────────────────────────────────────────── #
@@ -197,12 +220,14 @@ def test_calibrate_from_history_end_to_end(tmp_path):
 
     assert report_path.exists()
     assert "holdout_validation" in report
+    assert "load_cap_fit" in report
 
     written = load_json(config_copy)
     names = [s["name"] for s in written["scenarios"]]
     assert names.count("B_calibrated") == 1
     assert names[0] == "A_baseline"  # original scenario untouched, still first
     assert written["dropout_base_hazard"] == 0.18  # global default not overwritten
+    assert written["normal_load_ch"] == 18  # load-cap fit is informational, not auto-applied
 
     calibrated_scenario = next(s for s in written["scenarios"] if s["name"] == "B_calibrated")
     assert set(calibrated_scenario["pass_rate_overrides"]) <= set(CURRICULUM)

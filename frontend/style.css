@@ -113,6 +113,26 @@ header .sub { margin: 3px 0 0; color: #c9a6b2; font-size: 12.5px; }
   border-radius: 8px; padding: 6px 8px; font-size: 12.5px;
 }
 
+/* ---------- Live what-if panel ---------- */
+.live-panel { margin-top: 14px; }
+.live-controls { display: flex; flex-wrap: wrap; gap: 18px; padding: 16px; }
+.live-ctrl { display: flex; flex-direction: column; gap: 6px; min-width: 200px; flex: 1; }
+.live-ctrl label { font-size: 12px; color: var(--muted); display: flex; justify-content: space-between; gap: 8px; }
+.live-ctrl label b { color: var(--ink); font-variant-numeric: tabular-nums; }
+.live-ctrl input[type="range"] { accent-color: var(--accent); }
+.live-actions { display: flex; align-items: center; gap: 14px; padding: 0 16px 16px; }
+.live-actions button {
+  border: 1px solid var(--border-2); border-radius: 9px; cursor: pointer;
+  font-size: 13px; font-weight: 600; padding: 7px 14px; background: var(--surface-2); color: var(--ink);
+  transition: filter .15s;
+}
+.live-actions button:hover { filter: brightness(1.12); }
+.live-actions button:disabled { opacity: .5; cursor: not-allowed; }
+#liveStatus.running { color: var(--accent); }
+#liveStatus.ok { color: var(--good); }
+.live-error { color: var(--bad); font-size: 12.5px; }
+.live-unavailable { margin-top: 10px; }
+
 /* ---------- Narrative ---------- */
 .narrative { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 16px; }
 .narr-col {

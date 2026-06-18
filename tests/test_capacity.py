@@ -56,6 +56,16 @@ def test_registration_tier_boundaries():
     assert registration_tier(120) == 0
 
 
+def test_registration_tier_reads_config_thresholds():
+    config = {"registration_tier_thresholds": [60, 30]}
+    assert registration_tier(0, config) == 2
+    assert registration_tier(30, config) == 1
+    assert registration_tier(60, config) == 0
+    # No config (or a config missing the key) falls back to the QU default bands.
+    assert registration_tier(60, {}) == 2
+    assert registration_tier(60, None) == 2
+
+
 # ─── Capacity enforcement ─────────────────────────────────────────────────── #
 
 def test_all_granted_when_under_capacity():

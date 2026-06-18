@@ -32,6 +32,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from src.calibration import (
     cohort_metrics_from_records,
     fit_dropout_base_hazard,
+    fit_load_cap,
     fit_pass_rates,
     observed_dropout_rate,
     split_by_admission_term,
@@ -113,6 +114,10 @@ def main(
     target_rate = observed_dropout_rate(fit_outcomes)
     hazard_fit = fit_dropout_base_hazard(curriculum, config, calibrated_scenario, target_rate)
 
+    # ── Load-cap sanity check (informational only — normal_load_ch is a registration
+    # policy, not auto-written, same reasoning as the dropout hazard above) ──────── #
+    load_cap_fit = fit_load_cap(fit_enrollments)
+
     # ── Validate against the held-out cohort (canonical records only — no cohort_id,
     # no live Student objects, exactly what a real SIS export's students+outcomes
     # tables would supply) ─────────────────────────────────────────────── #
@@ -135,6 +140,7 @@ def main(
         "holdout_term": holdout_term,
         "pass_rates": pass_rate_fit,
         "dropout_hazard_fit": hazard_fit,
+        "load_cap_fit": load_cap_fit,
         "holdout_validation": validation,
     }
     report_path.parent.mkdir(parents=True, exist_ok=True)
@@ -154,6 +160,13 @@ def main(
           f"(target dropout rate {hazard_fit['target_dropout_rate']:.3f}, "
           f"config default {config.get('dropout_base_hazard')})")
     print("  (reported only - A_baseline's dropout_base_hazard was NOT modified)")
+
+    if load_cap_fit["observed_load_percentile"] is not None:
+        print(f"\nLoad cap sanity check: observed p{load_cap_fit['percentile']*100:.0f} "
+              f"per-student-term load={load_cap_fit['observed_load_percentile']:.1f} CH "
+              f"(n={load_cap_fit['n_student_terms']} student-terms) vs. "
+              f"config normal_load_ch={config.get('normal_load_ch')}")
+        print("  (informational only - normal_load_ch was NOT modified)")
 
     print(f"\nHoldout validation (cohort {holdout_term}):")
     for metric, v in validation.items():

@@ -35,6 +35,20 @@
   <section class="block">
     <h2 class="block-title"><span class="num">0</span> Inputs <span class="hint">— this run</span></h2>
     <div id="inputs" class="inputs"></div>
+
+    <div id="liveUnavailable" class="hint live-unavailable hidden"></div>
+
+    <div id="livePanel" class="card live-panel hidden">
+      <div class="card-head">
+        <span>Live what-if <span class="hint">— drag, release, the dashboard below re-runs</span></span>
+        <span id="liveStatus" class="hint">Idle</span>
+      </div>
+      <div id="liveControls" class="live-controls"></div>
+      <div class="live-actions">
+        <button id="liveResetBtn" class="ghost">Reset to baseline</button>
+        <span id="liveError" class="live-error hidden"></span>
+      </div>
+    </div>
   </section>
 
   <!-- ===================== ANIMATION ===================== -->
@@ -123,7 +137,7 @@
 
   <!-- ===================== FIGURES ===================== -->
   <section class="block">
-    <h2 class="block-title"><span class="num">6</span> Figures</h2>
+    <h2 class="block-title"><span class="num">6</span> Figures <span class="hint">— from the saved run, not updated by the live what-if panel</span></h2>
     <div id="figures" class="figures"></div>
   </section>
 

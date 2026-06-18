@@ -15,18 +15,22 @@ GRADE_POINTS: dict[str, float] = {
 PASSING_GRADES = frozenset({"A", "B+", "B", "C+", "C", "D"})
 
 
-def registration_tier(completed_ch: int) -> int:
-    if completed_ch >= 90:
-        return 0
-    if completed_ch >= 75:
-        return 1
-    if completed_ch >= 60:
-        return 2
-    if completed_ch >= 45:
-        return 3
-    if completed_ch >= 30:
-        return 4
-    return 5
+# Fallback for callers that don't pass a config (e.g. tests exercising the function in
+# isolation) — QU's actual bands, mirrored from registration_tier_thresholds below.
+DEFAULT_REGISTRATION_TIER_THRESHOLDS: tuple[int, ...] = (90, 75, 60, 45, 30)
+
+
+def registration_tier(completed_ch: int, config: dict | None = None) -> int:
+    """Seat-priority tier from completed credit hours — lower tier registers first.
+
+    Thresholds are tenant-scoped data (`registration_tier_thresholds` in
+    simulation_config.json), not hardcoded to one program's bands; see ACIP plan §2.1.
+    """
+    thresholds = (config or {}).get("registration_tier_thresholds", DEFAULT_REGISTRATION_TIER_THRESHOLDS)
+    for tier, threshold in enumerate(thresholds):
+        if completed_ch >= threshold:
+            return tier
+    return len(thresholds)
 
 
 def curriculum_stage(student: "Student") -> str:

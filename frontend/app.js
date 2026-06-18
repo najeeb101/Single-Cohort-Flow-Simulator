@@ -14,6 +14,12 @@ let idx = 0;
 let playing = false;
 let timer = null;
 
+// Live what-if panel state (talks to src/api.py — see initLivePanel below).
+let liveMeta = null;
+let liveCourseCodes = [];
+let liveRequestId = 0;
+let liveDebounceTimer = null;
+
 // ---------------------------------------------------------------- //
 // Load — served from the repo root (py -m http.server); fetches     //
 // straight from outputs/, no copies into frontend/ needed.          //
@@ -43,6 +49,7 @@ function boot(data) {
   idx = Math.max(0, frames.findIndex((f) => f.term === 0));
   render();
   togglePlay();
+  initLivePanel();
 }
 
 function wireControls() {
@@ -476,4 +483,140 @@ function renderFigures() {
        <img src="../outputs/figures/${file}" alt="${cap}" onerror="this.parentElement.style.display='none'"/>
        <div class="cap">${cap}</div>
      </div>`).join("");
+}
+
+// ---------------------------------------------------------------- //
+// Live what-if panel — POST /simulate against src/api.py (§3.2).    //
+// Additive: if the API isn't running, the static dashboard above    //
+// keeps working exactly as it does today.                           //
+// ---------------------------------------------------------------- //
+const API_BASE = "http://127.0.0.1:8001"; // py -m uvicorn src.api:app --port 8001
+const LIVE_DEBOUNCE_MS = 300;
+
+function initLivePanel() {
+  fetch(`${API_BASE}/meta`)
+    .then((r) => { if (!r.ok) throw new Error("meta failed"); return r.json(); })
+    .then((meta) => {
+      liveMeta = meta;
+      buildLiveControls(meta);
+      document.getElementById("livePanel").classList.remove("hidden");
+    })
+    .catch(() => {
+      const el = document.getElementById("liveUnavailable");
+      el.textContent = "Live preview unavailable — start it with: py -m uvicorn src.api:app --port 8001";
+      el.classList.remove("hidden");
+    });
+}
+
+function buildLiveControls(meta) {
+  const top3 = ((DATA.summary || {}).top_bottlenecks || {}).capacity || [];
+  liveCourseCodes = top3.slice(0, 3).map(([code]) => code);
+
+  const host = document.getElementById("liveControls");
+  host.innerHTML = "";
+  liveCourseCodes.forEach((code) => {
+    host.appendChild(makeLiveSlider(`cap-${code}`, `${code} sections`, 0.5, 3.0, 0.1, 1.0,
+      (v) => `${v.toFixed(1)}×`));
+  });
+
+  const baselineSize = meta.cohort_size || 100;
+  host.appendChild(makeLiveSlider("cohort-size", "Admit size", Math.round(baselineSize * 0.5),
+    Math.round(baselineSize * 1.5), 5, baselineSize, (v) => `${v}/yr`));
+
+  host.querySelectorAll("input[type=range]").forEach((el) =>
+    el.addEventListener("change", scheduleLiveRun));
+
+  document.getElementById("liveResetBtn").addEventListener("click", resetLivePanel);
+}
+
+function makeLiveSlider(id, labelText, min, max, step, value, fmt) {
+  const wrap = document.createElement("div");
+  wrap.className = "live-ctrl";
+  wrap.innerHTML =
+    `<label for="${id}">${labelText} <b id="${id}-val">${fmt(value)}</b></label>
+     <input type="range" id="${id}" min="${min}" max="${max}" step="${step}" value="${value}" />`;
+  wrap.querySelector("input").addEventListener("input", (e) => {
+    document.getElementById(`${id}-val`).textContent = fmt(+e.target.value);
+  });
+  return wrap;
+}
+
+function collectLiveOverrides() {
+  const capacity_overrides = {};
+  liveCourseCodes.forEach((code) => {
+    const v = +document.getElementById(`cap-${code}`).value;
+    if (Math.abs(v - 1.0) > 1e-9) capacity_overrides[code] = v;
+  });
+  const body = { capacity_overrides };
+  const cohortEl = document.getElementById("cohort-size");
+  if (cohortEl && +cohortEl.value !== (liveMeta.cohort_size || 100)) {
+    body.cohort_size = +cohortEl.value;
+  }
+  return body;
+}
+
+function scheduleLiveRun() {
+  clearTimeout(liveDebounceTimer);
+  liveDebounceTimer = setTimeout(runLiveSimulate, LIVE_DEBOUNCE_MS);
+}
+
+function setLiveControlsDisabled(disabled) {
+  document.querySelectorAll("#liveControls input, #liveResetBtn").forEach((el) => { el.disabled = disabled; });
+}
+
+function runLiveSimulate() {
+  const myId = ++liveRequestId;
+  const status = document.getElementById("liveStatus");
+  const errEl = document.getElementById("liveError");
+  status.textContent = "Running…";
+  status.className = "hint running";
+  errEl.classList.add("hidden");
+  setLiveControlsDisabled(true);
+
+  fetch(`${API_BASE}/simulate`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(collectLiveOverrides()),
+  })
+    .then((r) => { if (!r.ok) throw new Error(`API returned ${r.status}`); return r.json(); })
+    .then((payload) => {
+      if (myId !== liveRequestId) return; // a newer request already landed
+      applyLiveResult(payload.flow_timeline);
+      status.textContent = "Updated";
+      status.className = "hint ok";
+    })
+    .catch((e) => {
+      if (myId !== liveRequestId) return;
+      status.textContent = "Idle";
+      status.className = "hint";
+      errEl.textContent = `Live update failed: ${e.message}`;
+      errEl.classList.remove("hidden");
+    })
+    .finally(() => {
+      if (myId === liveRequestId) setLiveControlsDisabled(false);
+    });
+}
+
+function applyLiveResult(flowTimeline) {
+  if (playing) togglePlay(); // pause the animation timer before swapping data underneath it
+  DATA = flowTimeline;
+  frames = DATA.frames || [];
+  idx = Math.max(0, Math.min(idx, frames.length - 1));
+  // Deliberately not buildGraph() (curriculum structure is scenario-invariant) or
+  // renderFigures() (those are static PNGs from the last `py run.py`, not live).
+  renderMetaLine();
+  renderInputs();
+  renderRecommendation();
+  renderHeadline();
+  renderCohortsTable();
+  renderBottlenecks();
+  render();
+}
+
+function resetLivePanel() {
+  document.querySelectorAll("#liveControls input[type=range]").forEach((el) => {
+    el.value = el.defaultValue;
+    el.dispatchEvent(new Event("input"));
+  });
+  runLiveSimulate();
 }

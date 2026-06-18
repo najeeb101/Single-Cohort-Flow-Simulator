@@ -52,6 +52,14 @@
   "probation_load_ch": 12,
   "probation_gpa_threshold": 2.0,
   "probation_min_ch": 25,
+  "_registration_tier_note": "Seat-priority bands by completed_ch, checked in descending order (registration_tier 0 = registers first). QU's real priority-registration policy; a different institution redefines its own bands here, not in student.py::registration_tier.",
+  "registration_tier_thresholds": [
+    90,
+    75,
+    60,
+    45,
+    30
+  ],
   "_enrollment_priority_note": "Phase-1 desired-enrollment order, tried after retakes (which always come first and are not part of this list). Each tier is {categories: [...], min_ch?: N}; a student's eligible courses are bucketed into the first tier whose categories contains the course's category AND whose min_ch (default 0) the student's completed_ch already meets, then tiers are filled in order up to the load cap. A category absent from every tier, or gated by an unmet min_ch, is simply not enrolled that term. This is QU CS's policy (required courses, then cs_electives once junior-standing CH is reached, then service/gen-ed courses) expressed as data; a different program redefines its own tiers/categories here, not in student.py.",
   "enrollment_priority_tiers": [
     {

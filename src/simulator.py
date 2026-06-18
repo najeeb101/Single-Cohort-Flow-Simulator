@@ -218,7 +218,7 @@ class Simulator:
             else:
                 sorted_req = sorted(
                     requesters,
-                    key=lambda s: (registration_tier(s.completed_ch), s.tiebreak_token),
+                    key=lambda s: (registration_tier(s.completed_ch, self.config), s.tiebreak_token),
                 )
                 winners, losers = sorted_req[:cap], sorted_req[cap:]
 

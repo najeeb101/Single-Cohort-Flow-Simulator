@@ -17,6 +17,7 @@ dropout rate, exactly the way src/montecarlo.py already re-runs the engine for s
 from __future__ import annotations
 
 import copy
+import math
 from collections import defaultdict
 from typing import TYPE_CHECKING
 
@@ -65,6 +66,27 @@ def fit_pass_rates(
             "used": used,
         }
     return fitted
+
+
+def fit_load_cap(enrollments: list["EnrollmentRecord"], percentile: float = 0.95) -> dict:
+    """Empirical per-student-per-term credit load at a given percentile — same demand-
+    percentile idea `scripts/size_sections.py` already applies to seat capacity, applied
+    here to course LOAD instead. `normal_load_ch` is a registration policy, not an
+    observed rate, so this is informational only (like the dropout hazard fit): it tells
+    you whether the assumed cap is realistic, it doesn't get auto-written into config.
+    """
+    per_student_term: dict[tuple[int, int], int] = defaultdict(int)
+    for r in enrollments:
+        per_student_term[(r.student_id, r.term)] += r.credits
+
+    loads = sorted(per_student_term.values())
+    if not loads:
+        return {"observed_load_percentile": None, "percentile": percentile, "n_student_terms": 0}
+
+    k = (len(loads) - 1) * percentile
+    lo, hi = math.floor(k), math.ceil(k)
+    value = loads[lo] if lo == hi else loads[lo] + (loads[hi] - loads[lo]) * (k - lo)
+    return {"observed_load_percentile": value, "percentile": percentile, "n_student_terms": len(loads)}
 
 
 def observed_dropout_rate(outcomes: list["OutcomeRecord"]) -> float:
