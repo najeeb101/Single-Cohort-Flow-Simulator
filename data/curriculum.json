@@ -8,7 +8,6 @@
     "offering": ["Fall", "Spring"],
     "category": "cs_core",
     "capacity": 100,
-    "is_senior_project": false,
     "study_plan_order": 1
   },
   {
@@ -20,7 +19,6 @@
     "offering": ["Fall", "Spring"],
     "category": "cs_core",
     "capacity": 100,
-    "is_senior_project": false,
     "study_plan_order": 2
   },
   {
@@ -32,7 +30,6 @@
     "offering": ["Fall", "Spring"],
     "category": "cs_core",
     "capacity": 70,
-    "is_senior_project": false,
     "study_plan_order": 3
   },
   {
@@ -44,7 +41,6 @@
     "offering": ["Fall", "Spring"],
     "category": "cs_core",
     "capacity": 70,
-    "is_senior_project": false,
     "study_plan_order": 4
   },
   {
@@ -56,7 +52,6 @@
     "offering": ["Fall", "Spring"],
     "category": "cs_core",
     "capacity": 35,
-    "is_senior_project": false,
     "study_plan_order": 5
   },
   {
@@ -68,7 +63,6 @@
     "offering": ["Fall", "Spring"],
     "category": "cs_core",
     "capacity": 40,
-    "is_senior_project": false,
     "study_plan_order": 6
   },
   {
@@ -80,7 +74,6 @@
     "offering": ["Fall", "Spring"],
     "category": "cs_core",
     "capacity": 35,
-    "is_senior_project": false,
     "study_plan_order": 7
   },
   {
@@ -92,7 +85,6 @@
     "offering": ["Spring"],
     "category": "cs_core",
     "capacity": 40,
-    "is_senior_project": false,
     "study_plan_order": 8
   },
   {
@@ -104,7 +96,6 @@
     "offering": ["Fall"],
     "category": "cs_core",
     "capacity": 40,
-    "is_senior_project": false,
     "study_plan_order": 9
   },
   {
@@ -116,7 +107,6 @@
     "offering": ["Spring"],
     "category": "cs_core",
     "capacity": 40,
-    "is_senior_project": false,
     "study_plan_order": 10
   },
   {
@@ -128,7 +118,6 @@
     "offering": ["Spring"],
     "category": "cs_core",
     "capacity": 40,
-    "is_senior_project": false,
     "study_plan_order": 11
   },
   {
@@ -140,7 +129,6 @@
     "offering": ["Fall"],
     "category": "cs_core",
     "capacity": 40,
-    "is_senior_project": false,
     "study_plan_order": 12
   },
   {
@@ -152,7 +140,6 @@
     "offering": ["Fall"],
     "category": "cs_core",
     "capacity": 40,
-    "is_senior_project": false,
     "study_plan_order": 13
   },
   {
@@ -164,12 +151,9 @@
     "offering": ["Fall", "Spring"],
     "category": "cs_core",
     "capacity": 30,
-    "is_senior_project": true,
     "study_plan_order": 14,
-    "senior_project_rule": {
-      "required": ["CMPS310"],
-      "one_of": ["CMPS350", "CMPS405"],
-      "min_credits": 84
+    "rule_expr": {
+      "all": ["CMPS310", {"any": ["CMPS350", "CMPS405"]}, {"min_ch": 84}]
     }
   },
   {
@@ -181,7 +165,6 @@
     "offering": ["Fall", "Spring"],
     "category": "cs_core",
     "capacity": 30,
-    "is_senior_project": false,
     "study_plan_order": 15
   },
   {
@@ -193,7 +176,6 @@
     "offering": ["Fall", "Spring"],
     "category": "cs_elective",
     "capacity": 35,
-    "is_senior_project": false,
     "study_plan_order": 20
   },
   {
@@ -205,7 +187,6 @@
     "offering": ["Fall", "Spring"],
     "category": "cs_elective",
     "capacity": 35,
-    "is_senior_project": false,
     "study_plan_order": 21
   },
   {
@@ -217,7 +198,6 @@
     "offering": ["Fall", "Spring"],
     "category": "cs_elective",
     "capacity": 35,
-    "is_senior_project": false,
     "study_plan_order": 22
   },
   {
@@ -229,7 +209,6 @@
     "offering": ["Fall", "Spring"],
     "category": "cs_elective",
     "capacity": 35,
-    "is_senior_project": false,
     "study_plan_order": 23
   },
   {
@@ -241,7 +220,6 @@
     "offering": ["Fall", "Spring"],
     "category": "college_req",
     "capacity": 100,
-    "is_senior_project": false,
     "study_plan_order": 30
   },
   {
@@ -253,7 +231,6 @@
     "offering": ["Fall", "Spring"],
     "category": "college_req",
     "capacity": 100,
-    "is_senior_project": false,
     "study_plan_order": 31
   },
   {
@@ -265,7 +242,6 @@
     "offering": ["Fall", "Spring"],
     "category": "math",
     "capacity": 100,
-    "is_senior_project": false,
     "study_plan_order": 40
   },
   {
@@ -277,7 +253,6 @@
     "offering": ["Fall", "Spring"],
     "category": "math",
     "capacity": 100,
-    "is_senior_project": false,
     "study_plan_order": 41
   },
   {
@@ -289,7 +264,6 @@
     "offering": ["Fall", "Spring"],
     "category": "math",
     "capacity": 100,
-    "is_senior_project": false,
     "study_plan_order": 42
   },
   {
@@ -301,7 +275,6 @@
     "offering": ["Fall", "Spring"],
     "category": "math",
     "capacity": 100,
-    "is_senior_project": false,
     "study_plan_order": 43
   },
   {
@@ -313,7 +286,6 @@
     "offering": ["Fall", "Spring"],
     "category": "math",
     "capacity": 100,
-    "is_senior_project": false,
     "study_plan_order": 44
   },
   {
@@ -325,7 +297,6 @@
     "offering": ["Fall", "Spring"],
     "category": "science",
     "capacity": 100,
-    "is_senior_project": false,
     "study_plan_order": 45
   },
   {
@@ -337,7 +308,6 @@
     "offering": ["Fall", "Spring"],
     "category": "science",
     "capacity": 100,
-    "is_senior_project": false,
     "study_plan_order": 46
   },
   {
@@ -349,7 +319,6 @@
     "offering": ["Fall", "Spring"],
     "category": "science",
     "capacity": 100,
-    "is_senior_project": false,
     "study_plan_order": 47
   },
   {
@@ -361,7 +330,6 @@
     "offering": ["Fall", "Spring"],
     "category": "english",
     "capacity": 100,
-    "is_senior_project": false,
     "study_plan_order": 50
   },
   {
@@ -373,7 +341,6 @@
     "offering": ["Fall", "Spring"],
     "category": "english",
     "capacity": 100,
-    "is_senior_project": false,
     "study_plan_order": 51
   },
   {
@@ -385,7 +352,6 @@
     "offering": ["Fall", "Spring"],
     "category": "gen_ed",
     "capacity": 100,
-    "is_senior_project": false,
     "study_plan_order": 60
   },
   {
@@ -397,7 +363,6 @@
     "offering": ["Fall", "Spring"],
     "category": "gen_ed",
     "capacity": 100,
-    "is_senior_project": false,
     "study_plan_order": 61
   },
   {
@@ -409,7 +374,6 @@
     "offering": ["Fall", "Spring"],
     "category": "gen_ed",
     "capacity": 100,
-    "is_senior_project": false,
     "study_plan_order": 62
   },
   {
@@ -421,7 +385,6 @@
     "offering": ["Fall", "Spring"],
     "category": "gen_ed",
     "capacity": 100,
-    "is_senior_project": false,
     "study_plan_order": 63
   },
   {
@@ -433,7 +396,6 @@
     "offering": ["Fall", "Spring"],
     "category": "gen_ed",
     "capacity": 100,
-    "is_senior_project": false,
     "study_plan_order": 64
   },
   {
@@ -445,7 +407,6 @@
     "offering": ["Fall", "Spring"],
     "category": "gen_ed",
     "capacity": 100,
-    "is_senior_project": false,
     "study_plan_order": 65
   },
   {
@@ -457,7 +418,6 @@
     "offering": ["Fall", "Spring"],
     "category": "gen_ed",
     "capacity": 100,
-    "is_senior_project": false,
     "study_plan_order": 66
   }
 ]

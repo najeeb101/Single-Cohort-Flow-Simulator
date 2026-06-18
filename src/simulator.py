@@ -7,6 +7,7 @@ from dataclasses import dataclass, field
 from src.models.course import Course
 from src.models.semester import term_season, term_label
 from src.models.student import Student, registration_tier, curriculum_stage
+from src.datasource import DataSource, SyntheticDataSource, CohortSpec, EnrollmentRecord, OutcomeRecord
 from src.utils import grade_tier
 
 STAGE_NODES = ["Admitted", "Year1", "Year2", "Year3", "Year4", "Graduated", "Dropped", "Censored"]
@@ -39,6 +40,13 @@ class History:
     cohort_snapshots: list[dict] = field(default_factory=list)
     timeline: list[dict] = field(default_factory=list)
 
+    # Canonical-schema historical record (ACIP plan §2.4) — every course attempt and every
+    # terminal outcome, for every student, regardless of cohort. analytics.compute_historical_
+    # transcripts() filters this down (incumbents only, by default) into the pseudo-historical
+    # export calibration/validation will consume.
+    transcript: list[EnrollmentRecord] = field(default_factory=list)
+    outcomes: list[OutcomeRecord] = field(default_factory=list)
+
     def record_snapshot(self, term_num: int, students: list[Student]) -> None:
         bands: dict[str, int] = {"0-29": 0, "30-59": 0, "60-89": 0, "90-119": 0}
         for s in students:
@@ -68,6 +76,12 @@ class History:
     def record_timeline_frame(self, frame: dict) -> None:
         self.timeline.append(frame)
 
+    def record_enrollment(self, record: EnrollmentRecord) -> None:
+        self.transcript.append(record)
+
+    def record_outcome(self, record: OutcomeRecord) -> None:
+        self.outcomes.append(record)
+
 
 # ------------------------------------------------------------------ #
 # SimulationResult                                                    #
@@ -92,35 +106,31 @@ class Simulator:
         curriculum: dict[str, Course],
         config: dict,
         scenario: dict,
+        data_source: DataSource | None = None,
     ) -> None:
         self.curriculum = curriculum
         self.config = config
         self.scenario = scenario
         self.seed: int = config["seed"]
-        self.cohort_size: int = config["cohort_size"]
         self.max_terms: int = config["max_terms"]
-        self.num_cohorts: int = config.get("num_cohorts", 1)
-        self.num_incumbent_cohorts: int = config.get("num_incumbent_cohorts", 0)
-        self.admit_interval: int = config.get("admit_interval_terms", 2)
 
-        # Study cohorts enter at 0, interval, 2*interval, ...; incumbents enter before term 0.
-        self.start_term: int = -self.num_incumbent_cohorts * self.admit_interval
-        self.end_term: int = (self.num_cohorts - 1) * self.admit_interval + self.max_terms
+        # Population enters through the DataSource seam (synthetic by default; a future
+        # RealDataSource plugs in here unchanged). The engine never builds students itself.
+        self.data_source: DataSource = data_source or SyntheticDataSource(config)
+        specs = self.data_source.cohort_specs()
+        if not specs:
+            raise ValueError("DataSource returned no cohort specs; at least one cohort is required")
+        self._specs_by_id: dict[int, CohortSpec] = {s.cohort_id: s for s in specs}
+        # cohort_id -> entry_term, in admission order.
+        self.admission_schedule: dict[int, int] = {s.cohort_id: s.entry_term for s in specs}
+
+        # Global clock: earliest admission through the last cohort's full personal horizon.
+        self.start_term: int = min(s.entry_term for s in specs)
+        self.end_term: int = max(s.entry_term for s in specs) + self.max_terms
 
         self.students: list[Student] = []
         self.history = History()
-        # cohort_id -> entry_term, in admission order
-        self.admission_schedule: dict[int, int] = self._build_admission_schedule()
         self.cohort_entry: dict[int, int] = {}  # filled as cohorts are admitted
-
-    def _build_admission_schedule(self) -> dict[int, int]:
-        """Map cohort_id -> entry_term. Incumbents get negative ids/entry terms."""
-        schedule: dict[int, int] = {}
-        for k in range(1, self.num_incumbent_cohorts + 1):
-            schedule[-k] = -k * self.admit_interval
-        for c in range(self.num_cohorts):
-            schedule[c] = c * self.admit_interval
-        return schedule
 
     def run(self) -> SimulationResult:
         # Map entry_term -> [cohort_ids] for quick admission lookup.
@@ -134,10 +144,12 @@ class Simulator:
             season = term_season(term_idx)
             self._run_term(term_idx, season)
 
-        # Safety net: anyone still active at the horizon is censored.
+        # Safety net: anyone still active at the horizon is censored. (In practice every
+        # student is already terminal by end_term - see the personal-semester check in
+        # _run_term - so this should never fire; it stays as a defensive backstop.)
         for student in self.students:
             if student.is_active():
-                student.status = "CENSORED"
+                self._record_outcome(student, "CENSORED", self.end_term - 1)
 
         return SimulationResult(
             history=self.history,
@@ -152,10 +164,7 @@ class Simulator:
 
     def _admit_cohort(self, cohort_id: int, entry_term: int) -> None:
         self.cohort_entry[cohort_id] = entry_term
-        base = (cohort_id + self.num_incumbent_cohorts) * self.cohort_size
-        for i in range(self.cohort_size):
-            sid = base + i
-            self.students.append(Student(sid, self.seed, cohort_id=cohort_id, entry_term=entry_term))
+        self.students.extend(self.data_source.create_students(self._specs_by_id[cohort_id]))
 
     def _make_students(self) -> None:
         """Admit study cohort 0 at term 0 (used by tests / single-cohort runs)."""
@@ -227,7 +236,16 @@ class Simulator:
         # ── Phase 3: Take courses ─────────────────────────────────── #
         for student in active:
             for course in granted[student.student_id]:
+                attempt_no = student.failed_attempts.get(course.code, 0) + 1
                 grade = self._resolve_grade(student, course)
+                self.history.record_enrollment(EnrollmentRecord(
+                    student_id=student.student_id,
+                    term=term_idx,
+                    course_code=course.code,
+                    grade=grade,
+                    credits=course.credits,
+                    attempt_no=attempt_no,
+                ))
                 student.record_grade(course, grade)
                 if grade == "F":
                     self.history.fail_counts[course.code] += 1
@@ -265,13 +283,13 @@ class Simulator:
                 if personal_sem <= early_cut:
                     hazard *= early_mult
                 if student.rng.random() < hazard:
-                    student.status = "DROPPED"
+                    self._record_outcome(student, "DROPPED", term_idx)
                     continue
             # (2) Stuck on a single gateway course.
             for code, attempts in student.failed_attempts.items():
                 if attempts >= threshold:
                     if student.rng.random() < drop_prob:
-                        student.status = "DROPPED"
+                        self._record_outcome(student, "DROPPED", term_idx)
                         break
 
         # ── Graduation, delayed & censoring (personal-time horizons) ── #
@@ -280,12 +298,9 @@ class Simulator:
                 continue
             personal_semester = term_idx - student.entry_term + 1
             if self._has_graduated(student):
-                student.status = "GRADUATED"
-                student.grad_semester = personal_semester
-                if student.entry_term >= 0:  # study cohorts only
-                    self.history.graduation_times.append(personal_semester)
+                self._record_outcome(student, "GRADUATED", term_idx)
             elif personal_semester >= self.max_terms:
-                student.status = "CENSORED"  # ran out of their 12 semesters
+                self._record_outcome(student, "CENSORED", term_idx)  # ran out of their 12 semesters
             elif personal_semester > 8:
                 student.status = "DELAYED"
 
@@ -390,6 +405,21 @@ class Simulator:
     def _has_graduated(self, student: Student) -> bool:
         return all(student.has_passed(code) for code in self.curriculum)
 
+    def _record_outcome(self, student: Student, status: str, term_idx: int) -> None:
+        """Fused terminal-status assignment + outcome recording, so a student can never
+        end up with `status` set but no matching OutcomeRecord (or vice versa)."""
+        student.status = status
+        if status == "GRADUATED":
+            student.grad_semester = term_idx - student.entry_term + 1
+            if student.entry_term >= 0:  # study cohorts only
+                self.history.graduation_times.append(student.grad_semester)
+        reason = {"GRADUATED": "graduated", "DROPPED": "dropped", "CENSORED": "censored"}[status]
+        self.history.record_outcome(OutcomeRecord(
+            student_id=student.student_id,
+            graduation_term=term_idx if status == "GRADUATED" else None,
+            exit_reason=reason,
+        ))
+
     def _seats_per_section(self) -> int:
         return int(self.config.get("seats_per_section", 35))
 
@@ -442,10 +472,7 @@ class Simulator:
             for code, course in self.curriculum.items():
                 if student.has_passed(code):
                     continue
-                if course.is_senior_project:
-                    prereqs_met = student.can_register_senior_project(self.curriculum)
-                else:
-                    prereqs_met = student.prerequisites_met(course, self.curriculum)
+                prereqs_met = student.is_eligible_for(course, self.curriculum)
 
                 if prereqs_met:
                     if season not in self._effective_offering(course):

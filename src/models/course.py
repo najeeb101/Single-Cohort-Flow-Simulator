@@ -7,13 +7,6 @@ from typing import Optional
 
 
 @dataclass(frozen=True)
-class SeniorProjectRule:
-    required: tuple[str, ...]
-    one_of: tuple[str, ...]
-    min_credits: int
-
-
-@dataclass(frozen=True)
 class Course:
     code: str
     title: str
@@ -23,8 +16,7 @@ class Course:
     offering: tuple[str, ...]          # ('Fall',), ('Spring',), or ('Fall','Spring')
     category: str                       # cs_core|cs_elective|college_req|math|science|english|gen_ed
     capacity: int                       # seats per offering-instance
-    is_senior_project: bool = False
-    senior_project_rule: Optional[SeniorProjectRule] = None
+    rule_expr: Optional[dict] = None    # compound gate (see src/rules.py); None = plain prerequisites
     study_plan_order: int = 99          # lower = earlier in the study plan
 
 
@@ -34,14 +26,6 @@ def load_curriculum(path: str | Path) -> dict[str, Course]:
 
     courses: dict[str, Course] = {}
     for entry in data:
-        spr: Optional[SeniorProjectRule] = None
-        if entry.get("senior_project_rule"):
-            rule = entry["senior_project_rule"]
-            spr = SeniorProjectRule(
-                required=tuple(rule["required"]),
-                one_of=tuple(rule["one_of"]),
-                min_credits=rule["min_credits"],
-            )
         course = Course(
             code=entry["code"],
             title=entry["title"],
@@ -51,8 +35,7 @@ def load_curriculum(path: str | Path) -> dict[str, Course]:
             offering=tuple(entry["offering"]),
             category=entry["category"],
             capacity=entry["capacity"],
-            is_senior_project=entry.get("is_senior_project", False),
-            senior_project_rule=spr,
+            rule_expr=entry.get("rule_expr"),
             study_plan_order=entry.get("study_plan_order", 99),
         )
         courses[course.code] = course

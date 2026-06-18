@@ -52,6 +52,12 @@
   "probation_load_ch": 12,
   "probation_gpa_threshold": 2.0,
   "probation_min_ch": 25,
+  "_enrollment_priority_note": "Phase-1 desired-enrollment order, tried after retakes (which always come first and are not part of this list). Each tier is {categories: [...], min_ch?: N}; a student's eligible courses are bucketed into the first tier whose categories contains the course's category AND whose min_ch (default 0) the student's completed_ch already meets, then tiers are filled in order up to the load cap. A category absent from every tier, or gated by an unmet min_ch, is simply not enrolled that term. This is QU CS's policy (required courses, then cs_electives once junior-standing CH is reached, then service/gen-ed courses) expressed as data; a different program redefines its own tiers/categories here, not in student.py.",
+  "enrollment_priority_tiers": [
+    {"categories": ["cs_core", "college_req"]},
+    {"categories": ["cs_elective"], "min_ch": 60},
+    {"categories": ["math", "science", "english", "gen_ed"]}
+  ],
   "dropout_gpa_floor": 2.0,
   "dropout_base_hazard": 0.18,
   "dropout_early_multiplier": 2.0,

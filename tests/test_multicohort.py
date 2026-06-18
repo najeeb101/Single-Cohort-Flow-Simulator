@@ -12,6 +12,7 @@ from src.analytics import (
     compute_cohort_metrics,
     compute_metrics,
 )
+from src.datasource import DataSource
 from src.models.course import load_curriculum
 from src.montecarlo import run_monte_carlo
 from src.simulator import Simulator
@@ -31,6 +32,20 @@ def _run():
     result = Simulator(curriculum, config, config["scenarios"][0]).run()
     result.metrics = compute_metrics(result)
     return result, config, curriculum
+
+
+class _EmptyDataSource(DataSource):
+    def cohort_specs(self):
+        return []
+
+    def create_students(self, spec):
+        return []
+
+
+def test_empty_cohort_specs_raises():
+    config, curriculum = _setup()
+    with pytest.raises(ValueError):
+        Simulator(curriculum, config, config["scenarios"][0], data_source=_EmptyDataSource())
 
 
 # ── Cohort identity & admission schedule ─────────────────────────── #

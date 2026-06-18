@@ -25,7 +25,7 @@ def _fake_course(code: str, credits: int, pass_rate: float = 0.80) -> Course:
         code=code, title=code, credits=credits,
         prerequisites=(), pass_rate=pass_rate,
         offering=("Fall", "Spring"), category="cs_core",
-        capacity=100, is_senior_project=False,
+        capacity=100,
     )
 
 

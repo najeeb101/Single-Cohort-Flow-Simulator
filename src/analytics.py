@@ -17,8 +17,12 @@ from __future__ import annotations
 import csv
 import json
 import statistics
+from dataclasses import asdict
 from pathlib import Path
 from typing import TYPE_CHECKING
+
+from src.datasource import StudentRecord
+from src.rules import gate_edges
 
 if TYPE_CHECKING:
     from src.simulator import SimulationResult
@@ -32,6 +36,11 @@ if TYPE_CHECKING:
 def _study_students(result: "SimulationResult") -> list:
     """Students from real (non-incumbent) cohorts — the ones we report on."""
     return [s for s in result.students if s.entry_term >= 0]
+
+
+def _incumbent_students(result: "SimulationResult") -> list:
+    """Warm-start students admitted before the study window — see compute_historical_transcripts."""
+    return [s for s in result.students if s.entry_term < 0]
 
 
 def _top3(counter: dict) -> list[tuple[str, int]]:
@@ -114,6 +123,45 @@ def compute_cohort_metrics(result: "SimulationResult") -> dict[int, dict]:
             "top_prereq_block":   _top1_code(history.prereq_block_by_cohort.get(cid, {})),
         }
     return out
+
+
+# ------------------------------------------------------------------ #
+# Historical transcripts (ACIP plan §2.4 replay/fit input)            #
+# ------------------------------------------------------------------ #
+
+def compute_historical_transcripts(result: "SimulationResult", incumbents_only: bool = True) -> dict:
+    """Canonical-schema historical records extracted from a completed run.
+
+    Incumbent cohorts are warm-started before the study window and reach a terminal status
+    well before it ends, so by default this returns only their records — they stand in for
+    "the institution's existing history" the way a real SIS export would supply it, fully
+    decoupled from the study cohorts' own forward-looking outcomes. Pass incumbents_only=False
+    to also include the (by now equally complete) study-cohort histories.
+
+    Returns {"students": [...], "enrollments": [...], "outcomes": [...]}, each a list of
+    plain dicts (StudentRecord / EnrollmentRecord / OutcomeRecord) ready to serialize.
+    """
+    students = _incumbent_students(result) if incumbents_only else result.students
+    keep_ids = {s.student_id for s in students}
+    program_id = result.config.get("program_id", "CS")
+
+    return {
+        "students": [
+            asdict(StudentRecord(
+                student_id=s.student_id,
+                program_id=program_id,
+                admission_term=s.entry_term,
+                status=s.status,
+            ))
+            for s in students
+        ],
+        "enrollments": [
+            asdict(r) for r in result.history.transcript if r.student_id in keep_ids
+        ],
+        "outcomes": [
+            asdict(r) for r in result.history.outcomes if r.student_id in keep_ids
+        ],
+    }
 
 
 # ------------------------------------------------------------------ #
@@ -265,19 +313,15 @@ def build_curriculum_graph(curriculum: dict[str, "Course"]) -> dict:
             "offering": list(c.offering),
             "capacity": c.capacity,
             "study_plan_order": c.study_plan_order,
-            "is_senior_project": c.is_senior_project,
         })
         for pre in c.prerequisites:
             if pre in curriculum:
                 edges.append({"from": pre, "to": code, "kind": "prereq"})
-        if c.is_senior_project and c.senior_project_rule:
-            rule = c.senior_project_rule
-            for req in rule.required:
-                if req in curriculum:
-                    edges.append({"from": req, "to": code, "kind": "required"})
-            for opt in rule.one_of:
-                if opt in curriculum:
-                    edges.append({"from": opt, "to": code, "kind": "one_of"})
+        if c.rule_expr is not None:
+            for src, kind in gate_edges(c.rule_expr):
+                if src in curriculum:
+                    edges.append({"from": src, "to": code,
+                                  "kind": "required" if kind == "all" else "one_of"})
     return {"nodes": nodes, "edges": edges}
 
 
@@ -360,7 +404,7 @@ def flow_timeline_payload(
             {s.cohort_id: s.entry_term for s in result.students}.items()
         )
     ]
-    headline = dict(result.metrics)
+    headline = compute_metrics(result)
     if monte_carlo:
         headline["confidence_intervals"] = monte_carlo
 

@@ -9,6 +9,8 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import matplotlib.ticker as mticker
 
+from src.rules import gate_edges
+
 if TYPE_CHECKING:
     from src.simulator import SimulationResult
     from src.models.course import Course
@@ -196,14 +198,13 @@ def plot_curriculum_network(
         for pre in course.prerequisites:
             if pre in cs_codes:
                 G.add_edge(pre, code)
-        if course.is_senior_project and course.senior_project_rule:
-            rule = course.senior_project_rule
-            for req in rule.required:
-                if req in cs_codes:
-                    G.add_edge(req, code)
-            for opt in rule.one_of:
-                if opt in cs_codes:
-                    G.add_edge(opt, code, style="dashed")
+        if course.rule_expr is not None:
+            for src, kind in gate_edges(course.rule_expr):
+                if src in cs_codes:
+                    if kind == "any":
+                        G.add_edge(src, code, style="dashed")
+                    else:
+                        G.add_edge(src, code)
 
     fail_counts = h.fail_counts
     max_fails = max(fail_counts.values(), default=1)

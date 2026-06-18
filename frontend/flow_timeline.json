@@ -59,8 +59,7 @@
             "Spring"
           ],
           "capacity": 100,
-          "study_plan_order": 1,
-          "is_senior_project": false
+          "study_plan_order": 1
         },
         {
           "code": "CMPS200",
@@ -72,8 +71,7 @@
             "Spring"
           ],
           "capacity": 100,
-          "study_plan_order": 2,
-          "is_senior_project": false
+          "study_plan_order": 2
         },
         {
           "code": "CMPS205",
@@ -85,8 +83,7 @@
             "Spring"
           ],
           "capacity": 70,
-          "study_plan_order": 3,
-          "is_senior_project": false
+          "study_plan_order": 3
         },
         {
           "code": "CMPS251",
@@ -98,8 +95,7 @@
             "Spring"
           ],
           "capacity": 70,
-          "study_plan_order": 4,
-          "is_senior_project": false
+          "study_plan_order": 4
         },
         {
           "code": "CMPS350",
@@ -111,8 +107,7 @@
             "Spring"
           ],
           "capacity": 35,
-          "study_plan_order": 5,
-          "is_senior_project": false
+          "study_plan_order": 5
         },
         {
           "code": "CMPS303",
@@ -124,8 +119,7 @@
             "Spring"
           ],
           "capacity": 40,
-          "study_plan_order": 6,
-          "is_senior_project": false
+          "study_plan_order": 6
         },
         {
           "code": "CMPE263",
@@ -137,8 +131,7 @@
             "Spring"
           ],
           "capacity": 35,
-          "study_plan_order": 7,
-          "is_senior_project": false
+          "study_plan_order": 7
         },
         {
           "code": "CMPS351",
@@ -149,8 +142,7 @@
             "Spring"
           ],
           "capacity": 40,
-          "study_plan_order": 8,
-          "is_senior_project": false
+          "study_plan_order": 8
         },
         {
           "code": "CMPS380",
@@ -161,8 +153,7 @@
             "Fall"
           ],
           "capacity": 40,
-          "study_plan_order": 9,
-          "is_senior_project": false
+          "study_plan_order": 9
         },
         {
           "code": "CMPS405",
@@ -173,8 +164,7 @@
             "Spring"
           ],
           "capacity": 40,
-          "study_plan_order": 10,
-          "is_senior_project": false
+          "study_plan_order": 10
         },
         {
           "code": "CMPS323",
@@ -185,8 +175,7 @@
             "Spring"
           ],
           "capacity": 40,
-          "study_plan_order": 11,
-          "is_senior_project": false
+          "study_plan_order": 11
         },
         {
           "code": "CMPS310",
@@ -197,8 +186,7 @@
             "Fall"
           ],
           "capacity": 40,
-          "study_plan_order": 12,
-          "is_senior_project": false
+          "study_plan_order": 12
         },
         {
           "code": "CMPE355",
@@ -209,8 +197,7 @@
             "Fall"
           ],
           "capacity": 40,
-          "study_plan_order": 13,
-          "is_senior_project": false
+          "study_plan_order": 13
         },
         {
           "code": "CMPS493",
@@ -222,8 +209,7 @@
             "Spring"
           ],
           "capacity": 30,
-          "study_plan_order": 14,
-          "is_senior_project": true
+          "study_plan_order": 14
         },
         {
           "code": "CMPS499",
@@ -235,8 +221,7 @@
             "Spring"
           ],
           "capacity": 30,
-          "study_plan_order": 15,
-          "is_senior_project": false
+          "study_plan_order": 15
         },
         {
           "code": "ELEC_1",
@@ -248,8 +233,7 @@
             "Spring"
           ],
           "capacity": 35,
-          "study_plan_order": 20,
-          "is_senior_project": false
+          "study_plan_order": 20
         },
         {
           "code": "ELEC_2",
@@ -261,8 +245,7 @@
             "Spring"
           ],
           "capacity": 35,
-          "study_plan_order": 21,
-          "is_senior_project": false
+          "study_plan_order": 21
         },
         {
           "code": "ELEC_3",
@@ -274,8 +257,7 @@
             "Spring"
           ],
           "capacity": 35,
-          "study_plan_order": 22,
-          "is_senior_project": false
+          "study_plan_order": 22
         },
         {
           "code": "ELEC_4",
@@ -287,8 +269,7 @@
             "Spring"
           ],
           "capacity": 35,
-          "study_plan_order": 23,
-          "is_senior_project": false
+          "study_plan_order": 23
         },
         {
           "code": "SUPP_1",
@@ -300,8 +281,7 @@
             "Spring"
           ],
           "capacity": 100,
-          "study_plan_order": 30,
-          "is_senior_project": false
+          "study_plan_order": 30
         },
         {
           "code": "SUPP_2",
@@ -313,8 +293,7 @@
             "Spring"
           ],
           "capacity": 100,
-          "study_plan_order": 31,
-          "is_senior_project": false
+          "study_plan_order": 31
         },
         {
           "code": "MATH_1",
@@ -326,8 +305,7 @@
             "Spring"
           ],
           "capacity": 100,
-          "study_plan_order": 40,
-          "is_senior_project": false
+          "study_plan_order": 40
         },
         {
           "code": "MATH_2",
@@ -339,8 +317,7 @@
             "Spring"
           ],
           "capacity": 100,
-          "study_plan_order": 41,
-          "is_senior_project": false
+          "study_plan_order": 41
         },
         {
           "code": "MATH_3",
@@ -352,8 +329,7 @@
             "Spring"
           ],
           "capacity": 100,
-          "study_plan_order": 42,
-          "is_senior_project": false
+          "study_plan_order": 42
         },
         {
           "code": "MATH_4",
@@ -365,8 +341,7 @@
             "Spring"
           ],
           "capacity": 100,
-          "study_plan_order": 43,
-          "is_senior_project": false
+          "study_plan_order": 43
         },
         {
           "code": "MATH_5",
@@ -378,8 +353,7 @@
             "Spring"
           ],
           "capacity": 100,
-          "study_plan_order": 44,
-          "is_senior_project": false
+          "study_plan_order": 44
         },
         {
           "code": "PHYS_1",
@@ -391,8 +365,7 @@
             "Spring"
           ],
           "capacity": 100,
-          "study_plan_order": 45,
-          "is_senior_project": false
+          "study_plan_order": 45
         },
         {
           "code": "PHYS_2",
@@ -404,8 +377,7 @@
             "Spring"
           ],
           "capacity": 100,
-          "study_plan_order": 46,
-          "is_senior_project": false
+          "study_plan_order": 46
         },
         {
           "code": "CHEM_1",
@@ -417,8 +389,7 @@
             "Spring"
           ],
           "capacity": 100,
-          "study_plan_order": 47,
-          "is_senior_project": false
+          "study_plan_order": 47
         },
         {
           "code": "ENGL_1",
@@ -430,8 +401,7 @@
             "Spring"
           ],
           "capacity": 100,
-          "study_plan_order": 50,
-          "is_senior_project": false
+          "study_plan_order": 50
         },
         {
           "code": "ENGL_2",
@@ -443,8 +413,7 @@
             "Spring"
           ],
           "capacity": 100,
-          "study_plan_order": 51,
-          "is_senior_project": false
+          "study_plan_order": 51
         },
         {
           "code": "GED_1",
@@ -456,8 +425,7 @@
             "Spring"
           ],
           "capacity": 100,
-          "study_plan_order": 60,
-          "is_senior_project": false
+          "study_plan_order": 60
         },
         {
           "code": "GED_2",
@@ -469,8 +437,7 @@
             "Spring"
           ],
           "capacity": 100,
-          "study_plan_order": 61,
-          "is_senior_project": false
+          "study_plan_order": 61
         },
         {
           "code": "GED_3",
@@ -482,8 +449,7 @@
             "Spring"
           ],
           "capacity": 100,
-          "study_plan_order": 62,
-          "is_senior_project": false
+          "study_plan_order": 62
         },
         {
           "code": "GED_4",
@@ -495,8 +461,7 @@
             "Spring"
           ],
           "capacity": 100,
-          "study_plan_order": 63,
-          "is_senior_project": false
+          "study_plan_order": 63
         },
         {
           "code": "GED_5",
@@ -508,8 +473,7 @@
             "Spring"
           ],
           "capacity": 100,
-          "study_plan_order": 64,
-          "is_senior_project": false
+          "study_plan_order": 64
         },
         {
           "code": "GED_6",
@@ -521,8 +485,7 @@
             "Spring"
           ],
           "capacity": 100,
-          "study_plan_order": 65,
-          "is_senior_project": false
+          "study_plan_order": 65
         },
         {
           "code": "GED_7",
@@ -534,8 +497,7 @@
             "Spring"
           ],
           "capacity": 100,
-          "study_plan_order": 66,
-          "is_senior_project": false
+          "study_plan_order": 66
         }
       ],
       "edges": [

@@ -35,19 +35,23 @@ py -m pip install matplotlib networkx pytest
 ```
 src/
 ├── models/
-│   ├── course.py      # Course dataclass + load_curriculum()
-│   ├── student.py     # Student (state, GPA, enrollment, cohort_id/entry_term, curriculum_stage())
-│   └── semester.py    # term_season(), term_year(), term_label()
-├── simulator.py       # Simulator (staggered admission + 3-phase per-term loop) + History + SimulationResult
-├── analytics.py       # metrics, per-cohort metrics, admissions recommendation, curriculum graph, flow_timeline JSON, CSV writers
-├── montecarlo.py      # run_monte_carlo() — mean ± 95% CI over many seeds
-├── visualize.py       # save_all_figures() + per-figure functions
-└── utils.py           # load_json(), grade_tier()
+│   ├── course.py       # Course dataclass + load_curriculum()
+│   ├── student.py      # Student (state, GPA, enrollment, cohort_id/entry_term, curriculum_stage())
+│   └── semester.py     # term_season(), term_year(), term_label()
+├── datasource.py        # DataSource seam: CohortSpec + SyntheticDataSource (population creation, decoupled from the engine)
+├── rules.py             # evaluate_rule() / gate_edges() — generic compound prerequisite/eligibility expressions
+├── simulator.py         # Simulator (staggered admission + 3-phase per-term loop) + History + SimulationResult
+├── analytics.py         # metrics, per-cohort metrics, admissions recommendation, curriculum graph, flow_timeline JSON, CSV writers
+├── service.py            # run_simulation() — engine-as-a-service boundary, no file I/O (the seam an API layer calls)
+├── montecarlo.py         # run_monte_carlo() — mean ± 95% CI over many seeds
+├── visualize.py          # save_all_figures() + per-figure functions
+└── utils.py              # load_json(), grade_tier()
 frontend/              # dependency-free web app: index.html, style.css, app.js (reads flow_timeline.json)
 ```
 
 `data/curriculum.json` is the source of truth — 38 courses, 120 CH total. Never overwrite it.
 `data/simulation_config.json` holds all tunable parameters.
+`src/service.py::run_simulation(curriculum, config, scenario) -> dict` runs one scenario in memory (no file I/O) and returns `result`/`metrics`/`cohort_metrics`/`admissions_recommendation`/`flow_timeline`; `run.py` calls it, then passes the result to `analytics.py`/`visualize.py`'s writers, which remain the only place that touches disk.
 
 ## Multi-Cohort Model
 
@@ -60,7 +64,7 @@ frontend/              # dependency-free web app: index.html, style.css, app.js 
 
 ## Per-Term Loop (three phases)
 
-1. **Desired enrollment** — each active student (all cohorts) builds a priority-ordered list (retakes > cs_core > electives > non_cs) subject to their load cap.
+1. **Desired enrollment** — each active student (all cohorts) builds a priority-ordered list: retakes first, then `enrollment_priority_tiers` (config-defined category sets, each with an optional `min_ch` gate; QU CS default: cs_core/college_req > cs_elective at 60+ CH > math/science/english/gen_ed) subject to their load cap.
 2. **Seat allocation** — sort requesters by `(registration_tier(completed_ch), tiebreak_token)`; grant first `effective_capacity`; record `capacity_block` for the rest. Seniors from older cohorts outrank freshmen automatically.
 3. **Take courses** — resolve pass/fail via student RNG, sample grade tier, update GPA/probation/status.
 

@@ -12,13 +12,11 @@ from src.analytics import (
     build_flow_timeline_json,
     build_monte_carlo_csv,
     build_summary_csv,
-    compute_admissions_recommendation,
-    compute_metrics,
     flow_timeline_payload,
 )
 from src.models.course import load_curriculum
 from src.montecarlo import run_monte_carlo
-from src.simulator import Simulator
+from src.service import run_simulation
 from src.visualize import save_all_figures
 from src.utils import load_json
 
@@ -37,14 +35,15 @@ def main() -> None:
           f"of {config['cohort_size']} students, shared seat pool")
 
     results = {}
+    runs: dict[str, dict] = {}
     for scenario in config["scenarios"]:
         name = scenario["name"]
         print(f"\nRunning {name}...")
-        result = Simulator(curriculum, config, scenario).run()
-        result.metrics = compute_metrics(result)
-        results[name] = result
+        run = run_simulation(curriculum, config, scenario)
+        runs[name] = run
+        results[name] = run["result"]
 
-        m = result.metrics
+        m = run["metrics"]
         print(f"  Graduation rate       : {m['graduation_rate']:.1%}  (study cohorts)")
         print(f"  Academic dropout rate : {m['academic_dropout_rate']:.1%}")
         print(f"  Censored rate         : {m['censored_rate']:.1%}  (hit horizon)")
@@ -89,7 +88,7 @@ def main() -> None:
     print("        course_utilization.csv, monte_carlo.csv, flow_timeline.json + frontend/data.js")
 
     # Admissions recommendation headline.
-    rec = compute_admissions_recommendation(baseline)
+    rec = runs[baseline_name]["admissions_recommendation"]
     if rec:
         print("\nAdmissions recommendation (single-run heuristic):")
         print(f"  Current intake     : {rec['current_intake']}")

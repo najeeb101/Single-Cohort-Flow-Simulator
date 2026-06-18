@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import pytest
 
-from src.models.course import Course, SeniorProjectRule, load_curriculum
+from src.models.course import Course, load_curriculum
 from src.models.student import Student
 
 SEED = 42
@@ -66,7 +66,7 @@ def test_d_grade_satisfies_prereq():
 def test_senior_project_blocked_with_nothing():
     curric = _minimal_curriculum()
     s = _make_student()
-    assert not s.can_register_senior_project(curric)
+    assert not s.is_eligible_for(curric["CMPS493"], curric)
 
 
 def test_senior_project_blocked_without_cmps310():
@@ -75,7 +75,7 @@ def test_senior_project_blocked_without_cmps310():
         passed={"CMPS350": "B", "CMPS405": "B"},
         completed_ch=90,
     )
-    assert not s.can_register_senior_project(curric)
+    assert not s.is_eligible_for(curric["CMPS493"], curric)
 
 
 def test_senior_project_blocked_without_one_of():
@@ -84,7 +84,7 @@ def test_senior_project_blocked_without_one_of():
         passed={"CMPS310": "B"},
         completed_ch=90,
     )
-    assert not s.can_register_senior_project(curric)
+    assert not s.is_eligible_for(curric["CMPS493"], curric)
 
 
 def test_senior_project_blocked_below_min_credits():
@@ -93,7 +93,7 @@ def test_senior_project_blocked_below_min_credits():
         passed={"CMPS310": "B", "CMPS350": "A"},
         completed_ch=83,
     )
-    assert not s.can_register_senior_project(curric)
+    assert not s.is_eligible_for(curric["CMPS493"], curric)
 
 
 def test_senior_project_eligible_cmps350_path():
@@ -102,7 +102,7 @@ def test_senior_project_eligible_cmps350_path():
         passed={"CMPS310": "B", "CMPS350": "A"},
         completed_ch=84,
     )
-    assert s.can_register_senior_project(curric)
+    assert s.is_eligible_for(curric["CMPS493"], curric)
 
 
 def test_senior_project_eligible_cmps405_path():
@@ -111,7 +111,7 @@ def test_senior_project_eligible_cmps405_path():
         passed={"CMPS310": "B", "CMPS405": "C"},
         completed_ch=84,
     )
-    assert s.can_register_senior_project(curric)
+    assert s.is_eligible_for(curric["CMPS493"], curric)
 
 
 def test_senior_project_eligible_both_one_of():
@@ -120,4 +120,4 @@ def test_senior_project_eligible_both_one_of():
         passed={"CMPS310": "A", "CMPS350": "B", "CMPS405": "B"},
         completed_ch=90,
     )
-    assert s.can_register_senior_project(curric)
+    assert s.is_eligible_for(curric["CMPS493"], curric)

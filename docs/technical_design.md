@@ -269,9 +269,9 @@ At the start of a term the simulator computes `available` = courses whose `offer
 
 **Phase 1: Desired enrollment (`Student.get_desired_courses`).**
 Each active student independently builds an ordered wish-list:
-1. Filter `available` to courses they *can* enroll in: not already passed, and with prerequisites satisfied (`prerequisites_met`, or `can_register_senior_project` for CMPS 493).
+1. Filter `available` to courses they *can* enroll in: not already passed, and eligible (`is_eligible_for` — plain `prerequisites_met`, or a compound `rule_expr` for gated courses like CMPS 493).
 2. Sort eligible courses by `study_plan_order`.
-3. Bucket them into a strict priority order: **retakes** (any course with a prior fail) → **new required** (`cs_core` / `college_req`) → **electives** (only once `completed_ch ≥ 60`) → **non-CS filler** (math/science/english/gen-ed).
+3. Bucket them into a strict priority order: **retakes** (any course with a prior fail) first, then config-driven `enrollment_priority_tiers` from `simulation_config.json` in order — each tier is a set of categories plus an optional `min_ch` gate. QU CS's defaults: **required** (`cs_core` / `college_req`) → **electives** (`cs_elective`, only once `completed_ch ≥ 60`) → **non-CS filler** (math/science/english/gen-ed). A different program redefines the tiers, not this code.
 4. Greedily fill the term up to the load cap (**18 CH** normally, **12 CH** if on probation), adding courses in that priority order until the next course would exceed the cap.
 
 The result is a per-course list of requesters (`desired[course_code] → [students]`).
@@ -368,6 +368,11 @@ src/
 │   ├── compute_metrics(result) -> dict
 │   └── build_summary_csv(results, path) -> None
 │
+├── service.py
+│   └── run_simulation(curriculum, config, scenario) -> dict   # engine-as-a-service
+│       boundary (§11.9 / acip_transformation_plan.md §2.3): Simulator + every
+│       analytics.py derivation, in memory, zero file I/O — the seam an API calls.
+│
 ├── visualize.py
 │   ├── save_all_figures(results, curriculum, config, dir)
 │   └── per-figure functions: funnel, graduation_histogram,
@@ -377,7 +382,7 @@ src/
     ├── load_json(path)
     └── grade_tier(pass_rate) -> str         # "hard" | "medium" | "easy"
 
-run.py   # entry point: load → run scenario → compute_metrics → save figures + CSV
+run.py   # entry point: load -> run_simulation() per scenario -> save figures + CSV
 ```
 
 ---
@@ -491,3 +496,6 @@ The `frontend/` web app (no build, no external libraries) lays out the graph by 
 
 ### 11.8 Monte Carlo
 `run_monte_carlo` re-runs the baseline across `n_runs` seeds (`base_seed + k`) and reports mean ± 95% CI per headline metric. The canonical timeline/animation stays on the single base seed (deterministic for the frontend); the CIs only annotate the dashboard.
+
+### 11.9 Engine-as-a-service boundary
+`src/service.py::run_simulation(curriculum, config, scenario) -> dict` is the single function boundary between the engine and any caller — script, test, or future API (`docs/acip_transformation_plan.md` §2.3). It runs one scenario and returns `result` (the raw `SimulationResult`), `metrics`, `cohort_metrics`, `admissions_recommendation`, and `flow_timeline` as a plain dict; it never touches disk or prints. `run.py` is now a thin wrapper: load JSON from disk → `run_simulation` per scenario → hand the returned `SimulationResult` to `analytics.py`'s CSV/JSON writers and `visualize.py`'s figure writers, which remain the only file-I/O layer. Monte Carlo stays a separate, opt-in call (§11.8) rather than folded into `run_simulation`, since re-running a scenario dozens of times isn't something every caller wants paid for by default.

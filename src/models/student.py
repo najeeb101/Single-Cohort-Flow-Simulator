@@ -3,6 +3,8 @@ from __future__ import annotations
 import random
 from typing import TYPE_CHECKING
 
+from src.rules import evaluate_rule
+
 if TYPE_CHECKING:
     from src.models.course import Course
 
@@ -11,9 +13,6 @@ GRADE_POINTS: dict[str, float] = {
     "C+": 2.3, "C": 2.0, "D": 1.0, "F": 0.0,
 }
 PASSING_GRADES = frozenset({"A", "B+", "B", "C+", "C", "D"})
-
-_REQUIRED_CATEGORIES = frozenset({"cs_core", "college_req"})
-_NON_CS_CATEGORIES = frozenset({"math", "science", "english", "gen_ed"})
 
 
 def registration_tier(completed_ch: int) -> int:
@@ -120,18 +119,11 @@ class Student:
     def prerequisites_met(self, course: Course, curriculum: dict[str, Course]) -> bool:
         return all(self.has_passed(p) for p in course.prerequisites)
 
-    def can_register_senior_project(self, curriculum: dict[str, Course]) -> bool:
-        for course in curriculum.values():
-            if not course.is_senior_project:
-                continue
-            rule = course.senior_project_rule
-            if rule is None:
-                return False
-            all_req = all(self.has_passed(c) for c in rule.required)
-            one_of  = any(self.has_passed(c) for c in rule.one_of)
-            ch_ok   = self.completed_ch >= rule.min_credits
-            return all_req and one_of and ch_ok
-        return False
+    def is_eligible_for(self, course: Course, curriculum: dict[str, Course]) -> bool:
+        """Eligibility for any course: a compound `rule_expr` if it has one, else plain prerequisites."""
+        if course.rule_expr is not None:
+            return evaluate_rule(course.rule_expr, self)
+        return self.prerequisites_met(course, curriculum)
 
     def get_load_cap(self, config: dict) -> int:
         return config["probation_load_ch"] if self.on_probation else config["normal_load_ch"]
@@ -147,13 +139,12 @@ class Student:
         config: dict,
     ) -> list[Course]:
         load_cap = self.get_load_cap(config)
+        priority_tiers = config["enrollment_priority_tiers"]
 
         def can_enroll(c: Course) -> bool:
             if self.has_passed(c.code):
                 return False
-            if c.is_senior_project:
-                return self.can_register_senior_project(curriculum)
-            return self.prerequisites_met(c, curriculum)
+            return self.is_eligible_for(c, curriculum)
 
         eligible = sorted(
             [c for c in available_courses if can_enroll(c)],
@@ -161,29 +152,27 @@ class Student:
         )
 
         retakes: list[Course] = []
-        new_required: list[Course] = []
-        electives: list[Course] = []
-        non_cs: list[Course] = []
         retake_codes: set[str] = set()
-
         for c in eligible:
             if self.failed_attempts.get(c.code, 0) > 0:
                 retakes.append(c)
                 retake_codes.add(c.code)
 
+        # Bucket the rest into the first tier (in config order) whose categories match
+        # and whose min_ch gate (default 0) is already met; see _enrollment_priority_note
+        # in simulation_config.json.
+        tiers: list[list[Course]] = [[] for _ in priority_tiers]
         for c in eligible:
             if c.code in retake_codes:
                 continue
-            if c.category in _REQUIRED_CATEGORIES:
-                new_required.append(c)
-            elif c.category == "cs_elective" and self.completed_ch >= 60:
-                electives.append(c)
-            elif c.category in _NON_CS_CATEGORIES:
-                non_cs.append(c)
+            for bucket, tier in zip(tiers, priority_tiers):
+                if c.category in tier["categories"] and self.completed_ch >= tier.get("min_ch", 0):
+                    bucket.append(c)
+                    break
 
         selected: list[Course] = []
         total_ch = 0
-        for course in retakes + new_required + electives + non_cs:
+        for course in retakes + [c for bucket in tiers for c in bucket]:
             if total_ch + course.credits <= load_cap:
                 selected.append(course)
                 total_ch += course.credits
@@ -197,7 +186,7 @@ class Student:
         # Grade replacement: passing a retake removes all prior F attempts from the denominator.
         # F = 0.0 pts so numerator was already unaffected by those fails.
         if grade in PASSING_GRADES:
-            prior_fails = self.failed_attempts.get(course.code, 0)
+            prior_fails = self.failed_attempts.pop(course.code, 0)
             if prior_fails > 0:
                 self._gpa_denominator -= course.credits * prior_fails
 
