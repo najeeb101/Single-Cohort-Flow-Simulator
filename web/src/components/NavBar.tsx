@@ -12,6 +12,7 @@ const LINKS = [
   { href: "/figures", label: "Figures" },
   { href: "/prerequisites", label: "Prerequisites" },
   { href: "/scenarios", label: "Scenarios" },
+  { href: "/plans", label: "Plans" },
   { href: "/runs", label: "Run History" },
   { href: "/settings", label: "Settings" },
 ];

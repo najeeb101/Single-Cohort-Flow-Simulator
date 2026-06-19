@@ -1,9 +1,12 @@
-"""SQLAlchemy engine/session seam + DB<->engine-shape loaders (docs/input_system_plan.md §2.1).
+"""SQLAlchemy engine/session seam + DB<->engine-shape loaders, plan-scoped.
 
 `load_curriculum_from_db`/`load_config_from_db` are the only two functions allowed to know
 about both the ORM (src/db_models.py) and the engine's plain dict[str, Course] / dict shapes
-(src/models/course.py, src/service.py) — everything downstream of src/api.py's module load
-stays unaware the data ever lived in a database.
+(src/models/course.py, src/service.py) — everything downstream of src/api.py's per-request
+plan resolution stays unaware the data ever lived in a database.
+
+Every Course/AppConfig row belongs to a Plan (src/db_models.py::Plan) — the shared,
+system-seeded default plan (owner_user_id is None) plus however many a user has imported.
 """
 from __future__ import annotations
 
@@ -16,7 +19,8 @@ from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from src import db_models
-from src.models.course import Course, load_curriculum
+from src.curriculum_validation import CycleError, PlanImportError, check_no_cycle
+from src.models.course import Course, course_from_dict, load_curriculum
 from src.utils import load_json
 
 DB_URL = os.environ.get("DATABASE_URL", "sqlite:///data/app.db")
@@ -35,6 +39,8 @@ SessionLocal = sessionmaker(bind=ENGINE)
 CURRICULUM_JSON_PATH = Path("data/curriculum.json")
 CONFIG_JSON_PATH = Path("data/simulation_config.json")
 
+DEFAULT_PLAN_NAME = "QU CS Baseline (default)"
+
 
 def init_db() -> None:
     db_models.Base.metadata.create_all(bind=ENGINE)
@@ -48,8 +54,9 @@ def get_db():
         session.close()
 
 
-def _course_to_row(course: Course) -> db_models.Course:
+def _course_to_row(course: Course, plan_id: int) -> db_models.Course:
     return db_models.Course(
+        plan_id=plan_id,
         code=course.code,
         title=course.title,
         credits=course.credits,
@@ -63,52 +70,87 @@ def _course_to_row(course: Course) -> db_models.Course:
     )
 
 
-def seed_if_empty(session: Session, force: bool = False) -> dict:
-    """Seed Course/AppConfig from the JSON files. Auto-runs on API startup when empty;
-    `force=True` (scripts/migrate_json_to_db.py --force) re-seeds even if rows already exist.
+def _insert_plan_data(session: Session, plan_id: int, curriculum: dict[str, Course], config: dict) -> None:
+    for course in curriculum.values():
+        session.add(_course_to_row(course, plan_id))
+    session.add(db_models.AppConfig(plan_id=plan_id, data=config))
+
+
+def get_or_create_default_plan(session: Session, force_reseed: bool = False) -> db_models.Plan:
+    """Idempotent: finds the shared system plan (owner_user_id is None), creating + seeding
+    it from the JSON files on first call. `force_reseed=True` (scripts/migrate_json_to_db.py
+    --force) overwrites its Course/AppConfig rows from the JSON files even if it already
+    exists, for resyncing after a hand-edit to the JSON files.
     """
-    courses_inserted = 0
-    courses_skipped = 0
-
-    has_courses = session.query(db_models.Course).first() is not None
-    if force or not has_courses:
+    plan = session.query(db_models.Plan).filter_by(owner_user_id=None).first()
+    if plan is None:
+        plan = db_models.Plan(owner_user_id=None, name=DEFAULT_PLAN_NAME)
+        session.add(plan)
+        session.flush()  # assigns plan.id
         curriculum = load_curriculum(CURRICULUM_JSON_PATH)
-        for course in curriculum.values():
-            existing = session.get(db_models.Course, course.code)
-            if existing is None:
-                session.add(_course_to_row(course))
-                courses_inserted += 1
-            elif force:
-                fresh = _course_to_row(course)
-                for field in ("title", "credits", "prerequisites", "pass_rate", "offering",
-                              "category", "capacity", "rule_expr", "study_plan_order"):
-                    setattr(existing, field, getattr(fresh, field))
-                courses_inserted += 1
-            else:
-                courses_skipped += 1
+        config = load_json(CONFIG_JSON_PATH)
+        _insert_plan_data(session, plan.id, curriculum, config)
+        session.commit()
+    elif force_reseed:
+        session.query(db_models.Course).filter_by(plan_id=plan.id).delete()
+        config_row = session.query(db_models.AppConfig).filter_by(plan_id=plan.id).first()
+        if config_row is not None:
+            session.delete(config_row)
+        session.flush()
+        curriculum = load_curriculum(CURRICULUM_JSON_PATH)
+        config = load_json(CONFIG_JSON_PATH)
+        _insert_plan_data(session, plan.id, curriculum, config)
+        session.commit()
+    return plan
 
-    config_created = False
-    config_updated = False
-    existing_config = session.get(db_models.AppConfig, 1)
-    if existing_config is None:
-        config_data = load_json(CONFIG_JSON_PATH)
-        session.add(db_models.AppConfig(id=1, data=config_data))
-        config_created = True
-    elif force:
-        existing_config.data = load_json(CONFIG_JSON_PATH)
-        config_updated = True
 
+def import_plan(
+    session: Session, owner_user_id: int, name: str, curriculum_list: list[dict], config: dict
+) -> db_models.Plan:
+    """Validate + insert a new user-owned Plan from uploaded curriculum.json/
+    simulation_config.json-shaped data. Raises PlanImportError (caller maps to 422) on a
+    malformed course entry or a prerequisite cycle in the *whole* imported set — nothing is
+    committed in either failure case.
+    """
+    curriculum: dict[str, Course] = {}
+    for entry in curriculum_list:
+        try:
+            course = course_from_dict(entry)
+        except ValueError as exc:
+            raise PlanImportError(str(exc)) from exc
+        curriculum[course.code] = course
+
+    if not curriculum:
+        raise PlanImportError("Curriculum must contain at least one course")
+
+    try:
+        check_no_cycle(curriculum)
+    except CycleError as exc:
+        raise PlanImportError(str(exc)) from exc
+
+    if "cohort_size" not in config or "scenarios" not in config:
+        raise PlanImportError("Config must include at least cohort_size and scenarios")
+
+    plan = db_models.Plan(owner_user_id=owner_user_id, name=name)
+    session.add(plan)
+    session.flush()
+    _insert_plan_data(session, plan.id, curriculum, config)
     session.commit()
-    return {
-        "courses_inserted": courses_inserted,
-        "courses_skipped": courses_skipped,
-        "config_created": config_created,
-        "config_updated": config_updated,
-    }
+    return plan
 
 
-def load_curriculum_from_db(session: Session) -> dict[str, Course]:
-    rows = session.query(db_models.Course).all()
+def resolve_active_plan_id(session: Session, user: db_models.User) -> int:
+    """`user.active_plan_id` if that plan still exists (handles a deleted-while-active
+    plan gracefully), else the shared default plan's id."""
+    if user.active_plan_id is not None:
+        plan = session.get(db_models.Plan, user.active_plan_id)
+        if plan is not None:
+            return plan.id
+    return get_or_create_default_plan(session).id
+
+
+def load_curriculum_from_db(session: Session, plan_id: int) -> dict[str, Course]:
+    rows = session.query(db_models.Course).filter_by(plan_id=plan_id).all()
     courses = {
         row.code: Course(
             code=row.code,
@@ -127,6 +169,6 @@ def load_curriculum_from_db(session: Session) -> dict[str, Course]:
     return courses
 
 
-def load_config_from_db(session: Session) -> dict:
-    row = session.get(db_models.AppConfig, 1)
+def load_config_from_db(session: Session, plan_id: int) -> dict:
+    row = session.query(db_models.AppConfig).filter_by(plan_id=plan_id).first()
     return copy.deepcopy(row.data)

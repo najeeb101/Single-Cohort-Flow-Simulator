@@ -20,13 +20,13 @@ class Course:
     study_plan_order: int = 99          # lower = earlier in the study plan
 
 
-def load_curriculum(path: str | Path) -> dict[str, Course]:
-    with open(path, encoding="utf-8") as f:
-        data = json.load(f)
-
-    courses: dict[str, Course] = {}
-    for entry in data:
-        course = Course(
+def course_from_dict(entry: dict) -> Course:
+    """Parse one curriculum.json-shaped entry into a Course. Raises ValueError (not
+    KeyError) with the entry's code (if present) on a missing required field, so callers
+    parsing untrusted/uploaded data (src/db.py::import_plan) can surface a clean message
+    instead of a bare traceback."""
+    try:
+        return Course(
             code=entry["code"],
             title=entry["title"],
             credits=entry["credits"],
@@ -38,6 +38,18 @@ def load_curriculum(path: str | Path) -> dict[str, Course]:
             rule_expr=entry.get("rule_expr"),
             study_plan_order=entry.get("study_plan_order", 99),
         )
+    except KeyError as exc:
+        code = entry.get("code", "<unknown>")
+        raise ValueError(f"course {code!r} is missing required field {exc.args[0]!r}") from exc
+
+
+def load_curriculum(path: str | Path) -> dict[str, Course]:
+    with open(path, encoding="utf-8") as f:
+        data = json.load(f)
+
+    courses: dict[str, Course] = {}
+    for entry in data:
+        course = course_from_dict(entry)
         courses[course.code] = course
 
     return courses

@@ -14,24 +14,28 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from src.db import SessionLocal, init_db, seed_if_empty
+from src.db import SessionLocal, get_or_create_default_plan, init_db
+from src.db_models import AppConfig, Course, Plan
 
 
 def main() -> int:
     force = "--force" in sys.argv[1:]
     init_db()
     with SessionLocal() as session:
-        summary = seed_if_empty(session, force=force)
-    print(
-        f"courses inserted: {summary['courses_inserted']}, "
-        f"skipped (already present): {summary['courses_skipped']}"
-    )
-    if summary["config_created"]:
-        print("AppConfig row created")
-    elif summary["config_updated"]:
-        print("AppConfig row updated (--force)")
+        existed = session.query(Plan).filter_by(owner_user_id=None).first() is not None
+        plan = get_or_create_default_plan(session, force_reseed=force)
+        course_count = session.query(Course).filter_by(plan_id=plan.id).count()
+        has_config = session.query(AppConfig).filter_by(plan_id=plan.id).first() is not None
+        plan_id = plan.id
+        plan_name = plan.name
+    if force:
+        print(f"Default plan reseeded: {plan_name} (id={plan_id})")
+    elif existed:
+        print(f"Default plan already present: {plan_name} (id={plan_id})")
     else:
-        print("AppConfig row already present, left unchanged")
+        print(f"Default plan created: {plan_name} (id={plan_id})")
+    print(f"Courses: {course_count}")
+    print(f"AppConfig: {'present' if has_config else 'missing'}")
     return 0
 
 

@@ -1,10 +1,15 @@
 """Thin HTTP wrapper around src.service.run_simulation (ACIP plan §2.3/§3.2).
 
-Phase 2 (docs/input_system_plan.md §2.1/§2.2): curriculum/config now live in a SQLite DB
+Phase 2 (docs/input_system_plan.md §2.1/§2.2): curriculum/config live in a SQLite DB
 (src/db.py), and every endpoint except /health and /auth/* requires a logged-in user
 (src/auth.py::get_current_user). The browser never calls this API directly — it goes
 through the Next.js dev server's rewrite (web/next.config.ts) to the same origin, so CORS
 stays scoped to that one local origin rather than a wildcard.
+
+Multi-plan support: curriculum/config are no longer cached module globals — each request
+resolves them fresh from the DB, keyed by the requesting user's *own* active plan
+(`_load_plan_data`), so two users can have two different active plans at once with no
+shared mutable state to race on.
 """
 from __future__ import annotations
 
@@ -19,21 +24,28 @@ from sqlalchemy.orm import Session
 from src.analytics import build_curriculum_graph
 from src.auth import get_current_user
 from src.auth import router as auth_router
-from src.curriculum_validation import CycleError, check_no_cycle
-from src.db import SessionLocal, get_db, init_db, load_config_from_db, load_curriculum_from_db, seed_if_empty
-from src.db_models import Course as CourseRow
-from src.db_models import Run, User
+from src.curriculum_validation import CycleError, PlanImportError, check_no_cycle
+from src.db import (
+    SessionLocal,
+    get_db,
+    get_or_create_default_plan,
+    import_plan,
+    init_db,
+    load_config_from_db,
+    load_curriculum_from_db,
+    resolve_active_plan_id,
+)
 from src.db_models import AppConfig as AppConfigRow
+from src.db_models import Course as CourseRow
+from src.db_models import Plan as PlanRow
+from src.db_models import Run, User
 from src.montecarlo import run_monte_carlo
 from src.scenarios import router as scenarios_router
 from src.service import run_simulation
 
 init_db()
 with SessionLocal() as _session:
-    seed_if_empty(_session)
-    CURRICULUM = load_curriculum_from_db(_session)
-    BASE_CONFIG = load_config_from_db(_session)
-BASE_SCENARIO = BASE_CONFIG["scenarios"][0]
+    get_or_create_default_plan(_session)
 
 app = FastAPI(title="Single-Cohort-Flow-Simulator API")
 app.include_router(auth_router)
@@ -48,6 +60,15 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+def _load_plan_data(db: Session, current_user: User) -> tuple[dict, dict, dict]:
+    """Resolve (curriculum, config, scenario) for the current user's active plan."""
+    plan_id = resolve_active_plan_id(db, current_user)
+    curriculum = load_curriculum_from_db(db, plan_id)
+    config = load_config_from_db(db, plan_id)
+    scenario = config["scenarios"][0]
+    return curriculum, config, scenario
 
 
 class ScenarioRequest(BaseModel):
@@ -87,6 +108,12 @@ class CourseUpdate(BaseModel):
     study_plan_order: int | None = None
 
 
+class PlanImportRequest(BaseModel):
+    name: str
+    curriculum: list[dict]
+    config: dict
+
+
 def _course_to_dict(course) -> dict:
     return {
         "code": course.code,
@@ -102,33 +129,43 @@ def _course_to_dict(course) -> dict:
     }
 
 
+def _plan_to_dict(plan: PlanRow, current_user: User) -> dict:
+    return {
+        "id": plan.id,
+        "name": plan.name,
+        "is_default": plan.owner_user_id is None,
+        "is_active": plan.id == current_user.active_plan_id,
+    }
+
+
 @app.get("/health")
 def health() -> dict:
     return {"status": "ok"}
 
 
 @app.get("/meta")
-def meta(current_user: User = Depends(get_current_user)) -> dict:
+def meta(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)) -> dict:
+    curriculum, config, scenario = _load_plan_data(db, current_user)
     return {
-        "graph": build_curriculum_graph(CURRICULUM),
-        "course_sections": BASE_CONFIG.get("course_sections", {}),
-        "course_pass_rates": {code: c.pass_rate for code, c in CURRICULUM.items()},
-        "seats_per_section": BASE_CONFIG.get("seats_per_section", 35),
-        "baseline_scenario": BASE_SCENARIO,
-        "cohort_size": BASE_CONFIG["cohort_size"],
-        "num_cohorts": BASE_CONFIG.get("num_cohorts"),
-        "num_incumbent_cohorts": BASE_CONFIG.get("num_incumbent_cohorts"),
-        "admit_interval_terms": BASE_CONFIG.get("admit_interval_terms"),
-        "max_terms": BASE_CONFIG.get("max_terms"),
-        "seed": BASE_CONFIG.get("seed"),
-        "dropout_gpa_floor": BASE_CONFIG.get("dropout_gpa_floor"),
-        "dropout_base_hazard": BASE_CONFIG.get("dropout_base_hazard"),
-        "dropout_early_multiplier": BASE_CONFIG.get("dropout_early_multiplier"),
-        "dropout_early_sem_cutoff": BASE_CONFIG.get("dropout_early_sem_cutoff"),
-        "dropout_fails_threshold": BASE_CONFIG.get("dropout_fails_threshold"),
-        "dropout_prob_on_repeated_fail": BASE_CONFIG.get("dropout_prob_on_repeated_fail"),
-        "registration_tier_thresholds": BASE_CONFIG.get("registration_tier_thresholds", []),
-        "enrollment_priority_tiers": BASE_CONFIG.get("enrollment_priority_tiers", []),
+        "graph": build_curriculum_graph(curriculum),
+        "course_sections": config.get("course_sections", {}),
+        "course_pass_rates": {code: c.pass_rate for code, c in curriculum.items()},
+        "seats_per_section": config.get("seats_per_section", 35),
+        "baseline_scenario": scenario,
+        "cohort_size": config["cohort_size"],
+        "num_cohorts": config.get("num_cohorts"),
+        "num_incumbent_cohorts": config.get("num_incumbent_cohorts"),
+        "admit_interval_terms": config.get("admit_interval_terms"),
+        "max_terms": config.get("max_terms"),
+        "seed": config.get("seed"),
+        "dropout_gpa_floor": config.get("dropout_gpa_floor"),
+        "dropout_base_hazard": config.get("dropout_base_hazard"),
+        "dropout_early_multiplier": config.get("dropout_early_multiplier"),
+        "dropout_early_sem_cutoff": config.get("dropout_early_sem_cutoff"),
+        "dropout_fails_threshold": config.get("dropout_fails_threshold"),
+        "dropout_prob_on_repeated_fail": config.get("dropout_prob_on_repeated_fail"),
+        "registration_tier_thresholds": config.get("registration_tier_thresholds", []),
+        "enrollment_priority_tiers": config.get("enrollment_priority_tiers", []),
     }
 
 
@@ -138,7 +175,8 @@ def simulate(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> dict:
-    config = copy.deepcopy(BASE_CONFIG)
+    curriculum, base_config, base_scenario = _load_plan_data(db, current_user)
+    config = copy.deepcopy(base_config)
     if req.cohort_size is not None:
         config["cohort_size"] = req.cohort_size
     if req.num_cohorts is not None:
@@ -173,7 +211,7 @@ def simulate(
     if req.enrollment_priority_tiers is not None:
         config["enrollment_priority_tiers"] = req.enrollment_priority_tiers
 
-    scenario = dict(BASE_SCENARIO)
+    scenario = dict(base_scenario)
     if req.capacity_multiplier is not None:
         scenario["capacity_multiplier"] = req.capacity_multiplier
     if req.capacity_overrides:
@@ -184,13 +222,13 @@ def simulate(
         scenario["pass_rate_overrides"] = req.pass_rate_overrides
 
     try:
-        run = run_simulation(CURRICULUM, config, scenario)
+        run = run_simulation(curriculum, config, scenario)
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
     flow_timeline = run["flow_timeline"]
     if req.include_monte_carlo:
-        monte_carlo = run_monte_carlo(CURRICULUM, config, scenario)
+        monte_carlo = run_monte_carlo(curriculum, config, scenario)
         flow_timeline["summary"]["headline"]["confidence_intervals"] = monte_carlo
 
     db.add(Run(
@@ -210,8 +248,9 @@ def simulate(
 
 
 @app.get("/curriculum")
-def list_curriculum(current_user: User = Depends(get_current_user)) -> list[dict]:
-    return [_course_to_dict(c) for c in sorted(CURRICULUM.values(), key=lambda c: c.study_plan_order)]
+def list_curriculum(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)) -> list[dict]:
+    curriculum, _config, _scenario = _load_plan_data(db, current_user)
+    return [_course_to_dict(c) for c in sorted(curriculum.values(), key=lambda c: c.study_plan_order)]
 
 
 @app.put("/curriculum/{code}")
@@ -221,13 +260,14 @@ def update_curriculum(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> dict:
-    global CURRICULUM
+    plan_id = resolve_active_plan_id(db, current_user)
+    curriculum = load_curriculum_from_db(db, plan_id)
 
-    row = db.get(CourseRow, code)
+    row = db.query(CourseRow).filter_by(plan_id=plan_id, code=code).first()
     if row is None:
         raise HTTPException(status_code=404, detail=f"Course {code!r} not found")
 
-    current = CURRICULUM[code]
+    current = curriculum[code]
     patch_fields = patch.model_dump(exclude_none=True)
     if "prerequisites" in patch_fields:
         patch_fields["prerequisites"] = tuple(patch_fields["prerequisites"])
@@ -235,7 +275,7 @@ def update_curriculum(
         patch_fields["offering"] = tuple(patch_fields["offering"])
     updated_course = dataclasses.replace(current, **patch_fields)
 
-    hypothetical = dict(CURRICULUM)
+    hypothetical = dict(curriculum)
     hypothetical[code] = updated_course
     try:
         check_no_cycle(hypothetical)
@@ -246,15 +286,13 @@ def update_curriculum(
         setattr(row, field, value)
     db.commit()
 
-    with SessionLocal() as _s:
-        CURRICULUM = load_curriculum_from_db(_s)
-
-    return _course_to_dict(CURRICULUM[code])
+    return _course_to_dict(updated_course)
 
 
 @app.get("/config")
-def get_config(current_user: User = Depends(get_current_user)) -> dict:
-    return BASE_CONFIG
+def get_config(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)) -> dict:
+    _curriculum, config, _scenario = _load_plan_data(db, current_user)
+    return config
 
 
 @app.put("/config")
@@ -263,19 +301,85 @@ def update_config(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> dict:
-    global BASE_CONFIG, BASE_SCENARIO
-
     if "registration_tier_thresholds" in patch:
         thresholds = patch["registration_tier_thresholds"]
         if not (isinstance(thresholds, list) and len(thresholds) == 5 and all(isinstance(t, int) for t in thresholds)):
             raise HTTPException(status_code=422, detail="registration_tier_thresholds must be a list of 5 ints")
 
-    row = db.get(AppConfigRow, 1)
+    plan_id = resolve_active_plan_id(db, current_user)
+    row = db.query(AppConfigRow).filter_by(plan_id=plan_id).first()
     row.data = {**row.data, **patch}
     db.commit()
 
-    with SessionLocal() as _s:
-        BASE_CONFIG = load_config_from_db(_s)
-    BASE_SCENARIO = BASE_CONFIG["scenarios"][0]
+    return row.data
 
-    return BASE_CONFIG
+
+@app.get("/plans")
+def list_plans(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)) -> list[dict]:
+    rows = (
+        db.query(PlanRow)
+        .filter((PlanRow.owner_user_id.is_(None)) | (PlanRow.owner_user_id == current_user.id))
+        .order_by(PlanRow.created_at)
+        .all()
+    )
+    return [_plan_to_dict(p, current_user) for p in rows]
+
+
+@app.post("/plans/import")
+def import_plan_endpoint(
+    req: PlanImportRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> dict:
+    try:
+        plan = import_plan(db, current_user.id, req.name, req.curriculum, req.config)
+    except PlanImportError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return _plan_to_dict(plan, current_user)
+
+
+def _get_visible_plan(db: Session, plan_id: int, current_user: User) -> PlanRow:
+    plan = db.get(PlanRow, plan_id)
+    if plan is None or (plan.owner_user_id is not None and plan.owner_user_id != current_user.id):
+        raise HTTPException(status_code=404, detail="Plan not found")
+    return plan
+
+
+@app.post("/plans/{plan_id}/activate")
+def activate_plan(
+    plan_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
+) -> dict:
+    plan = _get_visible_plan(db, plan_id, current_user)
+    current_user.active_plan_id = plan.id
+    db.commit()
+    return _plan_to_dict(plan, current_user)
+
+
+@app.delete("/plans/{plan_id}")
+def delete_plan(
+    plan_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
+) -> dict:
+    plan = db.get(PlanRow, plan_id)
+    if plan is None or plan.owner_user_id != current_user.id:
+        raise HTTPException(status_code=404, detail="Plan not found")
+
+    db.query(CourseRow).filter_by(plan_id=plan.id).delete()
+    db.query(AppConfigRow).filter_by(plan_id=plan.id).delete()
+    if current_user.active_plan_id == plan.id:
+        current_user.active_plan_id = get_or_create_default_plan(db).id
+    db.delete(plan)
+    db.commit()
+    return {"ok": True}
+
+
+@app.get("/plans/{plan_id}/export")
+def export_plan(
+    plan_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
+) -> dict:
+    plan = _get_visible_plan(db, plan_id, current_user)
+    curriculum = load_curriculum_from_db(db, plan.id)
+    config = load_config_from_db(db, plan.id)
+    return {
+        "curriculum": [_course_to_dict(c) for c in sorted(curriculum.values(), key=lambda c: c.study_plan_order)],
+        "config": config,
+    }

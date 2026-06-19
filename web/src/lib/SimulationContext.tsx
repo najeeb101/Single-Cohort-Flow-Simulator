@@ -24,6 +24,7 @@ interface SimulationState {
   data: SimulateResponse;
   chartMeta: ChartMeta;
   topCapacityCourses: string[];
+  refreshBaseline: () => Promise<void>;
   runScenario: (overrides: ScenarioRequest) => Promise<void>;
   resetToBaseline: () => Promise<void>;
   savedScenarios: ScenarioRecord[];
@@ -47,23 +48,27 @@ export function SimulationProvider({ children }: { children: ReactNode }) {
     setSavedScenarios(await listScenarios());
   }, []);
 
+  const refreshBaseline = useCallback(async () => {
+    const [m, d] = await Promise.all([getMeta(), simulate({})]);
+    setMeta(m);
+    setData(d);
+    setTopCapacityCourses(d.flow_timeline.summary.top_bottlenecks.capacity.slice(0, 3).map(([code]) => code));
+    setChartMeta({
+      graph: d.flow_timeline.meta.graph,
+      stageNodes: d.flow_timeline.meta.stage_nodes,
+      cohorts: d.flow_timeline.meta.cohorts,
+    });
+  }, []);
+
   useEffect(() => {
-    Promise.all([getMeta(), simulate({})])
-      .then(([m, d]) => {
-        setMeta(m);
-        setData(d);
-        setTopCapacityCourses(d.flow_timeline.summary.top_bottlenecks.capacity.slice(0, 3).map(([code]) => code));
-        setChartMeta({
-          graph: d.flow_timeline.meta.graph,
-          stageNodes: d.flow_timeline.meta.stage_nodes,
-          cohorts: d.flow_timeline.meta.cohorts,
-        });
+    refreshBaseline()
+      .then(() => {
         setPhase("ready");
       })
       .catch(() => setPhase("error"));
     // Saved scenarios are non-critical-path — fetch alongside, don't block the dashboard.
     refreshScenarios().catch(() => {});
-  }, [refreshScenarios]);
+  }, [refreshBaseline, refreshScenarios]);
 
   const runScenario = useCallback(async (overrides: ScenarioRequest) => {
     const d = await simulate(overrides);
@@ -102,6 +107,7 @@ export function SimulationProvider({ children }: { children: ReactNode }) {
         data,
         chartMeta,
         topCapacityCourses,
+        refreshBaseline,
         runScenario,
         resetToBaseline,
         savedScenarios,

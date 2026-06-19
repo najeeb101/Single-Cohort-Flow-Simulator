@@ -258,6 +258,24 @@ export interface CourseUpdate {
   study_plan_order?: number;
 }
 
+export interface PlanRecord {
+  id: number;
+  name: string;
+  is_default: boolean;
+  is_active: boolean;
+}
+
+export interface PlanImportPayload {
+  name: string;
+  curriculum: CourseRecord[];
+  config: Record<string, unknown>;
+}
+
+export interface PlanExportPayload {
+  curriculum: CourseRecord[];
+  config: Record<string, unknown>;
+}
+
 export interface RunRecord {
   id: number;
   scenario_id: number | null;

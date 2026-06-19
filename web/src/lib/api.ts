@@ -2,6 +2,9 @@ import type {
   CourseRecord,
   CourseUpdate,
   MetaResponse,
+  PlanExportPayload,
+  PlanImportPayload,
+  PlanRecord,
   RunRecord,
   ScenarioRecord,
   ScenarioRequest,
@@ -101,4 +104,28 @@ export function updateConfig(patch: Record<string, unknown>): Promise<Record<str
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(patch),
   }).then((res) => asJson<Record<string, unknown>>(res));
+}
+
+export function listPlans(): Promise<PlanRecord[]> {
+  return fetch(`${API_BASE}/plans`).then((res) => asJson<PlanRecord[]>(res));
+}
+
+export function importPlan(payload: PlanImportPayload): Promise<PlanRecord> {
+  return fetch(`${API_BASE}/plans/import`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  }).then((res) => asJson<PlanRecord>(res));
+}
+
+export function activatePlan(id: number): Promise<PlanRecord> {
+  return fetch(`${API_BASE}/plans/${id}/activate`, { method: "POST" }).then((res) => asJson<PlanRecord>(res));
+}
+
+export function deletePlan(id: number): Promise<void> {
+  return fetch(`${API_BASE}/plans/${id}`, { method: "DELETE" }).then((res) => asJson<void>(res));
+}
+
+export function exportPlan(id: number): Promise<PlanExportPayload> {
+  return fetch(`${API_BASE}/plans/${id}/export`).then((res) => asJson<PlanExportPayload>(res));
 }

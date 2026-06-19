@@ -16,6 +16,11 @@ class CycleError(Exception):
         super().__init__(f"This edit would introduce a prerequisite cycle: {cycle}")
 
 
+class PlanImportError(Exception):
+    """Raised by src/db.py::import_plan on a malformed entry or a cyclic curriculum —
+    src/api.py turns this into a 422 with `str(exc)` as the detail."""
+
+
 def check_no_cycle(curriculum: dict[str, Course]) -> None:
     """Raise CycleError if curriculum's prerequisite + rule_expr graph has a cycle.
 

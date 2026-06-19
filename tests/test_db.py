@@ -7,7 +7,12 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from src import db_models
-from src.db import load_config_from_db, load_curriculum_from_db, seed_if_empty
+from src.db import (
+    DEFAULT_PLAN_NAME,
+    get_or_create_default_plan,
+    load_config_from_db,
+    load_curriculum_from_db,
+)
 from src.models.course import load_curriculum
 from src.utils import load_json
 
@@ -20,8 +25,8 @@ def _fresh_session():
 
 def test_migration_round_trips_a_known_course():
     session = _fresh_session()
-    seed_if_empty(session)
-    curriculum = load_curriculum_from_db(session)
+    plan = get_or_create_default_plan(session)
+    curriculum = load_curriculum_from_db(session, plan.id)
     expected = load_curriculum("data/curriculum.json")["CMPS493"]
     assert curriculum["CMPS493"] == expected
     assert curriculum["CMPS493"].rule_expr == {
@@ -31,8 +36,8 @@ def test_migration_round_trips_a_known_course():
 
 def test_migration_round_trips_config():
     session = _fresh_session()
-    seed_if_empty(session)
-    config = load_config_from_db(session)
+    plan = get_or_create_default_plan(session)
+    config = load_config_from_db(session, plan.id)
     expected = load_json("data/simulation_config.json")
     assert config["cohort_size"] == expected["cohort_size"]
     assert config["scenarios"] == expected["scenarios"]
@@ -40,23 +45,24 @@ def test_migration_round_trips_config():
 
 def test_load_curriculum_from_db_matches_load_curriculum_from_json():
     session = _fresh_session()
-    seed_if_empty(session)
-    assert load_curriculum_from_db(session) == load_curriculum("data/curriculum.json")
+    plan = get_or_create_default_plan(session)
+    assert load_curriculum_from_db(session, plan.id) == load_curriculum("data/curriculum.json")
 
 
-def test_seed_is_idempotent_without_force():
+def test_default_plan_seed_is_idempotent_without_force():
     session = _fresh_session()
-    first = seed_if_empty(session)
-    second = seed_if_empty(session)
-    assert first["courses_inserted"] > 0
-    assert second["courses_inserted"] == 0
-    assert len(load_curriculum_from_db(session)) == len(load_curriculum("data/curriculum.json"))
+    first = get_or_create_default_plan(session)
+    second = get_or_create_default_plan(session)
+    assert first.id == second.id
+    assert first.name == DEFAULT_PLAN_NAME
+    assert len(load_curriculum_from_db(session, first.id)) == len(load_curriculum("data/curriculum.json"))
 
 
-def test_seed_force_reseeds_without_duplicating():
+def test_default_plan_force_reseeds_without_duplicating():
     session = _fresh_session()
-    seed_if_empty(session)
-    n_before = len(load_curriculum_from_db(session))
-    seed_if_empty(session, force=True)
-    n_after = len(load_curriculum_from_db(session))
+    plan = get_or_create_default_plan(session)
+    n_before = len(load_curriculum_from_db(session, plan.id))
+    reseeded = get_or_create_default_plan(session, force_reseed=True)
+    n_after = len(load_curriculum_from_db(session, reseeded.id))
+    assert plan.id == reseeded.id
     assert n_before == n_after

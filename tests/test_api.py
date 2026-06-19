@@ -6,7 +6,13 @@ from __future__ import annotations
 
 from fastapi.testclient import TestClient
 
-from src.api import BASE_CONFIG, BASE_SCENARIO, CURRICULUM, app
+from src.api import app
+from src.db import (
+    SessionLocal,
+    get_or_create_default_plan,
+    load_config_from_db,
+    load_curriculum_from_db,
+)
 from src.service import run_simulation
 
 client = TestClient(app)
@@ -14,6 +20,12 @@ _token = client.post(
     "/auth/register", json={"email": "test_api@example.com", "password": "test-password"}
 ).json()["access_token"]
 client.headers.update({"Authorization": f"Bearer {_token}"})
+
+with SessionLocal() as _session:
+    _plan = get_or_create_default_plan(_session)
+    CURRICULUM = load_curriculum_from_db(_session, _plan.id)
+    BASE_CONFIG = load_config_from_db(_session, _plan.id)
+    BASE_SCENARIO = BASE_CONFIG["scenarios"][0]
 
 
 def test_health():

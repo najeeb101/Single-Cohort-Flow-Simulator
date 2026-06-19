@@ -1,4 +1,6 @@
-"""SQLAlchemy ORM tables for Phase 2 persistence (see docs/input_system_plan.md §2.1).
+"""SQLAlchemy ORM tables for Phase 2 persistence (see docs/input_system_plan.md §2.1) and
+multi-plan support (each `Plan` is a distinct curriculum + baseline config; `User.active_plan_id`
+makes plan selection per-user rather than a single global).
 
 `Course`/`AppConfig` mirror data/curriculum.json and data/simulation_config.json exactly —
 `src/db.py`'s loaders reconstruct the same dict[str, Course] / plain-dict shapes
@@ -8,7 +10,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from sqlalchemy import JSON, DateTime, ForeignKey, String
+from sqlalchemy import JSON, DateTime, ForeignKey, String, UniqueConstraint
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 
@@ -27,14 +29,32 @@ class User(Base):
     email: Mapped[str] = mapped_column(String, unique=True, index=True, nullable=False)
     hashed_password: Mapped[str] = mapped_column(String, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow)
+    active_plan_id: Mapped[int | None] = mapped_column(ForeignKey("plans.id"), nullable=True)
+
+
+class Plan(Base):
+    """A distinct curriculum + baseline config. `owner_user_id is None` marks the shared,
+    system-seeded default plan (visible/editable by everyone, like Phase 2's single global
+    curriculum was) — anything else is private to the user who imported it."""
+
+    __tablename__ = "plans"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    owner_user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    name: Mapped[str] = mapped_column(String, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow)
 
 
 class Course(Base):
-    """Mirrors src/models/course.py::Course field-for-field; `code` is the natural key."""
+    """Mirrors src/models/course.py::Course field-for-field; `code` is unique only within
+    a plan (multiple plans can each have their own "CMPS151"), hence the surrogate `id`."""
 
     __tablename__ = "courses"
+    __table_args__ = (UniqueConstraint("plan_id", "code", name="uq_course_plan_code"),)
 
-    code: Mapped[str] = mapped_column(String, primary_key=True)
+    id: Mapped[int] = mapped_column(primary_key=True)
+    plan_id: Mapped[int] = mapped_column(ForeignKey("plans.id"), nullable=False)
+    code: Mapped[str] = mapped_column(String, nullable=False)
     title: Mapped[str] = mapped_column(String, nullable=False)
     credits: Mapped[int] = mapped_column(nullable=False)
     prerequisites: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
@@ -47,11 +67,12 @@ class Course(Base):
 
 
 class AppConfig(Base):
-    """Single-row table (id is always 1) holding the full simulation_config.json shape."""
+    """One row per plan, holding the full simulation_config.json shape for that plan."""
 
     __tablename__ = "app_config"
 
     id: Mapped[int] = mapped_column(primary_key=True)
+    plan_id: Mapped[int] = mapped_column(ForeignKey("plans.id"), unique=True, nullable=False)
     data: Mapped[dict] = mapped_column(JSON, nullable=False)
 
 

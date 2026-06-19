@@ -17,7 +17,7 @@ from passlib.context import CryptContext
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from src.db import get_db
+from src.db import get_db, get_or_create_default_plan
 from src.db_models import User
 
 AUTH_SECRET = os.environ["AUTH_SECRET"]
@@ -68,7 +68,8 @@ def register(req: RegisterRequest, db: Session = Depends(get_db)) -> TokenRespon
     existing = db.query(User).filter_by(email=req.email).first()
     if existing is not None:
         raise HTTPException(status_code=409, detail="Email already registered")
-    user = User(email=req.email, hashed_password=hash_password(req.password))
+    default_plan = get_or_create_default_plan(db)
+    user = User(email=req.email, hashed_password=hash_password(req.password), active_plan_id=default_plan.id)
     db.add(user)
     db.commit()
     db.refresh(user)
