@@ -43,3 +43,7 @@ desktop.ini
 # nowhere — keep it out of history. web/ gets the same shape live from POST /simulate, not this file.
 outputs/reports/
 # data/qu_raw/    # downloaded QU open-data CSVs (validation only; re-downloadable via scripts/analyze_qu_data.py)
+data/app.db
+data/app.db-journal
+data/app.db-wal
+data/app.db-shm

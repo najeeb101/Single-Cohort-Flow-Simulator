@@ -1,7 +1,8 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 
 const LINKS = [
   { href: "/", label: "Dashboard" },
@@ -10,10 +11,28 @@ const LINKS = [
   { href: "/bottlenecks", label: "Bottlenecks" },
   { href: "/figures", label: "Figures" },
   { href: "/prerequisites", label: "Prerequisites" },
+  { href: "/scenarios", label: "Scenarios" },
+  { href: "/runs", label: "Run History" },
+  { href: "/settings", label: "Settings" },
 ];
 
 export default function NavBar() {
   const pathname = usePathname();
+  const router = useRouter();
+  const [email, setEmail] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch("/api/auth/session")
+      .then((res) => res.json())
+      .then((data) => setEmail(data.authenticated ? data.email : null))
+      .catch(() => setEmail(null));
+  }, []);
+
+  const signOut = async () => {
+    await fetch("/api/auth/logout", { method: "POST" });
+    router.push("/login");
+    router.refresh();
+  };
 
   return (
     <nav className="border-b border-border bg-surface">
@@ -34,6 +53,14 @@ export default function NavBar() {
             </Link>
           );
         })}
+        {email && (
+          <div className="ml-auto flex items-center gap-3 whitespace-nowrap py-3 text-[12.5px] text-muted">
+            <span>Signed in as {email}</span>
+            <button type="button" onClick={signOut} className="font-semibold text-accent">
+              Sign out
+            </button>
+          </div>
+        )}
       </div>
     </nav>
   );

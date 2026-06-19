@@ -10,6 +10,10 @@ from src.api import BASE_CONFIG, BASE_SCENARIO, CURRICULUM, app
 from src.service import run_simulation
 
 client = TestClient(app)
+_token = client.post(
+    "/auth/register", json={"email": "test_api@example.com", "password": "test-password"}
+).json()["access_token"]
+client.headers.update({"Authorization": f"Bearer {_token}"})
 
 
 def test_health():

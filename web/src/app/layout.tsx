@@ -1,8 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
-import { SimulationProvider } from "@/lib/SimulationContext";
-import NavBar from "@/components/NavBar";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -19,6 +17,10 @@ export const metadata: Metadata = {
   description: "Cohort analytics, bottlenecks, and live what-if scenarios for the multi-cohort curriculum flow simulator.",
 };
 
+// NavBar + SimulationProvider live in (dashboard)/layout.tsx, not here — /login and
+// /register must not be wrapped by SimulationProvider, since its mount effect fetches
+// /meta + /simulate (now auth-gated) and would render an error box instead of the login
+// form for a not-yet-authenticated visitor.
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -29,10 +31,7 @@ export default function RootLayout({
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col">
-        <NavBar />
-        <SimulationProvider>{children}</SimulationProvider>
-      </body>
+      <body className="min-h-full flex flex-col">{children}</body>
     </html>
   );
 }

@@ -1,8 +1,15 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
-import { getMeta, simulate } from "@/lib/api";
-import type { CohortInfo, Graph, MetaResponse, ScenarioRequest, SimulateResponse } from "@/types/simulation";
+import { getMeta, listScenarios, simulate } from "@/lib/api";
+import type {
+  CohortInfo,
+  Graph,
+  MetaResponse,
+  ScenarioRecord,
+  ScenarioRequest,
+  SimulateResponse,
+} from "@/types/simulation";
 
 type Phase = "loading" | "ready" | "error";
 
@@ -19,6 +26,8 @@ interface SimulationState {
   topCapacityCourses: string[];
   runScenario: (overrides: ScenarioRequest) => Promise<void>;
   resetToBaseline: () => Promise<void>;
+  savedScenarios: ScenarioRecord[];
+  refreshScenarios: () => Promise<void>;
 }
 
 const SimulationContext = createContext<SimulationState | null>(null);
@@ -32,6 +41,11 @@ export function SimulationProvider({ children }: { children: ReactNode }) {
   const [chartMeta, setChartMeta] = useState<ChartMeta | null>(null);
   const [topCapacityCourses, setTopCapacityCourses] = useState<string[]>([]);
   const [phase, setPhase] = useState<Phase>("loading");
+  const [savedScenarios, setSavedScenarios] = useState<ScenarioRecord[]>([]);
+
+  const refreshScenarios = useCallback(async () => {
+    setSavedScenarios(await listScenarios());
+  }, []);
 
   useEffect(() => {
     Promise.all([getMeta(), simulate({})])
@@ -47,7 +61,9 @@ export function SimulationProvider({ children }: { children: ReactNode }) {
         setPhase("ready");
       })
       .catch(() => setPhase("error"));
-  }, []);
+    // Saved scenarios are non-critical-path — fetch alongside, don't block the dashboard.
+    refreshScenarios().catch(() => {});
+  }, [refreshScenarios]);
 
   const runScenario = useCallback(async (overrides: ScenarioRequest) => {
     const d = await simulate(overrides);
@@ -81,7 +97,16 @@ export function SimulationProvider({ children }: { children: ReactNode }) {
 
   return (
     <SimulationContext.Provider
-      value={{ meta, data, chartMeta, topCapacityCourses, runScenario, resetToBaseline }}
+      value={{
+        meta,
+        data,
+        chartMeta,
+        topCapacityCourses,
+        runScenario,
+        resetToBaseline,
+        savedScenarios,
+        refreshScenarios,
+      }}
     >
       {children}
     </SimulationContext.Provider>

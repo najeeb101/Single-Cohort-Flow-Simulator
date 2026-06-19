@@ -220,4 +220,48 @@ export interface ScenarioRequest {
   registration_tier_thresholds?: number[];
   enrollment_priority_tiers?: EnrollmentPriorityTier[];
   include_monte_carlo?: boolean;
+  scenario_id?: number;
+}
+
+export interface ScenarioRecord {
+  id: number;
+  name: string;
+  overrides: ScenarioRequest;
+  created_at: string;
+  updated_at: string;
+}
+
+export type RuleExpr = string | { all: RuleExpr[] } | { any: RuleExpr[] } | { min_ch: number };
+
+export interface CourseRecord {
+  code: string;
+  title: string;
+  credits: number;
+  prerequisites: string[];
+  pass_rate: number;
+  offering: string[];
+  category: string;
+  capacity: number;
+  rule_expr: RuleExpr | null;
+  study_plan_order: number;
+}
+
+export interface CourseUpdate {
+  title?: string;
+  credits?: number;
+  prerequisites?: string[];
+  pass_rate?: number;
+  offering?: string[];
+  category?: string;
+  capacity?: number;
+  rule_expr?: RuleExpr | null;
+  study_plan_order?: number;
+}
+
+export interface RunRecord {
+  id: number;
+  scenario_id: number | null;
+  requested_at: string;
+  overrides_json: ScenarioRequest;
+  summary_json: { metrics: Headline; admissions_recommendation: AdmissionsRecommendation };
 }

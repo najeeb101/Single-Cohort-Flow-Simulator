@@ -20,13 +20,20 @@ py run.py
 # Re-calibrate course_sections to peak demand (writes into simulation_config.json)
 py scripts/size_sections.py
 
-# Run the HTTP API (no DB/auth — Phase 1 wrapper around run_simulation; see acip_transformation_plan.md §2.3/§3.2)
+# One-time seed of data/app.db from the JSON files (auto-runs on first API startup too;
+# rerun with --force after hand-editing curriculum.json/simulation_config.json to resync)
+py scripts/migrate_json_to_db.py [--force]
+
+# Run the HTTP API. AUTH_SECRET must be set (the process fails fast at import time if it
+# isn't — no hardcoded dev-secret fallback, by design):
+#   PowerShell: $env:AUTH_SECRET = "some-32+-byte-local-dev-secret"
+#   bash:       export AUTH_SECRET="some-32+-byte-local-dev-secret"
 py -m uvicorn src.api:app --reload --port 8001
 
-# Run the Next.js dashboard (Phase 2 — talks to the API above, see web/README.md).
-# Must open http://localhost:3000, not 127.0.0.1:3000 — Next.js 16 dev mode blocks
-# cross-origin dev requests from origins not in `allowedDevOrigins`.
-cd web && npm install && npm run dev   # then open http://localhost:3000
+# Run the Next.js dashboard (talks to the API above via next.config.ts's rewrite, see
+# web/README.md). Must open http://localhost:3000, not 127.0.0.1:3000 — Next.js 16 dev
+# mode blocks cross-origin dev requests from origins not in `allowedDevOrigins`.
+cd web && npm install && npm run dev   # then open http://localhost:3000, register an account
 
 # Run tests
 py -m pytest tests/ -v
@@ -48,18 +55,30 @@ src/
 ├── simulator.py         # Simulator (staggered admission + 3-phase per-term loop) + History + SimulationResult
 ├── analytics.py         # metrics, per-cohort metrics, admissions recommendation, curriculum graph, flow_timeline JSON, CSV writers
 ├── service.py            # run_simulation() — engine-as-a-service boundary, no file I/O (the seam an API layer calls)
-├── api.py                # FastAPI wrapper: GET /health, /meta, POST /simulate — no DB/auth (Phase 1)
+├── db.py                 # SQLAlchemy engine/session, seed_if_empty(), DB<->engine-shape loaders
+├── db_models.py          # User/Course/AppConfig/Scenario/Run ORM tables
+├── auth.py               # JWT register/login, get_current_user (header or `session` cookie)
+├── scenarios.py          # Persistent /scenarios + /runs endpoints, scoped per user
+├── curriculum_validation.py  # check_no_cycle() — networkx prerequisite-cycle check for Settings edits
+├── api.py                # FastAPI wrapper: /health, /auth/*, /meta, /simulate, /scenarios, /runs,
+│                         # /curriculum, /config — every endpoint but /health + /auth/* requires login
 ├── montecarlo.py         # run_monte_carlo() — mean ± 95% CI over many seeds
 ├── visualize.py          # save_all_figures() + per-figure functions
 └── utils.py              # load_json(), grade_tier()
-web/                   # Next.js/TypeScript dashboard (Phase 2) — talks to src/api.py directly, not
-                       # outputs/. Includes the animated curriculum graph and all of the static
-                       # figures (ported as React/SVG, incl. the prerequisite-network diagram,
-                       # laid out with the same layered positions as the animated graph).
+web/                   # Next.js/TypeScript dashboard — talks to src/api.py via next.config.ts's
+                       # /api/backend/* rewrite (so the browser stays same-origin and the httpOnly
+                       # auth cookie reaches FastAPI without CORS-with-credentials). Includes the
+                       # animated curriculum graph, the static figures (ported as React/SVG),
+                       # the Scenario Builder, login/register, saved Scenarios + Run History, and
+                       # Settings (curriculum + baseline config editing).
 ```
 
-`data/curriculum.json` is the source of truth — 38 courses, 120 CH total. Never overwrite it.
-`data/simulation_config.json` holds all tunable parameters.
+`data/curriculum.json` and `data/simulation_config.json` are the one-time seed for `data/app.db`
+(gitignored SQLite) — `src/db.py::seed_if_empty()` auto-runs it on first API startup, and
+`scripts/migrate_json_to_db.py --force` re-syncs after hand-editing the JSON files. **After that
+first boot, the DB is authoritative**: `src/api.py`'s `CURRICULUM`/`BASE_CONFIG` module globals are
+loaded from it, and `PUT /curriculum/{code}`/`PUT /config` (Settings) re-derive those globals
+in-process after a successful write, so edits take effect immediately without a server restart.
 `src/service.py::run_simulation(curriculum, config, scenario) -> dict` runs one scenario in memory (no file I/O) and returns `result`/`metrics`/`cohort_metrics`/`admissions_recommendation`/`flow_timeline`; `run.py` calls it, then passes the result to `analytics.py`/`visualize.py`'s writers, which remain the only place that touches disk.
 
 ## Multi-Cohort Model

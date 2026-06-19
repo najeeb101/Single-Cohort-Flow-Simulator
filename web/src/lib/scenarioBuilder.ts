@@ -115,3 +115,27 @@ export function buildOverrides(state: BuilderState, baseline: BuilderState): Sce
 
   return req;
 }
+
+// Inverse of buildOverrides — reconstructs a BuilderState by overlaying a saved
+// Scenario's overrides onto baseline (used when loading a saved/cloned scenario).
+export function applyOverrides(overrides: ScenarioRequest, baseline: BuilderState): BuilderState {
+  return {
+    capacityMultipliers: { ...baseline.capacityMultipliers, ...overrides.capacity_overrides },
+    courseSections: { ...baseline.courseSections, ...overrides.course_sections_overrides },
+    cohortSize: overrides.cohort_size ?? baseline.cohortSize,
+    passRates: { ...baseline.passRates, ...overrides.pass_rate_overrides },
+    dropoutGpaFloor: overrides.dropout_gpa_floor ?? baseline.dropoutGpaFloor,
+    dropoutBaseHazard: overrides.dropout_base_hazard ?? baseline.dropoutBaseHazard,
+    dropoutEarlyMultiplier: overrides.dropout_early_multiplier ?? baseline.dropoutEarlyMultiplier,
+    dropoutEarlySemCutoff: overrides.dropout_early_sem_cutoff ?? baseline.dropoutEarlySemCutoff,
+    dropoutFailsThreshold: overrides.dropout_fails_threshold ?? baseline.dropoutFailsThreshold,
+    dropoutProbOnRepeatedFail: overrides.dropout_prob_on_repeated_fail ?? baseline.dropoutProbOnRepeatedFail,
+    numCohorts: overrides.num_cohorts ?? baseline.numCohorts,
+    numIncumbentCohorts: overrides.num_incumbent_cohorts ?? baseline.numIncumbentCohorts,
+    admitIntervalTerms: overrides.admit_interval_terms ?? baseline.admitIntervalTerms,
+    maxTerms: overrides.max_terms ?? baseline.maxTerms,
+    seed: overrides.seed ?? baseline.seed,
+    registrationTierThresholds: overrides.registration_tier_thresholds ?? baseline.registrationTierThresholds,
+    enrollmentPriorityTiers: overrides.enrollment_priority_tiers ?? baseline.enrollmentPriorityTiers,
+  };
+}
