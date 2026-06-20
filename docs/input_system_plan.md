@@ -1,5 +1,16 @@
 # Scenario Builder input system (phased: ship the builder first, DB/auth second)
 
+> **Status: historical.** Phases 1 and 2 below shipped as planned. Phase 2.2 (Auth) shipped
+> with a hand-rolled JWT + httpOnly-cookie scheme instead of next-auth — see `src/auth.py`,
+> `web/src/proxy.ts`, `web/next.config.ts` — because this repo's Next.js 16.2.9 renamed
+> Middleware to Proxy, a breaking change next-auth's training data predates. A further,
+> undocumented-here addition shipped on top of 2.1/2.4: **multi-plan support** — `Course`/
+> `AppConfig` are now scoped to a `Plan` row instead of being single global rows, so each
+> user can import/activate/export/delete their own alternate curriculum+config combos
+> instead of sharing one mutable baseline. See `CLAUDE.md`'s "Multi-Plan Model" section and
+> `src/db.py`/`src/db_models.py`/`src/api.py` for the as-built design; this doc was never
+> updated to describe it and shouldn't be treated as current for that part.
+
 ## Context
 
 The dashboard currently exposes only 2 sliders (top-3 course capacity, cohort size) via

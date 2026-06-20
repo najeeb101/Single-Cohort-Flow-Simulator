@@ -55,13 +55,17 @@ src/
 ├── simulator.py         # Simulator (staggered admission + 3-phase per-term loop) + History + SimulationResult
 ├── analytics.py         # metrics, per-cohort metrics, admissions recommendation, curriculum graph, flow_timeline JSON, CSV writers
 ├── service.py            # run_simulation() — engine-as-a-service boundary, no file I/O (the seam an API layer calls)
-├── db.py                 # SQLAlchemy engine/session, seed_if_empty(), DB<->engine-shape loaders
-├── db_models.py          # User/Course/AppConfig/Scenario/Run ORM tables
+├── db.py                 # SQLAlchemy engine/session, plan-scoped DB<->engine-shape loaders,
+│                         # get_or_create_default_plan(), import_plan(), resolve_active_plan_id()
+├── db_models.py          # User/Plan/Course/AppConfig/Scenario/Run ORM tables (Course/AppConfig
+│                         # are per-Plan; User.active_plan_id picks which Plan drives that user)
 ├── auth.py               # JWT register/login, get_current_user (header or `session` cookie)
 ├── scenarios.py          # Persistent /scenarios + /runs endpoints, scoped per user
-├── curriculum_validation.py  # check_no_cycle() — networkx prerequisite-cycle check for Settings edits
+├── curriculum_validation.py  # check_no_cycle() — networkx prerequisite-cycle check for Settings
+│                         # edits and Plan imports; PlanImportError for malformed/cyclic imports
 ├── api.py                # FastAPI wrapper: /health, /auth/*, /meta, /simulate, /scenarios, /runs,
-│                         # /curriculum, /config — every endpoint but /health + /auth/* requires login
+│                         # /curriculum, /config, /plans — every endpoint but /health + /auth/*
+│                         # requires login
 ├── montecarlo.py         # run_monte_carlo() — mean ± 95% CI over many seeds
 ├── visualize.py          # save_all_figures() + per-figure functions
 └── utils.py              # load_json(), grade_tier()
@@ -69,16 +73,21 @@ web/                   # Next.js/TypeScript dashboard — talks to src/api.py vi
                        # /api/backend/* rewrite (so the browser stays same-origin and the httpOnly
                        # auth cookie reaches FastAPI without CORS-with-credentials). Includes the
                        # animated curriculum graph, the static figures (ported as React/SVG),
-                       # the Scenario Builder, login/register, saved Scenarios + Run History, and
-                       # Settings (curriculum + baseline config editing).
+                       # the Scenario Builder, login/register, saved Scenarios + Run History,
+                       # Settings (curriculum + baseline config editing), and Plans (import/
+                       # activate/export/delete alternate curriculum+config combos per user).
 ```
 
 `data/curriculum.json` and `data/simulation_config.json` are the one-time seed for `data/app.db`
-(gitignored SQLite) — `src/db.py::seed_if_empty()` auto-runs it on first API startup, and
-`scripts/migrate_json_to_db.py --force` re-syncs after hand-editing the JSON files. **After that
-first boot, the DB is authoritative**: `src/api.py`'s `CURRICULUM`/`BASE_CONFIG` module globals are
-loaded from it, and `PUT /curriculum/{code}`/`PUT /config` (Settings) re-derive those globals
-in-process after a successful write, so edits take effect immediately without a server restart.
+(gitignored SQLite) — `src/db.py::get_or_create_default_plan()` auto-runs it on first API startup
+(creating the shared default `Plan`), and `scripts/migrate_json_to_db.py --force` re-syncs that
+default plan after hand-editing the JSON files. **After that first boot, the DB is authoritative,
+per-plan**: every `src/api.py` endpoint resolves `(curriculum, config)` fresh per-request from the
+requesting user's *active* `Plan` (`_load_plan_data` → `resolve_active_plan_id`) — there are no
+cached module globals, so two users can have two different active plans at once with no shared
+mutable state to race on. `PUT /curriculum/{code}`/`PUT /config` (Settings) write into the active
+plan's rows; switching plans (`POST /plans/{id}/activate`) changes what subsequent requests see
+immediately, no server restart needed. See [Multi-Plan Model](#multi-plan-model) below.
 `src/service.py::run_simulation(curriculum, config, scenario) -> dict` runs one scenario in memory (no file I/O) and returns `result`/`metrics`/`cohort_metrics`/`admissions_recommendation`/`flow_timeline`; `run.py` calls it, then passes the result to `analytics.py`/`visualize.py`'s writers, which remain the only place that touches disk.
 
 ## Multi-Cohort Model
@@ -89,6 +98,13 @@ in-process after a successful write, so edits take effect immediately without a 
 - **Cohort ids**: study cohorts `0..n-1`; incumbents `-1,-2,-3`. Globally-unique `student_id = (cohort_id + num_incumbent_cohorts)*cohort_size + i`; RNG seed `seed + student_id` (CRN preserved).
 - **Sections model**: per-term seats for a course = `course_sections[code] × seats_per_section` (config). `course_sections` is auto-calibrated to peak demand by `scripts/size_sections.py` (writes the map into the config) and then hand-tunable — add a section to a course to relieve it. This replaces the old global `capacity_scale` multiplier with realistic, course-specific, adjustable section counts. A course missing from the map falls back to `ceil(curriculum capacity / seats_per_section)`.
 - **Headline metrics are scoped to study cohorts** (`entry_term >= 0`); incumbents are a warm-start device and appear only in the per-cohort ledger.
+
+## Multi-Plan Model
+
+- A **Plan** (`src/db_models.py::Plan`) is a distinct `(curriculum, config)` pair, stored as its own rows in `Course`/`AppConfig` (`Course.code` is unique per-plan, not globally — multiple plans can each define their own "CMPS151"). One shared **default plan** (`owner_user_id is None`) is seeded from the JSON files for everyone; any other plan is private to the user who imported it.
+- `User.active_plan_id` selects which plan that user's `/meta`, `/simulate`, `/curriculum`, `/config` calls resolve against (`src/db.py::resolve_active_plan_id` falls back to the default plan if the active one was deleted). This makes plan selection per-user, not a single global mutable baseline.
+- `POST /plans/import` validates an uploaded `{name, curriculum, config}` payload — rejects an empty curriculum, a prerequisite cycle (`check_no_cycle`), or a config missing `cohort_size`/`scenarios` — as `PlanImportError` → HTTP 422, with nothing committed on failure. `POST /plans/{id}/activate` switches the caller's active plan; `GET /plans/{id}/export` round-trips back to the same `{curriculum, config}` shape; `DELETE /plans/{id}` (owner only, not the default) reassigns the caller to the default plan if it was active.
+- Frontend: `web/src/app/(dashboard)/plans/page.tsx` — list, import (two JSON file uploads + name), activate, export, delete. Distinct from the Scenario Builder (ephemeral per-run overrides on top of whatever plan is active) and Settings (in-place edits to the *active* plan's curriculum/config).
 
 ## Per-Term Loop (three phases)
 
