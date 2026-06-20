@@ -64,8 +64,8 @@ src/
 ├── curriculum_validation.py  # check_no_cycle() — networkx prerequisite-cycle check for Settings
 │                         # edits and Plan imports; PlanImportError for malformed/cyclic imports
 ├── api.py                # FastAPI wrapper: /health, /auth/*, /meta, /simulate, /scenarios, /runs,
-│                         # /curriculum, /config, /plans — every endpoint but /health + /auth/*
-│                         # requires login
+│                         # /curriculum (GET/POST/PUT/DELETE), /config, /plans — every endpoint
+│                         # but /health + /auth/* requires login
 ├── montecarlo.py         # run_monte_carlo() — mean ± 95% CI over many seeds
 ├── visualize.py          # save_all_figures() + per-figure functions
 └── utils.py              # load_json(), grade_tier()
@@ -74,8 +74,10 @@ web/                   # Next.js/TypeScript dashboard — talks to src/api.py vi
                        # auth cookie reaches FastAPI without CORS-with-credentials). Includes the
                        # animated curriculum graph, the static figures (ported as React/SVG),
                        # the Scenario Builder, login/register, saved Scenarios + Run History,
-                       # Settings (curriculum + baseline config editing), and Plans (import/
-                       # activate/export/delete alternate curriculum+config combos per user).
+                       # Settings (curriculum CRUD + baseline config editing), Plans (import/
+                       # activate/export/delete alternate curriculum+config combos per user), and
+                       # the Plan Builder wizard (create a new plan from scratch or by cloning the
+                       # default, entering courses/config by hand before the first save).
 ```
 
 `data/curriculum.json` and `data/simulation_config.json` are the one-time seed for `data/app.db`
@@ -104,7 +106,10 @@ immediately, no server restart needed. See [Multi-Plan Model](#multi-plan-model)
 - A **Plan** (`src/db_models.py::Plan`) is a distinct `(curriculum, config)` pair, stored as its own rows in `Course`/`AppConfig` (`Course.code` is unique per-plan, not globally — multiple plans can each define their own "CMPS151"). One shared **default plan** (`owner_user_id is None`) is seeded from the JSON files for everyone; any other plan is private to the user who imported it.
 - `User.active_plan_id` selects which plan that user's `/meta`, `/simulate`, `/curriculum`, `/config` calls resolve against (`src/db.py::resolve_active_plan_id` falls back to the default plan if the active one was deleted). This makes plan selection per-user, not a single global mutable baseline.
 - `POST /plans/import` validates an uploaded `{name, curriculum, config}` payload — rejects an empty curriculum, a prerequisite cycle (`check_no_cycle`), or a config missing `cohort_size`/`scenarios` — as `PlanImportError` → HTTP 422, with nothing committed on failure. `POST /plans/{id}/activate` switches the caller's active plan; `GET /plans/{id}/export` round-trips back to the same `{curriculum, config}` shape; `DELETE /plans/{id}` (owner only, not the default) reassigns the caller to the default plan if it was active.
-- Frontend: `web/src/app/(dashboard)/plans/page.tsx` — list, import (two JSON file uploads + name), activate, export, delete. Distinct from the Scenario Builder (ephemeral per-run overrides on top of whatever plan is active) and Settings (in-place edits to the *active* plan's curriculum/config).
+- **Curriculum CRUD on the active plan**: `POST /curriculum` adds a course (409 on a duplicate code within the plan, 422 on a prerequisite cycle); `DELETE /curriculum/{code}` removes one (404 if absent, 422 if another course's `prerequisites`/`rule_expr` still references it — checked via `src/rules.py::gate_edges`). `PUT /curriculum/{code}` (pre-existing) edits one course's fields in place. All three operate on whichever plan `resolve_active_plan_id` resolves to.
+- Frontend: `web/src/app/(dashboard)/plans/page.tsx` — list, import (two JSON file uploads + name), activate, export, delete, and a **+ New plan** link into the Plan Builder. Settings' `CurriculumTable` now supports add/delete (not just per-course edits) via the shared `web/src/components/CourseFormFields.tsx`.
+- **Plan Builder** (`web/src/app/(dashboard)/plan-builder/page.tsx`, `web/src/components/plan-builder/`): a 4-step wizard (name & seed → courses → config → review/save) for building a plan entirely client-side before the one and only network write (`POST /plans/import`, optionally followed by activate). "Seed" clones the default plan's `{curriculum, config}` via `GET /plans/{id}/export`, or starts blank (`web/src/lib/planBuilder.ts::BLANK_CONFIG`); the config step reuses the Scenario Builder's `AdmissionsTab`/`PassRatesDropoutTab`/`RegistrationPolicyTab` over a `BuilderState` built from the cloned/blank config (`metaFromPlanExport`).
+- Distinct from the Scenario Builder (ephemeral per-run overrides on top of whatever plan is active) and Settings (in-place edits to the *active* plan's curriculum/config, persisted immediately per edit).
 
 ## Per-Term Loop (three phases)
 

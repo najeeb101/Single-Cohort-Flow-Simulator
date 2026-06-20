@@ -1,23 +1,36 @@
 "use client";
 
 import { useState } from "react";
-import { ApiError, updateCourse } from "@/lib/api";
-import type { CourseRecord, CourseUpdate, RuleExpr } from "@/types/simulation";
-import RuleExprEditor from "./RuleExprEditor";
+import { ApiError, createCourse, deleteCourse, updateCourse } from "@/lib/api";
+import { validateCourseDraft } from "@/lib/planBuilder";
+import type { CourseRecord, CourseUpdate } from "@/types/simulation";
+import CourseFormFields from "@/components/CourseFormFields";
 
-const OFFERINGS = ["Fall", "Spring"] as const;
+const BLANK_COURSE: CourseRecord = {
+  code: "",
+  title: "",
+  credits: 3,
+  prerequisites: [],
+  pass_rate: 0.85,
+  offering: ["Fall", "Spring"],
+  category: "cs_elective",
+  capacity: 30,
+  rule_expr: null,
+  study_plan_order: 99,
+};
 
 interface RowProps {
   course: CourseRecord;
   allCourseCodes: string[];
   onSaved: (updated: CourseRecord) => void;
+  onDeleted: (code: string) => void;
 }
 
-function CurriculumRow({ course, allCourseCodes, onSaved }: RowProps) {
+function CurriculumRow({ course, allCourseCodes, onSaved, onDeleted }: RowProps) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState<CourseRecord>(course);
   const [error, setError] = useState<string | null>(null);
-  const [saving, setSaving] = useState(false);
+  const [busy, setBusy] = useState(false);
 
   const startEdit = () => {
     setDraft(course);
@@ -25,21 +38,8 @@ function CurriculumRow({ course, allCourseCodes, onSaved }: RowProps) {
     setEditing(true);
   };
 
-  const toggleOffering = (season: string) => {
-    const has = draft.offering.includes(season);
-    setDraft({ ...draft, offering: has ? draft.offering.filter((o) => o !== season) : [...draft.offering, season] });
-  };
-
-  const togglePrereq = (code: string) => {
-    const has = draft.prerequisites.includes(code);
-    setDraft({
-      ...draft,
-      prerequisites: has ? draft.prerequisites.filter((c) => c !== code) : [...draft.prerequisites, code],
-    });
-  };
-
   const save = async () => {
-    setSaving(true);
+    setBusy(true);
     setError(null);
     const patch: CourseUpdate = {
       title: draft.title,
@@ -59,7 +59,20 @@ function CurriculumRow({ course, allCourseCodes, onSaved }: RowProps) {
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "Save failed");
     } finally {
-      setSaving(false);
+      setBusy(false);
+    }
+  };
+
+  const remove = async () => {
+    if (!window.confirm(`Delete ${course.code}? This cannot be undone.`)) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await deleteCourse(course.code);
+      onDeleted(course.code);
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "Delete failed");
+      setBusy(false);
     }
   };
 
@@ -72,9 +85,15 @@ function CurriculumRow({ course, allCourseCodes, onSaved }: RowProps) {
         <td className="border-b border-border px-3 py-2 text-muted">{course.pass_rate.toFixed(2)}</td>
         <td className="border-b border-border px-3 py-2 text-muted">{course.capacity}</td>
         <td className="border-b border-border px-3 py-2">
-          <button type="button" onClick={startEdit} className="font-semibold text-accent">
-            Edit
-          </button>
+          <div className="flex justify-end gap-3">
+            <button type="button" onClick={startEdit} disabled={busy} className="font-semibold text-accent disabled:opacity-50">
+              Edit
+            </button>
+            <button type="button" onClick={remove} disabled={busy} className="font-semibold text-bad disabled:opacity-50">
+              Delete
+            </button>
+          </div>
+          {error && <p className="mt-1 text-right text-[11px] text-bad">{error}</p>}
         </td>
       </tr>
     );
@@ -83,135 +102,97 @@ function CurriculumRow({ course, allCourseCodes, onSaved }: RowProps) {
   return (
     <tr>
       <td colSpan={6} className="border-b border-border bg-surface-2 px-3 py-3">
-        <div className="flex flex-col gap-3 text-[12.5px]">
-          <div className="flex flex-wrap gap-3">
-            <label className="flex flex-col gap-1 text-muted">
-              Title
-              <input
-                value={draft.title}
-                onChange={(e) => setDraft({ ...draft, title: e.target.value })}
-                className="rounded-[8px] border border-border-2 bg-surface px-2.5 py-1.5 text-ink"
-              />
-            </label>
-            <label className="flex flex-col gap-1 text-muted">
-              Category
-              <select
-                value={draft.category}
-                onChange={(e) => setDraft({ ...draft, category: e.target.value })}
-                className="rounded-[8px] border border-border-2 bg-surface px-2.5 py-1.5 text-ink"
-              >
-                {["cs_core", "cs_elective", "college_req", "math", "science", "english", "gen_ed"].map((cat) => (
-                  <option key={cat} value={cat}>
-                    {cat}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="flex flex-col gap-1 text-muted">
-              Credits
-              <input
-                type="number"
-                min={0}
-                max={6}
-                value={draft.credits}
-                onChange={(e) => setDraft({ ...draft, credits: Number(e.target.value) })}
-                className="w-20 rounded-[8px] border border-border-2 bg-surface px-2.5 py-1.5 text-ink"
-              />
-            </label>
-            <label className="flex flex-col gap-1 text-muted">
-              Pass rate
-              <input
-                type="number"
-                min={0}
-                max={1}
-                step={0.01}
-                value={draft.pass_rate}
-                onChange={(e) => setDraft({ ...draft, pass_rate: Number(e.target.value) })}
-                className="w-24 rounded-[8px] border border-border-2 bg-surface px-2.5 py-1.5 text-ink"
-              />
-            </label>
-            <label className="flex flex-col gap-1 text-muted">
-              Capacity / offering
-              <input
-                type="number"
-                min={1}
-                value={draft.capacity}
-                onChange={(e) => setDraft({ ...draft, capacity: Number(e.target.value) })}
-                className="w-24 rounded-[8px] border border-border-2 bg-surface px-2.5 py-1.5 text-ink"
-              />
-            </label>
-          </div>
+        <CourseFormFields value={draft} allCourseCodes={allCourseCodes} onChange={setDraft} />
 
-          <div className="flex flex-wrap gap-4">
-            <div className="flex flex-col gap-1">
-              <span className="text-muted">Offered</span>
-              <div className="flex gap-3">
-                {OFFERINGS.map((season) => (
-                  <label key={season} className="flex items-center gap-1.5 text-ink">
-                    <input
-                      type="checkbox"
-                      checked={draft.offering.includes(season)}
-                      onChange={() => toggleOffering(season)}
-                      className="accent-[var(--accent)]"
-                    />
-                    {season}
-                  </label>
-                ))}
-              </div>
-            </div>
+        {error && <p className="mt-2 text-bad">{error}</p>}
 
-            <div className="flex flex-col gap-1">
-              <span className="text-muted">Prerequisites</span>
-              <div className="flex max-w-md flex-wrap gap-1.5">
-                {allCourseCodes
-                  .filter((c) => c !== course.code)
-                  .map((c) => (
-                    <label key={c} className="flex items-center gap-1 text-ink">
-                      <input
-                        type="checkbox"
-                        checked={draft.prerequisites.includes(c)}
-                        onChange={() => togglePrereq(c)}
-                        className="accent-[var(--accent)]"
-                      />
-                      {c}
-                    </label>
-                  ))}
-              </div>
-            </div>
-          </div>
+        <div className="mt-3 flex gap-2">
+          <button
+            type="button"
+            onClick={save}
+            disabled={busy}
+            className="rounded-[9px] bg-accent px-3.5 py-1.5 font-semibold text-white disabled:opacity-50"
+          >
+            {busy ? "Saving…" : "Save"}
+          </button>
+          <button
+            type="button"
+            onClick={() => setEditing(false)}
+            className="rounded-[9px] border border-border-2 bg-surface px-3.5 py-1.5 font-semibold text-ink"
+          >
+            Cancel
+          </button>
+        </div>
+      </td>
+    </tr>
+  );
+}
 
-          {draft.rule_expr !== null && (
-            <div>
-              <span className="text-muted">Compound eligibility rule</span>
-              <div className="mt-1 rounded-lg border border-border bg-surface p-3">
-                <RuleExprEditor
-                  expr={draft.rule_expr as RuleExpr}
-                  allCourseCodes={allCourseCodes.filter((c) => c !== course.code)}
-                  onChange={(next) => setDraft({ ...draft, rule_expr: next })}
-                />
-              </div>
-            </div>
-          )}
+function AddCourseRow({ allCourseCodes, onAdded }: { allCourseCodes: string[]; onAdded: (created: CourseRecord) => void }) {
+  const [open, setOpen] = useState(false);
+  const [draft, setDraft] = useState<CourseRecord>(BLANK_COURSE);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
 
-          {error && <p className="text-bad">{error}</p>}
+  if (!open) {
+    return (
+      <tr>
+        <td colSpan={6} className="px-3 py-2">
+          <button type="button" onClick={() => setOpen(true)} className="font-semibold text-accent">
+            + Add course
+          </button>
+        </td>
+      </tr>
+    );
+  }
 
-          <div className="flex gap-2">
-            <button
-              type="button"
-              onClick={save}
-              disabled={saving}
-              className="rounded-[9px] bg-accent px-3.5 py-1.5 font-semibold text-white disabled:opacity-50"
-            >
-              {saving ? "Saving…" : "Save"}
-            </button>
-            <button
-              type="button"
-              onClick={() => setEditing(false)}
-              className="rounded-[9px] border border-border-2 bg-surface px-3.5 py-1.5 font-semibold text-ink"
-            >
-              Cancel
-            </button>
-          </div>
+  const add = async () => {
+    const validationError = validateCourseDraft(draft, allCourseCodes);
+    if (validationError) {
+      setError(validationError);
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      const created = await createCourse({ ...draft, code: draft.code.trim() });
+      onAdded(created);
+      setDraft(BLANK_COURSE);
+      setOpen(false);
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "Create failed");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <tr>
+      <td colSpan={6} className="border-b border-border bg-surface-2 px-3 py-3">
+        <CourseFormFields value={draft} allCourseCodes={allCourseCodes} onChange={setDraft} editableCode />
+
+        {error && <p className="mt-2 text-bad">{error}</p>}
+
+        <div className="mt-3 flex gap-2">
+          <button
+            type="button"
+            onClick={add}
+            disabled={busy}
+            className="rounded-[9px] bg-accent px-3.5 py-1.5 font-semibold text-white disabled:opacity-50"
+          >
+            {busy ? "Adding…" : "Add course"}
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setOpen(false);
+              setDraft(BLANK_COURSE);
+              setError(null);
+            }}
+            className="rounded-[9px] border border-border-2 bg-surface px-3.5 py-1.5 font-semibold text-ink"
+          >
+            Cancel
+          </button>
         </div>
       </td>
     </tr>
@@ -219,10 +200,16 @@ function CurriculumRow({ course, allCourseCodes, onSaved }: RowProps) {
 }
 
 export default function CurriculumTable({ courses, onChange }: { courses: CourseRecord[]; onChange: (next: CourseRecord[]) => void }) {
-  const allCourseCodes = courses.map((c) => c.code);
-
   const handleSaved = (updated: CourseRecord) => {
     onChange(courses.map((c) => (c.code === updated.code ? updated : c)));
+  };
+
+  const handleDeleted = (code: string) => {
+    onChange(courses.filter((c) => c.code !== code));
+  };
+
+  const handleAdded = (created: CourseRecord) => {
+    onChange([...courses, created]);
   };
 
   return (
@@ -242,8 +229,15 @@ export default function CurriculumTable({ courses, onChange }: { courses: Course
         </thead>
         <tbody>
           {courses.map((course) => (
-            <CurriculumRow key={course.code} course={course} allCourseCodes={allCourseCodes} onSaved={handleSaved} />
+            <CurriculumRow
+              key={course.code}
+              course={course}
+              allCourseCodes={courses.map((c) => c.code).filter((c) => c !== course.code)}
+              onSaved={handleSaved}
+              onDeleted={handleDeleted}
+            />
           ))}
+          <AddCourseRow allCourseCodes={courses.map((c) => c.code)} onAdded={handleAdded} />
         </tbody>
       </table>
     </div>

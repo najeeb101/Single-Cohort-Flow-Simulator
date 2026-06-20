@@ -246,6 +246,19 @@ export interface CourseRecord {
   study_plan_order: number;
 }
 
+export interface CourseCreate {
+  code: string;
+  title: string;
+  credits: number;
+  prerequisites: string[];
+  pass_rate: number;
+  offering: string[];
+  category: string;
+  capacity: number;
+  rule_expr: RuleExpr | null;
+  study_plan_order: number;
+}
+
 export interface CourseUpdate {
   title?: string;
   credits?: number;

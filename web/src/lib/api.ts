@@ -1,4 +1,5 @@
 import type {
+  CourseCreate,
   CourseRecord,
   CourseUpdate,
   MetaResponse,
@@ -21,9 +22,26 @@ export class ApiError extends Error {}
 
 async function asJson<T>(res: Response): Promise<T> {
   if (!res.ok) {
-    throw new ApiError(`API returned ${res.status}`);
+    // The auth cookie can expire mid-session (e.g. partway through the Plan Builder
+    // wizard) — every API call surfaces the same 401, so handle it in one place rather
+    // than every page needing to special-case it. Skip on /login itself to avoid a loop.
+    if (res.status === 401 && typeof window !== "undefined" && window.location.pathname !== "/login") {
+      window.location.href = "/login";
+    }
+    throw new ApiError(await errorMessage(res));
   }
   return (await res.json()) as T;
+}
+
+// FastAPI's `detail` is sometimes a plain string (404/409/generic 422) and sometimes a
+// structured `{message, cycle}` object (the prerequisite-cycle 422s from
+// src/curriculum_validation.py) — normalize both into one message string.
+async function errorMessage(res: Response): Promise<string> {
+  const body = await res.json().catch(() => null);
+  const detail = body?.detail;
+  if (typeof detail === "string") return detail;
+  if (detail && typeof detail === "object" && "message" in detail) return String(detail.message);
+  return `API returned ${res.status}`;
 }
 
 export function getMeta(): Promise<MetaResponse> {
@@ -81,17 +99,24 @@ export function listCurriculum(): Promise<CourseRecord[]> {
   return fetch(`${API_BASE}/curriculum`).then((res) => asJson<CourseRecord[]>(res));
 }
 
-export async function updateCourse(code: string, patch: CourseUpdate): Promise<CourseRecord> {
-  const res = await fetch(`${API_BASE}/curriculum/${code}`, {
+export function updateCourse(code: string, patch: CourseUpdate): Promise<CourseRecord> {
+  return fetch(`${API_BASE}/curriculum/${code}`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(patch),
-  });
-  if (!res.ok) {
-    const body = await res.json().catch(() => ({}));
-    throw new ApiError(body?.detail?.message ?? `API returned ${res.status}`);
-  }
-  return res.json() as Promise<CourseRecord>;
+  }).then((res) => asJson<CourseRecord>(res));
+}
+
+export function createCourse(course: CourseCreate): Promise<CourseRecord> {
+  return fetch(`${API_BASE}/curriculum`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(course),
+  }).then((res) => asJson<CourseRecord>(res));
+}
+
+export function deleteCourse(code: string): Promise<void> {
+  return fetch(`${API_BASE}/curriculum/${code}`, { method: "DELETE" }).then((res) => asJson<void>(res));
 }
 
 export function getConfig(): Promise<Record<string, unknown>> {

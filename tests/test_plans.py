@@ -89,6 +89,175 @@ def test_private_plan_is_not_visible_to_other_users():
     assert all(p["id"] != plan["id"] for p in client.get("/plans", headers=other_headers).json())
 
 
+def _activate_private_plan(headers: dict[str, str], name: str) -> int:
+    plan = client.post("/plans/import", json=_import_payload(name), headers=headers).json()
+    client.post(f"/plans/{plan['id']}/activate", headers=headers)
+    return plan["id"]
+
+
+_NEW_COURSE = {
+    "code": "CMPS999",
+    "title": "Independent Study",
+    "credits": 3,
+    "prerequisites": [],
+    "pass_rate": 0.95,
+    "offering": ["Fall", "Spring"],
+    "category": "cs_elective",
+    "capacity": 20,
+    "rule_expr": None,
+    "study_plan_order": 99,
+}
+
+
+def test_create_course_adds_to_active_plan():
+    headers = _register("curriculum_create@example.com")
+    _activate_private_plan(headers, "Create-course plan")
+
+    resp = client.post("/curriculum", json=_NEW_COURSE, headers=headers)
+    assert resp.status_code == 200
+    assert resp.json()["code"] == "CMPS999"
+
+    codes = [c["code"] for c in client.get("/curriculum", headers=headers).json()]
+    assert "CMPS999" in codes
+
+
+def test_create_course_duplicate_code_rejected():
+    headers = _register("curriculum_dup@example.com")
+    _activate_private_plan(headers, "Dup-course plan")
+    client.post("/curriculum", json=_NEW_COURSE, headers=headers)
+
+    resp = client.post("/curriculum", json=_NEW_COURSE, headers=headers)
+    assert resp.status_code == 409
+
+
+def test_create_course_rejects_self_referential_cycle():
+    headers = _register("curriculum_create_cycle@example.com")
+    _activate_private_plan(headers, "Create-cycle plan")
+
+    self_referential = {**_NEW_COURSE, "prerequisites": ["CMPS999"]}
+    resp = client.post("/curriculum", json=self_referential, headers=headers)
+    assert resp.status_code == 422
+    assert "cycle" in resp.json()["detail"]["message"]
+
+    codes = [c["code"] for c in client.get("/curriculum", headers=headers).json()]
+    assert "CMPS999" not in codes
+
+
+def test_delete_course_removes_leaf_course():
+    headers = _register("curriculum_delete@example.com")
+    _activate_private_plan(headers, "Delete-course plan")
+    client.post("/curriculum", json=_NEW_COURSE, headers=headers)
+
+    resp = client.delete("/curriculum/CMPS999", headers=headers)
+    assert resp.status_code == 200
+    assert resp.json() == {"ok": True}
+
+    codes = [c["code"] for c in client.get("/curriculum", headers=headers).json()]
+    assert "CMPS999" not in codes
+
+
+def test_delete_course_referenced_as_prerequisite_rejected():
+    headers = _register("curriculum_delete_referenced@example.com")
+    _activate_private_plan(headers, "Delete-referenced plan")
+    courses = client.get("/curriculum", headers=headers).json()
+    referenced_code = courses[0]["code"]
+    referencing_code = next(c["code"] for c in courses if referenced_code in c["prerequisites"])
+
+    resp = client.delete(f"/curriculum/{referenced_code}", headers=headers)
+    assert resp.status_code == 422
+    assert referencing_code in resp.json()["detail"]
+
+
+def test_delete_course_not_found():
+    headers = _register("curriculum_delete_missing@example.com")
+    _activate_private_plan(headers, "Delete-missing plan")
+
+    resp = client.delete("/curriculum/NOPE000", headers=headers)
+    assert resp.status_code == 404
+
+
+def test_create_and_delete_course_scoped_to_active_plan_only():
+    headers = _register("curriculum_scope@example.com")
+    default_courses_before = [c["code"] for c in client.get("/curriculum", headers=headers).json()]
+
+    _activate_private_plan(headers, "Scoped plan")
+    client.post("/curriculum", json=_NEW_COURSE, headers=headers)
+
+    # Switch back to the shared default plan: the new course must not have leaked into it.
+    plans = client.get("/plans", headers=headers).json()
+    default_plan_id = next(p["id"] for p in plans if p["is_default"])
+    client.post(f"/plans/{default_plan_id}/activate", headers=headers)
+
+    default_courses_after = [c["code"] for c in client.get("/curriculum", headers=headers).json()]
+    assert default_courses_after == default_courses_before
+    assert "CMPS999" not in default_courses_after
+
+
+def test_create_course_rejects_unknown_category():
+    headers = _register("curriculum_bad_category@example.com")
+    _activate_private_plan(headers, "Bad-category plan")
+
+    resp = client.post("/curriculum", json={**_NEW_COURSE, "category": "not_a_real_category"}, headers=headers)
+    assert resp.status_code == 422
+
+
+def test_create_course_rejects_empty_offering():
+    headers = _register("curriculum_empty_offering@example.com")
+    _activate_private_plan(headers, "Empty-offering plan")
+
+    resp = client.post("/curriculum", json={**_NEW_COURSE, "offering": []}, headers=headers)
+    assert resp.status_code == 422
+
+
+def test_create_course_rejects_unknown_offering_season():
+    headers = _register("curriculum_bad_offering@example.com")
+    _activate_private_plan(headers, "Bad-offering plan")
+
+    resp = client.post("/curriculum", json={**_NEW_COURSE, "offering": ["Summer"]}, headers=headers)
+    assert resp.status_code == 422
+
+
+def test_create_course_rejects_out_of_range_credits_and_capacity():
+    headers = _register("curriculum_bad_numbers@example.com")
+    _activate_private_plan(headers, "Bad-numbers plan")
+
+    assert client.post("/curriculum", json={**_NEW_COURSE, "credits": -1}, headers=headers).status_code == 422
+    assert client.post("/curriculum", json={**_NEW_COURSE, "credits": 10}, headers=headers).status_code == 422
+    assert client.post("/curriculum", json={**_NEW_COURSE, "capacity": 0}, headers=headers).status_code == 422
+
+
+def test_create_course_rejects_blank_code_or_title():
+    headers = _register("curriculum_blank_fields@example.com")
+    _activate_private_plan(headers, "Blank-fields plan")
+
+    assert client.post("/curriculum", json={**_NEW_COURSE, "code": "   "}, headers=headers).status_code == 422
+    assert client.post("/curriculum", json={**_NEW_COURSE, "title": ""}, headers=headers).status_code == 422
+
+
+def test_update_course_rejects_unknown_category_and_offering():
+    headers = _register("curriculum_update_invalid@example.com")
+    _activate_private_plan(headers, "Update-invalid plan")
+    existing_code = client.get("/curriculum", headers=headers).json()[0]["code"]
+
+    assert client.put(
+        f"/curriculum/{existing_code}", json={"category": "nope"}, headers=headers
+    ).status_code == 422
+    assert client.put(
+        f"/curriculum/{existing_code}", json={"offering": ["Summer"]}, headers=headers
+    ).status_code == 422
+
+
+def test_delete_course_rejects_emptying_the_plan():
+    headers = _register("curriculum_delete_last@example.com")
+    payload = {"name": "Single-course plan", "curriculum": [_NEW_COURSE], "config": _import_payload()["config"]}
+    plan = client.post("/plans/import", json=payload, headers=headers).json()
+    client.post(f"/plans/{plan['id']}/activate", headers=headers)
+
+    resp = client.delete("/curriculum/CMPS999", headers=headers)
+    assert resp.status_code == 422
+    assert "last course" in resp.json()["detail"]
+
+
 def test_import_rejects_prerequisite_cycle():
     headers = _register("plans_cycle@example.com")
     payload = {

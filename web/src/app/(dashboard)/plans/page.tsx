@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { activatePlan, deletePlan, exportPlan, importPlan, listPlans } from "@/lib/api";
 import { useSimulation } from "@/lib/SimulationContext";
 import type { CourseRecord, PlanRecord } from "@/types/simulation";
@@ -95,8 +96,14 @@ export default function PlansPage() {
 
   return (
     <main className="mx-auto max-w-6xl px-7 pb-16">
-      <header className="border-b border-border py-5">
+      <header className="flex items-center justify-between border-b border-border py-5">
         <h1 className="text-[19px] font-bold tracking-tight">Plans</h1>
+        <Link
+          href="/plan-builder"
+          className="rounded-[9px] bg-accent px-4 py-2 text-[13px] font-semibold text-white"
+        >
+          + New plan
+        </Link>
       </header>
 
       <section className="grid gap-8 py-6 lg:grid-cols-[1fr_340px]">

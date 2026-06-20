@@ -1,10 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { useSimulation } from "@/lib/SimulationContext";
-import { ApiError, listCurriculum, updateConfig, updateCourse } from "@/lib/api";
+import { ApiError, listCurriculum, listPlans, updateConfig, updateCourse } from "@/lib/api";
 import { baselineFromMeta, buildOverrides, type BuilderState } from "@/lib/scenarioBuilder";
-import type { CourseRecord } from "@/types/simulation";
+import type { CourseRecord, PlanRecord } from "@/types/simulation";
 import CurriculumTable from "@/components/settings/CurriculumTable";
 import AdmissionsTab from "@/components/scenario-builder/AdmissionsTab";
 import PassRatesDropoutTab from "@/components/scenario-builder/PassRatesDropoutTab";
@@ -19,11 +20,15 @@ export default function SettingsPage() {
   const baseline = baselineFromMeta(meta, []);
   const [state, setState] = useState<BuilderState>(baseline);
   const [courses, setCourses] = useState<CourseRecord[] | null>(null);
+  const [activePlan, setActivePlan] = useState<PlanRecord | null>(null);
   const [status, setStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     listCurriculum().then(setCourses).catch(() => setCourses([]));
+    listPlans()
+      .then((plans) => setActivePlan(plans.find((p) => p.is_active) ?? null))
+      .catch(() => setActivePlan(null));
   }, []);
 
   const setField = <K extends keyof BuilderState>(key: K, value: BuilderState[K]) =>
@@ -56,20 +61,35 @@ export default function SettingsPage() {
       if (Object.keys(configPatch).length > 0) {
         await updateConfig(configPatch);
       }
-      // Pass rate is a Course/curriculum field, not a baseline-config scalar — persist
-      // each changed course individually via PUT /curriculum/{code}.
-      const passRateChanges = overrides.pass_rate_overrides ?? {};
-      for (const [code, rate] of Object.entries(passRateChanges)) {
-        await updateCourse(code, { pass_rate: rate });
-      }
-      if (Object.keys(passRateChanges).length > 0 && courses) {
-        setCourses(courses.map((c) => (c.code in passRateChanges ? { ...c, pass_rate: passRateChanges[c.code] } : c)));
-      }
-      setStatus("saved");
     } catch (e) {
       setStatus("error");
-      setError(e instanceof ApiError ? e.message : "Save failed");
+      setError(e instanceof ApiError ? e.message : "Could not save baseline configuration");
+      return;
     }
+
+    // Pass rate is a Course/curriculum field, not a baseline-config scalar — persist each
+    // changed course individually via PUT /curriculum/{code}. Use allSettled rather than
+    // aborting on the first failure: the config write above already committed, so a single
+    // bad course shouldn't hide that the rest of the pass-rate edits saved fine.
+    const passRateChanges = overrides.pass_rate_overrides ?? {};
+    const entries = Object.entries(passRateChanges);
+    const results = await Promise.allSettled(entries.map(([code, rate]) => updateCourse(code, { pass_rate: rate })));
+
+    const succeededCodes = new Set(entries.filter((_, i) => results[i].status === "fulfilled").map(([code]) => code));
+    if (succeededCodes.size > 0 && courses) {
+      setCourses(courses.map((c) => (succeededCodes.has(c.code) ? { ...c, pass_rate: passRateChanges[c.code] } : c)));
+    }
+
+    const failed = entries.filter((_, i) => results[i].status === "rejected");
+    if (failed.length > 0) {
+      const firstError = results.find((r) => r.status === "rejected") as PromiseRejectedResult;
+      const reason = firstError.reason instanceof ApiError ? firstError.reason.message : "save failed";
+      setStatus("error");
+      setError(`Pass rate not saved for ${failed.map(([code]) => code).join(", ")} (${reason})`);
+      return;
+    }
+
+    setStatus("saved");
   };
 
   return (
@@ -80,6 +100,20 @@ export default function SettingsPage() {
           Edits here persist to the database as the new baseline — every future run starts from these
           values, unlike the Scenario Builder&apos;s per-run overrides.
         </p>
+        {activePlan && (
+          <p className="mt-2 text-[12.5px]">
+            Editing plan: <span className="font-semibold text-ink">{activePlan.name}</span>
+            {activePlan.is_default && (
+              <span className="ml-2 text-muted">
+                — this is the shared default plan; create your own in{" "}
+                <Link href="/plan-builder" className="text-accent">
+                  Plan Builder
+                </Link>{" "}
+                to keep edits private.
+              </span>
+            )}
+          </p>
+        )}
       </header>
 
       <section className="py-6">

@@ -18,7 +18,8 @@ import dataclasses
 
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from src.analytics import build_curriculum_graph
@@ -27,6 +28,7 @@ from src.auth import router as auth_router
 from src.curriculum_validation import CycleError, PlanImportError, check_no_cycle
 from src.db import (
     SessionLocal,
+    _course_to_row,
     get_db,
     get_or_create_default_plan,
     import_plan,
@@ -39,7 +41,9 @@ from src.db_models import AppConfig as AppConfigRow
 from src.db_models import Course as CourseRow
 from src.db_models import Plan as PlanRow
 from src.db_models import Run, User
+from src.models.course import Course
 from src.montecarlo import run_monte_carlo
+from src.rules import gate_edges
 from src.scenarios import router as scenarios_router
 from src.service import run_simulation
 
@@ -96,22 +100,93 @@ class ScenarioRequest(BaseModel):
                                            # this run came from; doesn't affect simulation
 
 
+# Course.category (src/models/course.py) and the offering seasons are conceptually enums
+# but stored as plain strings in JSON/the DB — validate against the known set here so a
+# typo'd category/season fails fast with a clear 422 instead of silently producing a course
+# the engine's enrollment-priority-tier / offering logic never matches against.
+VALID_CATEGORIES = {"cs_core", "cs_elective", "college_req", "math", "science", "english", "gen_ed"}
+VALID_OFFERINGS = {"Fall", "Spring"}
+
+
+def _check_category(value: str) -> str:
+    if value not in VALID_CATEGORIES:
+        raise ValueError(f"category must be one of {sorted(VALID_CATEGORIES)}, got {value!r}")
+    return value
+
+
+def _check_offering(value: list[str]) -> list[str]:
+    if not value:
+        raise ValueError("offering must list at least one season")
+    if not set(value) <= VALID_OFFERINGS:
+        raise ValueError(f"offering entries must be one of {sorted(VALID_OFFERINGS)}, got {value!r}")
+    return value
+
+
 class CourseUpdate(BaseModel):
     title: str | None = None
-    credits: int | None = None
+    credits: int | None = Field(default=None, ge=0, le=6)
     prerequisites: list[str] | None = None
     pass_rate: float | None = Field(default=None, ge=0, le=1)
     offering: list[str] | None = None
     category: str | None = None
-    capacity: int | None = None
+    capacity: int | None = Field(default=None, ge=1)
     rule_expr: dict | None = None
     study_plan_order: int | None = None
+
+    @field_validator("category")
+    @classmethod
+    def _validate_category(cls, v: str | None) -> str | None:
+        return v if v is None else _check_category(v)
+
+    @field_validator("offering")
+    @classmethod
+    def _validate_offering(cls, v: list[str] | None) -> list[str] | None:
+        return v if v is None else _check_offering(v)
 
 
 class PlanImportRequest(BaseModel):
     name: str
     curriculum: list[dict]
     config: dict
+
+
+class CourseCreate(BaseModel):
+    code: str
+    title: str
+    credits: int = Field(ge=0, le=6)
+    prerequisites: list[str] = []
+    pass_rate: float = Field(ge=0, le=1)
+    offering: list[str]
+    category: str
+    capacity: int = Field(ge=1)
+    rule_expr: dict | None = None
+    study_plan_order: int = 99
+
+    @field_validator("code")
+    @classmethod
+    def _validate_code(cls, v: str) -> str:
+        v = v.strip()
+        if not v:
+            raise ValueError("code must not be blank")
+        return v
+
+    @field_validator("title")
+    @classmethod
+    def _validate_title(cls, v: str) -> str:
+        v = v.strip()
+        if not v:
+            raise ValueError("title must not be blank")
+        return v
+
+    @field_validator("category")
+    @classmethod
+    def _validate_category(cls, v: str) -> str:
+        return _check_category(v)
+
+    @field_validator("offering")
+    @classmethod
+    def _validate_offering(cls, v: list[str]) -> list[str]:
+        return _check_offering(v)
 
 
 def _course_to_dict(course) -> dict:
@@ -251,6 +326,89 @@ def simulate(
 def list_curriculum(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)) -> list[dict]:
     curriculum, _config, _scenario = _load_plan_data(db, current_user)
     return [_course_to_dict(c) for c in sorted(curriculum.values(), key=lambda c: c.study_plan_order)]
+
+
+@app.post("/curriculum")
+def create_course(
+    req: CourseCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> dict:
+    plan_id = resolve_active_plan_id(db, current_user)
+    curriculum = load_curriculum_from_db(db, plan_id)
+
+    if req.code in curriculum:
+        raise HTTPException(status_code=409, detail=f"Course {req.code!r} already exists in this plan")
+
+    new_course = Course(
+        code=req.code,
+        title=req.title,
+        credits=req.credits,
+        prerequisites=tuple(req.prerequisites),
+        pass_rate=req.pass_rate,
+        offering=tuple(req.offering),
+        category=req.category,
+        capacity=req.capacity,
+        rule_expr=req.rule_expr,
+        study_plan_order=req.study_plan_order,
+    )
+
+    hypothetical = dict(curriculum)
+    hypothetical[req.code] = new_course
+    try:
+        check_no_cycle(hypothetical)
+    except CycleError as exc:
+        raise HTTPException(status_code=422, detail={"message": str(exc), "cycle": exc.cycle}) from exc
+
+    db.add(_course_to_row(new_course, plan_id))
+    try:
+        db.commit()
+    except IntegrityError:
+        # Belt-and-suspenders against the TOCTOU window between the `code in curriculum`
+        # check above and this commit (e.g. a duplicate concurrent create) — the unique
+        # constraint on (plan_id, code) is the real guarantee; this just turns the
+        # resulting low-level DB error into the same 409 the pre-check gives.
+        db.rollback()
+        raise HTTPException(status_code=409, detail=f"Course {req.code!r} already exists in this plan")
+
+    return _course_to_dict(new_course)
+
+
+@app.delete("/curriculum/{code}")
+def delete_course(
+    code: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> dict:
+    plan_id = resolve_active_plan_id(db, current_user)
+
+    row = db.query(CourseRow).filter_by(plan_id=plan_id, code=code).first()
+    if row is None:
+        raise HTTPException(status_code=404, detail=f"Course {code!r} not found")
+
+    if db.query(CourseRow).filter_by(plan_id=plan_id).count() <= 1:
+        raise HTTPException(status_code=422, detail="Cannot delete the last course in a plan")
+
+    curriculum = load_curriculum_from_db(db, plan_id)
+    referencing = []
+    for other in curriculum.values():
+        if other.code == code:
+            continue
+        referenced_codes = set(other.prerequisites)
+        if other.rule_expr is not None:
+            referenced_codes.update(c for c, _kind in gate_edges(other.rule_expr))
+        if code in referenced_codes:
+            referencing.append(other.code)
+
+    if referencing:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Cannot delete {code!r}: still required as a prerequisite by {', '.join(sorted(referencing))}",
+        )
+
+    db.delete(row)
+    db.commit()
+    return {"ok": True}
 
 
 @app.put("/curriculum/{code}")
