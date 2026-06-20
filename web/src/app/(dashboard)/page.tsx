@@ -10,7 +10,7 @@ export default function Home() {
   const summary = data.flow_timeline.summary;
 
   return (
-    <main className="mx-auto max-w-6xl px-7 pb-16">
+    <main className="mx-auto max-w-[1600px] px-7 pb-16">
       <header className="border-b border-border py-5">
         <div className="flex items-center gap-3.5">
           <div className="grid h-11 w-11 place-items-center rounded-xl bg-maroon text-[17px] font-extrabold text-white">

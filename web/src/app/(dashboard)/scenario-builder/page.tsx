@@ -4,7 +4,7 @@ import ScenarioBuilderForm from "@/components/scenario-builder/ScenarioBuilderFo
 
 export default function ScenarioBuilderPage() {
   return (
-    <main className="mx-auto max-w-6xl px-7 pb-16">
+    <main className="mx-auto max-w-[1600px] px-7 pb-16">
       <ScenarioBuilderForm />
     </main>
   );

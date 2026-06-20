@@ -38,7 +38,7 @@ export default function NavBar() {
 
   return (
     <nav className="border-b border-border bg-surface">
-      <div className="mx-auto flex max-w-6xl items-center gap-1 overflow-x-auto px-7">
+      <div className="mx-auto flex max-w-[1600px] items-center gap-1 overflow-x-auto px-7">
         {LINKS.map((link) => {
           const active = pathname === link.href;
           return (

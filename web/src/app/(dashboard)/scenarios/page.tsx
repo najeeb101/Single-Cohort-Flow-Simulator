@@ -28,7 +28,7 @@ export default function ScenariosPage() {
   };
 
   return (
-    <main className="mx-auto max-w-6xl px-7 pb-16">
+    <main className="mx-auto max-w-[1600px] px-7 pb-16">
       <header className="border-b border-border py-5">
         <h1 className="text-[19px] font-bold tracking-tight">Saved Scenarios</h1>
       </header>

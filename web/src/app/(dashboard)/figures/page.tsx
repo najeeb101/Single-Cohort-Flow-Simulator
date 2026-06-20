@@ -11,7 +11,7 @@ export default function FiguresPage() {
   const frames = data.flow_timeline.frames;
 
   return (
-    <main className="mx-auto max-w-6xl px-7 pb-16">
+    <main className="mx-auto max-w-[1600px] px-7 pb-16">
       <section className="py-6">
         <h2 className="mb-4 text-[15px] font-bold">Figures <span className="text-xs font-normal text-muted">— whole run</span></h2>
         <div className="flex flex-col gap-4">
