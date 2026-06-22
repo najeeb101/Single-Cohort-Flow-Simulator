@@ -4,7 +4,7 @@
 **To:** Academic Capacity Intelligence Platform (ACIP) — a deployable, multi-tenant higher-education analytics & planning product
 **Owner:** Najeeb Barkhad
 **Target:** Real deployable product (not a demo)
-**Status:** Phase 0 complete — `DataSource` seam done (forward-simulation population only, per `src/datasource.py`'s own scoping note); curriculum-as-data (§2.1) done, including `registration_tier()`'s seat-priority CH bands (`registration_tier_thresholds` in config, no longer hardcoded); engine-as-service boundary (§2.3) done via `src/service.py::run_simulation`. Phase 1 done on all three fronts: the FastAPI wrapper (`src/api.py`), §3.2's live what-if panel (both backend and the `frontend/` slider UI), and §2.2 measured calibration (`src/calibration.py` — pass-rate, dropout-hazard, and load-cap fitting) + the §2.4 replay/fit mode with a holdout validation harness, all exercised end-to-end on the *synthetic* incumbent cohorts (`scripts/calibrate_from_history.py`) — every calibration function consumes only the canonical `StudentRecord`/`EnrollmentRecord`/`OutcomeRecord` schema, so a future `RealDataSource` extraction is the only thing that changes when/if real data arrives (still undecided per the advisor; `RealDataSource` itself remains unbuilt). Phase 2 well underway: `web/` (Next.js/TypeScript) now includes the animated curriculum graph (slice 2) and the static figures as React/SVG (slice 3) on top of slice 1's dashboard, all on the same API — see §3 for what's still deferred (the prerequisite-network diagram, retiring `frontend/`).
+**Status (revised — see each section for detail):** Phase 0 complete — `DataSource` seam done (forward-simulation population only, per `src/datasource.py`'s own scoping note); curriculum-as-data (§2.1) done, including `registration_tier()`'s seat-priority CH bands (`registration_tier_thresholds` in config, no longer hardcoded); engine-as-service boundary (§2.3) done via `src/service.py::run_simulation`. Phase 1: the FastAPI wrapper is done and has grown well past its original scope (`src/api.py` now covers auth, plans, curriculum CRUD, scenarios, runs — see Phase 2 below); §2.2 measured calibration + the §2.4 holdout validation harness were **built, then deliberately removed** — `src/calibration.py`, `scripts/calibrate_from_history.py`, and `tests/test_calibration.py` were deleted when `docs/input_system_plan.md` re-prioritized shipping the Scenario Builder over the fit-from-synthetic-history pipeline (the project collapsed to one `baseline` scenario, dropping `B_calibrated`). What survives of §2.4's groundwork: the canonical `StudentRecord`/`EnrollmentRecord`/`OutcomeRecord` schema and `src/analytics.py::compute_historical_transcripts` (tested by `tests/test_historical_transcripts.py`) — calibration fitting itself would need to be rebuilt on top of that before this checkbox is true again. `RealDataSource` remains unbuilt (still undecided per the advisor). Phase 2 ("Web MVP") is **substantially complete and well beyond its original scope**: all 4 web slices shipped (animated curriculum graph, static figures as React/SVG, the prerequisite-network diagram) and `frontend/` was retired; on top of that, `web/` gained a SQLite DB + hand-rolled JWT auth (single-tenant — every logged-in user has equal permissions, no RBAC yet), persistent per-user scenarios + run history, a Settings page for in-place curriculum/baseline-config edits, **multi-plan support** (each user can hold several named curriculum+config combos — import/activate/export/delete — via a Plan Builder wizard), and a light/dark theme + a full visual design pass. The Scenario Builder (multi-tab, Simple/Advanced) superseded the old 2-slider `LiveWhatIfPanel`. See §3's Phase 2 entry and `docs/input_system_plan.md` (marked historical — its Phases 1+2 are exactly this work) for the as-built detail. Net effect: parts of what §4 deferred to **Phase 5** (auth, persistence) already have a working single-tenant first pass, ahead of the original phase order — true multi-tenancy/RBAC is still unbuilt.
 **Data strategy (per advisor):** Build and prove the entire product on **synthetic data first**. Real student data will be provided *after* the platform demonstrates value, and will be **plugged into the same data seam** — no engine rewrite. This makes synthetic-first the sanctioned path, not a fallback.
 
 ---
@@ -35,10 +35,10 @@ The guiding principle: **the simulation engine is the asset; everything else is 
 | **M5 Capacity Planning — faculty/rooms/labs** | *Nothing* | **BUILD** | Model has no faculty/room/lab entity at all. New domain modeling. |
 | **M6 Graduation Forecasting** | Mechanistic expected-graduation-semester (falls out of simulation) | **REFACTOR / BUILD** | Per-student *probability* + risk score = trained ML over real outcomes. Needs Phase 0 data. |
 | **M7 Admission Simulator** | Staggered multi-cohort admission + `compute_admissions_recommendation` | **REUSE / REFACTOR** | Add budget/resource outputs; multi-year horizon already natural. |
-| **M8 Scenario Planning** | Scenario hooks (`capacity_multiplier`, `capacity_overrides`, `offering_overrides`, `pass_rate_overrides`) | **REUSE** | Bones exist; only one baseline wired. Generalize to user-defined scenarios. See §3.2 for the live-slider UI this enables. |
+| **M8 Scenario Planning** | **Done.** Multi-tab Scenario Builder (Capacity / Pass Rates & Dropout / Admissions / Registration Policy, Simple/Advanced) + persistent per-user `Scenario`/`Run` storage | **REUSE** | User-defined scenarios shipped, replacing the single-baseline limitation. See §3.2. |
 | **M9 Optimization Engine** | Heuristic `compute_admissions_recommendation` (binding-criterion) | **REFACTOR** | Replace single-run heuristic with an intake sweep / optimizer over MC runs. |
-| **Dashboards (§6)** | Dependency-free static `frontend/` reading one JSON | **BUILD** | Next.js rewrite; no reuse of `app.js`. |
-| **Auth / RBAC / multi-tenancy / audit (§8)** | *Nothing* | **BUILD** | First-class for a real product. |
+| **Dashboards (§6)** | Next.js/TypeScript app, multi-page, `frontend/` retired | **DONE** | See Phase 2. |
+| **Auth / RBAC / multi-tenancy / audit (§8)** | Hand-rolled JWT + httpOnly-cookie auth, single-tenant (every user has equal permissions over their own `Plan`s) | **PARTIAL / REFACTOR** | Auth exists; RBAC, true tenant isolation, and audit logs are still Phase 5. |
 | **AI features (§10)** | *Nothing* | **BUILD** | Defer to last phase. |
 
 **Rough split:** ~30% REUSE/REFACTOR (the analytical core), ~70% BUILD (data, resources, ML, product shell).
@@ -57,13 +57,17 @@ These are structural changes to the *existing* engine that get painful if deferr
 **Why now.** Multi-program is a product requirement; retrofitting it after the web app exists means touching every layer.
 
 ### 2.2 Calibration: assumed → measured
-**Status: started.** `src/calibration.py` + `scripts/calibrate_from_history.py` fit per-course
-pass rates (direct frequency from historical `EnrollmentRecord`s) and the dropout base
-hazard (binary-search re-running the engine, since `OutcomeRecord` carries no GPA
-trajectory to read it off directly) against the *synthetic* incumbent cohorts, then
-validate against a held-out cohort. Output is additive — a new `B_calibrated` scenario in
-`simulation_config.json`, never a write to `curriculum.json` or to the documented
-`A_baseline`/`dropout_base_hazard`.
+**Status: built, then reverted.** `src/calibration.py` + `scripts/calibrate_from_history.py`
+fit per-course pass rates (direct frequency from historical `EnrollmentRecord`s) and the
+dropout base hazard (binary-search re-running the engine, since `OutcomeRecord` carries no
+GPA trajectory to read it off directly) against the *synthetic* incumbent cohorts, then
+validated against a held-out cohort, additively as a `B_calibrated` scenario. All of this
+was **deleted** in the Phase 1 re-prioritization documented in `docs/input_system_plan.md`
+§1.1 — the project collapsed to a single `baseline` scenario so the Scenario Builder could
+ship faster, and the calibration pipeline (plus `tests/test_calibration.py`) went with it.
+Pass rates/dropout hazards/load caps are config *assumptions* again today, not measured.
+Reviving this would mean rebuilding the fitting code on top of the canonical schema that
+*did* survive (§2.4).
 
 **Problem.** Pass rates, dropout hazards, load caps are config *guesses*. v2 already proved (see `report/report_v2.md`) that some of these are not even the binding levers.
 **Action.** Extend the `scripts/size_sections.py` calibration pattern so course pass rates, dropout parameters, and section demand are **fit from the partner institution's history**. The engine stays the same; its inputs become empirical. Done for pass rates + dropout hazard (above); section demand was already covered by `scripts/size_sections.py`. `normal_load_ch` now has a measured sanity check too (`fit_load_cap` — empirical p95 per-student-term credit load from history, same demand-percentile idea as section sizing), reported but not auto-applied since it's a registration policy, not an observed rate. Still open: `probation_load_ch` and the dropout front-loading multiplier remain assumed — lower priority since report_v2.md shows the dropout knobs aren't the binding lever, and `probation_load_ch` only applies to an already-small probation subpopulation.
@@ -91,7 +95,7 @@ Both must emit the **same canonical schema**. Define that schema *now*, modeled 
 
 **Two modes the engine must support against this schema:**
 1. **Forward simulation** — generate a future population and flow it (current behavior; what the dashboards animate).
-2. **Replay/fit** — consume *historical* transcripts to (a) calibrate pass rates / dropout hazards (§2.2) and (b) validate that the engine reproduces known cohorts. Synthetic mode fakes the history; real mode supplies it. **Same code path.** Status: built and exercised (`src/calibration.py`, driven by `scripts/calibrate_from_history.py`) — every function in it takes only `StudentRecord`/`EnrollmentRecord`/`OutcomeRecord` lists, never a `SimulationResult` or `DataSource` directly, so swapping the synthetic source for a real one only changes where those three lists come from.
+2. **Replay/fit** — consume *historical* transcripts to (a) calibrate pass rates / dropout hazards (§2.2) and (b) validate that the engine reproduces known cohorts. Synthetic mode fakes the history; real mode supplies it. **Same code path.** Status: the *extraction* half survives — `src/analytics.py::compute_historical_transcripts` emits canonical `StudentRecord`/`EnrollmentRecord`/`OutcomeRecord` lists (tested by `tests/test_historical_transcripts.py`), never a `SimulationResult` or `DataSource` directly, so swapping the synthetic source for a real one still only changes where those three lists come from. The *fitting* half built on top of it (`src/calibration.py`/`scripts/calibrate_from_history.py`) was deleted — see §2.2.
 
 **Why now.** This is the difference between "plug in the real data" being a one-day swap versus a second project. It is the contract the advisor's hand-off depends on, so it must be designed before the product is built around it.
 
@@ -108,10 +112,19 @@ Both must emit the **same canonical schema**. Define that schema *now*, modeled 
 **Exit criteria:** the engine runs end-to-end reading *only* through `DataSource`; the existing `tests/` suite still passes (behavior pinned on QU CS); a documented schema a real SIS export can be mapped onto.
 
 ### Phase 1 — Calibration + validation harness *(reuses the core)*
-- ✅ Implement §2.2 measured calibration: fit pass rates / dropout hazards from the (synthetic) historical transcripts via the replay path — `src/calibration.py` + `scripts/calibrate_from_history.py`.
-- ✅ Build the validation harness that checks the engine reproduces a held-out cohort — run it on synthetic now; it becomes the real-data acceptance test later, unchanged.
-- ✅ Wrap the engine behind FastAPI (§2.3) — `src/api.py`. **No database yet** — persist the canonical schema as typed models + JSON/CSV (or SQLite if querying is needed). Postgres is deferred to the real-data hand-off (Phase 2.5) and multi-tenant deployment (Phase 5), when data is large, relational, and not regenerable.
-**Exit criteria:** calibration + validation run automatically (done); "swap to real data" is a `DataSource` config change with the harness ready to grade it (true today for the calibration/validation path — still blocked on `RealDataSource` itself not existing, which needs real data to exist first).
+- ⏪ Built, then deleted: §2.2 measured calibration (fit pass rates / dropout hazards from
+  synthetic historical transcripts via the replay path) and its holdout validation harness —
+  `src/calibration.py` + `scripts/calibrate_from_history.py`, removed per
+  `docs/input_system_plan.md` §1.1 to ship the Scenario Builder faster. See §2.2.
+- ✅ Wrap the engine behind FastAPI (§2.3) — `src/api.py`, since grown far past this phase's
+  original scope (auth, plans, curriculum CRUD, scenarios, runs — see Phase 2).
+- ✅ **Database shipped** (ahead of the original plan, which deferred it to Phase 2.5/5) —
+  SQLite (`data/app.db`) via SQLAlchemy, holding `User`/`Plan`/`Course`/`AppConfig`/
+  `Scenario`/`Run`. Postgres migration is still open, deferred until data volume/relational
+  needs justify it.
+**Exit criteria (revised):** the FastAPI + DB pieces are done; the calibration/validation
+half of this phase is **not** — "swap to real data" still has no fitting code to grade it
+with, on top of being blocked on `RealDataSource` not existing.
 
 ### Phase 2 — Web MVP + the "proof of worth" demo *(your four strengths, productized)*
 **Status: slices 1–4 done.** `web/` is a real Next.js/TypeScript app (App Router,
@@ -143,10 +156,28 @@ had no remaining reason to exist and was deleted; `src/visualize.py` still write
 `curriculum_network.png` (and the rest) to `outputs/figures/` for the static
 report/README embeds.
 
+**Beyond the original Phase 2 scope, also shipped:** a SQLite DB + hand-rolled JWT/
+httpOnly-cookie auth (`src/auth.py`, `web/src/proxy.ts` — hand-rolled instead of next-auth
+because this Next.js version renamed Middleware to Proxy); persistent per-user `Scenario`/
+`Run` storage (`/scenarios`, `/runs`) replacing file export/import as the only save path;
+a Settings page (`web/.../settings/`) for in-place curriculum + baseline-config edits, with
+a prerequisite-cycle guard; **multi-plan support** — `Course`/`AppConfig` scoped to a `Plan`
+row instead of one global baseline, so each user can import/activate/export/delete several
+named curriculum+config combos (`src/db_models.py::Plan`, `CLAUDE.md`'s "Multi-Plan Model");
+a 4-step **Plan Builder wizard** to construct a plan from scratch or by cloning the default;
+and a light/dark theme + a full visual design pass (ambient elevation, bento layouts, a
+Sankey-style stage-flow diagram, pan/zoom on the curriculum graph). None of this was
+planned in this doc — it came out of `docs/input_system_plan.md`'s own re-scoping (now
+marked historical, i.e. shipped). The net result is still single-tenant (no RBAC, every
+user has equal permissions over their own plans) — true multi-tenancy is still Phase 5.
+
 - Next.js/TypeScript app with: Cohort Analytics (M2), Student Flow / Sankey (M3), Course Bottleneck (M4), Admission Simulator (M7), Scenario Planning (M8).
 - Seat-based Capacity dashboard (M5 partial — the part you already have).
-- Single tenant, single program, one admin user. No faculty/rooms, no ML yet.
-- **This phase produces the artifact that unlocks the real data** (see §3.1).
+- Auth + persistence shipped early (single user accounts, not multi-tenant); multi-program
+  groundwork shipped too (multi-plan = multiple curricula per user, though not yet
+  tenant-isolated). No faculty/rooms, no ML yet.
+- **This phase produces the artifact that unlocks the real data** (see §3.1) — **not yet
+  explicitly packaged as that demo; see §6.**
 **Exit criteria:** the advisor agrees the platform demonstrates value → real-data hand-off triggered.
 
 ### Phase 2.5 — Real-data plug-in *(the hand-off)*
@@ -183,7 +214,7 @@ The advisor releases real data once the synthetic platform demonstrates value, s
 Treat these four as Phase 2's acceptance criteria; agree them with the advisor *up front* so "worth it" is a checklist, not a judgment call.
 
 ### 3.2 Live scenario slider — design sketch
-**Status: done (M8, `web/` slice 2).** `src/api.py` exposes `POST /simulate` (scenario overrides in, the same `flow_timeline` contract back out) and `GET /meta` (curriculum graph + slider-relevant config); `web/src/components/LiveWhatIfPanel.tsx` is the control panel that calls them. Rest of this section kept as the original design sketch.
+**Status: done, then superseded by something bigger.** `src/api.py` exposes `POST /simulate` (scenario overrides in, the same `flow_timeline` contract back out) and `GET /meta` (curriculum graph + slider-relevant config). The original control panel, `web/src/components/LiveWhatIfPanel.tsx` (2 sliders), was deleted and replaced by the multi-tab **Scenario Builder** (`web/src/components/scenario-builder/` — Capacity / Pass Rates & Dropout / Admissions / Registration Policy, each with a Simple/Advanced toggle) per `docs/input_system_plan.md` §1.3, which covers far more of the engine's levers than this sketch originally scoped. Rest of this section kept as the original design sketch.
 
 **Inspiration.** Liaison/Othot's student-success dashboard lets a user drag a lever (e.g. a scholarship) and see a real-time re-forecast. The mechanism doesn't transfer (that's a trained ML model; this engine is mechanistic), but the *interaction pattern* directly matches what §3.1's acceptance criterion #1 already asks for: "shown live via the scenario sliders, with confidence intervals, not a static chart."
 
@@ -228,10 +259,26 @@ The current dependency-free `frontend/` reads one static `flow_timeline.json`. B
 
 ## 6. Recommended immediate next step
 
-Start **Phase 0** — and within it, the **`DataSource` seam (§2.4) + curriculum-as-data (§2.1)** together, since they touch the same code. This is the one body of work that:
-- is fully within the current repo (no product infrastructure needed),
-- unblocks every later phase (multi-program, real calibration, API, and crucially the real-data hand-off),
-- de-risks the advisor's promise: by the time real data arrives, there is a defined slot for it,
-- and is low-risk because the existing test suite (`tests/`) pins current behavior, so the refactor can be proven non-regressive on the QU CS curriculum before anything new is added.
+*(Originally: "start Phase 0." That's done now — superseded.)*
 
-Concretely, the first PR: define the canonical schema, introduce `DataSource` with the current generator refactored into `SyntheticDataSource` behind it, and route the engine through it — with the existing tests green as the acceptance gate.
+Phase 0, Phase 1's API/DB, and Phase 2's web MVP are all functionally complete, with one
+regression: §2.2/2.4's calibration-*fitting* code was built then deleted (§2.2). The
+roadmap's own dependency chain says what's next: Phase 2.5 (real-data hand-off) is gated on
+"the advisor agrees the platform demonstrates value" — i.e. on §3.1's four-criterion
+proof-of-worth demo — and Phases 3/4 are independent-of or blocked-on that same gate. So the
+highest-leverage next step is **closing out §3.1's checklist explicitly, then taking it to
+the advisor**:
+
+1. ✅ have it — live scenario sliders with CIs (Scenario Builder + Monte Carlo).
+2. ✅ have it — the four-signal bottleneck story (Bottlenecks page).
+3. ✅ have it — Monte Carlo CIs on the headline KPIs.
+4. ⚠️ probably have it, unverified — "load a second synthetic institution with different
+   parameters and show the same dashboards adapt." The **multi-plan / Plan Builder**
+   feature (built for an unrelated reason — letting one user hold several curricula) may
+   already satisfy this almost exactly: build a second plan with different parameters via
+   the Plan Builder, activate it, and confirm the same dashboards re-render correctly. Worth
+   explicitly trying and confirming as *this* demo, rather than building something new.
+
+Secondary, lower priority: decide whether to rebuild §2.2's calibration-fitting pipeline —
+it was deleted, not just deferred, so this is a "build it again" decision, not a "finish
+it" one. Only worth doing once real data (or at least a calibration demo) is wanted again.

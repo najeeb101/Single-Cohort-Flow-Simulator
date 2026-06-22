@@ -38,7 +38,7 @@ Thumbs.db
 desktop.ini
 
 # ---- Project-specific ----
-# outputs/figures/ stays COMMITTED: report/report.md embeds those PNGs so it renders on GitHub.
+# outputs/figures/ stays COMMITTED: report/report_v2.md embeds those PNGs so it renders on GitHub.
 # outputs/reports/ is regenerated raw data (CSV + the 16k-line flow_timeline.json) embedded
 # nowhere — keep it out of history. web/ gets the same shape live from POST /simulate, not this file.
 outputs/reports/
@@ -47,3 +47,7 @@ data/app.db
 data/app.db-journal
 data/app.db-wal
 data/app.db-shm
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
