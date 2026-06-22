@@ -104,7 +104,7 @@ export default function NavBar() {
 
   return (
     <nav className="border-b border-border bg-surface">
-      <div className="mx-auto flex max-w-[1600px] items-center gap-1 overflow-x-auto px-7">
+      <div className="mx-auto flex max-w-[1600px] items-center gap-1 px-7">
         {PRIMARY_LINKS.map((link) => {
           const active = pathname === link.href;
           return (
