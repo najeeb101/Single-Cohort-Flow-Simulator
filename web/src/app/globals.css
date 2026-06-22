@@ -1,7 +1,8 @@
 @import "tailwindcss";
 
 /* Palette ported from frontend/style.css for visual continuity with the existing
-   dependency-free dashboard — not pixel parity, just not a jarring switch. */
+   dependency-free dashboard — not pixel parity, just not a jarring switch.
+   This is the default (dark) theme; see .theme-light below for the opt-in light theme. */
 :root {
   --bg: #0b0f17;
   --surface: #141a24;
@@ -16,6 +17,34 @@
   --good: #51c878;
   --warn: #e8b84b;
   --bad: #e3725b;
+  /* Ambient elevation for cards ("Ethereal Glass" lite) — on a dark canvas a black
+     shadow is invisible, so elevation here reads as a soft glow + a hairline top
+     highlight instead of a drop shadow. */
+  --shadow-ambient: 0 1px 0 rgba(255, 255, 255, 0.05), 0 16px 40px -12px rgba(0, 0, 0, 0.75), 0 4px 12px -4px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  --shadow-accent: 0 10px 24px -6px color-mix(in srgb, var(--accent) 65%, transparent);
+}
+
+/* Light theme — warm monochrome + a single restrained accent (minimalist-ui skill):
+   off-white canvas (never pure white/black), ultra-light borders, no heavy shadows
+   anywhere in the app. Opt-in via the ThemeToggle in NavBar; toggled by adding this
+   class to <html> (see the anti-flash script in layout.tsx). */
+:root.theme-light {
+  --bg: #fbfbfa;
+  --surface: #ffffff;
+  --surface-2: #f7f6f3;
+  --border: rgba(0, 0, 0, 0.08);
+  --border-2: rgba(0, 0, 0, 0.14);
+  --ink: #2f3437;
+  --muted: #787774;
+  --faint: #9b9a97;
+  --accent: #3b66d6;
+  --maroon: #a51c45;
+  --good: #2f7d4f;
+  --warn: #946800;
+  --bad: #b0392b;
+  /* Ambient elevation ("Soft Structuralism" lite) — diffused, low-opacity, neutral. */
+  --shadow-ambient: 0 1px 2px rgba(20, 20, 18, 0.06), 0 18px 36px -12px rgba(20, 20, 18, 0.16), 0 4px 10px -4px rgba(20, 20, 18, 0.08);
+  --shadow-accent: 0 10px 24px -6px color-mix(in srgb, var(--accent) 45%, transparent);
 }
 
 @theme inline {
@@ -39,4 +68,91 @@
 body {
   background: var(--bg);
   color: var(--ink);
+  /* Numbers in a data-heavy dashboard must hold a fixed column width as they update
+     (a stat ticking from "92.5%" to "100%" shouldn't reflow its neighbors), so this is
+     on by default everywhere rather than opted into per-component. */
+  font-variant-numeric: tabular-nums;
+}
+
+/* Minimalist-ui audit: no transitionless interactions, no missing press/focus feedback.
+   A spring-flavored cubic-bezier instead of plain ease — slight overshoot reads as
+   physical weight rather than a mechanical linear snap. */
+button,
+a,
+input,
+select {
+  transition: background-color 200ms cubic-bezier(0.34, 1.4, 0.64, 1), border-color 200ms cubic-bezier(0.34, 1.4, 0.64, 1),
+    color 200ms cubic-bezier(0.34, 1.4, 0.64, 1), transform 200ms cubic-bezier(0.34, 1.4, 0.64, 1),
+    box-shadow 200ms cubic-bezier(0.34, 1.4, 0.64, 1);
+}
+button:active {
+  transform: scale(0.97);
+}
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* High-end-visual-design, scaled down for a dense data dashboard rather than a
+   marketing page: every card gets real ambient elevation instead of a flat border,
+   and every primary CTA becomes a pill with a color-matched glow. Both are unlayered
+   here, so they win over the `rounded-[..]`/`shadow-none` utilities already authored
+   in components without having to touch ~30 files individually. */
+.bg-surface:not(nav) {
+  box-shadow: var(--shadow-ambient);
+  border-radius: 18px;
+}
+nav.bg-surface {
+  box-shadow: 0 8px 24px -16px rgba(0, 0, 0, 0.3);
+}
+.bg-accent {
+  border-radius: 999px !important;
+  box-shadow: var(--shadow-accent);
+}
+.bg-accent:hover {
+  filter: brightness(1.08);
+}
+.bg-accent:active {
+  transform: scale(0.97);
+}
+
+/* accent-color alone leaves the thumb's size/shape up to the browser (and some
+   extensions strip it entirely), so the handle can end up looking like a flat
+   notch instead of a draggable dot. Pin the thumb explicitly cross-browser. */
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+}
+input[type="range"]::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 999px;
+  /* left blank: the played/unplayed fill is painted on the input's own
+     background (see the inline gradient each slider sets) so it shows
+     through this track instead of being flattened by a fixed color. */
+  background: transparent;
+}
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  margin-top: -5px;
+  border-radius: 50%;
+  background: var(--accent);
+  border: 2px solid var(--ink);
+  cursor: pointer;
+}
+input[type="range"]::-moz-range-track {
+  height: 4px;
+  border-radius: 999px;
+  background: transparent;
+}
+input[type="range"]::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--accent);
+  border: 2px solid var(--ink);
+  cursor: pointer;
 }

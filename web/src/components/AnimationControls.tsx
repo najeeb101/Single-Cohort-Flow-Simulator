@@ -32,8 +32,10 @@ export default function AnimationControls({
   onSpeedChange,
   onCohortChange,
 }: Props) {
+  const scrubPct = (idx / Math.max(1, frameCount - 1)) * 100;
+
   return (
-    <div className="sticky top-0 z-20 mb-3.5 flex flex-wrap items-center gap-3 rounded-xl border border-border bg-[rgba(20,26,36,0.92)] px-3.5 py-3 backdrop-blur">
+    <div className="sticky top-0 z-20 mb-3.5 flex flex-wrap items-center gap-3 rounded-xl border border-border bg-surface/90 px-3.5 py-3 backdrop-blur">
       <div className="flex gap-1.5">
         <button type="button" onClick={() => onStep(-1)} className="rounded-[9px] border border-border-2 bg-surface-2 px-3 py-2 text-[13px] font-semibold text-ink" title="Previous semester">
           ⟨
@@ -52,7 +54,8 @@ export default function AnimationControls({
         max={Math.max(0, frameCount - 1)}
         value={idx}
         onChange={(e) => onScrub(Number(e.target.value))}
-        className="h-1 min-w-[200px] flex-1 accent-[var(--accent)]"
+        className="h-1 min-w-[200px] flex-1 rounded-full accent-[var(--accent)]"
+        style={{ background: `linear-gradient(to right, var(--accent) ${scrubPct}%, var(--border-2) ${scrubPct}%)` }}
       />
 
       <span className="min-w-[168px] rounded-[9px] border border-border bg-surface-2 px-2.5 py-1.5 text-center text-sm font-bold">

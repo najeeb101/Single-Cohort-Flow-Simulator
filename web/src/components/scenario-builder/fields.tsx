@@ -50,6 +50,7 @@ interface SliderBoxProps extends NumberBoxProps {
 }
 
 export function SliderBox({ value, onChange, min, max, step, display }: SliderBoxProps) {
+  const pct = ((value - min) / Math.max(1e-9, max - min)) * 100;
   return (
     <div className="flex flex-col gap-1">
       <div className="flex justify-end">
@@ -62,7 +63,8 @@ export function SliderBox({ value, onChange, min, max, step, display }: SliderBo
         step={step}
         value={value}
         onChange={(e) => onChange(Number(e.target.value))}
-        className="accent-[var(--accent)]"
+        className="h-1 rounded-full accent-[var(--accent)]"
+        style={{ background: `linear-gradient(to right, var(--accent) ${pct}%, var(--border-2) ${pct}%)` }}
       />
     </div>
   );

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import ThemeToggle from "@/components/ThemeToggle";
 
 const LINKS = [
   { href: "/", label: "Dashboard" },
@@ -55,14 +56,17 @@ export default function NavBar() {
             </Link>
           );
         })}
-        {email && (
-          <div className="ml-auto flex items-center gap-3 whitespace-nowrap py-3 text-[12.5px] text-muted">
-            <span>Signed in as {email}</span>
-            <button type="button" onClick={signOut} className="font-semibold text-accent">
-              Sign out
-            </button>
-          </div>
-        )}
+        <div className="ml-auto flex items-center gap-3 whitespace-nowrap py-3 text-[12.5px] text-muted">
+          {email && (
+            <>
+              <span>Signed in as {email}</span>
+              <button type="button" onClick={signOut} className="font-semibold text-accent">
+                Sign out
+              </button>
+            </>
+          )}
+          <ThemeToggle />
+        </div>
       </div>
     </nav>
   );

@@ -46,7 +46,7 @@ export default function UtilizationHeatmap({ frames }: { frames: Frame[] }) {
                   <div
                     key={`${course}-${t}`}
                     title={`${course} · t=${t}${u === null ? " · not offered" : ` · ${(u * 100).toFixed(0)}%`}`}
-                    style={{ background: u === null ? "#1c232f" : utilColor(u) }}
+                    style={{ background: u === null ? "var(--surface-2)" : utilColor(u) }}
                   />
                 );
               })}

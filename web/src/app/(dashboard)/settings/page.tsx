@@ -93,7 +93,7 @@ export default function SettingsPage() {
   };
 
   return (
-    <main className="mx-auto max-w-[1600px] px-7 pb-16">
+    <main className="mx-auto w-full max-w-[1600px] px-7 pb-16">
       <header className="border-b border-border py-5">
         <h1 className="text-[19px] font-bold tracking-tight">Settings</h1>
         <p className="mt-0.5 text-[12.5px] text-muted">

@@ -95,7 +95,7 @@ export default function PlansPage() {
   };
 
   return (
-    <main className="mx-auto max-w-[1600px] px-7 pb-16">
+    <main className="mx-auto w-full max-w-[1600px] px-7 pb-16">
       <header className="flex items-center justify-between border-b border-border py-5">
         <h1 className="text-[19px] font-bold tracking-tight">Plans</h1>
         <Link

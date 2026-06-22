@@ -21,8 +21,7 @@ export default function FlowsList({ frame, cohortSel }: Props) {
   flows = [...flows].sort((a, b) => b.count - a.count).slice(0, 6);
 
   return (
-    <div>
-      <h3 className="mb-2 mt-4 text-[11px] uppercase tracking-wide text-muted">Biggest moves this term</h3>
+    <div className="mt-3.5">
       {flows.length ? (
         <ul className="m-0 list-none p-0 text-[12.5px]">
           {flows.map((fl, i) => (

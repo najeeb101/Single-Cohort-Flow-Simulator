@@ -91,8 +91,14 @@ export default function AnimationSection({ graph, stageNodes, cohorts, frames }:
 
       <NarrativePanel frame={frame} nextFrame={frames[idx + 1]} />
 
-      <div className="flex flex-col items-stretch gap-4 lg:flex-row">
-        <div className="flex min-w-0 flex-1 flex-col rounded-2xl border border-border bg-surface">
+      {/* Asymmetric bento: the curriculum graph is the dominant cell (spans both rows);
+          Stage overview and Flows sit beside it as two smaller, independent cards rather
+          than one tall stacked aside — that's what actually reads as "bento" instead of
+          "sidebar." Mobile collapses to a plain single-column stack via the unprefixed
+          col-span-1 default (high-end-visual-design's "Asymmetrical Bento" archetype,
+          scaled down for a data dashboard rather than a marketing grid). */}
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-6">
+        <div className="col-span-1 flex min-w-0 flex-col rounded-2xl border border-border bg-surface md:col-span-4 md:row-span-2">
           <div className="flex items-baseline justify-between gap-3 border-b border-border px-4 py-2.5 text-[13px] font-semibold">
             <span>Curriculum graph</span>
             <span className="text-xs font-normal text-muted">node = course · fill = seat utilization · ▣ = full</span>
@@ -106,9 +112,13 @@ export default function AnimationSection({ graph, stageNodes, cohorts, frames }:
           </div>
         </div>
 
-        <aside className="flex w-full flex-col rounded-2xl border border-border bg-surface px-4 pb-3.5 lg:w-[326px] lg:shrink-0">
+        <aside className="col-span-1 flex flex-col rounded-2xl border border-border bg-surface px-4 pb-3.5 md:col-span-2">
           <div className="border-b border-border py-2.5 text-[13px] font-semibold">Stage overview</div>
           <StageOverview frame={frame} stageNodes={stageNodes} cohortSel={cohortSel} />
+        </aside>
+
+        <aside className="col-span-1 flex flex-col rounded-2xl border border-border bg-surface px-4 pb-3.5 md:col-span-2">
+          <div className="border-b border-border py-2.5 text-[13px] font-semibold">Biggest moves</div>
           <FlowsList frame={frame} cohortSel={cohortSel} />
         </aside>
       </div>

@@ -1,6 +1,20 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import Script from "next/script";
 import "./globals.css";
+
+// Applies the saved theme before paint, so toggling light mode on one visit doesn't
+// flash dark-then-light on the next. Defaults to dark (the existing look) when nothing
+// is stored yet — ThemeToggle.tsx is the only thing that ever writes localStorage.theme.
+const THEME_INIT_SCRIPT = `
+(function () {
+  try {
+    if (localStorage.getItem("theme") === "light") {
+      document.documentElement.classList.add("theme-light");
+    }
+  } catch (e) {}
+})();
+`;
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -30,7 +44,13 @@ export default function RootLayout({
     <html
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      suppressHydrationWarning
     >
+      <head>
+        <Script id="theme-init" strategy="beforeInteractive">
+          {THEME_INIT_SCRIPT}
+        </Script>
+      </head>
       <body className="min-h-full flex flex-col">{children}</body>
     </html>
   );
