@@ -35,6 +35,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from src.models.course import load_curriculum
+from src.models.semester import get_mandatory_seasons
 from src.simulator import Simulator
 from src.utils import load_json
 
@@ -62,14 +63,32 @@ def demand_per_course(curriculum, config, percentile: float) -> tuple[dict[str, 
     """Run with effectively unlimited seats so `registered` reflects true demand, then for
     each course return (percentile demand, peak demand) over the terms it was actually
     demanded. Only terms where the course is offered and has non-zero demand count, so a
-    course taught every term but wanted in few of them isn't dragged toward zero."""
+    course taught every term but wanted in few of them isn't dragged toward zero.
+
+    Restricted to mandatory-season (Fall/Spring) frames: `course_sections` sizes *regular*-term
+    capacity, so optional-term (Summer/Winter) demand — much smaller and separately modeled via
+    `optional_term_course_sections` — must not dilute this percentile. See CLAUDE.md's
+    "Term/Season Model".
+
+    The calibration run also drops `terms_per_year`/`mandatory_terms` entirely (pure legacy
+    2-season simulation), not just the post-hoc frame filter above: the "blow up capacity"
+    trick below only inflates the *regular* section map, so if optional terms still existed
+    here, their capacity would stay small while everything else is artificially unlimited —
+    demand would leak into those comparatively-attractive optional terms instead of showing
+    up as real mandatory-term peak demand, systematically under-sizing course_sections.
+    """
     cfg = copy.deepcopy(config)
     cfg["course_sections"] = {}          # use fallback sizing...
+    cfg.pop("terms_per_year", None)      # ...and remove optional terms entirely, see above
+    cfg.pop("mandatory_terms", None)
     scenario = {"name": "calibration", "capacity_multiplier": 1000.0}  # ...then blow it up
     result = Simulator(curriculum, cfg, scenario).run()
+    mandatory_seasons = get_mandatory_seasons(cfg)
 
     series: dict[str, list[int]] = {code: [] for code in curriculum}
     for frame in result.history.timeline:
+        if frame["season"] not in mandatory_seasons:
+            continue
         for code, st in frame["courses"].items():
             if st["offered"] and st["registered"] > 0:
                 series[code].append(st["registered"])

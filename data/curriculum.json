@@ -5,7 +5,7 @@
     "credits": 3,
     "prerequisites": [],
     "pass_rate": 0.78,
-    "offering": ["Fall", "Spring"],
+    "offering": ["Fall", "Spring", "Summer", "Winter"],
     "category": "cs_core",
     "capacity": 100,
     "study_plan_order": 1
@@ -16,7 +16,7 @@
     "credits": 1,
     "prerequisites": [],
     "pass_rate": 0.98,
-    "offering": ["Fall", "Spring"],
+    "offering": ["Fall", "Spring", "Summer"],
     "category": "cs_core",
     "capacity": 100,
     "study_plan_order": 2
@@ -38,7 +38,7 @@
     "credits": 4,
     "prerequisites": ["CMPS151"],
     "pass_rate": 0.72,
-    "offering": ["Fall", "Spring"],
+    "offering": ["Fall", "Spring", "Summer"],
     "category": "cs_core",
     "capacity": 70,
     "study_plan_order": 4
@@ -49,7 +49,7 @@
     "credits": 3,
     "prerequisites": ["CMPS251"],
     "pass_rate": 0.76,
-    "offering": ["Fall", "Spring"],
+    "offering": ["Fall", "Spring", "Summer"],
     "category": "cs_core",
     "capacity": 35,
     "study_plan_order": 5
@@ -60,7 +60,7 @@
     "credits": 4,
     "prerequisites": ["CMPS251"],
     "pass_rate": 0.71,
-    "offering": ["Fall", "Spring"],
+    "offering": ["Fall", "Spring", "Summer", "Winter"],
     "category": "cs_core",
     "capacity": 40,
     "study_plan_order": 6
@@ -71,7 +71,7 @@
     "credits": 3,
     "prerequisites": ["CMPS151", "CMPS205"],
     "pass_rate": 0.76,
-    "offering": ["Fall", "Spring"],
+    "offering": ["Fall", "Spring", "Summer"],
     "category": "cs_core",
     "capacity": 35,
     "study_plan_order": 7

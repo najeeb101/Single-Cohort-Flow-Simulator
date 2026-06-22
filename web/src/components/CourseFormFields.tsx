@@ -4,7 +4,7 @@ import type { CourseRecord, RuleExpr } from "@/types/simulation";
 import RuleExprEditor from "./settings/RuleExprEditor";
 
 export const CATEGORIES = ["cs_core", "cs_elective", "college_req", "math", "science", "english", "gen_ed"] as const;
-const OFFERINGS = ["Fall", "Spring"] as const;
+const OFFERINGS = ["Fall", "Spring", "Summer", "Winter"] as const;
 
 interface Props {
   value: CourseRecord;

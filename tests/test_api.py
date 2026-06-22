@@ -13,6 +13,7 @@ from src.db import (
     load_config_from_db,
     load_curriculum_from_db,
 )
+from src.models.semester import get_mandatory_seasons
 from src.service import run_simulation
 
 client = TestClient(app)
@@ -72,6 +73,15 @@ def test_simulate_default_matches_run_simulation():
     assert body["flow_timeline"]["meta"]["graph"] == expected["flow_timeline"]["meta"]["graph"]
 
 
+def test_simulate_includes_capacity_planning_summary():
+    resp = client.post("/simulate", json={})
+    assert resp.status_code == 200
+    capacity_planning = resp.json()["flow_timeline"]["summary"]["capacity_planning"]
+    assert set(capacity_planning) == {"seat_utilization", "instructor_capacity", "admissions_recommendation"}
+    assert "by_category" in capacity_planning["instructor_capacity"]
+    assert "course_staffing_risks" in capacity_planning["instructor_capacity"]
+
+
 def test_simulate_capacity_override_changes_result():
     # Pick whichever course tops the baseline's capacity-block ranking — hardcoding
     # CMPS303 would silently no-op if hand-tuned section counts move the bottleneck.
@@ -84,15 +94,33 @@ def test_simulate_capacity_override_changes_result():
     assert boosted_count < baseline_count
 
 
+def _mandatory_term_capacity_blocks(flow_timeline: dict) -> dict[str, int]:
+    """`course_sections_overrides` only patches the regular (mandatory-term) section map —
+    courses offered in an optional term (Winter/Summer) use a separate, smaller capacity
+    model (see CLAUDE.md's Term/Season Model) the override doesn't touch. Recompute
+    denied-seat totals scoped to mandatory-term frames so the override's actual contract
+    is what gets tested, independent of which course happens to be globally top-blocked."""
+    mandatory = get_mandatory_seasons(BASE_CONFIG)
+    totals: dict[str, int] = {}
+    for frame in flow_timeline["frames"]:
+        if frame["season"] not in mandatory:
+            continue
+        for code, stats in frame["courses"].items():
+            totals[code] = totals.get(code, 0) + stats["denied"]
+    return totals
+
+
 def test_simulate_course_sections_override_changes_result():
     baseline = client.post("/simulate", json={}).json()
-    code, baseline_count = baseline["metrics"]["top_capacity_blocks"][0]
+    mandatory_blocks = _mandatory_term_capacity_blocks(baseline["flow_timeline"])
+    code, baseline_count = max(mandatory_blocks.items(), key=lambda kv: kv[1])
+    assert baseline_count > 0, "expected at least one mandatory-term capacity block to override against"
     current_sections = BASE_CONFIG["course_sections"].get(code, 1)
 
     boosted = client.post(
         "/simulate", json={"course_sections_overrides": {code: current_sections + 5}}
     ).json()
-    boosted_count = dict(boosted["metrics"]["top_capacity_blocks"]).get(code, 0)
+    boosted_count = _mandatory_term_capacity_blocks(boosted["flow_timeline"]).get(code, 0)
 
     assert boosted_count < baseline_count
 

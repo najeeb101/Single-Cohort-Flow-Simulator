@@ -213,7 +213,9 @@ def test_create_course_rejects_unknown_offering_season():
     headers = _register("curriculum_bad_offering@example.com")
     _activate_private_plan(headers, "Bad-offering plan")
 
-    resp = client.post("/curriculum", json={**_NEW_COURSE, "offering": ["Summer"]}, headers=headers)
+    # "Summer"/"Winter" are valid optional-term seasons (Term/Season Model); use a season
+    # that's never valid to exercise the rejection path.
+    resp = client.post("/curriculum", json={**_NEW_COURSE, "offering": ["Autumn"]}, headers=headers)
     assert resp.status_code == 422
 
 
@@ -243,7 +245,7 @@ def test_update_course_rejects_unknown_category_and_offering():
         f"/curriculum/{existing_code}", json={"category": "nope"}, headers=headers
     ).status_code == 422
     assert client.put(
-        f"/curriculum/{existing_code}", json={"offering": ["Summer"]}, headers=headers
+        f"/curriculum/{existing_code}", json={"offering": ["Autumn"]}, headers=headers
     ).status_code == 422
 
 
@@ -256,6 +258,137 @@ def test_delete_course_rejects_emptying_the_plan():
     resp = client.delete("/curriculum/CMPS999", headers=headers)
     assert resp.status_code == 422
     assert "last course" in resp.json()["detail"]
+
+
+def test_default_plan_comes_seeded_with_instructors():
+    headers = _register("instructors_seeded@example.com")
+    resp = client.get("/instructors", headers=headers)
+    assert resp.status_code == 200
+    names = [i["name"] for i in resp.json()]
+    assert "Dr. Ahmed Al-Sayed" in names  # data/instructors.json seed roster
+
+
+_NEW_INSTRUCTOR = {"name": "Dr. Test Person", "categories": ["cs_core"], "max_sections_per_term": 3}
+
+
+def test_create_list_update_delete_instructor():
+    headers = _register("instructors_crud@example.com")
+    _activate_private_plan(headers, "Instructor-crud plan")
+
+    created = client.post("/instructors", json=_NEW_INSTRUCTOR, headers=headers)
+    assert created.status_code == 200
+    instructor_id = created.json()["id"]
+    assert created.json()["name"] == "Dr. Test Person"
+
+    listed = client.get("/instructors", headers=headers).json()
+    assert any(i["id"] == instructor_id for i in listed)
+
+    updated = client.put(
+        f"/instructors/{instructor_id}",
+        json={"max_sections_per_term": 5, "categories": ["cs_core", "cs_elective"]},
+        headers=headers,
+    )
+    assert updated.status_code == 200
+    assert updated.json()["max_sections_per_term"] == 5
+    assert updated.json()["categories"] == ["cs_core", "cs_elective"]
+
+    deleted = client.delete(f"/instructors/{instructor_id}", headers=headers)
+    assert deleted.status_code == 200
+    assert deleted.json() == {"ok": True}
+
+    listed_after = client.get("/instructors", headers=headers).json()
+    assert all(i["id"] != instructor_id for i in listed_after)
+
+
+def test_create_instructor_duplicate_name_rejected():
+    headers = _register("instructors_dup@example.com")
+    _activate_private_plan(headers, "Instructor-dup plan")
+    client.post("/instructors", json=_NEW_INSTRUCTOR, headers=headers)
+
+    resp = client.post("/instructors", json=_NEW_INSTRUCTOR, headers=headers)
+    assert resp.status_code == 409
+
+
+def test_create_instructor_rejects_unknown_category():
+    headers = _register("instructors_bad_category@example.com")
+    _activate_private_plan(headers, "Instructor-bad-category plan")
+
+    resp = client.post(
+        "/instructors",
+        json={**_NEW_INSTRUCTOR, "categories": ["not_a_real_category"]},
+        headers=headers,
+    )
+    assert resp.status_code == 422
+
+
+def test_create_instructor_rejects_blank_name_and_negative_load():
+    headers = _register("instructors_bad_fields@example.com")
+    _activate_private_plan(headers, "Instructor-bad-fields plan")
+
+    assert client.post("/instructors", json={**_NEW_INSTRUCTOR, "name": "  "}, headers=headers).status_code == 422
+    assert client.post(
+        "/instructors", json={**_NEW_INSTRUCTOR, "max_sections_per_term": -1}, headers=headers
+    ).status_code == 422
+
+
+def test_update_delete_instructor_not_found():
+    headers = _register("instructors_missing@example.com")
+    _activate_private_plan(headers, "Instructor-missing plan")
+
+    assert client.put("/instructors/999999", json={"max_sections_per_term": 1}, headers=headers).status_code == 404
+    assert client.delete("/instructors/999999", headers=headers).status_code == 404
+
+
+def test_instructor_scoped_to_active_plan_only():
+    headers = _register("instructors_scope@example.com")
+    _activate_private_plan(headers, "Instructor-scope plan")
+    client.post("/instructors", json=_NEW_INSTRUCTOR, headers=headers)
+
+    plans = client.get("/plans", headers=headers).json()
+    default_plan_id = next(p["id"] for p in plans if p["is_default"])
+    client.post(f"/plans/{default_plan_id}/activate", headers=headers)
+
+    default_names = [i["name"] for i in client.get("/instructors", headers=headers).json()]
+    assert "Dr. Test Person" not in default_names
+
+
+def test_plan_import_export_round_trips_instructors():
+    headers = _register("plans_instructors_roundtrip@example.com")
+    payload = _import_payload("Plan with instructors")
+    payload["instructors"] = [_NEW_INSTRUCTOR]
+
+    imported = client.post("/plans/import", json=payload, headers=headers)
+    assert imported.status_code == 200
+    plan = imported.json()
+
+    exported = client.get(f"/plans/{plan['id']}/export", headers=headers)
+    assert exported.status_code == 200
+    exported_names = [i["name"] for i in exported.json()["instructors"]]
+    assert exported_names == ["Dr. Test Person"]
+
+
+def test_plan_import_without_instructors_key_still_works():
+    """Backward compatibility: a plan exported before this feature shipped has no
+    "instructors" key at all — import_plan must default it to []."""
+    headers = _register("plans_legacy_import@example.com")
+    payload = _import_payload("Legacy plan, no instructors key")
+    assert "instructors" not in payload
+
+    imported = client.post("/plans/import", json=payload, headers=headers)
+    assert imported.status_code == 200
+
+    plan_id = imported.json()["id"]
+    exported = client.get(f"/plans/{plan_id}/export", headers=headers)
+    assert exported.json()["instructors"] == []
+
+
+def test_import_rejects_blank_instructor_name():
+    headers = _register("plans_bad_instructor@example.com")
+    payload = _import_payload("Bad instructor plan")
+    payload["instructors"] = [{"name": "  ", "categories": ["cs_core"], "max_sections_per_term": 3}]
+
+    resp = client.post("/plans/import", json=payload, headers=headers)
+    assert resp.status_code == 422
 
 
 def test_import_rejects_prerequisite_cycle():

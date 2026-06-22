@@ -10,6 +10,7 @@ const LINKS = [
   { href: "/scenario-builder", label: "Scenario Builder" },
   { href: "/cohorts", label: "Cohorts" },
   { href: "/bottlenecks", label: "Bottlenecks" },
+  { href: "/capacity", label: "Capacity Planning" },
   { href: "/figures", label: "Figures" },
   { href: "/prerequisites", label: "Prerequisites" },
   { href: "/scenarios", label: "Scenarios" },

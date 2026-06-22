@@ -1,0 +1,40 @@
+# Render "Blueprint" — provisions the backend, frontend, and database together from one file.
+# See docs/deployment.md for the one-time setup steps and free-tier caveats (cold starts,
+# 90-day Postgres expiry).
+databases:
+  - name: scfs-db
+    plan: free
+    postgresMajorVersion: "16"
+
+services:
+  - type: web
+    name: scfs-backend
+    runtime: python
+    plan: free
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: "uvicorn src.api:app --host 0.0.0.0 --port $PORT"
+    healthCheckPath: /health
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: scfs-db
+          property: connectionString
+      - key: AUTH_SECRET
+        generateValue: true
+      # Render serves every web service at https://<name>.onrender.com — hardcoded directly
+      # rather than via a fromService cross-reference, since that's simpler to verify than
+      # relying on exactly which URL shape a property like "host" resolves to. If you rename
+      # either service below, update both literal URLs to match.
+      - key: CORS_ORIGINS
+        value: "https://scfs-frontend.onrender.com"
+
+  - type: web
+    name: scfs-frontend
+    runtime: node
+    plan: free
+    rootDir: web
+    buildCommand: "npm install && npm run build"
+    startCommand: "npm run start -- -p $PORT"
+    envVars:
+      - key: NEXT_PUBLIC_API_BASE
+        value: "https://scfs-backend.onrender.com"

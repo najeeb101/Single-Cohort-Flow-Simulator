@@ -22,6 +22,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from src.datasource import StudentRecord
+from src.models.semester import mandatory_horizon_end_term
 from src.rules import gate_edges
 
 if TYPE_CHECKING:
@@ -243,9 +244,12 @@ def _representative_cohort(result: "SimulationResult", study: dict[int, dict]) -
     end_term = result.history.timeline[-1]["term"] if result.history.timeline else 0
     entry_by_cohort = {s.cohort_id: s.entry_term for s in result.students}
 
+    # "Finished" means this cohort's max_terms-th *mandatory* semester has already occurred
+    # within the simulated window — a raw calendar-term subtraction would overcount once
+    # optional (non-mandatory) seasons exist in the cycle. See CLAUDE.md's "Term/Season Model".
     finished = [
         cid for cid in study
-        if (end_term - entry_by_cohort.get(cid, 0) + 1) >= max_terms
+        if mandatory_horizon_end_term(entry_by_cohort.get(cid, 0), max_terms, result.config) - 1 <= end_term
     ]
     if finished:
         cid = max(finished)
@@ -262,10 +266,17 @@ def _representative_cohort(result: "SimulationResult", study: dict[int, dict]) -
 
 def _throughput_stability(result: "SimulationResult") -> float:
     """1 - coefficient of variation of graduates-per-term (study cohorts), clipped to [0,1]."""
+    # Read the real calendar term of graduation from OutcomeRecord (already the true term_idx
+    # _record_outcome saw) rather than reconstructing it from entry_term + grad_semester — that
+    # reconstruction drifts once grad_semester only counts mandatory terms.
+    grad_term_by_student = {
+        r.student_id: r.graduation_term
+        for r in result.history.outcomes if r.exit_reason == "graduated"
+    }
     per_term: dict[int, int] = {}
     for s in result.students:
-        if s.status == "GRADUATED" and s.entry_term >= 0 and s.grad_semester is not None:
-            grad_term = s.entry_term + s.grad_semester - 1
+        if s.status == "GRADUATED" and s.entry_term >= 0 and s.student_id in grad_term_by_student:
+            grad_term = grad_term_by_student[s.student_id]
             per_term[grad_term] = per_term.get(grad_term, 0) + 1
     counts = list(per_term.values())
     if len(counts) < 2:
@@ -403,8 +414,16 @@ def flow_timeline_payload(
     result: "SimulationResult",
     curriculum: dict[str, "Course"],
     monte_carlo: dict | None = None,
+    instructors: list[dict] | None = None,
 ) -> dict:
-    """The full frontend contract object (meta + frames + summary)."""
+    """The full frontend contract object (meta + frames + summary).
+
+    `instructors` (src/db_models.py::Instructor rows, as plain dicts) feeds the
+    `capacity_planning` summary key — src.capacity is imported locally here, not at module
+    level, because src.capacity itself imports build_course_utilization/
+    compute_admissions_recommendation from this module; a top-level import would be circular.
+    """
+    from src.capacity import build_capacity_report
     history = result.history
     cohorts_meta = [
         {"id": cid, "is_incumbent": cid < 0, "entry_term": et}
@@ -441,6 +460,7 @@ def flow_timeline_payload(
                 "offering": _top3(history.offering_block_counts),
                 "prereq":   _top3(history.prereq_block_counts),
             },
+            "capacity_planning": build_capacity_report(result, instructors or [], curriculum),
         },
     }
 
@@ -450,8 +470,9 @@ def build_flow_timeline_json(
     curriculum: dict[str, "Course"],
     output_path: Path,
     monte_carlo: dict | None = None,
+    instructors: list[dict] | None = None,
 ) -> dict:
-    payload = flow_timeline_payload(result, curriculum, monte_carlo)
+    payload = flow_timeline_payload(result, curriculum, monte_carlo, instructors=instructors)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     with open(output_path, "w", encoding="utf-8") as f:
         json.dump(payload, f, indent=2)

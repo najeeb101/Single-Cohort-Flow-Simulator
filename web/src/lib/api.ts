@@ -2,6 +2,9 @@ import type {
   CourseCreate,
   CourseRecord,
   CourseUpdate,
+  InstructorCreate,
+  InstructorRecord,
+  InstructorUpdate,
   MetaResponse,
   PlanExportPayload,
   PlanImportPayload,
@@ -117,6 +120,30 @@ export function createCourse(course: CourseCreate): Promise<CourseRecord> {
 
 export function deleteCourse(code: string): Promise<void> {
   return fetch(`${API_BASE}/curriculum/${code}`, { method: "DELETE" }).then((res) => asJson<void>(res));
+}
+
+export function listInstructors(): Promise<InstructorRecord[]> {
+  return fetch(`${API_BASE}/instructors`).then((res) => asJson<InstructorRecord[]>(res));
+}
+
+export function createInstructor(instructor: InstructorCreate): Promise<InstructorRecord> {
+  return fetch(`${API_BASE}/instructors`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(instructor),
+  }).then((res) => asJson<InstructorRecord>(res));
+}
+
+export function updateInstructor(id: number, patch: InstructorUpdate): Promise<InstructorRecord> {
+  return fetch(`${API_BASE}/instructors/${id}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(patch),
+  }).then((res) => asJson<InstructorRecord>(res));
+}
+
+export function deleteInstructor(id: number): Promise<void> {
+  return fetch(`${API_BASE}/instructors/${id}`, { method: "DELETE" }).then((res) => asJson<void>(res));
 }
 
 export function getConfig(): Promise<Record<string, unknown>> {

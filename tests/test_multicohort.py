@@ -14,6 +14,7 @@ from src.analytics import (
 )
 from src.datasource import DataSource
 from src.models.course import load_curriculum
+from src.models.semester import mandatory_horizon_end_term
 from src.montecarlo import run_monte_carlo
 from src.simulator import Simulator
 from src.utils import load_json
@@ -173,8 +174,18 @@ def test_starved_capacity_recommends_shrink():
 def test_timeline_frames_and_invariants():
     result, config, curriculum = _run()
     timeline = result.history.timeline
-    expected_terms = (config["num_cohorts"] - 1) * config["admit_interval_terms"] \
-        + config["max_terms"] + config["num_incumbent_cohorts"] * config["admit_interval_terms"]
+
+    # Independent re-derivation of Simulator's start_term/end_term (not a mirror of its
+    # implementation): earliest entry_term through the latest cohort's mandatory-semester
+    # horizon. A raw `max_terms` calendar-term count only matches this when every season is
+    # mandatory; mandatory_horizon_end_term is what makes this correct once optional
+    # (non-mandatory) seasons exist in the cycle too. See CLAUDE.md's "Term/Season Model".
+    interval = config["admit_interval_terms"]
+    entry_terms = [c * interval for c in range(config["num_cohorts"])]
+    entry_terms += [-k * interval for k in range(1, config["num_incumbent_cohorts"] + 1)]
+    start_term = min(entry_terms)
+    end_term = max(mandatory_horizon_end_term(t, config["max_terms"], config) for t in entry_terms)
+    expected_terms = end_term - start_term
     assert len(timeline) == expected_terms
 
     stage_nodes = set(["Admitted", "Year1", "Year2", "Year3", "Year4",

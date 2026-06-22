@@ -4,7 +4,27 @@
   "max_terms": 12,
   "num_cohorts": 4,
   "num_incumbent_cohorts": 3,
-  "admit_interval_terms": 2,
+  "admit_interval_terms": 4,
+  "terms_per_year": [
+    "Fall",
+    "Winter",
+    "Spring",
+    "Summer"
+  ],
+  "mandatory_terms": [
+    "Fall",
+    "Spring"
+  ],
+  "_optional_terms_note": "Fall and Spring are mandatory (the only seasons that advance a student's personal_semester clock / max_terms budget; see CLAUDE.md's Term/Season Model). Winter and Summer are optional intersessions: courses must explicitly list 'Winter'/'Summer' in their own offering array to run then, and use the separate, smaller optional_term_course_sections map (falling back to optional_term_capacity_scale x the regular section count) instead of course_sections. admit_interval_terms was raised from 2 to 4 to keep yearly, Fall-only admissions now that the cycle is 4 terms long instead of 2. Only cs_core courses are offered optionally (same 'squeeze CS, leave everyone else ample' philosophy as section_demand_percentile above) -- math/english/gen_ed courses are deliberately excluded: they're tier-2 (lowest) enrollment priority, so cs_core crowds them out of every regular term's load cap, building a multi-year backlog that would swamp a 1-section bonus offering (observed: ~1000+ capacity blocks on a single gen-ed course vs ~250 on the CS gateway) -- a real, if disproportionate, finding worth knowing about even though it's out of scope for this illustrative default.",
+  "optional_term_course_sections": {
+    "CMPS151": 1,
+    "CMPS200": 1,
+    "CMPS251": 1,
+    "CMPS303": 1,
+    "CMPS350": 1,
+    "CMPE263": 1
+  },
+  "optional_term_capacity_scale": 0.3,
   "seats_per_section": 35,
   "section_demand_percentile": 0.75,
   "_sections_note": "Per-term seats for a course = course_sections[code] x seats_per_section. CS courses (cs_core, cs_elective) are auto-calibrated by scripts/size_sections.py to the section_demand_percentile of per-term demand (0.75) so seats bind on CS gateways during enrolment bulges; non-CS courses are sized to full peak so they never bottleneck. Edit individual courses to add/cut sections. HAND-TUNE: CMPS303 (2->3) and CMPS350 (2->3) were raised one section above the demand-percentile baseline. Both were capacity-binding gateways (CMPS303 is the top capacity block; CMPS350 gates the CMPS493 compound rule), and relieving them lifts the 30-seed graduation rate from 0.708 to 0.716 toward QU's 0.723 benchmark. Lowering dropout_base_hazard does NOT move graduation (it only trades dropped for censored), so this gap is capacity-structural, not a dropout-parameter miss.",

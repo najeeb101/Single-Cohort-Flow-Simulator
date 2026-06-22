@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import copy
 import dataclasses
+import os
 
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -35,10 +36,12 @@ from src.db import (
     init_db,
     load_config_from_db,
     load_curriculum_from_db,
+    load_instructors_from_db,
     resolve_active_plan_id,
 )
 from src.db_models import AppConfig as AppConfigRow
 from src.db_models import Course as CourseRow
+from src.db_models import Instructor as InstructorRow
 from src.db_models import Plan as PlanRow
 from src.db_models import Run, User
 from src.models.course import Course
@@ -56,11 +59,14 @@ app.include_router(auth_router)
 app.include_router(scenarios_router)
 
 # The Next.js dev server (web/, npm run dev on :3000) proxies to this API via
-# next.config.ts rewrites, so the browser only ever calls localhost:3000 — this origin is
-# for direct/manual API access (curl, TestClient) during development.
+# next.config.ts rewrites, so the browser only ever calls its own origin — this middleware is
+# for direct/manual API access (curl, TestClient, deployed health checks) rather than something
+# the browser flow actually depends on. CORS_ORIGINS (comma-separated) lets a deployed frontend
+# origin be added without a code change; defaults to today's local-dev-only value.
+_cors_origins = os.environ.get("CORS_ORIGINS", "http://localhost:3000").split(",")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
+    allow_origins=_cors_origins,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -105,7 +111,7 @@ class ScenarioRequest(BaseModel):
 # typo'd category/season fails fast with a clear 422 instead of silently producing a course
 # the engine's enrollment-priority-tier / offering logic never matches against.
 VALID_CATEGORIES = {"cs_core", "cs_elective", "college_req", "math", "science", "english", "gen_ed"}
-VALID_OFFERINGS = {"Fall", "Spring"}
+VALID_OFFERINGS = {"Fall", "Spring", "Summer", "Winter"}
 
 
 def _check_category(value: str) -> str:
@@ -148,6 +154,53 @@ class PlanImportRequest(BaseModel):
     name: str
     curriculum: list[dict]
     config: dict
+    instructors: list[dict] = []
+
+
+def _check_categories(values: list[str]) -> list[str]:
+    if not set(values) <= VALID_CATEGORIES:
+        raise ValueError(f"categories must be a subset of {sorted(VALID_CATEGORIES)}, got {values!r}")
+    return values
+
+
+class InstructorCreate(BaseModel):
+    name: str
+    categories: list[str] = []
+    max_sections_per_term: int = Field(ge=0)
+
+    @field_validator("name")
+    @classmethod
+    def _validate_name(cls, v: str) -> str:
+        v = v.strip()
+        if not v:
+            raise ValueError("name must not be blank")
+        return v
+
+    @field_validator("categories")
+    @classmethod
+    def _validate_categories(cls, v: list[str]) -> list[str]:
+        return _check_categories(v)
+
+
+class InstructorUpdate(BaseModel):
+    name: str | None = None
+    categories: list[str] | None = None
+    max_sections_per_term: int | None = Field(default=None, ge=0)
+
+    @field_validator("name")
+    @classmethod
+    def _validate_name(cls, v: str | None) -> str | None:
+        if v is None:
+            return v
+        v = v.strip()
+        if not v:
+            raise ValueError("name must not be blank")
+        return v
+
+    @field_validator("categories")
+    @classmethod
+    def _validate_categories(cls, v: list[str] | None) -> list[str] | None:
+        return v if v is None else _check_categories(v)
 
 
 class CourseCreate(BaseModel):
@@ -204,6 +257,15 @@ def _course_to_dict(course) -> dict:
     }
 
 
+def _instructor_to_dict(row: InstructorRow) -> dict:
+    return {
+        "id": row.id,
+        "name": row.name,
+        "categories": list(row.categories),
+        "max_sections_per_term": row.max_sections_per_term,
+    }
+
+
 def _plan_to_dict(plan: PlanRow, current_user: User) -> dict:
     return {
         "id": plan.id,
@@ -251,6 +313,8 @@ def simulate(
     current_user: User = Depends(get_current_user),
 ) -> dict:
     curriculum, base_config, base_scenario = _load_plan_data(db, current_user)
+    plan_id = resolve_active_plan_id(db, current_user)
+    instructors = load_instructors_from_db(db, plan_id)
     config = copy.deepcopy(base_config)
     if req.cohort_size is not None:
         config["cohort_size"] = req.cohort_size
@@ -297,7 +361,7 @@ def simulate(
         scenario["pass_rate_overrides"] = req.pass_rate_overrides
 
     try:
-        run = run_simulation(curriculum, config, scenario)
+        run = run_simulation(curriculum, config, scenario, instructors=instructors)
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
@@ -447,6 +511,80 @@ def update_curriculum(
     return _course_to_dict(updated_course)
 
 
+@app.get("/instructors")
+def list_instructors(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)) -> list[dict]:
+    plan_id = resolve_active_plan_id(db, current_user)
+    return load_instructors_from_db(db, plan_id)
+
+
+@app.post("/instructors")
+def create_instructor(
+    req: InstructorCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> dict:
+    plan_id = resolve_active_plan_id(db, current_user)
+
+    existing = db.query(InstructorRow).filter_by(plan_id=plan_id, name=req.name).first()
+    if existing is not None:
+        raise HTTPException(status_code=409, detail=f"Instructor {req.name!r} already exists in this plan")
+
+    row = InstructorRow(
+        plan_id=plan_id,
+        name=req.name,
+        categories=req.categories,
+        max_sections_per_term=req.max_sections_per_term,
+    )
+    db.add(row)
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=409, detail=f"Instructor {req.name!r} already exists in this plan")
+
+    return _instructor_to_dict(row)
+
+
+@app.put("/instructors/{instructor_id}")
+def update_instructor(
+    instructor_id: int,
+    patch: InstructorUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> dict:
+    plan_id = resolve_active_plan_id(db, current_user)
+    row = db.query(InstructorRow).filter_by(plan_id=plan_id, id=instructor_id).first()
+    if row is None:
+        raise HTTPException(status_code=404, detail=f"Instructor {instructor_id} not found")
+
+    for field, value in patch.model_dump(exclude_none=True).items():
+        setattr(row, field, value)
+
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=409, detail=f"Instructor name {patch.name!r} already exists in this plan")
+
+    return _instructor_to_dict(row)
+
+
+@app.delete("/instructors/{instructor_id}")
+def delete_instructor(
+    instructor_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> dict:
+    plan_id = resolve_active_plan_id(db, current_user)
+    row = db.query(InstructorRow).filter_by(plan_id=plan_id, id=instructor_id).first()
+    if row is None:
+        raise HTTPException(status_code=404, detail=f"Instructor {instructor_id} not found")
+
+    db.delete(row)
+    db.commit()
+    return {"ok": True}
+
+
 @app.get("/config")
 def get_config(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)) -> dict:
     _curriculum, config, _scenario = _load_plan_data(db, current_user)
@@ -490,7 +628,7 @@ def import_plan_endpoint(
     current_user: User = Depends(get_current_user),
 ) -> dict:
     try:
-        plan = import_plan(db, current_user.id, req.name, req.curriculum, req.config)
+        plan = import_plan(db, current_user.id, req.name, req.curriculum, req.config, req.instructors)
     except PlanImportError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     return _plan_to_dict(plan, current_user)
@@ -522,6 +660,7 @@ def delete_plan(
         raise HTTPException(status_code=404, detail="Plan not found")
 
     db.query(CourseRow).filter_by(plan_id=plan.id).delete()
+    db.query(InstructorRow).filter_by(plan_id=plan.id).delete()
     db.query(AppConfigRow).filter_by(plan_id=plan.id).delete()
     if current_user.active_plan_id == plan.id:
         current_user.active_plan_id = get_or_create_default_plan(db).id
@@ -537,7 +676,9 @@ def export_plan(
     plan = _get_visible_plan(db, plan_id, current_user)
     curriculum = load_curriculum_from_db(db, plan.id)
     config = load_config_from_db(db, plan.id)
+    instructors = load_instructors_from_db(db, plan.id)
     return {
         "curriculum": [_course_to_dict(c) for c in sorted(curriculum.values(), key=lambda c: c.study_plan_order)],
         "config": config,
+        "instructors": instructors,
     }

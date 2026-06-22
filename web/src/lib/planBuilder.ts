@@ -28,7 +28,7 @@ export const BLANK_CONFIG: Record<string, unknown> = {
 // 0-6, capacity >= 1, non-blank code/title) so a bad course gets a clear inline message
 // before the round trip, not a generic "API returned 422" after submitting.
 const VALID_CATEGORIES = ["cs_core", "cs_elective", "college_req", "math", "science", "english", "gen_ed"];
-const VALID_OFFERINGS = ["Fall", "Spring"];
+const VALID_OFFERINGS = ["Fall", "Spring", "Summer", "Winter"];
 
 export function validateCourseDraft(draft: CourseRecord, existingCodes: string[]): string | null {
   const code = draft.code.trim();

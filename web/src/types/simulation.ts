@@ -133,11 +133,56 @@ export interface TopBottlenecks {
   prereq: TopList;
 }
 
+export interface SeatUtilizationRow {
+  course: string;
+  term: number;
+  label: string;
+  capacity: number;
+  registered: number;
+  granted: number;
+  denied: number;
+  utilization: number;
+  status: "oversubscribed" | "full" | "open";
+}
+
+export type CapacityStatus = "ok" | "tight" | "shortfall";
+
+export interface CategoryCapacityRow {
+  category: string;
+  peak_sections_needed: number;
+  representative_sections_needed: number;
+  instructor_capacity: number;
+  qualified_headcount: number;
+  shortfall: number;
+  status: CapacityStatus;
+}
+
+export interface CourseStaffingRisk {
+  course: string;
+  category: string;
+  peak_sections: number;
+  category_status: CapacityStatus;
+  top_driver: boolean;
+}
+
+export interface InstructorCapacity {
+  by_category: CategoryCapacityRow[];
+  course_staffing_risks: CourseStaffingRisk[];
+  note: string;
+}
+
+export interface CapacityPlanning {
+  seat_utilization: SeatUtilizationRow[];
+  instructor_capacity: InstructorCapacity;
+  admissions_recommendation: AdmissionsRecommendation;
+}
+
 export interface FlowTimelineSummary {
   headline: Headline;
   per_cohort: CohortMetric[];
   admissions_recommendation: AdmissionsRecommendation;
   top_bottlenecks: TopBottlenecks;
+  capacity_planning: CapacityPlanning;
 }
 
 export interface CohortInfo {
@@ -278,15 +323,36 @@ export interface PlanRecord {
   is_active: boolean;
 }
 
+export interface InstructorRecord {
+  id: number;
+  name: string;
+  categories: string[];
+  max_sections_per_term: number;
+}
+
+export interface InstructorCreate {
+  name: string;
+  categories: string[];
+  max_sections_per_term: number;
+}
+
+export interface InstructorUpdate {
+  name?: string;
+  categories?: string[];
+  max_sections_per_term?: number;
+}
+
 export interface PlanImportPayload {
   name: string;
   curriculum: CourseRecord[];
   config: Record<string, unknown>;
+  instructors?: InstructorRecord[];
 }
 
 export interface PlanExportPayload {
   curriculum: CourseRecord[];
   config: Record<string, unknown>;
+  instructors: InstructorRecord[];
 }
 
 export interface RunRecord {

@@ -5,7 +5,7 @@ from collections import defaultdict
 from dataclasses import dataclass, field
 
 from src.models.course import Course
-from src.models.semester import term_season, term_label
+from src.models.semester import get_mandatory_seasons, mandatory_horizon_end_term, term_season, term_label
 from src.models.student import Student, registration_tier, curriculum_stage
 from src.datasource import DataSource, SyntheticDataSource, CohortSpec, EnrollmentRecord, OutcomeRecord
 from src.utils import grade_tier
@@ -125,8 +125,13 @@ class Simulator:
         self.admission_schedule: dict[int, int] = {s.cohort_id: s.entry_term for s in specs}
 
         # Global clock: earliest admission through the last cohort's full personal horizon.
+        # end_term uses mandatory_horizon_end_term (not entry_term + max_terms) so optional
+        # (non-mandatory) seasons in the cycle don't truncate the window before a student's
+        # real max_terms semester budget is exhausted — see CLAUDE.md's "Term/Season Model".
         self.start_term: int = min(s.entry_term for s in specs)
-        self.end_term: int = max(s.entry_term for s in specs) + self.max_terms
+        self.end_term: int = max(
+            mandatory_horizon_end_term(s.entry_term, self.max_terms, self.config) for s in specs
+        )
 
         self.students: list[Student] = []
         self.history = History()
@@ -141,7 +146,7 @@ class Simulator:
         for term_idx in range(self.start_term, self.end_term):
             for cohort_id in sorted(by_entry.get(term_idx, [])):
                 self._admit_cohort(cohort_id, term_idx)
-            season = term_season(term_idx)
+            season = term_season(term_idx, self.config)
             self._run_term(term_idx, season)
 
         # Safety net: anyone still active at the horizon is censored. (In practice every
@@ -175,6 +180,13 @@ class Simulator:
     # ------------------------------------------------------------------ #
 
     def _run_term(self, term_idx: int, season: str) -> None:
+        # Mandatory-terms-elapsed clock: ticks once per Fall/Spring (mandatory) term, not at
+        # all during an optional Summer/Winter term — see CLAUDE.md's "Term/Season Model".
+        if season in get_mandatory_seasons(self.config):
+            for student in self.students:
+                if student.status in ("ACTIVE", "DELAYED"):
+                    student.personal_semester += 1
+
         available = [c for c in self.curriculum.values() if season in self._effective_offering(c)]
         available_codes = {c.code for c in available}
         active = [s for s in self.students if s.is_active()]
@@ -185,8 +197,8 @@ class Simulator:
         for code, c in self.curriculum.items():
             offered = code in available_codes
             course_stats[code] = {
-                "capacity": self._effective_capacity(c) if offered else 0,
-                "sections": self._section_count(c) if offered else 0,
+                "capacity": self._effective_capacity(c, season) if offered else 0,
+                "sections": self._section_count(c, season) if offered else 0,
                 "registered": 0, "granted": 0, "denied": 0,
                 "passed": 0, "failed": 0,
                 "prereq_waiting": 0, "offering_blocked": 0,
@@ -209,7 +221,7 @@ class Simulator:
 
         for code, requesters in desired.items():
             course = self.curriculum[code]
-            cap = self._effective_capacity(course)
+            cap = self._effective_capacity(course, season)
             stats = course_stats[code]
             stats["registered"] = len(requesters)
 
@@ -279,8 +291,7 @@ class Simulator:
             if student.completed_ch >= min_ch and student.gpa < gpa_floor:
                 severity = gpa_floor - student.gpa          # 0 .. gpa_floor
                 hazard = base_hazard * (1.0 + severity)
-                personal_sem = term_idx - student.entry_term + 1
-                if personal_sem <= early_cut:
+                if student.personal_semester <= early_cut:
                     hazard *= early_mult
                 if student.rng.random() < hazard:
                     self._record_outcome(student, "DROPPED", term_idx)
@@ -296,7 +307,7 @@ class Simulator:
         for student in self.students:
             if student.status in ("DROPPED", "GRADUATED", "CENSORED"):
                 continue
-            personal_semester = term_idx - student.entry_term + 1
+            personal_semester = student.personal_semester
             if self._has_graduated(student):
                 self._record_outcome(student, "GRADUATED", term_idx)
             elif personal_semester >= self.max_terms:
@@ -305,7 +316,15 @@ class Simulator:
                 student.status = "DELAYED"
 
         # ── Record blocking signals + per-term per-course waiting ── #
-        self._record_blocks(season, [s for s in self.students if s.is_active()], course_stats)
+        # On a mandatory term, sweep the whole curriculum (legacy behavior). On an optional
+        # term, sweep only courses actually offered then — adding Summer/Winter terms where
+        # almost nothing is offered would otherwise inflate offering_block/prereq_block purely
+        # from term count, not real scheduling problems. See CLAUDE.md's "Term/Season Model".
+        if season in get_mandatory_seasons(self.config):
+            courses_to_check = self.curriculum
+        else:
+            courses_to_check = {c.code: c for c in available}
+        self._record_blocks(season, [s for s in self.students if s.is_active()], course_stats, courses_to_check)
 
         # ── Cohort snapshot + timeline frame ──────────────────────── #
         self._record_term_outputs(term_idx, season, course_stats, seats_requested, seats_denied)
@@ -376,7 +395,7 @@ class Simulator:
         frame = {
             "term": term_idx,
             "season": season,
-            "label": term_label(term_idx),
+            "label": term_label(term_idx, self.config),
             "courses": course_stats,
             "stages": {
                 "cohorts": {
@@ -410,7 +429,7 @@ class Simulator:
         end up with `status` set but no matching OutcomeRecord (or vice versa)."""
         student.status = status
         if status == "GRADUATED":
-            student.grad_semester = term_idx - student.entry_term + 1
+            student.grad_semester = student.personal_semester
             if student.entry_term >= 0:  # study cohorts only
                 self.history.graduation_times.append(student.grad_semester)
         reason = {"GRADUATED": "graduated", "DROPPED": "dropped", "CENSORED": "censored"}[status]
@@ -423,21 +442,38 @@ class Simulator:
     def _seats_per_section(self) -> int:
         return int(self.config.get("seats_per_section", 35))
 
-    def _section_count(self, course: Course) -> int:
+    def _is_mandatory_season(self, season: str | None) -> bool:
+        return season is None or season in get_mandatory_seasons(self.config)
+
+    def _section_count(self, course: Course, season: str | None = None) -> int:
         """How many sections of this course the university runs per term.
 
         Taken from the calibrated `course_sections` map; falls back to whatever the
-        single-cohort `capacity` implies if a course is missing from the map.
+        single-cohort `capacity` implies if a course is missing from the map. `season`
+        defaults to `None` (treated as mandatory) so existing callers that don't pass it
+        keep today's exact behavior. On an optional (non-mandatory) season, sections come
+        from the separate, smaller `optional_term_course_sections` map, falling back to a
+        scaled-down regular section count (`optional_term_capacity_scale`) — see CLAUDE.md's
+        "Term/Season Model".
         """
         smap: dict[str, int] = self.config.get("course_sections", {})
-        if course.code in smap:
-            return max(1, int(smap[course.code]))
-        return max(1, math.ceil(course.capacity / self._seats_per_section()))
+        regular = (
+            max(1, int(smap[course.code])) if course.code in smap
+            else max(1, math.ceil(course.capacity / self._seats_per_section()))
+        )
+        if self._is_mandatory_season(season):
+            return regular
 
-    def _effective_capacity(self, course: Course) -> int:
+        optional_smap: dict[str, int] = self.config.get("optional_term_course_sections", {})
+        if course.code in optional_smap:
+            return max(1, int(optional_smap[course.code]))
+        scale = float(self.config.get("optional_term_capacity_scale", 0.3))
+        return max(1, math.floor(regular * scale))
+
+    def _effective_capacity(self, course: Course, season: str | None = None) -> int:
         # Per-term seats = sections × seats-per-section. Scenario hooks still scale it
         # for what-if experiments (capacity_overrides interpreted as a section multiplier).
-        seats = self._section_count(course) * self._seats_per_section()
+        seats = self._section_count(course, season) * self._seats_per_section()
         multiplier = float(self.scenario.get("capacity_multiplier", 1.0))
         overrides: dict[str, float] = self.scenario.get("capacity_overrides", {})
         if course.code in overrides:
@@ -467,9 +503,10 @@ class Simulator:
         season: str,
         active_students: list[Student],
         course_stats: dict[str, dict],
+        courses_to_check: dict[str, Course],
     ) -> None:
         for student in active_students:
-            for code, course in self.curriculum.items():
+            for code, course in courses_to_check.items():
                 if student.has_passed(code):
                     continue
                 prereqs_met = student.is_eligible_for(course, self.curriculum)

@@ -92,6 +92,10 @@ class Student:
         self.ever_probation: bool = False
         self.prev_stage = None
         self.grad_semester: int | None = None  # personal semester at graduation
+        # Mandatory-terms-elapsed counter — incremented once per Fall/Spring (mandatory)
+        # term by Simulator._run_term; optional terms (Summer/Winter) don't advance it. See
+        # CLAUDE.md's "Term/Season Model" section.
+        self.personal_semester: int = 0
 
     def reset(self, seed: int) -> None:
         """Re-instantiate RNG and wipe state for a new scenario (CRN)."""

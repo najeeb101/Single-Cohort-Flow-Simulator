@@ -241,6 +241,13 @@ Both are availability/prerequisite bottlenecks, not failure ones; that distincti
 
 The simulator is a **discrete-term agent-based model**. Time advances in whole semesters; the agents are 100 independent `Student` objects; and one shared `Simulator` drives them through the curriculum. There is no continuous time and no inter-student interaction except competition for finite seats. This section traces exactly what happens from start to finish, anchored to the real functions in `src/`.
 
+> **Update**: this walkthrough predates the multi-cohort model (§4 below covers that) and now
+> also predates the generalized term/season model — the 2-season ("Fall, Spring, Fall, ...")
+> assumption below is the *legacy default*, not the only supported cycle. See CLAUDE.md's
+> "Term/Season Model" section for the current, config-driven behavior (optional Winter/Summer
+> intersessions, the `personal_semester` clock, `mandatory_horizon_end_term`), which is more
+> current than this section for that topic.
+
 ### 5.1 Top-Level Run (`Simulator.run`)
 
 ```

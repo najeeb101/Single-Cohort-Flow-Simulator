@@ -66,6 +66,22 @@ class Course(Base):
     study_plan_order: Mapped[int] = mapped_column(default=99)
 
 
+class Instructor(Base):
+    """Synthetic/configurable faculty roster, plan-scoped like Course. `categories` is the
+    set of Course.category values (src/models/course.py) this instructor is qualified to
+    teach; `max_sections_per_term` is their teaching-load cap expressed in the same "sections"
+    unit course_sections uses, so capacity comparisons need no credit-hour conversion."""
+
+    __tablename__ = "instructors"
+    __table_args__ = (UniqueConstraint("plan_id", "name", name="uq_instructor_plan_name"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    plan_id: Mapped[int] = mapped_column(ForeignKey("plans.id"), nullable=False)
+    name: Mapped[str] = mapped_column(String, nullable=False)
+    categories: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
+    max_sections_per_term: Mapped[int] = mapped_column(nullable=False)
+
+
 class AppConfig(Base):
     """One row per plan, holding the full simulation_config.json shape for that plan."""
 

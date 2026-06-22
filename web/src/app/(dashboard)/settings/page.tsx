@@ -3,10 +3,11 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useSimulation } from "@/lib/SimulationContext";
-import { ApiError, listCurriculum, listPlans, updateConfig, updateCourse } from "@/lib/api";
+import { ApiError, listCurriculum, listInstructors, listPlans, updateConfig, updateCourse } from "@/lib/api";
 import { baselineFromMeta, buildOverrides, type BuilderState } from "@/lib/scenarioBuilder";
-import type { CourseRecord, PlanRecord } from "@/types/simulation";
+import type { CourseRecord, InstructorRecord, PlanRecord } from "@/types/simulation";
 import CurriculumTable from "@/components/settings/CurriculumTable";
+import InstructorTable from "@/components/settings/InstructorTable";
 import AdmissionsTab from "@/components/scenario-builder/AdmissionsTab";
 import PassRatesDropoutTab from "@/components/scenario-builder/PassRatesDropoutTab";
 import RegistrationPolicyTab from "@/components/scenario-builder/RegistrationPolicyTab";
@@ -20,12 +21,14 @@ export default function SettingsPage() {
   const baseline = baselineFromMeta(meta, []);
   const [state, setState] = useState<BuilderState>(baseline);
   const [courses, setCourses] = useState<CourseRecord[] | null>(null);
+  const [instructors, setInstructors] = useState<InstructorRecord[] | null>(null);
   const [activePlan, setActivePlan] = useState<PlanRecord | null>(null);
   const [status, setStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     listCurriculum().then(setCourses).catch(() => setCourses([]));
+    listInstructors().then(setInstructors).catch(() => setInstructors([]));
     listPlans()
       .then((plans) => setActivePlan(plans.find((p) => p.is_active) ?? null))
       .catch(() => setActivePlan(null));
@@ -122,6 +125,22 @@ export default function SettingsPage() {
           <p className="text-[12.5px] text-muted">Loading…</p>
         ) : (
           <CurriculumTable courses={courses} onChange={setCourses} />
+        )}
+      </section>
+
+      <section className="py-6">
+        <h2 className="mb-3 text-[15px] font-bold">Instructors</h2>
+        <p className="mb-3 text-[12.5px] text-muted">
+          Synthetic/configurable faculty roster — drives the shortfall/surplus checks on the{" "}
+          <Link href="/capacity" className="text-accent">
+            Capacity Planning
+          </Link>{" "}
+          page. Each instructor is qualified to teach any course in their categories.
+        </p>
+        {instructors === null ? (
+          <p className="text-[12.5px] text-muted">Loading…</p>
+        ) : (
+          <InstructorTable instructors={instructors} onChange={setInstructors} />
         )}
       </section>
 

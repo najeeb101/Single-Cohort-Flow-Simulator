@@ -32,7 +32,7 @@ The guiding principle: **the simulation engine is the asset; everything else is 
 | **M3 Student Flow Engine** | Stage nodes + term-over-term flows in `flow_timeline.json` (agent-based) | **REUSE / REFACTOR** | Agent model is *richer* than the PRD's transition-matrix framing. Optionally also derive a transition matrix for the Sankey view. |
 | **M4 Course Bottleneck Detection** | Four block signals (fail / capacity / offering / prereq) + per-cohort variants | **REUSE** | The crown jewel. Already best-in-class. |
 | **M5 Capacity Planning — seats** | Section-based seat utilization + heatmap | **REUSE** | Seats only. |
-| **M5 Capacity Planning — faculty/rooms/labs** | *Nothing* | **BUILD** | Model has no faculty/room/lab entity at all. New domain modeling. |
+| **M5 Capacity Planning — faculty/rooms/labs** | Instructor-load feasibility built (`src/capacity.py`, `Instructor` rows) — category-level headcount/section-load shortfall + per-course staffing risk, surfaced in `flow_timeline.summary.capacity_planning` next to seats + admissions. Rooms/labs/scheduling still unmodeled. | **PARTIAL** | Synthetic/configurable roster (`data/instructors.json`), same synthetic-first approach as the rest of the engine. Deliberately a feasibility check, not a scheduler/assignment optimizer — no per-course instructor assignment, no room/lab entities. |
 | **M6 Graduation Forecasting** | Mechanistic expected-graduation-semester (falls out of simulation) | **REFACTOR / BUILD** | Per-student *probability* + risk score = trained ML over real outcomes. Needs Phase 0 data. |
 | **M7 Admission Simulator** | Staggered multi-cohort admission + `compute_admissions_recommendation` | **REUSE / REFACTOR** | Add budget/resource outputs; multi-year horizon already natural. |
 | **M8 Scenario Planning** | **Done.** Multi-tab Scenario Builder (Capacity / Pass Rates & Dropout / Admissions / Registration Policy, Simple/Advanced) + persistent per-user `Scenario`/`Run` storage | **REUSE** | User-defined scenarios shipped, replacing the single-baseline limitation. See §3.2. |
@@ -282,3 +282,10 @@ the advisor**:
 Secondary, lower priority: decide whether to rebuild §2.2's calibration-fitting pipeline —
 it was deleted, not just deferred, so this is a "build it again" decision, not a "finish
 it" one. Only worth doing once real data (or at least a calibration demo) is wanted again.
+
+**Update:** a "Capacity Planning" report shipped on top of this (M5 row above) — driven by
+the practical goal of making the platform usable by an actual department head to plan intake,
+seats, *and* staffing in one place, not by this section's advisor-demo gate. It bundles the
+existing seat-utilization + admissions-recommendation reuse with a new, deliberately scoped-down
+slice of M5 (instructor-load feasibility only — no rooms/labs/scheduling). Doesn't change the
+§3.1 checklist above; it's additive, the same way multi-plan support was.
