@@ -59,8 +59,9 @@ conventions (middleware, route handlers) from training data.
 - `README.md`: trim calibration references (script invocation, `B_calibrated` description,
   `calibration_report.json` generation, file-tree mentions — lines 33, 83, 100, 105-113,
   193, 201-202, 238).
-- Leave `docs/technical_design.md`, `docs/assumptions.md`, `report/report_v2.md` alone —
-  historical narrative, not instructions to run anything removed.
+- Leave `docs/technical_design.md`, `docs/assumptions.md`, `report/report_v2.md` (since renamed
+  to `docs/project_overview.md`) alone — historical narrative, not instructions to run anything
+  removed.
 - `outputs/reports/calibration_report.json` (currently open in the user's IDE) just goes
   stale since nothing regenerates it — not auto-deleting it, that's the user's call.
 

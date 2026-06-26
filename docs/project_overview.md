@@ -1,287 +1,367 @@
-# Prerequisite Chains, Seasonal Scheduling, and Shared-Seat Congestion in the Qatar University Computer Science Curriculum: A Multi-Cohort Discrete-Event Simulation
+# Single-Cohort Flow Simulator — Project Overview & Technical Guide
 
 **Author:** Najeeb Barkhad
-**Date:** June 2026
-**Version:** 2 (multi-cohort steady-state model)
 
-> **What changed since v1.** Version 1 simulated a single cohort of 100 students in isolation. Version 2 models a **steady-state university**: a new cohort is admitted every year, several incumbent cohorts are seeded before the study window as a warm start, and **all cohorts compete for one shared pool of course seats**. Two further mechanisms are new: a **GPA-driven dropout model** (replacing the single repeated-fail rule), and **section-based capacity** (per-course `sections × seats-per-section`, auto-calibrated to peak demand) replacing the flat per-course seat caps. The headline result of v2 is that, once seat supply is sized realistically to demand, **capacity contention largely disappears and the dominant delay mechanisms are seasonal scheduling and the prerequisite structure** — not the registrar's seat counts.
-
----
-
-## Abstract
-
-This study uses a discrete-term, agent-based simulation to identify where students lose time in the Qatar University (QU) BSc Computer Science 2024 study plan. Unlike a single-cohort model, the simulator runs a steady-state university: four study cohorts of 100 students enter one per year, three incumbent cohorts are seeded before the study window so gateway courses are already partly occupied, and every cohort competes for a single shared pool of course seats sized by realistic section counts. Each term models course selection, priority seat allocation, stochastic pass/fail, GPA, academic probation, GPA-driven dropout, and graduation. Non-completion is decomposed into four independent signals — course failures, capacity denials, missed seasonal offerings, and unmet prerequisites — so academic difficulty can be separated from structural constraints.
-
-Across 30 random seeds the model graduates **71.6% of study-cohort students within 12 semesters (95% CI [71.0%, 72.2%])**, against QU's published 72.3% six-year benchmark. The central v2 finding is structural: when sections are sized to the 75th percentile of per-term demand, **capacity blocks collapse to a residual handful on introductory and non-major courses** (top capacity block: CMPS 151, 22 events), while the prerequisite and seasonal-offering signals dominate by one to two orders of magnitude. The senior-project compound rule (CMPS 493 → CMPS 499) and the CMPS 303 gateway own the prerequisite-block panel; the six once-a-year courses own the offering-block panel. A capacity-sweep over the binding gateways shows graduation is bound by CMPS 303 and CMPS 350 section supply, not by the dropout parameters. The highest-leverage reforms are therefore adding seasonal offerings for the senior-project gates (CMPS 310) and the shallowest once-a-year course (CMPS 351), and protecting early, on-phase passage through CMPS 303.
-
----
-
-## 1. Introduction
-
-Graduation rate and time-to-degree are primary indicators of curriculum efficiency. In programs with deep prerequisite chains and seasonally constrained offerings — engineering and computer science especially — structural features of the curriculum can delay students as much as academic difficulty: a student who fails a once-a-year course waits a full year, not a semester.
-
-A single-cohort model (v1 of this study) can expose prerequisite and seasonal effects but cannot represent the one constraint every real registrar manages daily: **a fixed pool of seats shared across all cohorts simultaneously**. A freshman, a sophomore, and a senior all want CMPS 251 in the same Fall term, and priority registration decides who is displaced. Capturing this requires a steady-state, multi-cohort model in which cohorts overlap in time and contend for the same sections.
-
-Qatar University's 2024 CS study plan requires 120 credit hours across 38 courses over a nominal 8-semester path. Six upper-curriculum courses are offered only once per year: CMPS 323 (Algorithms), CMPS 405 (Operating Systems), and CMPS 351 (Database Systems) in Spring; CMPS 310 (Software Engineering), CMPS 380 (Cybersecurity), and CMPE 355 (Computer Networks I) in Fall. The senior-project sequence (CMPS 493 → CMPS 499) carries a compound eligibility rule (84 CH plus specific upper-level courses). This study quantifies the resulting delay and answers: **which prerequisite chains and scheduling constraints contribute most to student delay and non-completion, and does shared-seat congestion change the answer?**
+> **A note on this document.** Earlier versions of this write-up were a research-paper-style
+> report with a Results section full of percentages (graduation rate, dropout rate, bottleneck
+> counts, confidence intervals). Those numbers depend on the simulator's current configuration —
+> pass rates, section counts, dropout parameters, whether optional Winter/Summer terms are
+> switched on — and that configuration is meant to change as the curriculum committee tunes it.
+> Every number in a fixed write-up like that goes stale the moment someone edits
+> `simulation_config.json` or flips a Settings toggle, which already happened twice during this
+> project. This version instead explains **what the project does and how it works**, in enough
+> technical depth to actually understand and extend it, without claiming any specific output as
+> "the" answer. If you want today's actual numbers, run the simulation — that's what it's for.
 
 ---
 
-## 2. Related Work
+## 1. What this project is
 
-Saltzman et al. (2019) showed that discrete-event simulation reveals curriculum bottlenecks invisible to aggregate enrollment statistics, demonstrating that department-level graduation rates mask course-level congestion. Star et al. (CSULB) modeled student flow through the CSU Long Beach College of Engineering using 15-unit curriculum blocks and found that admission or load shocks take roughly six years to propagate through a stable curriculum — a steady-state lag the present multi-cohort model reproduces directly through its warm-start incumbents.
+Qatar University's BSc Computer Science program, like most CS programs, has deep prerequisite
+chains and courses that are only taught once a year. A student who fails a once-a-year course, or
+gets stuck waiting on a prerequisite, doesn't lose a semester — they lose a full year. The
+question this project exists to answer is: **when a student doesn't graduate on time, which kind
+of obstacle was actually responsible** — a hard course, a once-a-year scheduling gap, an upstream
+prerequisite, or a too-small lecture section — and which of those is the curriculum committee's
+most effective lever to pull?
 
-Duarte and Márquez (n.d.) present an aggregate mathematical model of student flow through an engineering curriculum at the Universidad Nacional de Colombia, estimating level populations, graduate counts, and graduation times while accounting for repetition, approval, and transfer, validated against historical enrollment data. Where their model tracks pooled counts flowing between levels, the present study is agent-based: each of 400 study-cohort students (plus 300 incumbents) is simulated individually, so delay can be attributed to a specific course-level constraint — offering season, shared-seat capacity, or prerequisite chain — rather than inferred from pooled rates.
+You can't answer that from a transcript spreadsheet, because a spreadsheet only tells you a
+student was *delayed*, not *why*. So this project builds a small, fast, deterministic simulation
+of the whole department: synthetic students move through the curriculum one semester at a time,
+competing for the same limited course seats as every other cohort enrolled at the same time, and
+every time someone gets stuck, the simulator records **which one of four distinct reasons** caused
+it. Run that for a few thousand simulated student-careers and you get a clean, attributable answer
+instead of a guess.
 
-No publicly available QU study disaggregates graduation delay by course-level constraint type under shared-seat contention, which is the contribution here.
+It is deliberately **not** a prediction tool for any real, named student, and it does not use real
+QU student records (none are public). It is a *structural* model: given the rules of the
+curriculum (prerequisites, seasonal offerings, seat counts) and reasonable assumptions about pass
+rates and attrition, what does the *shape* of delay look like, and which structural fix would
+relieve the most of it? See §6 for exactly what it does and doesn't claim to know.
 
 ---
 
-## 3. Methodology
+## 2. The university being modeled
 
-### 3.1 Multi-Cohort Steady-State Model
+**The curriculum.** QU's 2024 CS study plan is 38 courses, 120 credit hours, on a nominal
+8-semester path. A handful of upper-level courses are only taught in one season a year (e.g. a
+Fall-only software engineering course, Spring-only algorithms/operating-systems/database
+courses) — missing one of those isn't a one-semester slip, it's a full-year wait. One course
+(Data Structures) is a *gateway*: passing it is the prerequisite for three other courses at once,
+so any delay there cascades into three separate downstream delays simultaneously. The
+senior-project sequence has a *compound* eligibility rule — it requires several specific courses
+passed *and* a minimum credit-hour count, all at once — which is the curriculum's hardest gate to
+satisfy cleanly.
 
-The simulator runs a **global clock** spanning incumbent warm-up and the study window. Four study cohorts of 100 students enter at global terms 0, 2, 4, 6 (one per academic year); three incumbent cohorts of 100 enter at terms −2, −4, −6 as a warm start, so by the time study cohort 0 arrives the gateway courses are already partly occupied and seat contention is realistic from term 0 rather than ramping up from an empty university. The university therefore reaches a genuine steady state in which freshmen, sophomores, and seniors coexist and compete.
+**One shared seat pool, not one cohort in isolation.** A real registrar doesn't size a course's
+seats for one entering class — every cohort currently enrolled (freshmen through seniors) shows
+up wanting the same popular course in the same term, and someone has to decide who gets in. A
+single-cohort model can't represent that competition at all. This simulator runs several cohorts
+at once: a new cohort is admitted every year, and a handful of "incumbent" cohorts are seeded in
+*before* the study window starts specifically so that, by the time the cohorts you actually care
+about arrive, the gateway courses are already realistically full — not an artificially empty
+campus. All cohorts draw from the exact same per-course seat pool, term after term.
 
-- **Personal vs. global time.** Graduation, delay, and censoring are judged on each student's *personal* clock (`personal_semester = global_term − entry_term + 1`), so every student receives exactly `max_terms = 12` semesters from their own admission regardless of when they entered.
-- **Headline metrics are scoped to study cohorts** (entry term ≥ 0; 400 students). Incumbents are a warm-start device and appear only in the per-cohort ledger.
-- **Determinism (CRN).** Each student owns a random stream seeded by `seed + student_id` with a globally unique id, so results are reproducible and scenario differences reflect structure, not noise.
+**The term calendar.** Every cohort always has a guaranteed Fall and Spring term — those are
+*mandatory*: they're what advances a student's personal graduation clock and what every cohort is
+admitted into. Winter and Summer intersessions exist as an **optional, admin-controlled feature**
+(Settings → "Enable optional Winter/Summer intersessions", off by default): when off, the
+simulator runs a plain two-season academic year; when on, a handful of high-demand courses get a
+smaller bonus section in Winter/Summer that a student can use to retake a failed course or get
+ahead, without it costing them a mandatory semester on their personal clock. Turning it on or off
+doesn't require re-entering any data — the optional-term course list and section sizes live in the
+configuration the whole time, inert until switched on.
 
-### 3.2 Per-Term Loop (three phases)
+---
 
-Each term, all active students across all cohorts proceed through:
+## 3. How the simulation actually works
 
-1. **Desired enrollment.** Each student builds a priority-ordered list — retakes, then newly eligible required CS courses in study-plan order, then CS electives (≥ 60 CH), then non-CS filler — capped at 18 CH (12 CH on probation).
-2. **Shared-pool seat allocation.** Requesters for each course are pooled across *all cohorts* and ranked by registration tier (derived from completed credit hours, matching QU's priority-registration policy) with a stable random tiebreak. The first `sections × seats-per-section` are granted; the rest receive a *capacity block*. Seniors from older cohorts automatically outrank freshmen.
-3. **Outcome resolution.** Pass/fail is drawn from a base course pass rate shifted by the student's fixed ability score (`clip(base + ability, 0.05, 0.98)`); passing students draw a letter grade from a difficulty-tier distribution; GPA, probation, and dropout are updated.
+### 3.1 The mental model
 
-### 3.3 Section-Based Capacity (new in v2)
+This is a **discrete-term, agent-based simulation**. There's no continuous time — the clock only
+ever advances in whole semesters. The "agents" are `Student` objects, each an independent little
+state machine (GPA, completed courses, status). Nothing is solved with an equation; every term,
+every student tries to register for courses, some requests get denied because of seat scarcity,
+and a seeded, reproducible coin-flip decides who passes and who fails. Run that loop for up to
+twelve semesters per student and look at what comes out the other end. Everything else in the
+codebase — analytics, charts, the API, the web dashboard — is just *reporting* on what happened
+during those term-by-term loops.
 
-Per-term seats for a course are `course_sections[code] × seats_per_section` (35 seats/section). Section counts are auto-calibrated by `scripts/size_sections.py` to the **75th percentile of per-term demand** for CS courses (so seats bind on CS gateways during enrolment bulges but not chronically), with non-CS courses sized to full peak so they never bottleneck. This replaces v1's flat per-course caps with realistic, course-specific, hand-tunable section counts: relieving a bottleneck means *adding a section*, exactly the lever a department controls.
+### 3.2 Two clocks, not one
 
-Two gateways were hand-raised one section above the demand-percentile baseline — **CMPS 303 (2 → 3)** and **CMPS 350 (2 → 3)** — because both were capacity-binding and gate downstream progress (CMPS 303 unlocks three upper courses; CMPS 350 satisfies the CMPS 493 compound rule). This lifts the 30-seed graduation rate from 70.8% to 71.6%, toward the 72.3% benchmark (see §5.4).
+There's a single **global clock** shared by the whole university (term 0, term 1, term 2, ...,
+running negative for the incumbent warm-start cohorts admitted before the study window). But a
+student's own graduation deadline is judged on their **personal clock** — their own semester count
+since *their* admission, which only ticks forward on a mandatory term. A student admitted years
+into the simulation still gets a full personal budget of semesters, exactly like the first cohort
+admitted. This distinction is also what makes an optional Winter/Summer term "free": a student can
+take a course then, and it updates their GPA/credits/failed-attempts normally, but it does not
+advance their personal clock — so using the bonus term never costs them a mandatory semester, even
+if it happens to be the term that finishes their degree.
 
-### 3.4 GPA-Driven Dropout (new in v2)
+### 3.3 The three-phase term loop
 
-V1 dropped students only after repeated failures of one course. V2 ties dropout to the GPA/probation system with two independent causes:
+Every term, for **every active student across every cohort at once** (this is what makes it a
+genuine multi-cohort model rather than four separate copies of a single-cohort one — they all
+compete for the same seats), three phases run in strict order:
 
-- **Primary — chronic low GPA.** Once a student has accumulated `≥ 25 CH`, each term with GPA below 2.0 carries a per-term hazard `base_hazard × (1 + (2.0 − GPA))` that grows with severity and is **doubled in the first four semesters** (early attrition is front-loaded, as in real programs).
-- **Secondary — stuck on a gateway.** Failing one course three times still drops a student with probability 0.15 per further failure, even if overall GPA is survivable.
+1. **Desired enrollment.** Each student independently builds a wish-list: retakes of previously
+   failed courses first, then required courses in priority order, then electives only once
+   they've crossed a credit-hour threshold, then filler courses — stopping once the next course
+   would exceed their per-term credit-hour cap (a lower cap applies if they're on academic
+   probation). Nothing about seat availability is checked yet — a student can "want" a course that
+   turns out to be full.
+2. **Seat allocation.** For each course, if there are enough seats for everyone who wants it,
+   everyone gets in. Otherwise, requesters are ranked by completed credit hours (more credits =
+   registers first, mirroring real priority registration) with a stable random tiebreak, and only
+   the top N — N being that course's actual section count times seats-per-section — get a seat.
+   Everyone else is recorded as **capacity-blocked**. A backlog of held-back juniors will
+   out-rank a fresh batch of freshmen for a popular gateway course every single term — that
+   seniority effect is the whole reason a shared, multi-cohort seat pool matters.
+3. **Outcome resolution.** For each granted seat, the student's personal pass probability (a base
+   course pass rate adjusted by their own fixed ability score) decides pass or fail; a pass draws
+   a letter grade from a difficulty-tiered distribution, a fail is an F. GPA, academic probation,
+   and the dropout check (§3.5) update immediately afterward, in the same term.
 
-**Calibration scope.** The only QU anchor is the *aggregate* 72.3% twelve-semester graduation rate; the open data is semester-level counts, not student histories, so dropout *timing* cannot be validated. The early-semester front-loading is a face-validity assumption, not a data fit. Critically, a sweep shows `base_hazard` does **not** control the graduation rate — lowering it merely trades *dropped* for *censored* students (weak-GPA students who do not finish either way). Graduation is bound by gateway seat supply, not by the dropout parameters (§5.4).
+### 3.4 The four-signal bottleneck model
 
-### 3.5 Four Block Signals
+This is the project's actual contribution. Every term, for every course a student hasn't yet
+passed, the simulator records **exactly one** of four mutually-exclusive reasons they're not
+enrolled in (or didn't pass) that course:
 
-Four signals are tracked independently and never aggregated; each has a per-cohort variant for "where did they get stuck" post-mortems.
-
-| Signal | What it counts | Intervention type |
+| Signal | Means | Points to |
 |---|---|---|
-| `fail_counts` | Student attempted and failed | Course difficulty, teaching quality |
-| `capacity_block_counts` | Eligible student denied a shared seat | Section capacity expansion |
-| `offering_block_counts` | Eligible student, course not taught this term | Add offering season |
-| `prereq_block_counts` | Student lacks prerequisites | Upstream course bottleneck |
+| **Failure** | They took it and failed | Course difficulty / teaching support |
+| **Capacity block** | They wanted a seat and didn't get one | Add sections |
+| **Offering block** | They're eligible, but it isn't taught this term | Offer it more often |
+| **Prerequisite block** | They haven't passed the prerequisite yet | Fix the *upstream* course |
 
-**Unit note.** The four are *not* comparable in magnitude. Failures count per-attempt events; offering and prerequisite blocks accumulate one event per active eligible student per term they remain blocked, so they run one to two orders of magnitude larger. Comparisons are meaningful *within* each panel (across courses), not *between* panels. Multi-cohort totals are also larger than v1's single-cohort counts because four study cohorts plus three incumbents contribute events.
+These four counters are tracked completely separately, per course **and** per cohort, and the
+codebase deliberately never adds them together — they aren't even the same kind of unit. A failure
+is one event per attempt. An offering/prerequisite block accumulates once per *eligible, still-
+blocked student, per term* they remain stuck, so they're naturally an order of magnitude larger
+than failure counts — that's a property of the unit, not a sign that scheduling is "worse" than
+academic difficulty. The right way to read the output is *within* each signal (which courses rank
+highest for that one specific cause), never by comparing raw totals *across* signals, and never by
+summing them into one "trouble score." This separation is what lets you tell the difference
+between "this course is genuinely hard" and "this course is fine, but the one upstream of it is
+a chokepoint" — two problems that look identical from a graduation-rate spreadsheet but call for
+completely different fixes.
 
-### 3.6 Curriculum Structure
+A capacity caveat worth knowing if optional terms are switched on: a course's capacity-block count
+can mix a comfortably-staffed mandatory-term offering with a tiny, easily-saturated optional-term
+bonus section — so a course can show up with a large capacity-block total purely from its Winter/
+Summer section being oversubscribed, while its actual Fall/Spring offering has no problem at all.
+The fix differs (add one bonus section vs. redesign the regular-term schedule), so it's worth
+checking *which* term a capacity block came from, not just the total.
 
-The 2024 QU CS study plan is encoded as 38 courses totalling exactly 120 CH. The CS-core prerequisite structure (from the official 2024 CS Prerequisite Flowchart):
+### 3.5 GPA, probation, and dropout
 
-| Course | Prerequisites | Offering |
+GPA is the standard credit-weighted average, with failed attempts counted in the denominator (an F
+is 0 points but the credits attempted still count) — so chronic failure visibly drags GPA down,
+the way it does in reality. A student whose GPA falls below the probation threshold gets a reduced
+per-term credit-hour cap until it recovers. When a student retakes and passes a previously failed
+course, the *prior failing attempts of that specific course* are removed from the GPA denominator
+(a grade-replacement policy) — but failures on *other* courses are untouched, so GPA recovery is
+gradual, not a clean reset.
+
+Two independent triggers can end a student's simulated career early:
+- **Chronic low GPA** — once a student has enough credits for GPA to be meaningful, each term
+  their GPA sits below the probation line carries a real, front-loaded risk of leaving (more
+  likely in their first few semesters, the way real first-year/sophomore attrition is heavily
+  weighted toward the early years).
+- **Stuck on one course** — failing the *same* course repeatedly enough times carries its own
+  separate risk of leaving, even for a student whose overall GPA would otherwise be survivable.
+
+A student who neither drops nor finishes all requirements within their personal semester budget
+exits as "censored" — not a failure, just someone the simulation's window wasn't long enough to
+resolve either way.
+
+### 3.6 Determinism: why the randomness is trustworthy
+
+Every student owns their own private random-number stream, seeded by a combination of a global
+seed and that student's own unique ID, re-created identically every time a given configuration is
+run. That means **the same simulated student draws the exact same sequence of "random" pass/fail
+outcomes in every scenario you compare them across** — so if you add five seats to a gateway course
+and graduation rate moves, you know that's because of the seats, not because the dice happened to
+land differently. This is what makes structural what-if comparisons (Scenario Builder) causally
+meaningful instead of just noisy. A student's fixed ability score and their seat-allocation
+tiebreak token are deliberately kept on separate draws so they don't perturb the pass/fail stream
+itself.
+
+### 3.7 Capacity: sections, not a flat cap
+
+Per-term seats for a course are *sections × seats-per-section* — not an arbitrary flat number. A
+calibration script auto-sizes each course's section count to a configurable percentile of its own
+historical peak demand (high enough that ordinary enrollment bulges don't bind, not so high that
+sections sit empty), and that result is then hand-tunable per course — relieving a bottleneck is
+"add a section" in the config, not a code change. When optional terms are enabled, that bonus
+session uses its *own*, separately-sized (and typically much smaller) section count, because the
+demand for a one-off recovery session is a different, smaller thing than regular-term demand.
+
+### 3.8 The admissions-recommendation heuristic
+
+The simulator also produces a single-run sizing heuristic: it scores a representative cohort
+against four target health criteria (graduation rate, average time-to-degree, seats denied per
+student, and *throughput stability* — how evenly graduates come out year over year rather than in
+lumpy batches) and recommends scaling next year's intake up or down by whichever criterion is
+closest to breaching its target. It's explicitly a decision-support nudge, not a calibrated
+forecast — the right way to use it is as a starting point for a real intake-sensitivity
+discussion, not as the answer itself.
+
+### 3.9 How it's all wired together
+
+```
+data/curriculum.json, simulation_config.json
+        │  (one-time seed into the database; the database is authoritative after that)
+        ▼
+Simulator.run()  ──►  History (raw counters, per-term snapshots, the four block signals)
+        ▼
+analytics.py  (headline metrics, per-cohort metrics, the bottleneck/capacity-planning report)
+        ▼
+   ┌────┴───────────────────────────────┐
+   ▼                                     ▼
+visualize.py                       service.py::run_simulation()
+(static charts, the offline/batch     (the same engine, returned as an
+ `py run.py` path)                     in-memory dict — the API's seam)
+                                              ▼
+                                        FastAPI backend
+                                              ▼
+                                  Next.js dashboard — Scenario Builder,
+                                  animated curriculum graph, Settings,
+                                  Capacity Planning, multiple saved Plans
+```
+
+There is only **one** simulation engine. The offline batch run and the live web dashboard call the
+exact same code; the only difference is whether the result gets written to disk as PNGs/CSVs or
+returned as JSON to a browser.
+
+---
+
+## 4. What kind of insight this actually produces
+
+Because the four signals (§3.4) are tracked separately rather than collapsed into one
+"graduation rate," the simulator can answer questions a transcript spreadsheet can't, for example:
+
+- *Is a course's low pass-through rate because students aren't ready for it (a prerequisite
+  problem one course upstream), because it's only offered once a year (a scheduling problem),
+  because there aren't enough seats (a capacity problem), or because it's just a hard course (an
+  academic-support problem)?* These four causes look identical from the outside — "students don't
+  finish this course on time" — but call for completely different fixes, and the simulator
+  attributes each blocked student-term to exactly one of them.
+- *Does a single upstream gateway course explain why three unrelated-looking downstream courses
+  all seem to be bottlenecks at once?* If course X is the prerequisite for courses A, B, and C,
+  a delay at X shows up as a prerequisite-block spike on A, B, *and* C simultaneously, even though
+  nothing is actually wrong with A, B, or C themselves. Watching for that lockstep pattern across
+  courses is how the model points you at the real chokepoint instead of its symptoms.
+- *If we relieve one specific bottleneck (add a section, add a second offering season, raise a
+  pass rate), does the overall graduation rate actually move, or was that never the binding
+  constraint?* This is what the Scenario Builder is for — Common Random Numbers (§3.6) make the
+  *difference* between two scenarios trustworthy even when neither scenario's absolute number is.
+- *How much does the shared seat pool's behavior vary year to year just from cohort-to-cohort
+  noise, at a fixed intake size?* — which is the actual question behind the admissions
+  recommendation (§3.8): whether the pool can absorb a given intake size *smoothly*, not just on
+  average.
+
+What it deliberately does **not** do is hand you a single number and tell you that's "the"
+graduation rate QU should expect — see §6.
+
+---
+
+## 5. Design decisions and tradeoffs
+
+Every choice below traded something away on purpose. Knowing *why* matters more than just knowing
+*what*.
+
+| Decision | What it buys | What it gives up |
 |---|---|---|
-| CMPS 151 Programming Concepts | — | Fall + Spring |
-| CMPS 251 Object-Oriented Programming | CMPS 151 | Fall + Spring |
-| CMPS 303 Data Structures | CMPS 251 | Fall + Spring |
-| CMPS 350 Web Development | CMPS 251 | Fall + Spring |
-| CMPS 351 Database Systems | CMPS 251 | **Spring only** |
-| CMPS 310 Software Engineering | CMPS 251 | **Fall only** |
-| CMPE 263 Computer Architecture | CMPS 151, CMPS 205 | Fall + Spring |
-| CMPE 355 Computer Networks I | CMPE 263 | **Fall only** |
-| CMPS 380 Cybersecurity | CMPS 303 | **Fall only** |
-| CMPS 323 Design & Analysis of Algorithms | CMPS 303, CMPS 205 | **Spring only** |
-| CMPS 405 Operating Systems | CMPS 303, CMPE 263 | **Spring only** |
-| CMPS 493 Senior Project I | *compound rule* | Fall + Spring |
-| CMPS 499 Senior Project II | CMPS 493 | Fall + Spring |
-
-- **The CMPS 303 gateway.** CMPS 303 is the prerequisite for CMPS 323, CMPS 380, and CMPS 405 — the single highest-leverage node in the graph.
-- **The senior-project compound rule.** CMPS 493 requires simultaneously ≥ 84 CH, a pass in CMPS 310, and a pass in CMPS 350 *or* CMPS 405; CMPS 499 then requires CMPS 493. This two-course tail plus the credit-hour gate is the curriculum's terminal bottleneck.
-
-### 3.7 External Benchmark
-
-QU publishes aggregate semester-level enrollment and graduation counts via the Qatar Open Data Portal. Two windows were computed: a 4-year (8-semester) rate of 51.5% (Fall 2015–2019 cohorts) and a 6-year (12-semester) rate of 72.3% (Fall 2015–2016). These are downstream validation benchmarks, not simulation inputs.
+| **Agent-based (individual students), not an aggregate flow model** | Delay can be attributed to a specific course-level cause for a specific (simulated) student, not just inferred from pooled counts | More computation than a pooled-counts model; doesn't scale to a much larger university without rework |
+| **Common Random Numbers (paired seeds per student across scenarios)** | Causally clean scenario comparisons — a metric change can be attributed to the structural change you made, not random noise | A single scenario's output isn't an independent draw from "the real world"; only *comparisons* are fully trustworthy |
+| **Four separate, never-summed block signals** | Distinguishes course difficulty from scheduling from prerequisite structure from seat capacity — the actual point of the project | More to interpret than one combined "trouble score"; requires reading each panel on its own terms |
+| **Multi-cohort, shared seat pool, warm-started incumbents** | Captures real priority-registration competition between simultaneously-enrolled cohorts, not just one cohort in an empty university | More moving parts than a single-cohort model; per-cohort outcomes need their own bookkeeping |
+| **Config-driven term calendar, with optional terms as an explicit admin toggle** | Winter/Summer behavior can be switched on or off without touching code or re-entering data; generalizes beyond a strict 2-season assumption | More branching logic in the season/capacity helpers than a single hardcoded calendar would need |
+| **Section-based capacity (sections × seats-per-section), auto-calibrated then hand-tunable** | Capacity is data, not code — relieving a bottleneck is a config edit | Calibration is a manual/semi-automatic demand-percentile step, not driven by real staffing data |
+| **One fixed ability score per student, not per-subject or time-varying** | Simple, one RNG draw, trivially reproducible | Can't represent "strong at math, weak at writing," or a student maturing/burning out over time |
+| **Multi-plan architecture (each plan a full, independent copy of curriculum + config + instructors)** | Two plans can never accidentally corrupt each other; switching plans is instant and per-user | Two 95%-similar plans store two full separate copies of every course row, not a diff |
+| **No caching on the simulate endpoint** | No shared mutable state between users on different active plans — nothing to race | Every API call fully re-runs the simulation; identical repeated requests aren't free |
+| **SQLite, not Postgres/MySQL, for local dev** | Zero setup — the database is just a file | Not built for concurrent multi-process write load; fine for this scale, not a production multi-tenant system |
 
 ---
 
-## 4. Results
+## 6. What this model deliberately does not know
 
-All figures are generated from the canonical seed (42); point estimates below are from that run, and 30-seed Monte Carlo means with 95% confidence intervals are reported alongside the headline metrics.
+This section matters as much as the mechanics above — overclaiming what a model like this can
+tell you is the fastest way to lose credibility with anyone technical reviewing it.
 
-### 4.1 Steady-State Outcomes (study cohorts)
+1. **The numbers feeding it are assumed, not measured.** Per-course pass rates, section counts,
+   and dropout-hazard parameters are calibrated *estimates*, tuned so the model's aggregate output
+   lands near one public external benchmark (QU's published multi-year graduation rate) — not
+   real QU per-course institutional data, because no public dataset like that exists. That
+   benchmark validates the aggregate, not any individual course's assumed pass rate. Trust
+   *relative* comparisons between two scenarios (same seeds, one structural change) far more than
+   any single scenario's absolute output.
+2. **No minimum-grade prerequisites.** Any passing grade satisfies a prerequisite here. If the
+   real program enforces a higher minimum grade for some prerequisite, this model doesn't know
+   that and will look slightly more optimistic than reality on courses where it matters.
+3. **Optional terms, when enabled, are deliberately narrow.** Only a small, hand-picked list of
+   high-demand courses get a Winter/Summer bonus section — most of the curriculum still can only
+   be taken in a mandatory Fall/Spring term. Course withdrawal (a real escape hatch students have)
+   isn't modeled at all: every enrolled student receives either a pass or an F, with no option to
+   withdraw before it counts against them.
+4. **No non-academic attrition causes.** Financial hardship, transferring schools or majors,
+   health, family obligations — none of that exists here. The only exits are: graduate, get pushed
+   out by chronic low GPA, get pushed out by repeatedly failing one course, or run out of personal
+   semesters.
+5. **Ability is one scalar per student, not per-subject and not time-varying.** A student is
+   generically "stronger" or "weaker" by the same fixed amount across *every* course, for their
+   entire simulated career. Real students are uneven across subjects and can improve or decline
+   over time; this model captures neither.
+6. **No instructor- or section-level quality variation.** Every section of a course shares the
+   same pass rate. Real outcomes vary a lot by instructor; this model averages that away.
+7. **The curriculum itself is static for the whole run.** Courses, prerequisites, and pass rates
+   don't change over the years simulated, even though real curricula get revised.
+8. **It is not a predictive tool for any named, real individual student.** This is a
+   population-level what-if instrument, not an early-warning system for whether one particular
+   student will pass their next course.
+9. **Closed-system assumption.** No transfer students arrive mid-program, nobody changes major
+   into or out of a cohort, no transfer or AP credit. Every simulated student starts at zero
+   credit hours and exits through one of four terminal states.
+10. **Re-running with many random seeds tells you about the model's own sensitivity to chance, not
+    about real-world uncertainty.** A confidence interval here describes how much *this model,
+    with these fixed assumptions,* varies run to run — it is not a statement about whether the
+    underlying assumptions themselves are correct.
 
-| Metric | Single seed | 30-seed mean | 95% CI |
-|---|---|---|---|
-| Graduation rate (≤ 12 semesters) | **73.5%** | **71.6%** | [71.0%, 72.2%] |
-| Academic dropout rate | 23.5% | 24.7% | [24.2%, 25.3%] |
-| Censored (hit 12-semester horizon) | 3.0% | 3.6% | [3.3%, 4.0%] |
-| Average graduation time | 8.85 sem | 8.85 sem | [8.83, 8.87] |
-| On-time rate (≤ 8 semesters) | 36.0% | 34.4% | [33.9%, 34.8%] |
-| Ever on academic probation | 20.0% | 21.8% | [21.3%, 22.3%] |
-| Mean GPA at graduation | 2.93 | 2.92 | [2.92, 2.93] |
-
-**Comparison with real QU data:**
-
-| Horizon | Simulation (30-seed) | Real QU | Gap |
-|---|---|---|---|
-| 4-year / 8 semesters | 34.4% (on-time) | 51.5% | −17.1 pp |
-| 6-year / 12 semesters | 71.6% | 72.3% | −0.7 pp |
-
-The 12-semester rate sits **0.7 pp below** the QU benchmark, with the benchmark at the upper edge of the 95% CI. The model centers slightly low because it omits two real recovery mechanisms (summer enrolment and course withdrawal); both would relax the seasonal bottlenecks the model identifies, so the direction of the gap is consistent with the findings. The 4-year on-time gap (−17 pp) reaffirms that the nominal 8-semester plan is structurally unachievable for most students under realistic failure and seasonal constraints.
-
-### 4.2 Graduation Time Distribution
-
-![Figure 1: Time-to-Graduate Distribution](../outputs/figures/graduation_histogram.png)
-
-**Figure 1** shows semesters-to-graduate for the 294 study-cohort graduates (seed 42).
-
-- A **sharp peak at semester 8** (104 graduates), with 40 graduating on-time-or-early at semester 7. These 144 on-time students (36%) navigate the critical path with no seasonal misalignment.
-- The remaining 150 graduates spread across semesters 9–12 (68, 41, 25, 16), a **declining tail** rather than a spike at the horizon: each once-a-year course missed or failed adds a full year, scattering late graduations. That semester 12 is the *smallest* late bar (16) confirms few students are pinned to the final opportunity.
-- The structural minimum is set by CMPS 251 → CMPS 303 → CMPS 405 (Spring) → CMPS 493 (compound 84 CH + CMPS 310) → CMPS 499. Because CMPS 310 is Fall-only and CMPS 405 Spring-only, the two senior-project prerequisites cannot clear in one season, forcing a full year between them and placing the realistic minimum at semester 8 — exactly the peak.
-
-### 4.3 University Population Over Time
-
-![Figure 2: University Population](../outputs/figures/university_enrollment.png)
-
-**Figure 2** stacks the whole-university population (all cohorts) by status against the global term, from the incumbent warm-up (negative terms) through the study window.
-
-- Before term 0, only incumbents are present and the population climbs as study cohorts are admitted; the marked line at term 0 is study cohort 0's entry. The total enrolled band rises to a **steady-state plateau** once several cohorts overlap, then resolves into graduated/dropped/censored bands as each cohort ages out.
-- The plateau is the point of the multi-cohort design: seat contention is evaluated against a realistically loaded university, not a single cohort in an empty one. The graduated band (green) grows in annual steps, one per cohort reaching its senior-project window.
-- The censored band stays thin (≈ 3.6%), reflecting that with calibrated section supply, few students reach the horizon still merely *waiting* for a seat — most resolve or drop first.
-
-### 4.4 Per-Cohort Flow Under Shared-Seat Congestion
-
-![Figure 3: Per-Cohort Flow](../outputs/figures/cohort_flow.png)
-
-**Figure 3** plots each cohort's still-enrolled head-count against the global term (dashed = incumbent warm-start cohorts).
-
-Per-cohort graduation rates (seed 42):
-
-| Cohort | Type | Graduation | Dropout | Censored | Avg time |
-|---|---|---|---|---|---|
-| −3 | incumbent | 68.0% | 24.0% | 8.0% | 9.12 |
-| −2 | incumbent | 63.0% | 33.0% | 4.0% | 9.02 |
-| −1 | incumbent | 67.0% | 29.0% | 4.0% | 8.58 |
-| 0 | study | 76.0% | 22.0% | 2.0% | 8.75 |
-| 1 | study | 70.0% | 25.0% | 5.0% | 8.79 |
-| 2 | study | 79.0% | 18.0% | 3.0% | 8.82 |
-| 3 | study | 69.0% | 29.0% | 2.0% | 9.04 |
-
-- The incumbent cohorts post lower graduation rates than the study cohorts — expected, since they enter mid-simulation with no warm start of their own and immediately contend with established seniors; they function as the load that makes study-cohort contention realistic, not as headline subjects.
-- Study cohorts vary across a ≈10 pp band (69–79%) at fixed intake and capacity — single-seed cohort-to-cohort noise, not a monotonic decline. This variability is itself the finding behind the admissions recommendation (§4.7): **throughput stability**, not mean graduation rate, is the binding constraint on how large an intake the shared pool can absorb smoothly.
-
-### 4.5 Seat Utilization
-
-![Figure 4: Seat Utilization](../outputs/figures/utilization_heatmap.png)
-
-**Figure 4** is a course × term heatmap of utilization (granted / capacity); red marks oversubscription.
-
-- Most cells sit well below 1.0: section sizing has matched supply to demand for the bulk of the curriculum. Hot cells concentrate in two places — the **once-a-year courses during their single offering season** (an entire year's eligible pool arrives at once) and a few **high-volume introductory courses** during enrolment bulges (CMPS 151, ENGL 2).
-- The heatmap is the visual counterpart to §4.6's collapsed capacity-block panel: oversubscription is now episodic and seasonal, not chronic.
-
-### 4.6 Bottleneck Identification
-
-![Figure 5: Bottleneck Signals](../outputs/figures/bottlenecks_A_baseline.png)
-
-**Figure 5** shows the four signals as separate panels (seed 42, cumulative over the study window).
-
-**Panel 1 — Failures.** CMPS 405 (293), CMPS 251 (288), CMPS 323 (273), CMPS 151 (241), CMPS 310 (240), CMPS 205 (239). The hard Spring pair (CMPS 405/323, both 0.65) leads, but high-volume early courses (CMPS 251/151/205) accumulate large absolute counts simply because nearly everyone takes them. No single course dominates on difficulty alone.
-
-**Panel 2 — Capacity Blocks.** CMPS 151 (22), ENGL 2 (9), ELEC 2 (6), ELEC 1 (1). **This is the headline change from v1.** With sections sized to the 75th percentile of demand, capacity contention has collapsed to a residual handful on introductory and non-major courses; **not a single binding CS gateway tops this panel.** In v1's flat-cap single-cohort model, CMPS 351 alone drew 58 capacity blocks. The lesson: *capacity was a modeling artifact of unrealistic seat caps, not the curriculum's true constraint.* When seats track demand, the bottleneck moves entirely to prerequisites and seasons.
-
-**Panel 3 — Offering Blocks.** CMPS 310 (879), CMPS 405 (879), CMPS 323 (875), CMPE 355 (873), CMPS 351 (864), CMPS 380 (789). The six once-a-year courses occupy all six top positions, tightly bunched near 800–880 — every off-season term, each eligible student waiting on a once-a-year course accrues an event. These counts dwarf the failure counts, confirming **seasonal scheduling is a far larger source of delay than course difficulty.** CMPS 310 ties for the lead and is uniquely damaging: because it gates the CMPS 493 compound rule, a missed Fall offering postpones senior-project entry a full year.
-
-**Panel 4 — Prerequisite Blocks.** CMPS 499 (4436), CMPS 493 (3807), CMPS 405 (2157), CMPS 323 (2089), CMPS 380 (2085), MATH 5 (1891). CMPS 499/493 dominate: the compound rule holds students prereq-blocked for many terms, and CMPS 499 inherits every one of those terms behind CMPS 493. **Third, fourth, and fifth are CMPS 405 / 323 / 380 — the three courses gated by CMPS 303 — at near-identical counts (2157 / 2089 / 2085).** This lockstep is the unmistakable quantitative fingerprint of the CMPS 303 gateway: one upstream course holding its three dependents in unison.
-
-**Cross-panel summary:**
-
-| Course | Failures | Cap Blocks | Offering Blocks | Prereq Blocks |
-|---|---|---|---|---|
-| CMPS 310 | ✓ | — | ✓ (1st) | — |
-| CMPS 405 | ✓ (1st) | — | ✓ | ✓ (3rd) |
-| CMPS 323 | ✓ | — | ✓ | ✓ (4th) |
-| CMPS 351 | — | — | ✓ | — |
-| CMPS 380 | — | — | ✓ | ✓ (5th) |
-| CMPS 303 | ✓ | — | — | (upstream cause) |
-| CMPS 499 / 493 | — | — | — | ✓ (1st/2nd) |
-| CMPS 151 | ✓ | ✓ (1st) | — | — |
-
-The capacity column is now nearly empty for CS courses — the defining v2 result. Delay lives in the offering and prerequisite columns: the six once-a-year courses, the senior-project compound tail, and the CMPS 303 gateway trio.
-
-### 4.7 Admissions Recommendation
-
-A single-run heuristic scales the recommended intake by the worst-performing health criterion (graduation rate, time-to-degree, seats-denied-per-student, throughput stability). At the current intake of 100, the binding criterion is **throughput stability** (observed 0.50 vs. 0.85 target), recommending a **reduced intake of ≈ 59** to smooth the year-to-year graduation flow through the shared pool. Seats-denied-per-student is far inside target (0.06 vs. 1.0), consistent with §4.6: the shared pool is not seat-starved — it is *rhythm*-constrained by the seasonal and prerequisite structure, which an intake reduction smooths but does not fix. (This is a heuristic, not an optimum; an intake sweep is the rigorous follow-up.)
-
-### 4.8 Curriculum Network
-
-![Figure 6: CS Prerequisite Network](../outputs/figures/curriculum_network.png)
-
-**Figure 6** shows the directed prerequisite graph with node size/colour scaled by failure count.
-
-- **CMPS 303 is the central gateway**, with direct edges to CMPS 323, CMPS 380, and CMPS 405 — the three dependents that carry the highest non-senior-project prereq-block counts in lockstep (§4.6).
-- **The path forks then reconverges:** from CMPS 251 the graph splits into the CMPS 303 cluster and the CMPS 310 branch, both of which must complete before CMPS 493. Because CMPS 310 is Fall-only and CMPS 405 Spring-only, the branches cannot clear in one season, structurally enforcing a multi-semester convergence before the senior project.
+If asked "how do you know the numbers are right?" — the honest, defensible answer is: the
+assumptions are individually documented and justified (`docs/assumptions.md`), the aggregate
+output was checked against one real external benchmark, and every scenario comparison uses
+identical seeds per student so the *differences* between scenarios are real even where the
+*absolute* numbers underneath them are estimates.
 
 ---
 
-## 5. Discussion
+## 7. How a curriculum committee actually uses this
 
-### 5.1 Capacity Was a Modeling Artifact; Structure Is the Real Constraint
-
-The single most important v2 result is what *disappeared*. In the single-cohort, flat-cap model of v1, capacity blocks were a leading signal and CMPS 351 topped them with 58 denials. In the steady-state model with sections sized to demand, the entire CS-course capacity panel collapses — the top capacity block is now CMPS 151 (22), an introductory course, and no binding CS gateway appears at all. This means v1's capacity story was partly an artifact of arbitrary seat caps. When seat supply is allowed to track demand the way a real registrar sizes sections, congestion does not vanish — it **relocates** entirely to the two structural mechanisms the university cannot solve by adding sections: seasonal offerings and prerequisite chains.
-
-### 5.2 Seasonal Scheduling Dominates
-
-The six once-a-year courses occupy all six top positions in the offering-block panel at tightly bunched counts (789–879). Each off-season term, every eligible student waiting on one of these courses accrues a block, and each failure or miss costs a full year rather than a semester. **CMPS 310 (Software Engineering, Fall-only) is the most structurally pivotal** despite tying rather than dominating: because CMPS 493 requires it, the Fall-only restriction is a hard annual gate on senior-project entry. **CMPS 351 (Database, Spring-only)** is the most broadly binding *non-gate* seasonal course because it has the shallowest prerequisite (only CMPS 251) of any once-a-year offering, so the largest pool becomes eligible earliest and funnels into a single Spring window. A shallow prerequisite paired with a once-a-year offering is a worse structural design than a difficult course.
-
-### 5.3 The CMPS 303 Gateway
-
-CMPS 303 gates CMPS 323, CMPS 380, and CMPS 405, and the prereq-block panel shows these three blocked in near-perfect lockstep (2157 / 2089 / 2085). With a 0.71 pass rate, ≈ 29% fail the first attempt; because CMPS 303 is offered both seasons its own recovery is fast, but a one-semester slip lands students out of phase with the once-a-year offerings of its three dependents, converting a one-semester delay into a full-year one. CMPS 303 is a *delay amplifier* — the highest-leverage advising target in the lower curriculum.
-
-### 5.4 Graduation Is Capacity-Structural, Not Dropout-Tuned
-
-A calibration sweep produced a methodologically important negative result: varying `dropout_base_hazard` across 0.15–0.17 left the 30-seed graduation rate essentially flat (≈ 70.7%). Lowering the hazard does not produce more graduates — it converts would-be dropouts into *censored* students who time out at the horizon, because these are low-GPA students who do not complete under either label. Graduation is bound by **gateway seat supply**: raising CMPS 303 (2→3) and CMPS 350 (2→3) by one section each — both genuinely capacity-binding gateways, with CMPS 350 satisfying the CMPS 493 compound rule — lifts the 30-seed rate from 70.8% to 71.6%, with the 72.3% benchmark reaching the top of the CI. This both relieves a documented bottleneck and closes the calibration gap, and it locates the lever correctly: the residual shortfall is structural seasonal delay, not a mis-set dropout probability.
-
-### 5.5 Shared-Seat Congestion and Admissions
-
-The multi-cohort model exposes a constraint a single-cohort model cannot: at fixed capacity, study cohorts vary ≈10 pp in graduation rate (§4.4), and the binding admissions criterion is **throughput stability**, not mean outcome or seat starvation (§4.7). The shared pool is not seat-starved; it is rhythm-constrained by the annual offering cycle and the senior-project tail. Reducing intake smooths the flow, but the durable fix is the same structural reform the bottleneck panels point to — adding seasonal offerings to the gates.
-
-### 5.6 Implications for Curriculum Design
-
-Ordered by expected impact:
-
-1. **Add a Spring offering of CMPS 310 (Software Engineering).** Fall-only and required by the CMPS 493 compound rule, it is a hard annual gate on senior-project entry and ties for the top offering-block count. A second season removes the gate entirely — the highest-impact single change.
-2. **Add a Fall offering of CMPS 351 (Database Systems).** The shallowest-prerequisite once-a-year course funnels the largest early-eligible pool into one Spring window; a second season halves accumulated demand per term.
-3. **Protect early, on-phase passage through CMPS 303 (Data Structures).** Mandatory early enrollment plus tutoring cuts the gateway cascade at its source, where it costs three dependents a full year apiece.
-4. **Split the Spring theory pair (CMPS 323 / CMPS 405).** Adding a Fall section to at least one lets students take one hard 0.65 course per semester instead of both at once, reducing concurrent load and full-year retake penalties.
-5. **Size intake to throughput stability, not just to seats.** The shared pool absorbs ≈ 59 cleanly under the current structure; intake reductions smooth the year-to-year graduation rhythm but are a stopgap relative to the seasonal reforms above.
+- **Settings** — edit the curriculum (courses, prerequisites, offerings, pass rates), the
+  instructor roster, and the baseline configuration in place. This is where the optional-term
+  toggle lives. Edits here persist immediately as the new baseline for every future run.
+- **Scenario Builder** — try a structural change (add a section, change a course's offering
+  season, adjust a dropout parameter) as a one-off comparison against the current baseline,
+  without touching it. This is the right tool for "what if we did X" questions.
+- **Capacity Planning** — a combined seat-capacity and instructor-staffing feasibility report:
+  which course categories are tight or in shortfall given the current configured demand and the
+  current (synthetic/configurable) faculty roster, plus the admissions recommendation (§3.8).
+- **Plans** — more than one full curriculum + configuration combination can exist at once (e.g.
+  to compare the current 2024 study plan against a hypothetical revised one), each fully
+  independent, switchable per user.
 
 ---
 
-## 6. Conclusion
+## 8. Where this could go next
 
-Modeling the QU CS curriculum as a steady-state, multi-cohort university with a shared seat pool overturns the single-cohort capacity story: once sections are sized to demand, **capacity contention collapses to a residual handful on introductory courses, and delay relocates entirely to seasonal scheduling and prerequisite structure.** The offering-block panel is owned by the six once-a-year courses; the prerequisite-block panel by the senior-project compound tail (CMPS 499/493) and the CMPS 303 gateway trio (CMPS 405/323/380) blocked in lockstep. A calibration sweep further shows graduation is bound by gateway seat supply, not by dropout parameters — relieving CMPS 303 and CMPS 350 by one section each closes the gap to QU's benchmark.
-
-The model graduates **71.6% of study-cohort students within 12 semesters (CI [71.0%, 72.2%])** against QU's 72.3% benchmark, validating its structural assumptions. The single highest-impact reform is extending the senior-project gate **CMPS 310** to both semesters; adding a Fall offering of **CMPS 351** is second. For students who do not finish on time, the most likely cause is waiting for a course offered once per year or blocked behind the CMPS 303 gateway — not losing a seat to a classmate.
-
----
-
-## References
-
-Duarte, O., & Márquez, C. (n.d.). *A model of student flow through the college curriculum*. Universidad Nacional de Colombia.
-
-Qatar University. (2024). *BSc Computer Science 2024 Study Plan, Program Roadmap, and Prerequisite Flowchart*. College of Engineering, Qatar University.
-
-Qatar Open Data Portal. (2024). *QU registered students per semester (Fall 2015 – Spring 2025)*. data.gov.qa.
-
-Qatar Open Data Portal. (2024). *QU graduated students per semester (Fall 2015 – Spring 2024)*. data.gov.qa.
-
-Saltzman, R., Liu, W., & Roeder, T. (2019). Simulating student flow through a university's general education curriculum. In *Proceedings of the Winter Simulation Conference*.
-
-Star, L., Sciortino, A., Deutschman, J., Spralja, K., & Maples, T. (n.d.). *Dynamic model of student flow*. California State University Long Beach, College of Engineering.
+The most valuable next step isn't a bigger feature — it's **real data**. The engine's population
+source is already built behind a swappable interface specifically so that a future real-data
+integration (an actual institutional transcript export) is a configuration change, not a rewrite
+of the simulation logic. Short of that, the most useful refinements would be: course withdrawal as
+a real exit path, minimum-grade prerequisites where the real program enforces them, and widening
+which courses get an optional-term bonus session based on actual observed summer-enrollment
+patterns rather than a hand-picked list.

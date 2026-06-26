@@ -1,4 +1,4 @@
-"""SQLAlchemy ORM tables for Phase 2 persistence (see docs/input_system_plan.md §2.1) and
+"""SQLAlchemy ORM tables for Phase 2 persistence (see docs/input_system_history.md §2.1) and
 multi-plan support (each `Plan` is a distinct curriculum + baseline config; `User.active_plan_id`
 makes plan selection per-user rather than a single global).
 

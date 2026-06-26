@@ -1,10 +1,6 @@
-"""JWT auth (docs/input_system_plan.md §2.2) — custom cookie/header-based flow, not
-next-auth/Auth.js (Next.js 16 renamed Middleware to Proxy, a breaking change next-auth's
-training data predates; a small hand-rolled flow sidesteps that risk entirely).
-
-get_current_user accepts the token from either the Authorization header (curl/TestClient/
-direct API use) or a `session` cookie (browser calls proxied through the Next.js rewrite in
-web/next.config.ts) — one code path serves both callers.
+"""Auth is disabled for local demo use — get_current_user auto-resolves a single shared
+demo account instead of checking a token, so every request succeeds with no login wall.
+register/login endpoints are kept (harmless) but nothing requires calling them anymore.
 """
 from __future__ import annotations
 
@@ -12,7 +8,7 @@ import os
 from datetime import datetime, timedelta, timezone
 
 import jwt
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException
 from passlib.context import CryptContext
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
@@ -20,9 +16,10 @@ from sqlalchemy.orm import Session
 from src.db import get_db, get_or_create_default_plan
 from src.db_models import User
 
-AUTH_SECRET = os.environ["AUTH_SECRET"]
+AUTH_SECRET = os.environ.get("AUTH_SECRET", "auth-disabled-unused-secret")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7
+DEMO_USER_EMAIL = "demo@local"
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
@@ -84,22 +81,16 @@ def login(req: LoginRequest, db: Session = Depends(get_db)) -> TokenResponse:
     return TokenResponse(access_token=create_access_token(user.id, user.email))
 
 
-def _extract_token(request: Request) -> str | None:
-    header = request.headers.get("Authorization")
-    if header and header.lower().startswith("bearer "):
-        return header[7:]
-    return request.cookies.get("session")
-
-
-def get_current_user(request: Request, db: Session = Depends(get_db)) -> User:
-    token = _extract_token(request)
-    if token is None:
-        raise HTTPException(status_code=401, detail="Not authenticated")
-    try:
-        payload = decode_access_token(token)
-    except jwt.PyJWTError as exc:
-        raise HTTPException(status_code=401, detail="Invalid or expired token") from exc
-    user = db.get(User, int(payload["sub"]))
+def get_current_user(db: Session = Depends(get_db)) -> User:
+    user = db.query(User).filter_by(email=DEMO_USER_EMAIL).first()
     if user is None:
-        raise HTTPException(status_code=401, detail="User no longer exists")
+        default_plan = get_or_create_default_plan(db)
+        user = User(
+            email=DEMO_USER_EMAIL,
+            hashed_password=hash_password(os.urandom(16).hex()),
+            active_plan_id=default_plan.id,
+        )
+        db.add(user)
+        db.commit()
+        db.refresh(user)
     return user

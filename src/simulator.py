@@ -324,7 +324,11 @@ class Simulator:
             courses_to_check = self.curriculum
         else:
             courses_to_check = {c.code: c for c in available}
-        self._record_blocks(season, [s for s in self.students if s.is_active()], course_stats, courses_to_check)
+        # Use the pre-outcome `active` snapshot, not a fresh is_active() filter: a student
+        # who drops/graduates/is censored THIS term still experienced this term's scheduling
+        # constraints and should be counted. (Graduates are unaffected either way — they've
+        # already passed every course, so _record_blocks skips them via has_passed().)
+        self._record_blocks(season, active, course_stats, courses_to_check)
 
         # ── Cohort snapshot + timeline frame ──────────────────────── #
         self._record_term_outputs(term_idx, season, course_stats, seats_requested, seats_denied)

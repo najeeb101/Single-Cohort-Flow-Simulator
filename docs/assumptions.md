@@ -97,6 +97,10 @@ This is a simplification; QU may have course-specific grade thresholds not docum
 
 **Grade replacement:** When a student retakes and passes a previously failed course, all prior F attempts for that course are removed from the GPA denominator (F = 0.0 pts, so the numerator is unaffected). Only the passing grade counts toward GPA. This models QU's grade improvement/replacement policy.
 
+**Partial replacement only.** Grade replacement removes from the GPA denominator only the prior F attempts for the specific course being retaken. Failures on other courses are unaffected. A student who has failed three different courses and subsequently passes two of them still carries the third course's F in their cumulative GPA until they pass it. GPA recovery is therefore incremental, not reset-based — consistent with QU's published grade-improvement policy but more conservative than a full-reset interpretation.
+
+**E2. Retake limits.** There is no per-course maximum retake cap beyond the gateway-dropout trigger (`dropout_fails_threshold = 3` failures of the same course). A student can fail a course more than three times without dropping if their overall GPA stays above the dropout floor and no single course has been failed three or more times. In reality QU may enforce a maximum attempt limit (commonly 3 attempts at most universities); this simplification means the simulator slightly understates dropout rates for students who persistently fail multiple different courses while keeping any single course's fail count below the threshold. The effect is expected to be small given that the GPA-hazard dropout path (Assumption A above) captures sustained low performance regardless of how it is distributed across courses.
+
 ---
 
 ## F. Graduation Condition
@@ -181,7 +185,7 @@ simulation. The simulation parameters are set before observing QU outcomes.
 
 **Dropout rate (27%)**: Within the 15–30% target. Dropout is now driven primarily by chronic low GPA (a per-term hazard while cumulative GPA < 2.0, growing the deeper a student is below the line and doubled in years 1–2), with a secondary trigger for students stuck repeatedly failing one gateway course. `dropout_base_hazard` (0.18) was calibrated by sweeping against the QU 12-semester benchmark so that graduation lands at ~71% (mean over 30 seeds). This replaces the earlier single-course-only rule, which let a student with a failing GPA spread across many courses never drop.
 
-**External validation**: Qatar Open Data (data.gov.qa) gives a 6-year graduation rate of 72.3% for QU CS undergrads (Fall 2015–2016 cohorts). The simulation produces 71% over the same 12-semester horizon (gap: 1.3 pp). The remaining gap reflects summer enrolment and withdrawal flexibility not modelled — **update**: optional Summer/Winter intersessions are now partially modeled (see CLAUDE.md's "Term/Season Model" — a hand-tuned, illustrative subset of courses offered with smaller capacity, not advancing the graduation clock); withdrawal flexibility is still unmodeled. The graduation-rate gap hasn't been re-measured against this change yet — re-run before citing a new number.
+**External validation**: Qatar Open Data (data.gov.qa) gives a 6-year graduation rate of 72.3% for QU CS undergrads (Fall 2015–2016 cohorts). This table's snapshot (71%) was checked with optional Winter/Summer intersessions implemented and switched on; with them later made an admin-controlled toggle that defaults off (see CLAUDE.md's "Term/Season Model"), the gap to this benchmark depends on which side of that toggle the active configuration is on, and isn't a single fixed number anymore. Re-run the simulation against whichever configuration is current to get today's actual gap — see `docs/project_overview.md` for how the simulator works and why this number isn't pinned in writing here.
 
 **Top bottleneck signals (current run):**
 - Failures: CMPS251 (294), CMPS405 (294), CMPS323 (269), CMPS303 (253), CMPS310 (249)
@@ -192,3 +196,22 @@ simulation. The simulation parameters are set before observing QU outcomes.
 **Capacity (sections × 35 seats)**, CS courses sized to 75th-percentile demand:
 - CMPS303: 2×35=70 | CMPS350: 2×35=70 | CMPS151: 3×35=105 | CMPS310: 4×35=140 | CMPS493: 2×35=70
 - CMPS351: 40 | CMPS380: 40 | CMPS323: 40 | CMPS405: 40 | CMPE355: 40 | CMPS493: 30 | CMPS499: 30
+
+---
+
+## L. Key References (with assumption mapping)
+
+Each reference below supports a specific design decision or calibration choice in the
+simulator. This is the "why did we do it this way?" audit trail for each modelling assumption —
+every entry was checked against its source before being added here (title, venue, and
+year/page numbers confirmed independently, not taken on faith from a prior draft).
+
+| Reference | Assumption / Design Decision Supported |
+|---|---|
+| Law & Kelton (2000), *Simulation Modeling and Analysis*, Ch. 11 | CRN (Assumption I) — variance reduction enables causal scenario comparison with n=100 per cohort |
+| Banks, Carson, Nelson & Nicol (2010), *Discrete-Event System Simulation* | General discrete-event simulation methodology underlying the three-phase per-term loop (desired enrollment → seat allocation → take courses) |
+| Saltzman & Roeder (2012), *J. Operational Research Society* 63(4) | Course-level congestion is invisible to aggregate graduation statistics — motivates the four-signal bottleneck decomposition (failures/capacity/offering/prerequisite) |
+| Star, Sciortino, Deutschman, Spralja & Maples (n.d.), CSULB College of Engineering | ~6-year steady-state propagation time after an admissions/load shock — motivates seeding warm-start incumbent cohorts rather than starting from an empty university |
+| Duarte & Márquez (2016), LACCEI Multi-Conference | Agent-based vs. aggregate model justification — motivates individual-level simulation over cohort-level pooled-count equations |
+| Ishitani (2006), *J. Higher Education* 77(5) | `dropout_early_multiplier = 2.0` — empirical support for front-loaded early-semester attrition (Assumption A) |
+| Singer & Willett (2003), *Applied Longitudinal Data Analysis* | Competing-risk/survival framing for graduation vs. dropout vs. censoring; censored-rate-as-lower-bound interpretation |

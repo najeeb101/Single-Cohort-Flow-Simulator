@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import math
+from collections import defaultdict
 
 import pytest
 
@@ -14,7 +15,7 @@ from src.analytics import (
 )
 from src.datasource import DataSource
 from src.models.course import load_curriculum
-from src.models.semester import mandatory_horizon_end_term
+from src.models.semester import effective_admit_interval_terms, mandatory_horizon_end_term
 from src.montecarlo import run_monte_carlo
 from src.simulator import Simulator
 from src.utils import load_json
@@ -67,7 +68,7 @@ def test_unique_student_ids_and_cohort_assignment():
 
 def test_entry_terms_match_schedule():
     result, config, _ = _run()
-    interval = config["admit_interval_terms"]
+    interval = effective_admit_interval_terms(config)
     entry = {s.cohort_id: s.entry_term for s in result.students}
     # study cohorts at 0, interval, 2*interval, ...
     for c in range(config["num_cohorts"]):
@@ -146,6 +147,58 @@ def test_per_cohort_bottlenecks_sum_to_global():
     assert per_cohort_total == global_total
 
 
+def test_record_blocks_includes_students_who_drop_the_same_term(monkeypatch):
+    """_record_blocks must see the pre-outcome `active` snapshot for the term, not a fresh
+    is_active() refilter — a student who drops via the GPA hazard this term still experienced
+    this term's offering/prereq constraints before exiting and should be counted.
+
+    Forces every student in a single freshman cohort to drop on their very first (entry) term
+    by making the GPA-hazard dropout deterministic, then spies on `_record_outcome` (which
+    receives term_idx) and `_record_blocks` (called once per term, in the same order) to confirm
+    the dropped students' ids appear in that term's blocks call.
+    """
+    config, curriculum = _setup()
+    config = dict(config)
+    config["num_cohorts"] = 1
+    config["num_incumbent_cohorts"] = 0
+    config["cohort_size"] = 20
+    config["probation_min_ch"] = 0       # hazard check applies from term 0, before any credits
+    config["dropout_gpa_floor"] = 10.0   # always "below floor" regardless of real GPA
+    config["dropout_base_hazard"] = 1.0  # hazard >= 1.0 -> guaranteed drop
+    config["dropout_early_multiplier"] = 1.0
+
+    dropped_by_term: dict[int, set[int]] = defaultdict(set)
+    blocked_ids_by_call: list[set[int]] = []
+
+    orig_record_outcome = Simulator._record_outcome
+    orig_record_blocks = Simulator._record_blocks
+
+    def spy_record_outcome(self, student, status, term_idx):
+        if status == "DROPPED":
+            dropped_by_term[term_idx].add(student.student_id)
+        return orig_record_outcome(self, student, status, term_idx)
+
+    def spy_record_blocks(self, season, active_students, course_stats, courses_to_check):
+        blocked_ids_by_call.append({s.student_id for s in active_students})
+        return orig_record_blocks(self, season, active_students, course_stats, courses_to_check)
+
+    monkeypatch.setattr(Simulator, "_record_outcome", spy_record_outcome)
+    monkeypatch.setattr(Simulator, "_record_blocks", spy_record_blocks)
+
+    sim = Simulator(curriculum, config, config["scenarios"][0])
+    start_term = sim.start_term
+    sim.run()
+
+    assert dropped_by_term[start_term] == {i for i in range(config["cohort_size"])}, (
+        "test setup should force every freshman to drop on their entry term"
+    )
+    # _record_blocks is called once per term, in run()'s term order starting at start_term.
+    blocks_at_entry_term = blocked_ids_by_call[0]
+    assert dropped_by_term[start_term] <= blocks_at_entry_term, (
+        "students who dropped this term must still appear in this term's _record_blocks call"
+    )
+
+
 # ── Admissions recommendation ────────────────────────────────────── #
 
 def test_admissions_recommendation_shape():
@@ -180,7 +233,7 @@ def test_timeline_frames_and_invariants():
     # horizon. A raw `max_terms` calendar-term count only matches this when every season is
     # mandatory; mandatory_horizon_end_term is what makes this correct once optional
     # (non-mandatory) seasons exist in the cycle too. See CLAUDE.md's "Term/Season Model".
-    interval = config["admit_interval_terms"]
+    interval = effective_admit_interval_terms(config)
     entry_terms = [c * interval for c in range(config["num_cohorts"])]
     entry_terms += [-k * interval for k in range(1, config["num_incumbent_cohorts"] + 1)]
     start_term = min(entry_terms)

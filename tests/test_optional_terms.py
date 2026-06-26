@@ -9,6 +9,7 @@ import math
 
 from src.models.course import course_from_dict
 from src.models.semester import (
+    effective_admit_interval_terms,
     get_mandatory_seasons,
     get_terms,
     mandatory_horizon_end_term,
@@ -174,3 +175,64 @@ def test_prereq_block_scoped_to_courses_offered_in_optional_term():
     assert sim.history.prereq_block_counts.get("B", 0) == 1
     assert sim.history.prereq_block_counts.get("C", 0) == 0
     assert sim.history.offering_block_counts.get("C", 0) == 0  # not swept this term at all
+
+
+# ── optional_terms_enabled: admin on/off switch (Settings -> PUT /config) ──────────── #
+
+def _four_season_config(**overrides):
+    return {
+        "terms_per_year": ["Fall", "Winter", "Spring", "Summer"],
+        "mandatory_terms": ["Fall", "Spring"],
+        "admit_interval_terms": 4,
+        **overrides,
+    }
+
+
+def test_optional_terms_enabled_false_collapses_terms_per_year_to_mandatory_only():
+    config = _four_season_config(optional_terms_enabled=False)
+    assert get_terms(config) == ("Fall", "Spring")
+    assert get_mandatory_seasons(config) == frozenset({"Fall", "Spring"})
+    # No Winter/Summer anywhere in the cycle once disabled.
+    assert term_season(1, config) == "Spring"   # term 1 would be Winter under the 4-season cycle
+    assert term_season(3, config) == "Spring"   # term 3 would be Summer under the 4-season cycle
+
+
+def test_optional_terms_enabled_true_matches_omitting_the_flag():
+    explicit_on = _four_season_config(optional_terms_enabled=True)
+    omitted = _four_season_config()
+    assert get_terms(explicit_on) == get_terms(omitted) == ("Fall", "Winter", "Spring", "Summer")
+    assert get_mandatory_seasons(explicit_on) == get_mandatory_seasons(omitted) == frozenset({"Fall", "Spring"})
+
+
+def test_effective_admit_interval_rescales_to_one_year_when_disabled():
+    # admit_interval_terms (4) matches the full 4-season cycle length -> it was set on the
+    # "one full year" convention, so disabling optional terms rescales it to 2 (one year
+    # under the now-2-season cycle) rather than silently admitting only every other year.
+    config = _four_season_config(optional_terms_enabled=False)
+    assert effective_admit_interval_terms(config) == 2
+    # Enabled (or omitted) -> unchanged, matches the stored 4-season cadence.
+    assert effective_admit_interval_terms(_four_season_config(optional_terms_enabled=True)) == 4
+    assert effective_admit_interval_terms(_four_season_config()) == 4
+
+
+def test_effective_admit_interval_leaves_custom_cadence_untouched():
+    # 6 doesn't match len(terms_per_year)==4, so it wasn't the "one full year" convention --
+    # leave an admin's deliberate non-yearly cadence alone even with optional terms off.
+    config = _four_season_config(admit_interval_terms=6, optional_terms_enabled=False)
+    assert effective_admit_interval_terms(config) == 6
+
+
+def test_optional_terms_toggle_off_produces_legacy_two_season_simulation():
+    """End-to-end: a course offered Fall/Spring/Winter is never reachable in Winter once the
+    toggle is off, and the simulation never produces a Winter/Summer timeline frame at all."""
+    curriculum = {"C1": _course("C1", 9, [], ["Fall", "Spring", "Winter"], 1)}
+    config = {
+        **FOUR_SEASON_CONFIG_BASE, "optional_terms_enabled": False,
+        "cohort_size": 5, "max_terms": 2,
+        "num_cohorts": 1, "num_incumbent_cohorts": 0,
+        "course_sections": {"C1": 1},
+    }
+    result = Simulator(curriculum, config, {"name": "t"}).run()
+    seasons_seen = {f["season"] for f in result.history.timeline}
+    assert seasons_seen <= {"Fall", "Spring"}
+    assert "Winter" not in seasons_seen and "Summer" not in seasons_seen

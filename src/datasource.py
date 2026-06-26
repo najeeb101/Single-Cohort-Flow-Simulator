@@ -1,6 +1,6 @@
 """The data seam: where the student population comes from, decoupled from how it flows.
 
-This is the central abstraction of the ACIP transformation (see docs/acip_transformation_plan.md
+This is the central abstraction of the ACIP transformation (see docs/roadmap.md
 §2.4). The engine never constructs students itself — it asks a ``DataSource``. Two
 implementations are interchangeable behind this interface:
 
@@ -25,6 +25,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 
+from src.models.semester import effective_admit_interval_terms
 from src.models.student import Student
 
 
@@ -97,7 +98,9 @@ class SyntheticDataSource(DataSource):
         self.cohort_size: int = config["cohort_size"]
         self.num_cohorts: int = config.get("num_cohorts", 1)
         self.num_incumbent_cohorts: int = config.get("num_incumbent_cohorts", 0)
-        self.admit_interval: int = config.get("admit_interval_terms", 2)
+        # Rescales automatically if optional_terms_enabled is off but admit_interval_terms
+        # was set to "one full (4-season) year" — see effective_admit_interval_terms's docstring.
+        self.admit_interval: int = effective_admit_interval_terms(config)
 
     def cohort_specs(self) -> list[CohortSpec]:
         specs: list[CohortSpec] = []

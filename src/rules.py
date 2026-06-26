@@ -1,6 +1,6 @@
 """Generic boolean rule expressions for compound course-gating rules.
 
-This is the `rule_expr` referenced in docs/acip_transformation_plan.md §2.4's canonical
+This is the `rule_expr` referenced in docs/roadmap.md §2.4's canonical
 Course-catalog schema. Today only CMPS493's compound rule (CMPS310 AND (CMPS350 OR
 CMPS405) AND completed_ch >= 84) uses it, but the evaluator itself knows nothing about
 CMPS493 — any program's capstone/gateway rule, of any shape, is data, not a special case

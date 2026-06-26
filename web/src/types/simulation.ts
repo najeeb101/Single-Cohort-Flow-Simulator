@@ -232,6 +232,7 @@ export interface MetaResponse {
   num_cohorts: number;
   num_incumbent_cohorts: number;
   admit_interval_terms: number;
+  optional_terms_enabled: boolean;
   max_terms: number;
   seed: number;
   dropout_gpa_floor: number;

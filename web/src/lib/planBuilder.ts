@@ -75,6 +75,7 @@ export function metaFromPlanExport(curriculum: CourseRecord[], config: Record<st
     num_cohorts: (config.num_cohorts as number) ?? 4,
     num_incumbent_cohorts: (config.num_incumbent_cohorts as number) ?? 0,
     admit_interval_terms: (config.admit_interval_terms as number) ?? 2,
+    optional_terms_enabled: (config.optional_terms_enabled as boolean) ?? false,
     max_terms: (config.max_terms as number) ?? 12,
     seed: (config.seed as number) ?? 42,
     dropout_gpa_floor: (config.dropout_gpa_floor as number) ?? 2.0,

@@ -9,6 +9,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import matplotlib.ticker as mticker
 
+from src.analytics import _study_students
 from src.rules import gate_edges
 
 if TYPE_CHECKING:
@@ -161,6 +162,58 @@ def plot_graduation_histogram(
     ax.set_title("Time-to-Graduate Distribution")
     ax.legend(fontsize=9)
     ax.xaxis.set_major_locator(mticker.MaxNLocator(integer=True))
+    fig.tight_layout()
+    fig.savefig(output_path, dpi=150)
+    plt.close(fig)
+
+
+# ------------------------------------------------------------------ #
+# 3b. Survival curve                                                  #
+# ------------------------------------------------------------------ #
+
+def plot_survival_curve(result: SimulationResult, output_path: Path) -> None:
+    """Kaplan-Meier-style survival curve for study-cohort students.
+
+    S(t) = fraction of study-cohort students still enrolled at the end of personal semester t.
+    `personal_semester` stops incrementing the moment a student leaves ACTIVE/DELAYED (see
+    CLAUDE.md's Term/Season Model), so for every terminal student it already equals their exact
+    exit semester — graduated, dropped, or censored alike.
+    """
+    students = _study_students(result)
+    total = len(students)
+    if not total:
+        return
+    max_t = result.config["max_terms"]
+
+    semesters = list(range(1, max_t + 1))
+    survival = [sum(1 for s in students if s.personal_semester > t) / total for t in semesters]
+
+    graduated = sum(1 for s in students if s.status == "GRADUATED")
+    dropped = sum(1 for s in students if s.status == "DROPPED")
+    censored = sum(1 for s in students if s.status == "CENSORED")
+
+    fig, ax = plt.subplots(figsize=(9, 5))
+    ax.plot(semesters, survival, color="#1f77b4", linewidth=2.5, marker="o",
+            markersize=4, label="Study-cohort survival")
+    ax.axhline(0.723, color="#d62728", linestyle="--", linewidth=1.2,
+               label="QU 72.3% benchmark")
+    ax.axvline(8.5, color="black", linestyle=":", linewidth=1.0,
+               label="On-time cutoff (sem 8)")
+
+    ax.text(0.97, 0.97,
+            f"Graduated: {graduated/total:.1%}  |  Dropped: {dropped/total:.1%}"
+            f"  |  Censored: {censored/total:.1%}",
+            transform=ax.transAxes, fontsize=8, ha="right", va="top",
+            bbox=dict(boxstyle="round,pad=0.3", facecolor="white", alpha=0.7))
+
+    ax.set_xlabel("Personal semester")
+    ax.set_ylabel("Fraction still enrolled")
+    ax.set_title("Student survival curve — study cohorts")
+    ax.set_xlim(1, max_t)
+    ax.set_ylim(0, 1.05)
+    ax.yaxis.set_major_formatter(mticker.PercentFormatter(xmax=1.0))
+    ax.legend(fontsize=9)
+    ax.grid(axis="y", linestyle="--", alpha=0.3)
     fig.tight_layout()
     fig.savefig(output_path, dpi=150)
     plt.close(fig)
@@ -362,6 +415,77 @@ def plot_cohort_flow(result: SimulationResult, output_path: Path) -> None:
 
 
 # ------------------------------------------------------------------ #
+# 7b. Per-cohort bottleneck comparison                                #
+# ------------------------------------------------------------------ #
+
+def plot_cohort_bottleneck_comparison(
+    result: SimulationResult,
+    output_path: Path,
+    top_n: int = 5,
+) -> None:
+    """4-panel grouped bar chart: per-signal, per-study-cohort block counts.
+
+    Normalises counts by cohort size so cohorts are directly comparable. Only includes study
+    cohorts (cohort_id >= 0) — incumbents are a warm-start device, not part of the comparison.
+    """
+    h = result.history
+    cohort_size = result.config["cohort_size"]
+
+    study_cohort_ids = sorted(cid for cid in {s.cohort_id for s in result.students} if cid >= 0)
+    if not study_cohort_ids:
+        return
+
+    signal_names = ["Failures", "Capacity blocks", "Offering blocks", "Prereq blocks"]
+    by_cohort_dicts = [
+        h.fail_by_cohort,
+        h.capacity_block_by_cohort,
+        h.offering_block_by_cohort,
+        h.prereq_block_by_cohort,
+    ]
+    panel_colors = ["#d62728", "#ff7f0e", "#1f77b4", "#9467bd"]
+
+    fig, axes = plt.subplots(1, 4, figsize=(18, 5))
+
+    for ax, signal, by_cohort, color in zip(axes, signal_names, by_cohort_dicts, panel_colors):
+        totals: dict[str, int] = {}
+        for cid in study_cohort_ids:
+            for code, cnt in by_cohort.get(cid, {}).items():
+                totals[code] = totals.get(code, 0) + cnt
+        if not totals:
+            ax.set_visible(False)
+            continue
+        top_courses = [c for c, _ in sorted(totals.items(), key=lambda x: -x[1])[:top_n]]
+
+        n_cohorts = len(study_cohort_ids)
+        bar_width = 0.8 / n_cohorts
+        x = range(len(top_courses))
+
+        for i, cid in enumerate(study_cohort_ids):
+            counts = [by_cohort.get(cid, {}).get(code, 0) / cohort_size for code in top_courses]
+            offset = (i - n_cohorts / 2 + 0.5) * bar_width
+            ax.bar(
+                [xi + offset for xi in x], counts,
+                width=bar_width * 0.9,
+                color=_DEFAULT_COLORS[i % len(_DEFAULT_COLORS)],
+                label=f"Cohort {cid}",
+                alpha=0.85,
+            )
+
+        ax.set_title(signal, fontsize=10)
+        ax.set_ylabel("Count / cohort size")
+        ax.set_xticks(list(x))
+        ax.set_xticklabels(top_courses, rotation=30, ha="right", fontsize=8)
+        ax.legend(fontsize=7)
+        ax.grid(axis="y", linestyle="--", alpha=0.3)
+
+    fig.suptitle("Per-cohort bottleneck comparison — do later cohorts get more blocked?",
+                 fontsize=12, y=1.01)
+    fig.tight_layout()
+    fig.savefig(output_path, dpi=150, bbox_inches="tight")
+    plt.close(fig)
+
+
+# ------------------------------------------------------------------ #
 # 8. Course utilization heatmap (course × semester)                   #
 # ------------------------------------------------------------------ #
 
@@ -397,6 +521,66 @@ def plot_utilization_heatmap(result: SimulationResult, output_path: Path) -> Non
 
 
 # ------------------------------------------------------------------ #
+# 9. Scenario comparison: structural interventions vs. baseline       #
+# ------------------------------------------------------------------ #
+
+def plot_scenario_comparison(
+    results: dict[str, SimulationResult],
+    output_path: Path,
+) -> None:
+    """3-panel bar chart: graduation rate, on-time rate, avg graduation time per scenario.
+
+    Reads each result's already-computed `.metrics` (set by service.run_simulation /
+    run.py's scenario loop) rather than recomputing — `compute_metrics` is not cheap enough
+    to call twice per scenario for a figure that doesn't need a second source of truth.
+    """
+    scenario_names = list(results.keys())
+    if len(scenario_names) < 2:
+        return  # nothing to compare
+
+    metrics_list = [results[n].metrics for n in scenario_names]
+
+    grad_rates = [m["graduation_rate"] for m in metrics_list]
+    ontime_rates = [m["on_time_rate"] for m in metrics_list]
+    avg_times = [m["avg_graduation_time"] for m in metrics_list]
+
+    fig, axes = plt.subplots(1, 3, figsize=(14, 5))
+
+    panel_data = [
+        (axes[0], grad_rates, "Graduation rate (≤12 sem)", True),
+        (axes[1], ontime_rates, "On-time rate (≤8 sem)", True),
+        (axes[2], avg_times, "Avg graduation time (sem)", False),
+    ]
+
+    bar_colors = ["#888888"] + _DEFAULT_COLORS[1:]  # gray for baseline, colors for the rest
+
+    for ax, values, title, is_pct in panel_data:
+        bars = ax.bar(
+            scenario_names, values,
+            color=bar_colors[:len(scenario_names)],
+            alpha=0.85, edgecolor="white",
+        )
+        ax.set_title(title, fontsize=10)
+        ax.set_xticks(range(len(scenario_names)))
+        ax.set_xticklabels(scenario_names, rotation=20, ha="right", fontsize=8)
+        if is_pct:
+            ax.yaxis.set_major_formatter(mticker.PercentFormatter(xmax=1.0))
+            ax.set_ylim(0, 1.0)
+        ax.bar_label(
+            bars,
+            labels=[f"{v:.1%}" if is_pct else f"{v:.2f}" for v in values],
+            padding=3, fontsize=8,
+        )
+        ax.grid(axis="y", linestyle="--", alpha=0.3)
+
+    fig.suptitle("Scenario comparison — structural interventions vs. baseline",
+                 fontsize=12, y=1.02)
+    fig.tight_layout()
+    fig.savefig(output_path, dpi=150, bbox_inches="tight")
+    plt.close(fig)
+
+
+# ------------------------------------------------------------------ #
 # Master save function                                                #
 # ------------------------------------------------------------------ #
 
@@ -422,10 +606,21 @@ def save_all_figures(
     plot_graduation_histogram(results, figures_dir / "graduation_histogram.png")
     print("  Saved graduation_histogram.png")
 
+    plot_survival_curve(baseline, figures_dir / "survival_curve.png")
+    print("  Saved survival_curve.png")
+
+    plot_cohort_bottleneck_comparison(baseline, figures_dir / "cohort_bottleneck_comparison.png")
+    print("  Saved cohort_bottleneck_comparison.png")
+
     # Bottleneck charts: one per scenario
     for name, result in results.items():
         plot_bottlenecks(result, figures_dir / f"bottlenecks_{name}.png")
         print(f"  Saved bottlenecks_{name}.png")
+
+    # Structural-intervention comparison: only meaningful with more than one scenario.
+    if len(results) > 1:
+        plot_scenario_comparison(results, figures_dir / "scenario_comparison.png")
+        print("  Saved scenario_comparison.png")
 
     # Prerequisite network for baseline scenario
     plot_curriculum_network(

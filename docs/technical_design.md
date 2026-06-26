@@ -377,7 +377,7 @@ src/
 │
 ├── service.py
 │   └── run_simulation(curriculum, config, scenario) -> dict   # engine-as-a-service
-│       boundary (§11.9 / acip_transformation_plan.md §2.3): Simulator + every
+│       boundary (§11.9 / roadmap.md §2.3): Simulator + every
 │       analytics.py derivation, in memory, zero file I/O — the seam an API calls.
 │
 ├── visualize.py
@@ -505,4 +505,4 @@ The `web/` Next.js dashboard lays out the graph by longest-path layering and rep
 `run_monte_carlo` re-runs the baseline across `n_runs` seeds (`base_seed + k`) and reports mean ± 95% CI per headline metric. The canonical timeline/animation stays on the single base seed (deterministic for the frontend); the CIs only annotate the dashboard.
 
 ### 11.9 Engine-as-a-service boundary
-`src/service.py::run_simulation(curriculum, config, scenario) -> dict` is the single function boundary between the engine and any caller — script, test, or future API (`docs/acip_transformation_plan.md` §2.3). It runs one scenario and returns `result` (the raw `SimulationResult`), `metrics`, `cohort_metrics`, `admissions_recommendation`, and `flow_timeline` as a plain dict; it never touches disk or prints. `run.py` is now a thin wrapper: load JSON from disk → `run_simulation` per scenario → hand the returned `SimulationResult` to `analytics.py`'s CSV/JSON writers and `visualize.py`'s figure writers, which remain the only file-I/O layer. Monte Carlo stays a separate, opt-in call (§11.8) rather than folded into `run_simulation`, since re-running a scenario dozens of times isn't something every caller wants paid for by default.
+`src/service.py::run_simulation(curriculum, config, scenario) -> dict` is the single function boundary between the engine and any caller — script, test, or future API (`docs/roadmap.md` §2.3). It runs one scenario and returns `result` (the raw `SimulationResult`), `metrics`, `cohort_metrics`, `admissions_recommendation`, and `flow_timeline` as a plain dict; it never touches disk or prints. `run.py` is now a thin wrapper: load JSON from disk → `run_simulation` per scenario → hand the returned `SimulationResult` to `analytics.py`'s CSV/JSON writers and `visualize.py`'s figure writers, which remain the only file-I/O layer. Monte Carlo stays a separate, opt-in call (§11.8) rather than folded into `run_simulation`, since re-running a scenario dozens of times isn't something every caller wants paid for by default.

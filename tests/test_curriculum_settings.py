@@ -1,4 +1,4 @@
-"""Tests for GET/PUT /curriculum and /config — Settings (docs/input_system_plan.md §2.4),
+"""Tests for GET/PUT /curriculum and /config — Settings (docs/input_system_history.md §2.4),
 including the prerequisite-cycle rejection on a real edge from the dataset (CMPS493's
 rule_expr already requires CMPS310, so giving CMPS310 a prerequisite on CMPS493 is a
 genuine cycle, not a synthetic one)."""

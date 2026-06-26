@@ -25,6 +25,7 @@ export default function SettingsPage() {
   const [activePlan, setActivePlan] = useState<PlanRecord | null>(null);
   const [status, setStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [error, setError] = useState<string | null>(null);
+  const [optionalTermsEnabled, setOptionalTermsEnabled] = useState(meta.optional_terms_enabled);
 
   useEffect(() => {
     listCurriculum().then(setCourses).catch(() => setCourses([]));
@@ -59,6 +60,7 @@ export default function SettingsPage() {
     if (overrides.dropout_prob_on_repeated_fail !== undefined) configPatch.dropout_prob_on_repeated_fail = overrides.dropout_prob_on_repeated_fail;
     if (overrides.registration_tier_thresholds !== undefined) configPatch.registration_tier_thresholds = overrides.registration_tier_thresholds;
     if (overrides.enrollment_priority_tiers !== undefined) configPatch.enrollment_priority_tiers = overrides.enrollment_priority_tiers;
+    if (optionalTermsEnabled !== meta.optional_terms_enabled) configPatch.optional_terms_enabled = optionalTermsEnabled;
 
     try {
       if (Object.keys(configPatch).length > 0) {
@@ -142,6 +144,28 @@ export default function SettingsPage() {
         ) : (
           <InstructorTable instructors={instructors} onChange={setInstructors} />
         )}
+      </section>
+
+      <section className="py-6">
+        <h2 className="mb-3 text-[15px] font-bold">Term calendar</h2>
+        <label className="flex items-start gap-3 text-[12.5px]">
+          <input
+            type="checkbox"
+            checked={optionalTermsEnabled}
+            onChange={(e) => setOptionalTermsEnabled(e.target.checked)}
+            className="mt-0.5"
+          />
+          <span>
+            <span className="font-semibold text-ink">Enable optional Winter/Summer intersessions</span>
+            <br />
+            <span className="text-muted">
+              Off by default: the university runs a 2-season Fall/Spring calendar only. Turning this on
+              adds optional Winter/Summer terms (small bonus sections for a handful of CS courses,
+              configured in <code>simulation_config.json</code>) that students can use to retake or get
+              ahead without it costing a mandatory semester. Admission stays Fall-only either way.
+            </span>
+          </span>
+        </label>
       </section>
 
       <section className="py-6">

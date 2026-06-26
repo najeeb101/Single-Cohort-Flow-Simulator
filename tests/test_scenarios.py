@@ -1,5 +1,5 @@
 """Tests for src/scenarios.py — persistent scenarios + run history, and their per-user
-isolation (docs/input_system_plan.md §2.3)."""
+isolation (docs/input_system_history.md §2.3)."""
 from __future__ import annotations
 
 from fastapi.testclient import TestClient

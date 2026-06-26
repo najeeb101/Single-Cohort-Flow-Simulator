@@ -115,9 +115,23 @@ immediately, no server restart needed. See [Multi-Plan Model](#multi-plan-model)
   existing caller that doesn't pass `config` to `term_season`/`term_year`/`term_label` gets
   identical behavior to before this was generalized. `terms_per_year` (e.g.
   `["Fall", "Winter", "Spring", "Summer"]`) sets the cycle; `mandatory_terms` (e.g.
-  `["Fall", "Spring"]`) marks which seasons advance a student's graduation clock. The QU default
-  plan (`data/simulation_config.json`) now uses the 4-season cycle, with Winter/Summer as
-  optional intersessions.
+  `["Fall", "Spring"]`) marks which seasons advance a student's graduation clock.
+- **`optional_terms_enabled` (default `false`) is the admin on/off switch** for the 4-season
+  cycle, independent of whether `terms_per_year`/`mandatory_terms`/`optional_term_course_sections`
+  are present in the config — they can sit there inert the whole time. The QU default plan
+  (`data/simulation_config.json`) ships with all of that 4-season data already filled in *and*
+  `optional_terms_enabled: false`, so Winter/Summer stay off (legacy 2-season behavior) until an
+  admin flips it on via Settings → `PUT /config {"optional_terms_enabled": true}` (or `GET /meta`
+  to read the current value) — no re-entry of the season data needed either way.
+  `effective_admit_interval_terms(config)` (used by `SyntheticDataSource` instead of reading
+  `admit_interval_terms` directly) auto-rescales the admission cadence so Fall-only yearly
+  admission survives the toggle in both directions: if the stored value matches the *full*
+  `terms_per_year` length (the "one full year" convention), turning optional terms off rescales it
+  to one year under the now-2-season cycle instead of silently admitting every other year; any
+  other stored value (a deliberately non-yearly cadence) is left untouched. A config dict that
+  never sets `optional_terms_enabled` at all (e.g. hand-built test fixtures) defaults to the old,
+  pre-flag behavior — presence of `terms_per_year` alone enables the 4-season cycle, unaffected by
+  this flag's existence.
 - **A course is only offered in an optional season if its own `offering` list says so** — same
   mechanism as Fall/Spring, no new concept. `admit_interval_terms` was bumped 2 → 4 in the QU
   default config to keep yearly, Fall-only admissions now that the cycle is 4 terms long instead
@@ -210,7 +224,13 @@ Each also has a `*_by_cohort` variant (`cohort_id -> {course -> count}`) powerin
 |---|---|
 | baseline | Default (assumed) pass rates and capacity |
 
-`capacity_multiplier`, `capacity_overrides`, `offering_overrides`, and `pass_rate_overrides` per-scenario hooks exist in the engine for what-if experiments. `run.py` simulates every scenario in this list and reports each in `simulation_summary.csv` + a `bottlenecks_<scenario>.png`; with a single scenario, `outputs/reports/flow_timeline.json` (what the dashboard animates) comes from it directly. The scenario's name is recorded at `flow_timeline.json`'s `meta.scenario` so the dashboard can pick the matching `bottlenecks_<scenario>.png`.
+`capacity_multiplier`, `capacity_overrides`, `offering_overrides`, and `pass_rate_overrides` per-scenario hooks exist in the engine for what-if experiments. `run.py` simulates every scenario in this list and reports each in `simulation_summary.csv` + a `bottlenecks_<scenario>.png`; with a single scenario, `outputs/reports/flow_timeline.json` (what the dashboard animates) comes from it directly. The scenario's name is recorded at `flow_timeline.json`'s `meta.scenario` so the dashboard can pick the matching `bottlenecks_<scenario>.png`. With more than one scenario, `save_all_figures` also writes `scenario_comparison.png` (graduation/on-time rate + avg time-to-degree, one bar group per scenario, single-seed only).
+
+> **Dashboard integration:** new scenarios added to `data/simulation_config.json` automatically
+> appear in the web Scenario Builder — the UI reads them via `GET /meta` on each page load.
+> No frontend changes are needed when adding scenarios; `py run.py` also picks them up in the
+> same loop. The `capacity_overrides` and `offering_overrides` fields already in the engine
+> (§11 in `docs/technical_design.md`) are the correct hooks for structural intervention scenarios.
 
 ## Key Constraints
 
@@ -226,7 +246,8 @@ Each also has a `*_by_cohort` variant (`cohort_id -> {course -> count}`) powerin
 ```
 outputs/
 ├── figures/    university_enrollment.png, cohort_flow.png, utilization_heatmap.png,
-│               graduation_histogram.png, bottlenecks_<scenario>.png, curriculum_network.png
+│               graduation_histogram.png, bottlenecks_<scenario>.png, curriculum_network.png,
+│               survival_curve.png, cohort_bottleneck_comparison.png, scenario_comparison.png
 └── reports/    simulation_summary.csv, cohort_flow.csv, cohort_summary.csv,
                 course_utilization.csv, monte_carlo.csv, flow_timeline.json
 ```

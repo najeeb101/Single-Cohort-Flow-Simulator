@@ -42,7 +42,7 @@ def test_meta_shape():
     assert set(body) == {
         "graph", "course_sections", "course_pass_rates", "seats_per_section",
         "baseline_scenario", "cohort_size", "num_cohorts", "num_incumbent_cohorts",
-        "admit_interval_terms", "max_terms", "seed", "dropout_gpa_floor",
+        "admit_interval_terms", "optional_terms_enabled", "max_terms", "seed", "dropout_gpa_floor",
         "dropout_base_hazard", "dropout_early_multiplier", "dropout_early_sem_cutoff",
         "dropout_fails_threshold", "dropout_prob_on_repeated_fail",
         "registration_tier_thresholds", "enrollment_priority_tiers",

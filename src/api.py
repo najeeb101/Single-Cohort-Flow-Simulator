@@ -1,6 +1,6 @@
 """Thin HTTP wrapper around src.service.run_simulation (ACIP plan §2.3/§3.2).
 
-Phase 2 (docs/input_system_plan.md §2.1/§2.2): curriculum/config live in a SQLite DB
+Phase 2 (docs/input_system_history.md §2.1/§2.2): curriculum/config live in a SQLite DB
 (src/db.py), and every endpoint except /health and /auth/* requires a logged-in user
 (src/auth.py::get_current_user). The browser never calls this API directly — it goes
 through the Next.js dev server's rewrite (web/next.config.ts) to the same origin, so CORS
@@ -293,6 +293,10 @@ def meta(db: Session = Depends(get_db), current_user: User = Depends(get_current
         "num_cohorts": config.get("num_cohorts"),
         "num_incumbent_cohorts": config.get("num_incumbent_cohorts"),
         "admit_interval_terms": config.get("admit_interval_terms"),
+        # True is the engine's own fallback (src/models/semester.py) when the key is absent —
+        # mirrored here so a plan seeded before this flag existed reports its *actual* behavior
+        # rather than a hardcoded value that could disagree with what the engine just ran.
+        "optional_terms_enabled": config.get("optional_terms_enabled", True),
         "max_terms": config.get("max_terms"),
         "seed": config.get("seed"),
         "dropout_gpa_floor": config.get("dropout_gpa_floor"),
@@ -601,6 +605,9 @@ def update_config(
         thresholds = patch["registration_tier_thresholds"]
         if not (isinstance(thresholds, list) and len(thresholds) == 5 and all(isinstance(t, int) for t in thresholds)):
             raise HTTPException(status_code=422, detail="registration_tier_thresholds must be a list of 5 ints")
+
+    if "optional_terms_enabled" in patch and not isinstance(patch["optional_terms_enabled"], bool):
+        raise HTTPException(status_code=422, detail="optional_terms_enabled must be a boolean")
 
     plan_id = resolve_active_plan_id(db, current_user)
     row = db.query(AppConfigRow).filter_by(plan_id=plan_id).first()

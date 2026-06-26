@@ -1,4 +1,4 @@
-"""Prerequisite-cycle check for Settings' curriculum editor (docs/input_system_plan.md §2.4).
+"""Prerequisite-cycle check for Settings' curriculum editor (docs/input_system_history.md §2.4).
 
 Pure function over a hypothetical post-edit dict[str, Course] — no DB/globals knowledge,
 so it's easy to unit test and to call from src/api.py before committing a PUT /curriculum

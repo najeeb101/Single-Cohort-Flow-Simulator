@@ -96,7 +96,8 @@ def main() -> None:
         print(f"  Binding criterion  : {rec['binding_criterion']} "
               f"(slack {rec['binding_slack']:.2f})")
 
-    # Figures — embedded in report/report_v2.md and ported as React/SVG in web/.
+    # Figures — saved to outputs/figures/ for ad-hoc inspection; the dashboard (web/) ports
+    # the same underlying data as React/SVG instead of embedding these PNGs anywhere.
     print("\nGenerating figures...")
     figures_dir = Path("outputs/figures")
     save_all_figures(results, curriculum, config, figures_dir)

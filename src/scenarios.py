@@ -1,4 +1,4 @@
-"""Persistent scenarios + run history (docs/input_system_plan.md §2.3) — every endpoint is
+"""Persistent scenarios + run history (docs/input_system_history.md §2.3) — every endpoint is
 scoped to the logged-in user (src/auth.py::get_current_user); cross-user access 404s rather
 than 403ing, so an attacker can't distinguish "not yours" from "doesn't exist"."""
 from __future__ import annotations

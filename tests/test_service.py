@@ -1,6 +1,6 @@
 """Tests for the engine-as-a-service boundary (src/service.py). run_simulation() must
 behave exactly like manually constructing Simulator + the analytics helpers, but as one
-call that returns everything as a dict and touches no disk (docs/acip_transformation_plan.md §2.3).
+call that returns everything as a dict and touches no disk (docs/roadmap.md §2.3).
 """
 from __future__ import annotations
 
