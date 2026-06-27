@@ -4,143 +4,219 @@
     "title": "Programming Concepts",
     "credits": 3,
     "prerequisites": [],
-    "pass_rate": 0.78,
-    "offering": ["Fall", "Spring", "Summer", "Winter"],
+    "pass_rate": 0.8,
+    "offering": [
+      "Fall",
+      "Spring"
+    ],
     "category": "cs_core",
-    "capacity": 100,
-    "study_plan_order": 1
+    "capacity": 120,
+    "study_plan_order": 1,
+    "study_plan_term": 1
+  },
+  {
+    "code": "CMPS251",
+    "title": "Object-Oriented Programming",
+    "credits": 4,
+    "prerequisites": [
+      "CMPS151"
+    ],
+    "pass_rate": 0.78,
+    "offering": [
+      "Fall",
+      "Spring"
+    ],
+    "category": "cs_core",
+    "capacity": 120,
+    "study_plan_order": 2,
+    "study_plan_term": 2
+  },
+  {
+    "code": "CMPS205",
+    "title": "Discrete Structures",
+    "credits": 3,
+    "prerequisites": [
+      "CMPS151"
+    ],
+    "pass_rate": 0.8,
+    "offering": [
+      "Fall",
+      "Spring"
+    ],
+    "category": "cs_core",
+    "capacity": 120,
+    "study_plan_order": 3,
+    "study_plan_term": 3
   },
   {
     "code": "CMPS200",
     "title": "Computer Ethics",
     "credits": 1,
     "prerequisites": [],
-    "pass_rate": 0.98,
-    "offering": ["Fall", "Spring", "Summer"],
+    "pass_rate": 0.92,
+    "offering": [
+      "Fall",
+      "Spring"
+    ],
     "category": "cs_core",
-    "capacity": 100,
-    "study_plan_order": 2
-  },
-  {
-    "code": "CMPS205",
-    "title": "Discrete Structures",
-    "credits": 3,
-    "prerequisites": [],
-    "pass_rate": 0.76,
-    "offering": ["Fall", "Spring"],
-    "category": "cs_core",
-    "capacity": 70,
-    "study_plan_order": 3
-  },
-  {
-    "code": "CMPS251",
-    "title": "Object-Oriented Programming",
-    "credits": 4,
-    "prerequisites": ["CMPS151"],
-    "pass_rate": 0.72,
-    "offering": ["Fall", "Spring", "Summer"],
-    "category": "cs_core",
-    "capacity": 70,
-    "study_plan_order": 4
-  },
-  {
-    "code": "CMPS350",
-    "title": "Web Development Fundamentals",
-    "credits": 3,
-    "prerequisites": ["CMPS251"],
-    "pass_rate": 0.76,
-    "offering": ["Fall", "Spring", "Summer"],
-    "category": "cs_core",
-    "capacity": 35,
-    "study_plan_order": 5
+    "capacity": 120,
+    "study_plan_order": 4,
+    "study_plan_term": 3
   },
   {
     "code": "CMPS303",
     "title": "Data Structures",
     "credits": 4,
-    "prerequisites": ["CMPS251"],
-    "pass_rate": 0.71,
-    "offering": ["Fall", "Spring", "Summer", "Winter"],
+    "prerequisites": [
+      "CMPS251"
+    ],
+    "pass_rate": 0.76,
+    "offering": [
+      "Fall",
+      "Spring"
+    ],
     "category": "cs_core",
-    "capacity": 40,
-    "study_plan_order": 6
+    "capacity": 120,
+    "study_plan_order": 5,
+    "study_plan_term": 3
   },
   {
     "code": "CMPE263",
     "title": "Computer Architecture and Organization I",
     "credits": 3,
-    "prerequisites": ["CMPS151", "CMPS205"],
-    "pass_rate": 0.76,
-    "offering": ["Fall", "Spring", "Summer"],
+    "prerequisites": [
+      "CMPS205"
+    ],
+    "pass_rate": 0.78,
+    "offering": [
+      "Fall",
+      "Spring"
+    ],
     "category": "cs_core",
-    "capacity": 35,
-    "study_plan_order": 7
-  },
-  {
-    "code": "CMPS351",
-    "title": "Fundamentals of Database Systems",
-    "credits": 4,
-    "prerequisites": ["CMPS251"],
-    "pass_rate": 0.75,
-    "offering": ["Spring"],
-    "category": "cs_core",
-    "capacity": 40,
-    "study_plan_order": 8
-  },
-  {
-    "code": "CMPS380",
-    "title": "Cybersecurity Fundamentals",
-    "credits": 3,
-    "prerequisites": ["CMPS303"],
-    "pass_rate": 0.75,
-    "offering": ["Fall"],
-    "category": "cs_core",
-    "capacity": 40,
-    "study_plan_order": 9
-  },
-  {
-    "code": "CMPS405",
-    "title": "Operating Systems",
-    "credits": 4,
-    "prerequisites": ["CMPS303", "CMPE263"],
-    "pass_rate": 0.65,
-    "offering": ["Spring"],
-    "category": "cs_core",
-    "capacity": 40,
-    "study_plan_order": 10
+    "capacity": 120,
+    "study_plan_order": 6,
+    "study_plan_term": 4
   },
   {
     "code": "CMPS323",
     "title": "Design and Analysis of Algorithms",
     "credits": 3,
-    "prerequisites": ["CMPS303", "CMPS205"],
-    "pass_rate": 0.65,
-    "offering": ["Spring"],
+    "prerequisites": [
+      "CMPS303",
+      "CMPS205"
+    ],
+    "pass_rate": 0.76,
+    "offering": [
+      "Fall",
+      "Spring"
+    ],
     "category": "cs_core",
-    "capacity": 40,
-    "study_plan_order": 11
+    "capacity": 120,
+    "study_plan_order": 7,
+    "study_plan_term": 4
+  },
+  {
+    "code": "CMPS351",
+    "title": "Fundamentals of Database",
+    "credits": 4,
+    "prerequisites": [
+      "CMPS303"
+    ],
+    "pass_rate": 0.8,
+    "offering": [
+      "Fall",
+      "Spring"
+    ],
+    "category": "cs_core",
+    "capacity": 120,
+    "study_plan_order": 8,
+    "study_plan_term": 4
   },
   {
     "code": "CMPS310",
     "title": "Software Engineering",
     "credits": 4,
-    "prerequisites": ["CMPS251"],
-    "pass_rate": 0.72,
-    "offering": ["Fall"],
+    "prerequisites": [
+      "CMPS251"
+    ],
+    "pass_rate": 0.82,
+    "offering": [
+      "Fall",
+      "Spring"
+    ],
     "category": "cs_core",
-    "capacity": 40,
-    "study_plan_order": 12
+    "capacity": 120,
+    "study_plan_order": 9,
+    "study_plan_term": 5
+  },
+  {
+    "code": "CMPS405",
+    "title": "Operating Systems",
+    "credits": 4,
+    "prerequisites": [
+      "CMPS303",
+      "CMPE263"
+    ],
+    "pass_rate": 0.76,
+    "offering": [
+      "Fall",
+      "Spring"
+    ],
+    "category": "cs_core",
+    "capacity": 120,
+    "study_plan_order": 10,
+    "study_plan_term": 5
   },
   {
     "code": "CMPE355",
     "title": "Data Communication and Computer Networks I",
     "credits": 4,
-    "prerequisites": ["CMPE263"],
-    "pass_rate": 0.72,
-    "offering": ["Fall"],
+    "prerequisites": [
+      "CMPE263"
+    ],
+    "pass_rate": 0.78,
+    "offering": [
+      "Fall",
+      "Spring"
+    ],
     "category": "cs_core",
-    "capacity": 40,
-    "study_plan_order": 13
+    "capacity": 120,
+    "study_plan_order": 11,
+    "study_plan_term": 6
+  },
+  {
+    "code": "CMPS350",
+    "title": "Web Development",
+    "credits": 3,
+    "prerequisites": [
+      "CMPS251"
+    ],
+    "pass_rate": 0.84,
+    "offering": [
+      "Fall",
+      "Spring"
+    ],
+    "category": "cs_core",
+    "capacity": 120,
+    "study_plan_order": 12,
+    "study_plan_term": 6
+  },
+  {
+    "code": "CMPS380",
+    "title": "Cybersecurity Fundamentals",
+    "credits": 3,
+    "prerequisites": [
+      "CMPS303"
+    ],
+    "pass_rate": 0.82,
+    "offering": [
+      "Fall",
+      "Spring"
+    ],
+    "category": "cs_core",
+    "capacity": 120,
+    "study_plan_order": 13,
+    "study_plan_term": 5
   },
   {
     "code": "CMPS493",
@@ -148,276 +224,448 @@
     "credits": 3,
     "prerequisites": [],
     "pass_rate": 0.88,
-    "offering": ["Fall", "Spring"],
+    "offering": [
+      "Fall",
+      "Spring"
+    ],
     "category": "cs_core",
     "capacity": 30,
-    "study_plan_order": 14,
     "rule_expr": {
-      "all": ["CMPS310", {"any": ["CMPS350", "CMPS405"]}, {"min_ch": 84}]
-    }
+      "all": [
+        "CMPS310",
+        {
+          "any": [
+            "CMPS350",
+            "CMPS405"
+          ]
+        },
+        {
+          "min_ch": 84
+        }
+      ]
+    },
+    "study_plan_order": 14,
+    "study_plan_term": 7
   },
   {
     "code": "CMPS499",
     "title": "Senior Project II",
     "credits": 3,
-    "prerequisites": ["CMPS493"],
-    "pass_rate": 0.90,
-    "offering": ["Fall", "Spring"],
+    "prerequisites": [
+      "CMPS493"
+    ],
+    "pass_rate": 0.9,
+    "offering": [
+      "Fall",
+      "Spring"
+    ],
     "category": "cs_core",
     "capacity": 30,
-    "study_plan_order": 15
+    "study_plan_order": 15,
+    "study_plan_term": 8
   },
   {
-    "code": "ELEC_1",
-    "title": "CS Elective 1",
+    "code": "CSEL1",
+    "title": "Major Elective I",
     "credits": 3,
     "prerequisites": [],
-    "pass_rate": 0.78,
-    "offering": ["Fall", "Spring"],
-    "category": "cs_elective",
-    "capacity": 35,
-    "study_plan_order": 20
-  },
-  {
-    "code": "ELEC_2",
-    "title": "CS Elective 2",
-    "credits": 3,
-    "prerequisites": [],
-    "pass_rate": 0.78,
-    "offering": ["Fall", "Spring"],
-    "category": "cs_elective",
-    "capacity": 35,
-    "study_plan_order": 21
-  },
-  {
-    "code": "ELEC_3",
-    "title": "CS Elective 3",
-    "credits": 3,
-    "prerequisites": [],
-    "pass_rate": 0.78,
-    "offering": ["Fall", "Spring"],
-    "category": "cs_elective",
-    "capacity": 35,
-    "study_plan_order": 22
-  },
-  {
-    "code": "ELEC_4",
-    "title": "CS Elective 4",
-    "credits": 3,
-    "prerequisites": [],
-    "pass_rate": 0.78,
-    "offering": ["Fall", "Spring"],
-    "category": "cs_elective",
-    "capacity": 35,
-    "study_plan_order": 23
-  },
-  {
-    "code": "SUPP_1",
-    "title": "Project Management (CMPS307)",
-    "credits": 2,
-    "prerequisites": [],
-    "pass_rate": 0.92,
-    "offering": ["Fall", "Spring"],
-    "category": "college_req",
-    "capacity": 100,
-    "study_plan_order": 30
-  },
-  {
-    "code": "SUPP_2",
-    "title": "Principles of Management (MAGT101)",
-    "credits": 3,
-    "prerequisites": [],
-    "pass_rate": 0.92,
-    "offering": ["Fall", "Spring"],
-    "category": "college_req",
-    "capacity": 100,
-    "study_plan_order": 31
-  },
-  {
-    "code": "MATH_1",
-    "title": "Calculus I (MATH101)",
-    "credits": 3,
-    "prerequisites": [],
-    "pass_rate": 0.82,
-    "offering": ["Fall", "Spring"],
-    "category": "math",
-    "capacity": 100,
-    "study_plan_order": 40
-  },
-  {
-    "code": "MATH_2",
-    "title": "Calculus II (MATH102)",
-    "credits": 3,
-    "prerequisites": ["MATH_1"],
     "pass_rate": 0.85,
-    "offering": ["Fall", "Spring"],
-    "category": "math",
-    "capacity": 100,
-    "study_plan_order": 41
+    "offering": [
+      "Fall",
+      "Spring"
+    ],
+    "category": "cs_elective",
+    "capacity": 60,
+    "study_plan_order": 20,
+    "study_plan_term": 6
   },
   {
-    "code": "MATH_3",
-    "title": "Linear Algebra (MATH231)",
+    "code": "CSEL2",
+    "title": "Major Elective II",
     "credits": 3,
-    "prerequisites": ["MATH_1"],
-    "pass_rate": 0.82,
-    "offering": ["Fall", "Spring"],
-    "category": "math",
-    "capacity": 100,
-    "study_plan_order": 42
-  },
-  {
-    "code": "MATH_4",
-    "title": "Probability and Statistics (GENG200)",
-    "credits": 3,
-    "prerequisites": ["MATH_2"],
-    "pass_rate": 0.82,
-    "offering": ["Fall", "Spring"],
-    "category": "math",
-    "capacity": 100,
-    "study_plan_order": 43
-  },
-  {
-    "code": "MATH_5",
-    "title": "Numerical Methods (GENG300)",
-    "credits": 3,
-    "prerequisites": ["MATH_4"],
-    "pass_rate": 0.82,
-    "offering": ["Fall", "Spring"],
-    "category": "math",
-    "capacity": 100,
-    "study_plan_order": 44
-  },
-  {
-    "code": "PHYS_1",
-    "title": "Physics I (PHYS191+192)",
-    "credits": 4,
     "prerequisites": [],
-    "pass_rate": 0.84,
-    "offering": ["Fall", "Spring"],
-    "category": "science",
-    "capacity": 100,
-    "study_plan_order": 45
+    "pass_rate": 0.85,
+    "offering": [
+      "Fall",
+      "Spring"
+    ],
+    "category": "cs_elective",
+    "capacity": 60,
+    "study_plan_order": 21,
+    "study_plan_term": 6
   },
   {
-    "code": "PHYS_2",
-    "title": "Physics II (PHYS193+194)",
-    "credits": 4,
-    "prerequisites": ["PHYS_1"],
-    "pass_rate": 0.80,
-    "offering": ["Fall", "Spring"],
-    "category": "science",
-    "capacity": 100,
-    "study_plan_order": 46
+    "code": "CSEL3",
+    "title": "Major Elective III",
+    "credits": 3,
+    "prerequisites": [],
+    "pass_rate": 0.85,
+    "offering": [
+      "Fall",
+      "Spring"
+    ],
+    "category": "cs_elective",
+    "capacity": 60,
+    "study_plan_order": 22,
+    "study_plan_term": 7
   },
   {
-    "code": "CHEM_1",
-    "title": "Chemistry I (CHEM101+103)",
-    "credits": 4,
+    "code": "CSEL4",
+    "title": "Major Elective IV",
+    "credits": 3,
+    "prerequisites": [],
+    "pass_rate": 0.85,
+    "offering": [
+      "Fall",
+      "Spring"
+    ],
+    "category": "cs_elective",
+    "capacity": 60,
+    "study_plan_order": 23,
+    "study_plan_term": 8
+  },
+  {
+    "code": "MATH101",
+    "title": "Calculus I",
+    "credits": 3,
+    "prerequisites": [],
+    "pass_rate": 0.78,
+    "offering": [
+      "Fall",
+      "Spring"
+    ],
+    "category": "math",
+    "capacity": 120,
+    "study_plan_order": 30,
+    "study_plan_term": 1
+  },
+  {
+    "code": "MATH102",
+    "title": "Calculus II",
+    "credits": 3,
+    "prerequisites": [
+      "MATH101"
+    ],
+    "pass_rate": 0.76,
+    "offering": [
+      "Fall",
+      "Spring"
+    ],
+    "category": "math",
+    "capacity": 120,
+    "study_plan_order": 31,
+    "study_plan_term": 2
+  },
+  {
+    "code": "MATH231",
+    "title": "Linear Algebra",
+    "credits": 3,
+    "prerequisites": [
+      "MATH102"
+    ],
+    "pass_rate": 0.78,
+    "offering": [
+      "Fall",
+      "Spring"
+    ],
+    "category": "math",
+    "capacity": 120,
+    "study_plan_order": 32,
+    "study_plan_term": 3
+  },
+  {
+    "code": "GENG200",
+    "title": "Probability and Statistics",
+    "credits": 3,
+    "prerequisites": [
+      "MATH102"
+    ],
+    "pass_rate": 0.8,
+    "offering": [
+      "Fall",
+      "Spring"
+    ],
+    "category": "math",
+    "capacity": 120,
+    "study_plan_order": 33,
+    "study_plan_term": 4
+  },
+  {
+    "code": "GENG300",
+    "title": "Numerical Methods",
+    "credits": 3,
+    "prerequisites": [
+      "MATH231"
+    ],
+    "pass_rate": 0.8,
+    "offering": [
+      "Fall",
+      "Spring"
+    ],
+    "category": "math",
+    "capacity": 120,
+    "study_plan_order": 34,
+    "study_plan_term": 6
+  },
+  {
+    "code": "CHEM101",
+    "title": "General Chemistry I",
+    "credits": 3,
+    "prerequisites": [],
+    "pass_rate": 0.82,
+    "offering": [
+      "Fall",
+      "Spring"
+    ],
+    "category": "science",
+    "capacity": 120,
+    "study_plan_order": 40,
+    "study_plan_term": 1
+  },
+  {
+    "code": "CHEM103",
+    "title": "Experimental General Chemistry I",
+    "credits": 1,
+    "prerequisites": [],
+    "pass_rate": 0.92,
+    "offering": [
+      "Fall",
+      "Spring"
+    ],
+    "category": "science",
+    "capacity": 120,
+    "study_plan_order": 41,
+    "study_plan_term": 1
+  },
+  {
+    "code": "PHYS191",
+    "title": "General Physics for Engineering I",
+    "credits": 3,
+    "prerequisites": [],
+    "pass_rate": 0.8,
+    "offering": [
+      "Fall",
+      "Spring"
+    ],
+    "category": "science",
+    "capacity": 120,
+    "study_plan_order": 42,
+    "study_plan_term": 2
+  },
+  {
+    "code": "PHYS192",
+    "title": "Experimental General Physics for Engineering I",
+    "credits": 1,
+    "prerequisites": [],
+    "pass_rate": 0.92,
+    "offering": [
+      "Fall",
+      "Spring"
+    ],
+    "category": "science",
+    "capacity": 120,
+    "study_plan_order": 43,
+    "study_plan_term": 2
+  },
+  {
+    "code": "PHYS193",
+    "title": "General Physics for Engineering II",
+    "credits": 3,
+    "prerequisites": [
+      "PHYS191"
+    ],
+    "pass_rate": 0.8,
+    "offering": [
+      "Fall",
+      "Spring"
+    ],
+    "category": "science",
+    "capacity": 120,
+    "study_plan_order": 44,
+    "study_plan_term": 3
+  },
+  {
+    "code": "PHYS194",
+    "title": "Experimental General Physics for Engineering II",
+    "credits": 1,
+    "prerequisites": [
+      "PHYS192"
+    ],
+    "pass_rate": 0.92,
+    "offering": [
+      "Fall",
+      "Spring"
+    ],
+    "category": "science",
+    "capacity": 120,
+    "study_plan_order": 45,
+    "study_plan_term": 3
+  },
+  {
+    "code": "ENGL202",
+    "title": "English Language I",
+    "credits": 3,
     "prerequisites": [],
     "pass_rate": 0.88,
-    "offering": ["Fall", "Spring"],
-    "category": "science",
-    "capacity": 100,
-    "study_plan_order": 47
-  },
-  {
-    "code": "ENGL_1",
-    "title": "English Language I (ENGL202)",
-    "credits": 3,
-    "prerequisites": [],
-    "pass_rate": 0.90,
-    "offering": ["Fall", "Spring"],
+    "offering": [
+      "Fall",
+      "Spring"
+    ],
     "category": "english",
     "capacity": 100,
-    "study_plan_order": 50
+    "study_plan_order": 50,
+    "study_plan_term": 1
   },
   {
-    "code": "ENGL_2",
-    "title": "English Language II (ENGL203)",
+    "code": "ENGL203",
+    "title": "English Language II",
     "credits": 3,
-    "prerequisites": ["ENGL_1"],
-    "pass_rate": 0.90,
-    "offering": ["Fall", "Spring"],
+    "prerequisites": [
+      "ENGL202"
+    ],
+    "pass_rate": 0.88,
+    "offering": [
+      "Fall",
+      "Spring"
+    ],
     "category": "english",
     "capacity": 100,
-    "study_plan_order": 51
+    "study_plan_order": 51,
+    "study_plan_term": 2
   },
   {
-    "code": "GED_1",
-    "title": "History of Qatar (HIST121)",
+    "code": "HIS121",
+    "title": "History of Qatar",
     "credits": 3,
     "prerequisites": [],
     "pass_rate": 0.92,
-    "offering": ["Fall", "Spring"],
+    "offering": [
+      "Fall",
+      "Spring"
+    ],
     "category": "gen_ed",
-    "capacity": 100,
-    "study_plan_order": 60
+    "capacity": 120,
+    "study_plan_order": 60,
+    "study_plan_term": 1
   },
   {
-    "code": "GED_2",
-    "title": "Arabic Language (ARAB100)",
+    "code": "ARAB100",
+    "title": "Arabic Language I",
     "credits": 3,
     "prerequisites": [],
     "pass_rate": 0.92,
-    "offering": ["Fall", "Spring"],
+    "offering": [
+      "Fall",
+      "Spring"
+    ],
     "category": "gen_ed",
-    "capacity": 100,
-    "study_plan_order": 61
+    "capacity": 120,
+    "study_plan_order": 61,
+    "study_plan_term": 2
   },
   {
-    "code": "GED_3",
-    "title": "Core Knowledge and Skills",
+    "code": "CORE201",
+    "title": "Core Knowledge and Skills Package",
+    "credits": 3,
+    "prerequisites": [],
+    "pass_rate": 0.9,
+    "offering": [
+      "Fall",
+      "Spring"
+    ],
+    "category": "gen_ed",
+    "capacity": 120,
+    "study_plan_order": 62,
+    "study_plan_term": 4
+  },
+  {
+    "code": "NSMP201",
+    "title": "Natural Science/Mathematics Package",
+    "credits": 3,
+    "prerequisites": [],
+    "pass_rate": 0.9,
+    "offering": [
+      "Fall",
+      "Spring"
+    ],
+    "category": "gen_ed",
+    "capacity": 120,
+    "study_plan_order": 63,
+    "study_plan_term": 5
+  },
+  {
+    "code": "DAWA111",
+    "title": "Islamic Culture",
     "credits": 3,
     "prerequisites": [],
     "pass_rate": 0.92,
-    "offering": ["Fall", "Spring"],
+    "offering": [
+      "Fall",
+      "Spring"
+    ],
     "category": "gen_ed",
-    "capacity": 100,
-    "study_plan_order": 62
+    "capacity": 120,
+    "study_plan_order": 64,
+    "study_plan_term": 5
   },
   {
-    "code": "GED_4",
-    "title": "Islamic Culture (DAWA111)",
-    "credits": 3,
+    "code": "CMPS307",
+    "title": "Introduction to Project Management and Entrepreneurship",
+    "credits": 2,
     "prerequisites": [],
-    "pass_rate": 0.92,
-    "offering": ["Fall", "Spring"],
+    "pass_rate": 0.9,
+    "offering": [
+      "Fall",
+      "Spring"
+    ],
     "category": "gen_ed",
-    "capacity": 100,
-    "study_plan_order": 63
+    "capacity": 120,
+    "study_plan_order": 65,
+    "study_plan_term": 7
   },
   {
-    "code": "GED_5",
-    "title": "Natural Science and Mathematics",
+    "code": "HUMF201",
+    "title": "Humanities/Fine Arts Package",
     "credits": 3,
     "prerequisites": [],
-    "pass_rate": 0.92,
-    "offering": ["Fall", "Spring"],
+    "pass_rate": 0.9,
+    "offering": [
+      "Fall",
+      "Spring"
+    ],
     "category": "gen_ed",
-    "capacity": 100,
-    "study_plan_order": 64
+    "capacity": 120,
+    "study_plan_order": 66,
+    "study_plan_term": 7
   },
   {
-    "code": "GED_6",
-    "title": "Humanities and Fine Arts",
+    "code": "MAGT101",
+    "title": "Principles of Management",
     "credits": 3,
     "prerequisites": [],
-    "pass_rate": 0.92,
-    "offering": ["Fall", "Spring"],
+    "pass_rate": 0.9,
+    "offering": [
+      "Fall",
+      "Spring"
+    ],
     "category": "gen_ed",
-    "capacity": 100,
-    "study_plan_order": 65
+    "capacity": 120,
+    "study_plan_order": 67,
+    "study_plan_term": 8
   },
   {
-    "code": "GED_7",
-    "title": "Social and Behavioral Sciences",
+    "code": "SOCB201",
+    "title": "Social and Behavioral Package",
     "credits": 3,
     "prerequisites": [],
-    "pass_rate": 0.92,
-    "offering": ["Fall", "Spring"],
+    "pass_rate": 0.9,
+    "offering": [
+      "Fall",
+      "Spring"
+    ],
     "category": "gen_ed",
-    "capacity": 100,
-    "study_plan_order": 66
+    "capacity": 120,
+    "study_plan_order": 68,
+    "study_plan_term": 8
   }
 ]

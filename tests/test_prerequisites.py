@@ -29,7 +29,7 @@ def test_no_prereqs_always_eligible():
     curric = _minimal_curriculum()
     s = _make_student()
     assert s.prerequisites_met(curric["CMPS151"], curric)
-    assert s.prerequisites_met(curric["MATH_1"], curric)
+    assert s.prerequisites_met(curric["MATH101"], curric)
 
 
 def test_prereq_blocks_when_not_passed():

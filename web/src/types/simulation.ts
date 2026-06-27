@@ -14,6 +14,7 @@ export interface GraphNode {
   offering: string[];
   capacity: number;
   study_plan_order: number;
+  study_plan_term: number;
 }
 
 export interface GraphEdge {
@@ -64,8 +65,18 @@ export interface Frame {
   term: number;
   season: string;
   label: string;
+  // Constant pre-existing-student head-counts (initial_state.standing) folded into the
+  // aggregate stage nodes so the flow chart starts non-empty. Display-only.
+  background?: Record<string, number>;
   courses: Record<string, CourseFrameStat>;
   stages: FrameStages;
+}
+
+// Admin-entered warm start that replaces the old simulated incumbent cohorts: per-course
+// seats already taken by the existing student body + a year-standing head-count.
+export interface InitialState {
+  occupancy: Record<string, number>;
+  standing: Record<string, number>;
 }
 
 export interface Criterion {
@@ -201,6 +212,7 @@ export interface FlowTimelineMeta {
   max_terms: number;
   num_cohorts: number;
   num_incumbent_cohorts: number;
+  initial_state: InitialState;
   seats_per_section: number;
 }
 
@@ -231,6 +243,7 @@ export interface MetaResponse {
   cohort_size: number;
   num_cohorts: number;
   num_incumbent_cohorts: number;
+  initial_state: InitialState;
   admit_interval_terms: number;
   optional_terms_enabled: boolean;
   max_terms: number;
@@ -256,6 +269,7 @@ export interface ScenarioRequest {
   admit_interval_terms?: number;
   max_terms?: number;
   seed?: number;
+  initial_state?: InitialState;
   course_sections_overrides?: Record<string, number>;
   dropout_gpa_floor?: number;
   dropout_base_hazard?: number;
@@ -290,6 +304,7 @@ export interface CourseRecord {
   capacity: number;
   rule_expr: RuleExpr | null;
   study_plan_order: number;
+  study_plan_term: number;
 }
 
 export interface CourseCreate {
@@ -303,6 +318,7 @@ export interface CourseCreate {
   capacity: number;
   rule_expr: RuleExpr | null;
   study_plan_order: number;
+  study_plan_term: number;
 }
 
 export interface CourseUpdate {
@@ -315,6 +331,7 @@ export interface CourseUpdate {
   capacity?: number;
   rule_expr?: RuleExpr | null;
   study_plan_order?: number;
+  study_plan_term?: number;
 }
 
 export interface PlanRecord {

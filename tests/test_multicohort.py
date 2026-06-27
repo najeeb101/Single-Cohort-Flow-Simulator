@@ -58,7 +58,7 @@ def test_unique_student_ids_and_cohort_assignment():
     assert len(ids) == len(set(ids)), "student ids must be globally unique"
 
     n_cohorts = config["num_cohorts"]
-    n_inc = config["num_incumbent_cohorts"]
+    n_inc = config.get("num_incumbent_cohorts", 0)  # default plan no longer warm-starts incumbents
     expected = config["cohort_size"] * (n_cohorts + n_inc)
     assert len(result.students) == expected
 
@@ -73,34 +73,43 @@ def test_entry_terms_match_schedule():
     # study cohorts at 0, interval, 2*interval, ...
     for c in range(config["num_cohorts"]):
         assert entry[c] == c * interval
-    # incumbents before term 0
-    for k in range(1, config["num_incumbent_cohorts"] + 1):
+    # incumbents before term 0 (none in the default plan, but the schedule still holds if set)
+    for k in range(1, config.get("num_incumbent_cohorts", 0) + 1):
         assert entry[-k] == -k * interval
 
 
-# ── Warm start: incumbents occupy seats before study cohort 0 ────── #
+# ── Warm start: initial-state occupancy + standing (replaces incumbents) ── #
 
-def test_warm_start_incumbents_present_and_progressed():
-    result, _, _ = _run()
-    # By the first study term (global term 0), incumbents have been progressing for
-    # several semesters: they are present and have completed credit hours / hold seats.
-    incumbents = [s for s in result.students if s.cohort_id < 0]
-    assert incumbents, "incumbent cohorts must exist"
-    assert any(s.completed_ch > 0 for s in incumbents), \
-        "incumbents should have made academic progress before study cohort 0 arrives"
-    # The university is genuinely multi-cohort at term 0 (more than one cohort's worth active).
+def test_initial_state_occupancy_reduces_capacity_and_standing_populates_totals():
+    result, config, curriculum = _run()
+    occupancy = config["initial_state"]["occupancy"]
+    standing = config["initial_state"]["standing"]
+    sps = config["seats_per_section"]
+
+    # A course with occupancy has its free seats reduced by exactly that many on a
+    # mandatory term: free = sections * seats_per_section - occupied.
+    sim = Simulator(curriculum, config, config["scenarios"][0])
+    code = "CMPS151"
+    expected = config["course_sections"][code] * sps - occupancy[code]
+    assert sim._effective_capacity(curriculum[code]) == expected
+
+    # Standing head-counts are folded into the aggregate stage nodes (and exposed as
+    # `background`) so the flow chart isn't empty at term 0.
     frame0 = next(f for f in result.history.timeline if f["term"] == 0)
-    total_registered = sum(c["registered"] for c in frame0["courses"].values())
-    assert total_registered > 0
+    assert frame0["background"] == {k: v for k, v in standing.items() if v}
+    for node, count in standing.items():
+        assert frame0["stages"]["totals"]["nodes"][node] >= count
 
 
 def test_effective_capacity_is_sections_times_section_size():
     config, curriculum = _setup()
     sim = Simulator(curriculum, config, config["scenarios"][0])
     sps = config["seats_per_section"]
-    for code in ["CMPS303", "CMPS405", "GED_1"]:
+    occupancy = config.get("initial_state", {}).get("occupancy", {})
+    for code in ["CMPS303", "CMPS405", "HIS121"]:
         course = curriculum[code]
-        expected = config["course_sections"][code] * sps
+        # Effective capacity is sections × seats, minus any steady-state initial occupancy.
+        expected = config["course_sections"][code] * sps - occupancy.get(code, 0)
         assert sim._effective_capacity(course) == expected
         assert sim._section_count(course) == config["course_sections"][code]
 
@@ -235,7 +244,7 @@ def test_timeline_frames_and_invariants():
     # (non-mandatory) seasons exist in the cycle too. See CLAUDE.md's "Term/Season Model".
     interval = effective_admit_interval_terms(config)
     entry_terms = [c * interval for c in range(config["num_cohorts"])]
-    entry_terms += [-k * interval for k in range(1, config["num_incumbent_cohorts"] + 1)]
+    entry_terms += [-k * interval for k in range(1, config.get("num_incumbent_cohorts", 0) + 1)]
     start_term = min(entry_terms)
     end_term = max(mandatory_horizon_end_term(t, config["max_terms"], config) for t in entry_terms)
     expected_terms = end_term - start_term

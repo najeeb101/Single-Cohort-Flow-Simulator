@@ -18,6 +18,8 @@ class Course:
     capacity: int                       # seats per offering-instance
     rule_expr: Optional[dict] = None    # compound gate (see src/rules.py); None = plain prerequisites
     study_plan_order: int = 99          # lower = earlier in the study plan
+    study_plan_term: int = 0            # recommended semester column (1..N) for the flow chart;
+                                        # 0 = unassigned (rendered in a trailing "Unscheduled" column)
 
 
 def course_from_dict(entry: dict) -> Course:
@@ -37,6 +39,7 @@ def course_from_dict(entry: dict) -> Course:
             capacity=entry["capacity"],
             rule_expr=entry.get("rule_expr"),
             study_plan_order=entry.get("study_plan_order", 99),
+            study_plan_term=entry.get("study_plan_term", 0),
         )
     except KeyError as exc:
         code = entry.get("code", "<unknown>")

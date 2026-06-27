@@ -64,6 +64,7 @@ class Course(Base):
     capacity: Mapped[int] = mapped_column(nullable=False)
     rule_expr: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     study_plan_order: Mapped[int] = mapped_column(default=99)
+    study_plan_term: Mapped[int] = mapped_column(default=0)  # recommended semester column (1..N)
 
 
 class Instructor(Base):

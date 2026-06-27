@@ -10,6 +10,7 @@ export const BLANK_CONFIG: Record<string, unknown> = {
   max_terms: 12,
   num_cohorts: 4,
   num_incumbent_cohorts: 0,
+  initial_state: { occupancy: {}, standing: { Year2: 0, Year3: 0, Year4: 0 } },
   admit_interval_terms: 2,
   seats_per_section: 35,
   course_sections: {},
@@ -55,6 +56,7 @@ export function emptyCourse(): CourseRecord {
     capacity: 30,
     rule_expr: null,
     study_plan_order: 99,
+    study_plan_term: 0,
   };
 }
 
@@ -74,6 +76,7 @@ export function metaFromPlanExport(curriculum: CourseRecord[], config: Record<st
     cohort_size: (config.cohort_size as number) ?? 100,
     num_cohorts: (config.num_cohorts as number) ?? 4,
     num_incumbent_cohorts: (config.num_incumbent_cohorts as number) ?? 0,
+    initial_state: (config.initial_state as MetaResponse["initial_state"]) ?? { occupancy: {}, standing: {} },
     admit_interval_terms: (config.admit_interval_terms as number) ?? 2,
     optional_terms_enabled: (config.optional_terms_enabled as boolean) ?? false,
     max_terms: (config.max_terms as number) ?? 12,
@@ -103,6 +106,7 @@ export function composePlanPayload(
     cohort_size: state.cohortSize,
     num_cohorts: state.numCohorts,
     num_incumbent_cohorts: state.numIncumbentCohorts,
+    initial_state: { occupancy: state.initialOccupancy, standing: state.standing },
     admit_interval_terms: state.admitIntervalTerms,
     max_terms: state.maxTerms,
     seed: state.seed,

@@ -332,6 +332,7 @@ def build_curriculum_graph(curriculum: dict[str, "Course"]) -> dict:
             "offering": list(c.offering),
             "capacity": c.capacity,
             "study_plan_order": c.study_plan_order,
+            "study_plan_term": c.study_plan_term,
         })
         for pre in c.prerequisites:
             if pre in curriculum:
@@ -446,7 +447,8 @@ def flow_timeline_payload(
             "cohort_size": result.config.get("cohort_size"),
             "max_terms": result.config.get("max_terms"),
             "num_cohorts": result.config.get("num_cohorts"),
-            "num_incumbent_cohorts": result.config.get("num_incumbent_cohorts"),
+            "num_incumbent_cohorts": result.config.get("num_incumbent_cohorts", 0),
+            "initial_state": result.config.get("initial_state", {"occupancy": {}, "standing": {}}),
             "seats_per_section": result.config.get("seats_per_section", 35),
         },
         "frames": history.timeline,

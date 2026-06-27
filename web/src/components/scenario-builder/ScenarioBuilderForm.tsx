@@ -30,8 +30,11 @@ export default function ScenarioBuilderForm() {
   const setField = <K extends keyof BuilderState>(key: K, value: BuilderState[K]) =>
     setState((prev) => ({ ...prev, [key]: value }));
 
-  const setRecordField = (key: "capacityMultipliers" | "courseSections" | "passRates", code: string, value: number) =>
-    setState((prev) => ({ ...prev, [key]: { ...prev[key], [code]: value } }));
+  const setRecordField = (
+    key: "capacityMultipliers" | "courseSections" | "passRates" | "initialOccupancy" | "standing",
+    code: string,
+    value: number,
+  ) => setState((prev) => ({ ...prev, [key]: { ...prev[key], [code]: value } }));
 
   const overrides = useMemo(() => buildOverrides(state, baseline), [state, baseline]);
   const changeCount = Object.keys(overrides).length;
@@ -187,7 +190,9 @@ export default function ScenarioBuilderForm() {
         {tab === "Pass Rates & Dropout" && (
           <PassRatesDropoutTab mode={mode} meta={meta} state={state} baseline={baseline} setField={setField} setRecordField={setRecordField} />
         )}
-        {tab === "Admissions" && <AdmissionsTab mode={mode} state={state} baseline={baseline} setField={setField} />}
+        {tab === "Admissions" && (
+          <AdmissionsTab mode={mode} state={state} baseline={baseline} setField={setField} setRecordField={setRecordField} />
+        )}
         {tab === "Registration Policy" && (
           <RegistrationPolicyTab mode={mode} state={state} baseline={baseline} setField={setField} />
         )}

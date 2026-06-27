@@ -8,7 +8,7 @@ interface Props {
   topCapacityCourses: string[];
   state: BuilderState;
   baseline: BuilderState;
-  setRecordField: (key: "capacityMultipliers" | "courseSections", code: string, value: number) => void;
+  setRecordField: (key: "capacityMultipliers" | "courseSections" | "initialOccupancy", code: string, value: number) => void;
   setField: <K extends keyof BuilderState>(key: K, value: BuilderState[K]) => void;
 }
 
@@ -46,36 +46,58 @@ export default function CapacityTab({ mode, meta, topCapacityCourses, state, bas
       </SectionCard>
 
       {mode === "advanced" && (
-        <SectionCard title="All courses — sections per term" hint="config course_sections, the real capacity lever">
+        <SectionCard
+          title="All courses — sections & initial occupancy"
+          hint="sections = config course_sections; occupied = seats already taken by the existing student body (steady-state)"
+        >
           <div className="max-h-[420px] overflow-auto rounded-lg border border-border">
             <table className="w-full border-collapse text-[12.5px]">
               <thead>
                 <tr>
-                  <th className="sticky top-0 border-b border-border bg-surface px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-wide text-muted">
-                    Course
-                  </th>
-                  <th className="sticky top-0 border-b border-border bg-surface px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-wide text-muted">
-                    Sections
-                  </th>
+                  {["Course", "Sections", "Occupied seats"].map((h) => (
+                    <th
+                      key={h}
+                      className="sticky top-0 border-b border-border bg-surface px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-wide text-muted"
+                    >
+                      {h}
+                    </th>
+                  ))}
                 </tr>
               </thead>
               <tbody>
-                {Object.keys(meta.course_sections).sort().map((code) => (
-                  <tr key={code} className={state.courseSections[code] !== baseline.courseSections[code] ? "bg-accent/[0.07]" : ""}>
-                    <td className="whitespace-nowrap border-b border-border px-3 py-1.5">{code}</td>
-                    <td className="whitespace-nowrap border-b border-border px-3 py-1.5">
-                      <div className="w-24">
-                        <NumberBox
-                          value={state.courseSections[code]}
-                          onChange={(v) => setRecordField("courseSections", code, v)}
-                          min={1}
-                          max={20}
-                          step={1}
-                        />
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                {Object.keys(meta.course_sections).sort().map((code) => {
+                  const occ = state.initialOccupancy[code] ?? 0;
+                  const baseOcc = baseline.initialOccupancy[code] ?? 0;
+                  const rowDirty =
+                    state.courseSections[code] !== baseline.courseSections[code] || occ !== baseOcc;
+                  return (
+                    <tr key={code} className={rowDirty ? "bg-accent/[0.07]" : ""}>
+                      <td className="whitespace-nowrap border-b border-border px-3 py-1.5">{code}</td>
+                      <td className="whitespace-nowrap border-b border-border px-3 py-1.5">
+                        <div className="w-24">
+                          <NumberBox
+                            value={state.courseSections[code]}
+                            onChange={(v) => setRecordField("courseSections", code, v)}
+                            min={1}
+                            max={20}
+                            step={1}
+                          />
+                        </div>
+                      </td>
+                      <td className="whitespace-nowrap border-b border-border px-3 py-1.5">
+                        <div className="w-24">
+                          <NumberBox
+                            value={occ}
+                            onChange={(v) => setRecordField("initialOccupancy", code, v)}
+                            min={0}
+                            max={2000}
+                            step={1}
+                          />
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

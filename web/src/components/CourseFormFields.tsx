@@ -101,6 +101,17 @@ export default function CourseFormFields({ value, allCourseCodes, onChange, edit
             className="w-24 rounded-[8px] border border-border-2 bg-surface px-2.5 py-1.5 text-ink"
           />
         </label>
+        <label className="flex flex-col gap-1 text-muted" title="Recommended semester column in the flow chart (0 = unscheduled)">
+          Plan term
+          <input
+            type="number"
+            min={0}
+            max={20}
+            value={value.study_plan_term}
+            onChange={(e) => onChange({ ...value, study_plan_term: Number(e.target.value) })}
+            className="w-20 rounded-[8px] border border-border-2 bg-surface px-2.5 py-1.5 text-ink"
+          />
+        </label>
       </div>
 
       <div className="flex flex-wrap gap-4">

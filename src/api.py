@@ -92,6 +92,7 @@ class ScenarioRequest(BaseModel):
     admit_interval_terms: int | None = Field(default=None, ge=1)
     max_terms: int | None = Field(default=None, ge=1)
     seed: int | None = None
+    initial_state: dict | None = None      # {occupancy: {code: seats}, standing: {Year2/3/4: n}}
     course_sections_overrides: dict[str, int] = {}
     dropout_gpa_floor: float | None = Field(default=None, ge=0, le=4)
     dropout_base_hazard: float | None = Field(default=None, ge=0, le=1)
@@ -120,6 +121,29 @@ def _check_category(value: str) -> str:
     return value
 
 
+VALID_STANDING = {"Year2", "Year3", "Year4"}
+
+
+def _validate_initial_state(value: object) -> None:
+    """Shape-check the initial-state warm start: {occupancy: {code: int>=0}, standing:
+    {Year2|Year3|Year4: int>=0}}. Both keys optional; raises HTTP 422 on a bad shape."""
+    if not isinstance(value, dict):
+        raise HTTPException(status_code=422, detail="initial_state must be an object")
+    occupancy = value.get("occupancy", {})
+    if not isinstance(occupancy, dict) or not all(
+        isinstance(v, int) and not isinstance(v, bool) and v >= 0 for v in occupancy.values()
+    ):
+        raise HTTPException(status_code=422, detail="initial_state.occupancy must map course codes to non-negative integers")
+    standing = value.get("standing", {})
+    if not isinstance(standing, dict) or not set(standing) <= VALID_STANDING or not all(
+        isinstance(v, int) and not isinstance(v, bool) and v >= 0 for v in standing.values()
+    ):
+        raise HTTPException(
+            status_code=422,
+            detail=f"initial_state.standing keys must be a subset of {sorted(VALID_STANDING)} with non-negative integer values",
+        )
+
+
 def _check_offering(value: list[str]) -> list[str]:
     if not value:
         raise ValueError("offering must list at least one season")
@@ -138,6 +162,7 @@ class CourseUpdate(BaseModel):
     capacity: int | None = Field(default=None, ge=1)
     rule_expr: dict | None = None
     study_plan_order: int | None = None
+    study_plan_term: int | None = Field(default=None, ge=0, le=20)
 
     @field_validator("category")
     @classmethod
@@ -214,6 +239,7 @@ class CourseCreate(BaseModel):
     capacity: int = Field(ge=1)
     rule_expr: dict | None = None
     study_plan_order: int = 99
+    study_plan_term: int = Field(default=0, ge=0, le=20)
 
     @field_validator("code")
     @classmethod
@@ -254,6 +280,7 @@ def _course_to_dict(course) -> dict:
         "capacity": course.capacity,
         "rule_expr": course.rule_expr,
         "study_plan_order": course.study_plan_order,
+        "study_plan_term": course.study_plan_term,
     }
 
 
@@ -291,7 +318,10 @@ def meta(db: Session = Depends(get_db), current_user: User = Depends(get_current
         "baseline_scenario": scenario,
         "cohort_size": config["cohort_size"],
         "num_cohorts": config.get("num_cohorts"),
-        "num_incumbent_cohorts": config.get("num_incumbent_cohorts"),
+        "num_incumbent_cohorts": config.get("num_incumbent_cohorts", 0),
+        # Initial-state warm start (replaces incumbent cohorts) — per-course occupied seats +
+        # year-standing head-counts. See src/simulator.py::_effective_capacity / CLAUDE.md.
+        "initial_state": config.get("initial_state", {"occupancy": {}, "standing": {}}),
         "admit_interval_terms": config.get("admit_interval_terms"),
         # True is the engine's own fallback (src/models/semester.py) when the key is absent —
         # mirrored here so a plan seeded before this flag existed reports its *actual* behavior
@@ -332,6 +362,8 @@ def simulate(
         config["max_terms"] = req.max_terms
     if req.seed is not None:
         config["seed"] = req.seed
+    if req.initial_state is not None:
+        config["initial_state"] = req.initial_state
     if req.course_sections_overrides:
         config["course_sections"] = {
             **config.get("course_sections", {}),
@@ -419,6 +451,7 @@ def create_course(
         capacity=req.capacity,
         rule_expr=req.rule_expr,
         study_plan_order=req.study_plan_order,
+        study_plan_term=req.study_plan_term,
     )
 
     hypothetical = dict(curriculum)
@@ -608,6 +641,9 @@ def update_config(
 
     if "optional_terms_enabled" in patch and not isinstance(patch["optional_terms_enabled"], bool):
         raise HTTPException(status_code=422, detail="optional_terms_enabled must be a boolean")
+
+    if "initial_state" in patch:
+        _validate_initial_state(patch["initial_state"])
 
     plan_id = resolve_active_plan_id(db, current_user)
     row = db.query(AppConfigRow).filter_by(plan_id=plan_id).first()

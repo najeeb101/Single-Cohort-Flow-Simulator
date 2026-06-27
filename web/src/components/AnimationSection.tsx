@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { CohortInfo, Frame, Graph } from "@/types/simulation";
 import CurriculumGraph from "@/components/CurriculumGraph";
+import { categoryLegend } from "@/lib/graphLayout";
 import AnimationControls from "@/components/AnimationControls";
 import NarrativePanel from "@/components/NarrativePanel";
 import StageOverview from "@/components/StageOverview";
@@ -100,15 +101,26 @@ export default function AnimationSection({ graph, stageNodes, cohorts, frames }:
       <div className="grid grid-cols-1 gap-4 md:grid-cols-6">
         <div className="col-span-1 flex min-w-0 flex-col rounded-2xl border border-border bg-surface md:col-span-4 md:row-span-2">
           <div className="flex items-baseline justify-between gap-3 border-b border-border px-4 py-2.5 text-[13px] font-semibold">
-            <span>Curriculum graph</span>
-            <span className="text-xs font-normal text-muted">node = course · fill = seat utilization · ▣ = full</span>
+            <span>Program roadmap</span>
+            <span className="text-xs font-normal text-muted">
+              {graph.nodes.length} courses · {graph.nodes.reduce((s, n) => s + (n.credits || 0), 0)} CH · boxes coloured by requirement type · bar = seat use
+            </span>
           </div>
           <CurriculumGraph graph={graph} courses={frame.courses} />
-          <div className="flex flex-wrap gap-4.5 border-t border-border px-4 py-2.5 text-xs text-muted">
-            <span><i className="mr-1 inline-block h-3 w-3 rounded-sm bg-[#9fd89f] align-[-2px]" />low use</span>
-            <span><i className="mr-1 inline-block h-3 w-3 rounded-sm bg-[#f2c14e] align-[-2px]" />busy</span>
-            <span><i className="mr-1 inline-block h-3 w-3 rounded-sm bg-[#e2553b] align-[-2px]" />full / oversubscribed</span>
-            <span><i className="mr-1 inline-block h-3 w-3 rounded-sm bg-[#d9d9d9] align-[-2px]" />not offered</span>
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 border-t border-border px-4 py-2.5 text-xs text-muted">
+            {categoryLegend().map((c) => (
+              <span key={c.label}>
+                <i
+                  className="mr-1 inline-block h-3 w-3 rounded-sm border align-[-2px]"
+                  style={{ background: c.fill, borderColor: c.border }}
+                />
+                {c.label}
+              </span>
+            ))}
+            <span className="ml-1 border-l border-border pl-3">
+              <i className="mr-1 inline-block h-1 w-4 rounded-sm bg-[#e2553b] align-[1px]" />seat use ▣ full
+            </span>
+            <span><span className="mr-1 text-[#d1453b]">→</span>prerequisite</span>
           </div>
         </div>
 

@@ -24,6 +24,8 @@ export interface BuilderState {
   dropoutProbOnRepeatedFail: number;
   numCohorts: number;
   numIncumbentCohorts: number;
+  initialOccupancy: Record<string, number>;
+  standing: Record<string, number>;
   admitIntervalTerms: number;
   maxTerms: number;
   seed: number;
@@ -45,6 +47,8 @@ export function baselineFromMeta(meta: MetaResponse, topCapacityCourses: string[
     dropoutProbOnRepeatedFail: meta.dropout_prob_on_repeated_fail,
     numCohorts: meta.num_cohorts,
     numIncumbentCohorts: meta.num_incumbent_cohorts,
+    initialOccupancy: { ...(meta.initial_state?.occupancy ?? {}) },
+    standing: { Year2: 0, Year3: 0, Year4: 0, ...(meta.initial_state?.standing ?? {}) },
     admitIntervalTerms: meta.admit_interval_terms,
     maxTerms: meta.max_terms,
     seed: meta.seed,
@@ -100,6 +104,15 @@ export function buildOverrides(state: BuilderState, baseline: BuilderState): Sce
   if (numDiffers(state.numIncumbentCohorts, baseline.numIncumbentCohorts)) {
     req.num_incumbent_cohorts = state.numIncumbentCohorts;
   }
+
+  // initial_state is a nested object — if either occupancy or standing changed, send the
+  // whole thing (the engine replaces config.initial_state wholesale).
+  const occupancyChanged =
+    JSON.stringify(state.initialOccupancy) !== JSON.stringify(baseline.initialOccupancy);
+  const standingChanged = JSON.stringify(state.standing) !== JSON.stringify(baseline.standing);
+  if (occupancyChanged || standingChanged) {
+    req.initial_state = { occupancy: state.initialOccupancy, standing: state.standing };
+  }
   if (numDiffers(state.admitIntervalTerms, baseline.admitIntervalTerms)) {
     req.admit_interval_terms = state.admitIntervalTerms;
   }
@@ -132,6 +145,8 @@ export function applyOverrides(overrides: ScenarioRequest, baseline: BuilderStat
     dropoutProbOnRepeatedFail: overrides.dropout_prob_on_repeated_fail ?? baseline.dropoutProbOnRepeatedFail,
     numCohorts: overrides.num_cohorts ?? baseline.numCohorts,
     numIncumbentCohorts: overrides.num_incumbent_cohorts ?? baseline.numIncumbentCohorts,
+    initialOccupancy: { ...baseline.initialOccupancy, ...(overrides.initial_state?.occupancy ?? {}) },
+    standing: { ...baseline.standing, ...(overrides.initial_state?.standing ?? {}) },
     admitIntervalTerms: overrides.admit_interval_terms ?? baseline.admitIntervalTerms,
     maxTerms: overrides.max_terms ?? baseline.maxTerms,
     seed: overrides.seed ?? baseline.seed,

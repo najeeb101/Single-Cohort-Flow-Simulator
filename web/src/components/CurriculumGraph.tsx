@@ -1,39 +1,34 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import type { CourseFrameStat, Graph } from "@/types/simulation";
-import { computeLayout, utilColor } from "@/lib/graphLayout";
+import { categoryStyle, computeSemesterLayout, utilColor } from "@/lib/graphLayout";
 
 interface Props {
   graph: Graph; // frozen at initial load — see page.tsx; never changes across live updates
   courses: Record<string, CourseFrameStat>; // current frame only — this is what re-renders
 }
 
-// Faithful port of frontend/app.js::buildGraph() + render()'s per-node update loop.
-// Layout (computeLayout) only re-runs when `graph` changes identity, i.e. never after the
-// initial load, matching buildGraph() being called once in boot() and never again from
-// applyLiveResult(). Per-frame visual state (fill color, stat text) is plain props, so
-// React only touches the attributes that actually change between frames.
+// University program-roadmap layout (modelled on Qatar University's printed CS roadmap):
+// course boxes laid out in Year 1–4 columns split into Fall/Spring sub-columns, coloured by
+// requirement type, with red prerequisite arrows crossing left→right. Layout (computeSemester-
+// Layout) only re-runs when `graph` changes identity (never after initial load); per-frame live
+// state (the seat-use bar, stat text, full border) is plain props so React only touches what
+// changes between frames.
 //
-// Static, not pannable/zoomable: the SVG's width/height attrs are scaled to fit the
-// container (viewBox keeps the internal coordinate system fixed), so the whole graph is
-// always visible at once. A ResizeObserver keeps that fit correct if the container's size
-// changes later (window resize, sidebar toggle, etc.), unlike a one-shot mount-time fit.
-export default function CurriculumGraph({ graph, courses }: Props) {
-  const { positions, width, height } = useMemo(() => computeLayout(graph), [graph]);
-  const containerRef = useRef<HTMLDivElement>(null);
-  const [scale, setScale] = useState(1);
-  const [selected, setSelected] = useState<string | null>(null);
+// Static, not pannable/zoomable: width/height attrs scale to fit the container (viewBox keeps
+// the internal coordinate system fixed) so the whole roadmap is always visible. A ResizeObserver
+// keeps that fit correct on later container resizes.
+function truncate(s: string, n: number): string {
+  return s.length > n ? s.slice(0, n - 1) + "…" : s;
+}
 
-  useEffect(() => {
-    const el = containerRef.current;
-    if (!el) return;
-    const fit = () => setScale(Math.min(el.clientWidth / width, el.clientHeight / height, 1) || 1);
-    fit();
-    const ro = new ResizeObserver(fit);
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, [width, height]);
+export default function CurriculumGraph({ graph, courses }: Props) {
+  const { positions, width, height, columns, yearBands, headerH, colWidth } = useMemo(
+    () => computeSemesterLayout(graph),
+    [graph],
+  );
+  const [selected, setSelected] = useState<string | null>(null);
 
   const nodeByCode = useMemo(() => {
     const m: Record<string, Graph["nodes"][number]> = {};
@@ -47,17 +42,44 @@ export default function CurriculumGraph({ graph, courses }: Props) {
 
   return (
     <div
-      ref={containerRef}
       data-testid="curriculum-graph-viewport"
-      className="relative grid max-h-[72vh] min-h-[420px] flex-1 place-items-center overflow-hidden p-2"
+      className="relative max-h-[72vh] min-h-[420px] flex-1 overflow-auto p-2"
     >
-      <svg width={width * scale} height={height * scale} viewBox={`0 0 ${width} ${height}`}>
+      <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`}>
         <defs>
           <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
-            <path d="M0,0 L10,5 L0,10 z" fill="#56607a" />
+            <path d="M0,0 L10,5 L0,10 z" fill="#d1453b" />
           </marker>
         </defs>
 
+        {/* Year bands + per-column Fall/Spring + credit-hour headers */}
+        {yearBands.map((b) => (
+          <g key={`year-${b.year}`}>
+            <rect x={b.x - 8} y={2} width={b.width + 16} height={16} rx={5} fill="var(--surface-2)" />
+            <text x={b.cx} y={14} textAnchor="middle" fontSize={11} fontWeight={800} fill="var(--ink)">
+              {b.label}
+            </text>
+          </g>
+        ))}
+        {columns.map((c) => (
+          <g key={`col-${c.term}`}>
+            <rect
+              x={c.x - 8}
+              y={22}
+              width={colWidth + 16}
+              height={height - 26}
+              rx={10}
+              fill="var(--surface-2)"
+              fillOpacity={c.term % 2 === 0 ? 0.4 : 0.16}
+            />
+            <text x={c.cx} y={36} textAnchor="middle" fontSize={11} fontWeight={700} fill="var(--muted)">
+              {c.season || "Unscheduled"}
+              {c.creditHours ? `  ·  ${c.creditHours} hrs` : ""}
+            </text>
+          </g>
+        ))}
+
+        {/* Prerequisite arrows (red, like the printed roadmap) */}
         {graph.edges.map((e, i) => {
           const a = positions[e.from];
           const b = positions[e.to];
@@ -72,34 +94,34 @@ export default function CurriculumGraph({ graph, courses }: Props) {
               key={`${e.from}-${e.to}-${i}`}
               d={`M ${x1} ${y1} C ${mx} ${y1}, ${mx} ${y2}, ${x2} ${y2}`}
               fill="none"
-              stroke="#46506a"
-              strokeWidth={1.2}
+              stroke="#d1453b"
+              strokeOpacity={0.55}
+              strokeWidth={1.3}
               strokeDasharray={e.kind === "one_of" ? "4 3" : undefined}
               markerEnd="url(#arrow)"
             />
           );
         })}
 
+        {/* Course boxes — coloured by requirement type, live stats overlaid */}
         {graph.nodes.map((n) => {
           const p = positions[n.code];
           if (!p) return null;
+          const cat = categoryStyle(n.category);
           const st = courses[n.code];
           const offered = st?.offered ?? false;
-          const fill = offered ? utilColor(st.capacity ? st.granted / st.capacity : 0) : "var(--surface-2)";
-          const textFill = offered ? "#10151d" : "var(--muted)";
-          const statFill = offered ? "#1d2734" : "var(--muted)";
+          const util = offered && st.capacity ? st.granted / st.capacity : 0;
+          const isSelected = selected === n.code;
+          const full = offered && st.full;
 
-          let stat1 = "not offered";
-          let stat2 = "";
+          let statLine = "";
           if (offered) {
-            stat1 = `${st.granted}/${st.capacity}${st.sections ? ` · ${st.sections} sec` : ""}${st.full ? " ▣" : ""}`;
             const waiting = (st.prereq_waiting || 0) + (st.offering_blocked || 0);
-            stat2 =
-              (st.denied ? `−${st.denied} denied  ` : "") +
-              (st.passed || st.failed ? `✓${st.passed} ✗${st.failed}` : waiting ? `${waiting} waiting` : "");
+            statLine =
+              `${st.granted}/${st.capacity}${full ? " ▣" : ""}` +
+              (st.passed || st.failed ? `  ✓${st.passed} ✗${st.failed}` : waiting ? `  ${waiting} wait` : "");
           }
 
-          const isSelected = selected === n.code;
           return (
             <g
               key={n.code}
@@ -114,14 +136,22 @@ export default function CurriculumGraph({ graph, courses }: Props) {
                 width={p.w}
                 height={p.h}
                 rx={7}
-                fill={fill}
-                stroke={isSelected ? "#5b9dff" : offered && st.full ? "#ff5d5d" : "rgba(0,0,0,.35)"}
-                strokeWidth={isSelected ? 2.5 : offered && st.full ? 2.5 : 1.2}
+                fill={cat.fill}
+                fillOpacity={offered ? 1 : 0.45}
+                stroke={isSelected ? "#5b9dff" : full ? "#d1453b" : cat.border}
+                strokeWidth={isSelected ? 2.5 : full ? 2.4 : 1.3}
               />
-              <text x={8} y={17} fontSize={11} fontWeight={700} fill={textFill}>{n.code}</text>
-              <text x={8} y={33} fontSize={9.5} fontWeight={600} fill={statFill}>{stat1}</text>
-              <text x={8} y={44} fontSize={9.5} fontWeight={600} fill={statFill}>{stat2}</text>
-              <title>{`${n.code} — ${n.title}\n${n.credits} CH · ${n.category} · ${n.offering.join("+")}`}</title>
+              <text x={8} y={16} fontSize={11} fontWeight={800} fill="#16202c">{n.code}</text>
+              <text x={8} y={29} fontSize={8.5} fontWeight={600} fill="#3a4654">{truncate(n.title, 26)}</text>
+              <text x={8} y={43} fontSize={8.5} fontWeight={700} fill={offered ? "#1d2734" : "#7c8694"}>
+                {offered ? statLine : "not offered"}
+              </text>
+              {/* Seat-use bar along the bottom edge — keeps the live capacity signal without
+                  overriding the requirement-type colour. */}
+              {offered && (
+                <rect x={6} y={p.h - 6} width={Math.max(0, (p.w - 12) * Math.min(1, util))} height={3} rx={1.5} fill={utilColor(util)} />
+              )}
+              <title>{`${n.code} — ${n.title}\n${n.credits} CH · ${cat.label} · ${n.offering.join("+")}`}</title>
             </g>
           );
         })}
@@ -146,8 +176,9 @@ export default function CurriculumGraph({ graph, courses }: Props) {
 
           <div className="mb-2 flex flex-wrap gap-x-3 gap-y-0.5 text-muted">
             <span>{selectedNode.credits} CH</span>
-            <span>{selectedNode.category}</span>
+            <span>{categoryStyle(selectedNode.category).label}</span>
             <span>{selectedNode.offering.join(" + ")}</span>
+            {selectedNode.study_plan_term > 0 && <span>Term {selectedNode.study_plan_term}</span>}
           </div>
 
           {selectedStat?.offered ? (

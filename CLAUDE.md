@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 A discrete-term, agent-based simulation of students progressing through Qatar University's Computer Science curriculum over up to 12 semesters each. Research question: **which prerequisite chains and scheduling constraints contribute most to student delay and non-completion?**
 
-It now models a **multi-cohort, steady-state university**: a new cohort is admitted each year, several incumbent cohorts are seeded before the study window as a warm start, and **all cohorts compete for one shared pool of course seats**. The engine emits a frontend-ready per-semester data file that the included Next.js dashboard (`web/`) animates.
+It now models a **multi-cohort, steady-state university**: a new cohort is admitted each year, the university starts **partly full of a pre-existing student body defined by an admin-entered initial state** (see [Initial-State Model](#initial-state-model)) rather than by simulated incumbent cohorts, and **all cohorts compete for one shared pool of course seats**. The engine emits a frontend-ready per-semester data file that the included Next.js dashboard (`web/`) animates.
 
 Full design document: [docs/technical_design.md](docs/technical_design.md)
 Assumptions log: [docs/assumptions.md](docs/assumptions.md)
@@ -50,7 +50,8 @@ Deploying a live instance (Render free tier, one `render.yaml` blueprint for bac
 ```
 src/
 ├── models/
-│   ├── course.py       # Course dataclass + load_curriculum()
+│   ├── course.py       # Course dataclass + load_curriculum() (incl. study_plan_term = the
+│   │                   # recommended semester column 1..N for the semester-grid flow chart)
 │   ├── student.py      # Student (state, GPA, enrollment, cohort_id/entry_term, curriculum_stage())
 │   └── semester.py     # term_season(), term_year(), term_label()
 ├── datasource.py        # DataSource seam: CohortSpec + SyntheticDataSource (population creation, decoupled from the engine)
@@ -87,6 +88,20 @@ web/                   # Next.js/TypeScript dashboard — talks to src/api.py vi
                        # user), and the Plan Builder wizard (create a new plan from scratch or by
                        # cloning the default, entering courses/config by hand before the first save).
 ```
+
+**Dashboard start gate + roadmap layout** (`web/src/lib/SimulationContext.tsx`,
+`web/src/components/CurriculumGraph.tsx`, `web/src/lib/graphLayout.ts`): the dashboard does
+**not** auto-run the engine. On load it fetches only the program structure (`GET /meta`) and
+shows the curriculum **roadmap** + a "▶ Start simulation" button; the baseline run fires only
+when the user clicks Start (`SimulationProvider.start`). The roadmap is a Qatar-University-style
+program-roadmap layout — `computeSemesterLayout` places each course in its `study_plan_term`
+column (term 1 = Year 1 Fall, 2 = Year 1 Spring, …), grouped under Year 1–4 bands with
+Fall/Spring + credit-hour headers, boxes coloured by requirement type (`CATEGORY_STYLE`), red
+prerequisite arrows, and live seat stats overlaid once started. `data/curriculum.json`'s
+`study_plan_term` values mirror the official QU CS plan (Programming Concepts + History in
+Year 1, CS-core in plan order, electives in Years 3–4). If a plan has no assigned terms the
+layout falls back to a balanced, prerequisite-respecting schedule so it never collapses into one
+column.
 
 `data/curriculum.json` and `data/simulation_config.json` are the one-time seed for `data/app.db`
 (gitignored SQLite) — `src/db.py::get_or_create_default_plan()` auto-runs it on first API startup
@@ -185,9 +200,17 @@ immediately, no server restart needed. See [Multi-Plan Model](#multi-plan-model)
 - **Admissions**: `num_cohorts` study cohorts of `cohort_size` enter every `admit_interval_terms` (default: 4 cohorts, yearly). `num_incumbent_cohorts` prior cohorts enter at **negative** terms as a warm start, so gateway courses are already partly occupied when study cohort 0 arrives.
 - **Global clock** runs `start_term = -num_incumbent_cohorts*admit_interval` .. `end_term`, where `end_term` is `mandatory_horizon_end_term(...)` (not a linear formula — see "Term/Season Model"). `term_season` handles negative indices (`-6 % 2 == 0` → Fall, under the legacy 2-season cycle; config-driven under any other cycle).
 - **Personal time**: graduation/DELAYED/CENSORED use the stateful `Student.personal_semester` counter (mandatory terms only — see "Term/Season Model"), not a recomputed `global_term - entry_term + 1`. A student gets exactly `max_terms` *mandatory* semesters from their own entry.
-- **Cohort ids**: study cohorts `0..n-1`; incumbents `-1,-2,-3`. Globally-unique `student_id = (cohort_id + num_incumbent_cohorts)*cohort_size + i`; RNG seed `seed + student_id` (CRN preserved).
-- **Sections model**: per-term seats for a course = `course_sections[code] × seats_per_section` (config) on a mandatory term. `course_sections` is auto-calibrated to peak demand by `scripts/size_sections.py` (writes the map into the config) and then hand-tunable — add a section to a course to relieve it. This replaces the old global `capacity_scale` multiplier with realistic, course-specific, adjustable section counts. A course missing from the map falls back to `ceil(curriculum capacity / seats_per_section)`. On an optional term, a separate, smaller model applies instead — see "Term/Season Model".
-- **Headline metrics are scoped to study cohorts** (`entry_term >= 0`); incumbents are a warm-start device and appear only in the per-cohort ledger.
+- **Cohort ids**: study cohorts `0..n-1`. `num_incumbent_cohorts` still exists as an engine knob (defaults to **0** — incumbents `-1,-2,-3` at negative terms) but is no longer part of the default plan, which warm-starts via the [Initial-State Model](#initial-state-model) instead. The historical-transcript calibration stand-in (`analytics.compute_historical_transcripts`) is the one consumer that still opts incumbents back in. Globally-unique `student_id = (cohort_id + num_incumbent_cohorts)*cohort_size + i`; RNG seed `seed + student_id` (CRN preserved).
+- **Sections model**: per-term seats for a course = `course_sections[code] × seats_per_section` (config) on a mandatory term, **minus any `initial_state.occupancy[code]`** (see [Initial-State Model](#initial-state-model)). `course_sections` is auto-calibrated to peak demand by `scripts/size_sections.py` (writes the map into the config) and then hand-tunable — add a section to a course to relieve it. A course missing from the map falls back to `ceil(curriculum capacity / seats_per_section)`. On an optional term, a separate, smaller model applies instead — see "Term/Season Model".
+- **Headline metrics are scoped to study cohorts** (`entry_term >= 0`); incumbents (when enabled) are a warm-start device and appear only in the per-cohort ledger.
+
+## Initial-State Model
+
+- Replaces the old simulated-incumbent warm start: instead of admitting cohorts at negative terms, the admin enters an **initial state** describing the university the first simulated cohort walks into. It lives in `config["initial_state"]` (per-plan, in `AppConfig.data`) with two parts:
+  - **`occupancy`** (`{course_code: seats}`) — seats in each course already taken by the existing, un-simulated student body. `src/simulator.py::_effective_capacity` subtracts this from a course's free seats on **every mandatory term** (steady-state background load, not just term 0; floored at 0). Optional (Summer/Winter) terms are left alone — their separate, much smaller capacity model shouldn't be zeroed out by it. A course whose seats are fully consumed reports `full` even with no requesters.
+  - **`standing`** (`{Year2|Year3|Year4: count}`) — a head-count of pre-existing students at each year-standing, folded into the **aggregate** (`stages.totals`) stage nodes (and exposed per-frame as `frame["background"]`) so the flow chart starts non-empty. Display-only and constant every term; per-cohort node counts stay exactly the simulated population, and headline metrics are unaffected.
+- Wired through `/meta` (read), `POST /simulate` (`ScenarioRequest.initial_state` override), and `PUT /config` (persist, validated by `src/api.py::_validate_initial_state`). Frontend: the Scenario Builder's **Capacity** tab edits per-course occupancy, its **Admissions** tab edits year-standing, and Settings persists standing to the active plan. `meta.flow_timeline.meta.initial_state` carries it to the dashboard.
+- `num_incumbent_cohorts` and `initial_state` are independent and *can* coexist, but the default QU plan uses only `initial_state`.
 
 ## Multi-Plan Model
 
@@ -234,9 +257,20 @@ Each also has a `*_by_cohort` variant (`cohort_id -> {course -> count}`) powerin
 
 ## Key Constraints
 
-- **Spring-only:** CMPS323, CMPS405, CMPS351. **Fall-only:** CMPS310, CMPS380, CMPE355. All other courses (incl. CMPS493, CMPS499) are offered Fall + Spring.
-- CMPS303 is the gateway course: it is the prerequisite for CMPS323, CMPS380, CMPS405 (unlocks exactly these three)
-- CMPS493 compound rule: requires CMPS310 + (CMPS350 OR CMPS405) + completed_ch ≥ 84
+- **Curriculum = the official Qatar University CS Program Roadmap 2024** (41 courses, 120 CH):
+  real course codes/titles/credits (CMPS151, MATH101, CHEM101/103, PHYS191–194, ENGL202/203,
+  HIS121, ARAB100, DAWA111, GENG200/300, CMPS307, MAGT101, the Core-Curriculum "Package"
+  courses, and Major Electives CSEL1–4), each placed in its real semester via `study_plan_term`
+  (Year 1 Fall … Year 4 Spring), categories mapped to the roadmap's requirement-type colours
+  (cs_core=Major Core, cs_elective=Major Elective, math=College Requirement, science=Major
+  Supporting, english/gen_ed=Core Curriculum). See [Initial-State Model] / the dashboard
+  roadmap note above.
+- **All courses are offered Fall + Spring** (the recommended-term column comes from
+  `study_plan_term`, not an offering restriction). The earlier artificial Spring-only/Fall-only
+  constraints were dropped when the curriculum became the real plan.
+- CMPS303 (Data Structures) is the central gateway: prerequisite for CMPS323, CMPS380, CMPS405.
+- CMPS493 (Senior Project I) compound rule: requires CMPS310 + (CMPS350 OR CMPS405) +
+  completed_ch ≥ 84 — exactly the roadmap's stated Senior-Project entry requirement.
 - D or better satisfies any prerequisite
 - GPA = Σ(grade_points × credits) / Σ(all_attempted_credits) — F = 0.0 pts included in denominator
 - CRN: each student RNG is `random.Random(seed + student_id)`, deterministic across runs.

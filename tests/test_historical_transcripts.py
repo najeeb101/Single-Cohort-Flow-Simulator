@@ -13,6 +13,11 @@ from src.utils import load_json
 
 def _setup():
     config = load_json("data/simulation_config.json")
+    # The default plan no longer warm-starts incumbent cohorts (it uses initial_state instead),
+    # but the historical-transcript extraction is still built on incumbents as the synthetic
+    # stand-in for real institutional history — so this suite opts them back in explicitly.
+    config = dict(config)
+    config["num_incumbent_cohorts"] = 2
     curriculum = load_curriculum("data/curriculum.json")
     return config, curriculum
 

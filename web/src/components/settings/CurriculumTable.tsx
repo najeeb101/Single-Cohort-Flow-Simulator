@@ -17,6 +17,7 @@ const BLANK_COURSE: CourseRecord = {
   capacity: 30,
   rule_expr: null,
   study_plan_order: 99,
+  study_plan_term: 0,
 };
 
 interface RowProps {

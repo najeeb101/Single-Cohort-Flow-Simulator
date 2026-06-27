@@ -42,6 +42,7 @@ def test_meta_shape():
     assert set(body) == {
         "graph", "course_sections", "course_pass_rates", "seats_per_section",
         "baseline_scenario", "cohort_size", "num_cohorts", "num_incumbent_cohorts",
+        "initial_state",
         "admit_interval_terms", "optional_terms_enabled", "max_terms", "seed", "dropout_gpa_floor",
         "dropout_base_hazard", "dropout_early_multiplier", "dropout_early_sem_cutoff",
         "dropout_fails_threshold", "dropout_prob_on_repeated_fail",
@@ -49,6 +50,30 @@ def test_meta_shape():
     }
     assert len(body["graph"]["nodes"]) == len(CURRICULUM)
     assert set(body["course_pass_rates"]) == set(CURRICULUM)
+    assert set(body["initial_state"]) == {"occupancy", "standing"}
+
+
+def test_simulate_initial_state_override_changes_capacity_and_background():
+    code = next(iter(CURRICULUM))
+    sections = BASE_CONFIG["course_sections"].get(code, 1)
+    sps = BASE_CONFIG.get("seats_per_section", 35)
+    overridden = {"occupancy": {code: 7}, "standing": {"Year3": 123}}
+
+    resp = client.post("/simulate", json={"initial_state": overridden})
+    assert resp.status_code == 200
+    frames = resp.json()["flow_timeline"]["frames"]
+    frame0 = next(f for f in frames if f["term"] == 0)
+
+    # Occupancy reduced the course's free seats by exactly 7 on this mandatory term.
+    assert frame0["courses"][code]["capacity"] == sections * sps - 7
+    # Standing flowed into the aggregate stage nodes / background.
+    assert frame0["background"] == {"Year3": 123}
+    assert frame0["stages"]["totals"]["nodes"]["Year3"] >= 123
+
+
+def test_update_config_rejects_malformed_initial_state():
+    resp = client.put("/config", json={"initial_state": {"standing": {"Year9": 5}}})
+    assert resp.status_code == 422
 
 
 def test_simulate_default_matches_run_simulation():

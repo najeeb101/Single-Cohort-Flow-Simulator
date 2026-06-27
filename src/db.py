@@ -48,6 +48,33 @@ DEFAULT_PLAN_NAME = "QU CS Baseline (default)"
 
 def init_db() -> None:
     db_models.Base.metadata.create_all(bind=ENGINE)
+    _ensure_columns()
+
+
+def _ensure_columns() -> None:
+    """Additive, idempotent column backfills for DBs created before a column existed.
+
+    create_all() only creates *missing tables*, never alters existing ones — so a
+    pre-existing data/app.db (or a deployed Postgres) won't get a newly-added column from
+    the ORM definition. We add the few we've introduced post-launch with a guarded
+    ADD COLUMN (both SQLite and Postgres support the IF-NOT-EXISTS-style guard below).
+    New/fresh DBs already have the column from create_all and skip every branch.
+    """
+    from sqlalchemy import inspect, text
+
+    inspector = inspect(ENGINE)
+    existing_tables = set(inspector.get_table_names())
+    # (table, column, DDL type + default) tuples — extend as new columns are introduced.
+    additions = [
+        ("courses", "study_plan_term", "INTEGER DEFAULT 0"),
+    ]
+    with ENGINE.begin() as conn:
+        for table, column, coltype in additions:
+            if table not in existing_tables:
+                continue
+            cols = {c["name"] for c in inspector.get_columns(table)}
+            if column not in cols:
+                conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {column} {coltype}"))
 
 
 def get_db():
@@ -71,6 +98,7 @@ def _course_to_row(course: Course, plan_id: int) -> db_models.Course:
         capacity=course.capacity,
         rule_expr=course.rule_expr,
         study_plan_order=course.study_plan_order,
+        study_plan_term=course.study_plan_term,
     )
 
 
@@ -213,6 +241,7 @@ def load_curriculum_from_db(session: Session, plan_id: int) -> dict[str, Course]
             capacity=row.capacity,
             rule_expr=row.rule_expr,
             study_plan_order=row.study_plan_order,
+            study_plan_term=row.study_plan_term,
         )
         for row in rows
     }

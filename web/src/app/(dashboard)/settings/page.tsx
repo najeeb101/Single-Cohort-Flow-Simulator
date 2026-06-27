@@ -38,7 +38,7 @@ export default function SettingsPage() {
   const setField = <K extends keyof BuilderState>(key: K, value: BuilderState[K]) =>
     setState((prev) => ({ ...prev, [key]: value }));
 
-  const setRecordField = (key: "passRates", code: string, value: number) =>
+  const setRecordField = (key: "passRates" | "standing", code: string, value: number) =>
     setState((prev) => ({ ...prev, [key]: { ...prev[key], [code]: value } }));
 
   const saveConfig = async () => {
@@ -49,6 +49,7 @@ export default function SettingsPage() {
     if (overrides.cohort_size !== undefined) configPatch.cohort_size = overrides.cohort_size;
     if (overrides.num_cohorts !== undefined) configPatch.num_cohorts = overrides.num_cohorts;
     if (overrides.num_incumbent_cohorts !== undefined) configPatch.num_incumbent_cohorts = overrides.num_incumbent_cohorts;
+    if (overrides.initial_state !== undefined) configPatch.initial_state = overrides.initial_state;
     if (overrides.admit_interval_terms !== undefined) configPatch.admit_interval_terms = overrides.admit_interval_terms;
     if (overrides.max_terms !== undefined) configPatch.max_terms = overrides.max_terms;
     if (overrides.seed !== undefined) configPatch.seed = overrides.seed;
@@ -171,7 +172,7 @@ export default function SettingsPage() {
       <section className="py-6">
         <h2 className="mb-3 text-[15px] font-bold">Baseline configuration</h2>
         <div className="flex flex-col gap-4">
-          <AdmissionsTab mode="advanced" state={state} baseline={baseline} setField={setField} />
+          <AdmissionsTab mode="advanced" state={state} baseline={baseline} setField={setField} setRecordField={setRecordField} />
           <PassRatesDropoutTab mode="advanced" meta={meta} state={state} baseline={baseline} setField={setField} setRecordField={setRecordField} />
           <RegistrationPolicyTab mode="advanced" state={state} baseline={baseline} setField={setField} />
         </div>

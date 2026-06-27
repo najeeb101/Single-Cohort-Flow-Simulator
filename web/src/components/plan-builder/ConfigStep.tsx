@@ -20,11 +20,11 @@ export default function ConfigStep({
   state: BuilderState;
   baseline: BuilderState;
   setField: <K extends keyof BuilderState>(key: K, value: BuilderState[K]) => void;
-  setRecordField: (key: "passRates", code: string, value: number) => void;
+  setRecordField: (key: "passRates" | "standing", code: string, value: number) => void;
 }) {
   return (
     <div className="flex flex-col gap-4">
-      <AdmissionsTab mode="advanced" state={state} baseline={baseline} setField={setField} />
+      <AdmissionsTab mode="advanced" state={state} baseline={baseline} setField={setField} setRecordField={setRecordField} />
       <PassRatesDropoutTab
         mode="advanced"
         meta={meta}

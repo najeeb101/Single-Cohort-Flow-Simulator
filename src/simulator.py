@@ -196,13 +196,18 @@ class Simulator:
         course_stats: dict[str, dict] = {}
         for code, c in self.curriculum.items():
             offered = code in available_codes
+            cap = self._effective_capacity(c, season) if offered else 0
             course_stats[code] = {
-                "capacity": self._effective_capacity(c, season) if offered else 0,
+                "capacity": cap,
                 "sections": self._section_count(c, season) if offered else 0,
                 "registered": 0, "granted": 0, "denied": 0,
                 "passed": 0, "failed": 0,
                 "prereq_waiting": 0, "offering_blocked": 0,
-                "offered": offered, "full": False,
+                # A course whose seats are entirely consumed by initial-state occupancy starts
+                # full even with no requesters this term — keeps full == (granted >= capacity)
+                # holding when capacity is 0. The allocation loop overwrites this for courses
+                # that do get requesters.
+                "offered": offered, "full": offered and cap == 0,
             }
 
         # Per-cohort seat counters this term.
@@ -396,10 +401,21 @@ class Simulator:
             for n, v in per_cohort_nodes[cid].items():
                 total_nodes[n] += v
 
+        # Background standing: the admin-entered count of pre-existing students at each
+        # year-standing (initial_state.standing), added as a constant to the aggregate
+        # ("totals") stage nodes so the university flow chart starts non-empty rather than
+        # filling in only as the simulated cohorts age. Steady-state (same every term), and
+        # only on totals — per-cohort node counts stay exactly the simulated population.
+        standing: dict[str, int] = self.config.get("initial_state", {}).get("standing", {})
+        background = {n: int(standing.get(n, 0)) for n in STAGE_NODES if standing.get(n)}
+        for n, v in background.items():
+            total_nodes[n] += v
+
         frame = {
             "term": term_idx,
             "season": season,
             "label": term_label(term_idx, self.config),
+            "background": background,
             "courses": course_stats,
             "stages": {
                 "cohorts": {
@@ -474,6 +490,17 @@ class Simulator:
         scale = float(self.config.get("optional_term_capacity_scale", 0.3))
         return max(1, math.floor(regular * scale))
 
+    def _initial_occupancy(self, code: str) -> int:
+        """Seats in `code` already taken by the pre-existing student body at the start of the
+        run (the admin-entered `initial_state.occupancy`). This is a steady-state background
+        load — it reduces the seats available to the simulated cohorts on every mandatory term
+        (not just term 0), modelling a university that's always partly full of students we
+        don't individually simulate. It replaces the old incumbent-cohort warm start; see
+        CLAUDE.md's "Initial-State Model".
+        """
+        occupancy: dict[str, int] = self.config.get("initial_state", {}).get("occupancy", {})
+        return int(occupancy.get(code, 0))
+
     def _effective_capacity(self, course: Course, season: str | None = None) -> int:
         # Per-term seats = sections × seats-per-section. Scenario hooks still scale it
         # for what-if experiments (capacity_overrides interpreted as a section multiplier).
@@ -482,7 +509,15 @@ class Simulator:
         overrides: dict[str, float] = self.scenario.get("capacity_overrides", {})
         if course.code in overrides:
             multiplier = float(overrides[course.code])
-        return max(1, math.floor(seats * multiplier))
+        seats = max(1, math.floor(seats * multiplier))
+        # Background occupancy reduces what's free for the simulated cohorts. Applied on
+        # mandatory seasons only: optional (Summer/Winter) terms run a separate, much smaller
+        # capacity model whose tiny offerings the steady-state load shouldn't zero out.
+        if self._is_mandatory_season(season):
+            occupied = self._initial_occupancy(course.code)
+            if occupied:
+                seats = max(0, seats - occupied)
+        return seats
 
     def _effective_offering(self, course: Course) -> tuple[str, ...]:
         overrides: dict[str, list[str]] = self.scenario.get("offering_overrides", {})

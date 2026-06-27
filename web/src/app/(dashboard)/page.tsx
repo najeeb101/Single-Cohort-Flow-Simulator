@@ -33,7 +33,10 @@ export default function Home() {
         <div className="flex flex-wrap gap-2.5">
           {[
             ["Study cohorts", data.flow_timeline.meta.num_cohorts],
-            ["Incumbent cohorts", data.flow_timeline.meta.num_incumbent_cohorts],
+            [
+              "Existing students",
+              Object.values(data.flow_timeline.meta.initial_state?.standing ?? {}).reduce((a, b) => a + b, 0),
+            ],
             ["Cohort size", meta.cohort_size],
             ["Max semesters", data.flow_timeline.meta.max_terms],
             ["Seats / section", meta.seats_per_section],
