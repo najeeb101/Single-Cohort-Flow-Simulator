@@ -15,6 +15,7 @@ const PRIMARY_LINKS: NavLink[] = [
   { href: "/", label: "Dashboard" },
   { href: "/scenario-builder", label: "Scenario Builder" },
   { href: "/capacity", label: "Capacity Planning" },
+  { href: "/live", label: "Live" },
 ];
 
 const GROUPS: { label: string; links: NavLink[] }[] = [

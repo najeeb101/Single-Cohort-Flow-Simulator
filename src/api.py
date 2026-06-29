@@ -42,9 +42,12 @@ from src.db import (
 from src.db_models import AppConfig as AppConfigRow
 from src.db_models import Course as CourseRow
 from src.db_models import Instructor as InstructorRow
+from src.db_models import LiveSimulation, LiveTermSnapshot
 from src.db_models import Plan as PlanRow
 from src.db_models import Run, User
+from src.livesim import LiveRunner
 from src.models.course import Course
+from src.models.semester import effective_admit_interval_terms
 from src.montecarlo import run_monte_carlo
 from src.rules import gate_edges
 from src.scenarios import router as scenarios_router
@@ -725,3 +728,246 @@ def export_plan(
         "config": config,
         "instructors": instructors,
     }
+
+
+# ------------------------------------------------------------------ #
+# Phase 3: live, stepwise simulation                                  #
+# ------------------------------------------------------------------ #
+# A LiveSimulation is shared within a plan: any user whose *active* plan matches the live
+# sim's plan_id can view/advance/list it (not owner-scoped like Plan/Scenario) — see
+# CLAUDE.md and src/livesim.py's module docstring for the replay model this builds on.
+
+class LiveSimCreateRequest(BaseModel):
+    name: str
+    initial_state: dict | None = None  # {occupancy: {code: seats}, standing: {Year2/3/4: n}}
+
+
+class LiveSimEditPatch(BaseModel):
+    course_sections: dict[str, int] | None = None
+    pass_rate_overrides: dict[str, float] | None = None
+    offering_overrides: dict[str, list[str]] | None = None
+    cohort_size: int | None = Field(default=None, ge=1)
+    capacity_overrides: dict[str, float] | None = None
+
+
+class LiveSimAdvanceRequest(BaseModel):
+    edits: LiveSimEditPatch | None = None
+
+
+def _livesim_to_dict(sim: LiveSimulation, total_terms: int) -> dict:
+    return {
+        "id": sim.id,
+        "name": sim.name,
+        "plan_id": sim.plan_id,
+        "created_by_user_id": sim.created_by_user_id,
+        "current_term": sim.current_term,
+        "status": sim.status,
+        "total_terms": total_terms,
+        "created_at": sim.created_at.isoformat(),
+    }
+
+
+def _snapshot_to_dict(snap: LiveTermSnapshot) -> dict:
+    return {
+        "term_index": snap.term_index,
+        "season": snap.season,
+        "label": snap.label,
+        "frame": snap.frame,
+        "summary": snap.summary,
+        "edits_applied": snap.edits_applied,
+    }
+
+
+def _cheap_running_summary(frame: dict) -> dict:
+    """A few free-to-compute running counts straight off this term's already-built frame —
+    deliberately not a re-run of compute_metrics (that needs the full SimulationResult, not
+    just one frame). Totals nodes already fold in initial_state.standing background, so
+    Graduated/Dropped/Censored/active-band counts here are the same headline numbers the
+    dashboard's flow chart is already showing for this term."""
+    nodes = frame.get("stages", {}).get("totals", {}).get("nodes", {})
+    active = sum(nodes.get(n, 0) for n in ("Admitted", "Year1", "Year2", "Year3", "Year4"))
+    return {
+        "active": active,
+        "graduated": nodes.get("Graduated", 0),
+        "dropped": nodes.get("Dropped", 0),
+        "censored": nodes.get("Censored", 0),
+    }
+
+
+def _get_visible_live_sim(db: Session, live_sim_id: int, plan_id: int) -> LiveSimulation:
+    sim = db.get(LiveSimulation, live_sim_id)
+    if sim is None or sim.plan_id != plan_id:
+        raise HTTPException(status_code=404, detail="Live simulation not found")
+    return sim
+
+
+@app.post("/livesim")
+def create_live_sim(
+    req: LiveSimCreateRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> dict:
+    plan_id = resolve_active_plan_id(db, current_user)
+    config = load_config_from_db(db, plan_id)  # already a deep copy (load_config_from_db)
+    if req.initial_state is not None:
+        _validate_initial_state(req.initial_state)
+        config["initial_state"] = req.initial_state
+    scenario = copy.deepcopy(config["scenarios"][0])
+
+    sim = LiveSimulation(
+        plan_id=plan_id,
+        created_by_user_id=current_user.id,
+        name=req.name,
+        current_term=None,
+        status="active",
+        base_config=config,
+        base_scenario=scenario,
+        edits=[],
+    )
+    db.add(sim)
+    db.commit()
+
+    runner = LiveRunner({}, sim.base_config, sim.base_scenario)
+    _start, end_term = runner.horizon(sim.edits)
+    return _livesim_to_dict(sim, end_term)
+
+
+@app.get("/livesim")
+def list_live_sims(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)) -> list[dict]:
+    plan_id = resolve_active_plan_id(db, current_user)
+    rows = (
+        db.query(LiveSimulation)
+        .filter_by(plan_id=plan_id)
+        .order_by(LiveSimulation.created_at.desc())
+        .all()
+    )
+    out = []
+    for sim in rows:
+        runner = LiveRunner({}, sim.base_config, sim.base_scenario)
+        _start, end_term = runner.horizon(sim.edits)
+        out.append(_livesim_to_dict(sim, end_term))
+    return out
+
+
+@app.get("/livesim/{live_sim_id}")
+def get_live_sim(
+    live_sim_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> dict:
+    plan_id = resolve_active_plan_id(db, current_user)
+    sim = _get_visible_live_sim(db, live_sim_id, plan_id)
+    curriculum = load_curriculum_from_db(db, plan_id)
+
+    runner = LiveRunner(curriculum, sim.base_config, sim.base_scenario)
+    _start, end_term = runner.horizon(sim.edits)
+
+    snapshots = (
+        db.query(LiveTermSnapshot)
+        .filter_by(live_sim_id=sim.id)
+        .order_by(LiveTermSnapshot.term_index)
+        .all()
+    )
+
+    # cohorts_meta: the admission schedule is pure config math (cohort_size patches only
+    # change a cohort's *size*, never its entry term or count), so this can be read
+    # straight off base_config without paying for a replay — mirrors
+    # src.livesim.LiveRunner.replay's own cohorts_meta construction.
+    num_cohorts = sim.base_config.get("num_cohorts", 1)
+    num_incumbents = sim.base_config.get("num_incumbent_cohorts", 0)
+    interval = effective_admit_interval_terms(sim.base_config)
+    cohorts_meta = sorted(
+        [{"id": c, "is_incumbent": False, "entry_term": c * interval} for c in range(num_cohorts)]
+        + [{"id": -k, "is_incumbent": True, "entry_term": -k * interval} for k in range(1, num_incumbents + 1)],
+        key=lambda c: c["entry_term"],
+    )
+
+    return {
+        "live_sim": _livesim_to_dict(sim, end_term),
+        "meta": {
+            "graph": build_curriculum_graph(curriculum),
+            "stage_nodes": ["Admitted", "Year1", "Year2", "Year3", "Year4",
+                            "Graduated", "Dropped", "Censored"],
+            "cohorts": cohorts_meta,
+            "initial_state": sim.base_config.get("initial_state", {"occupancy": {}, "standing": {}}),
+        },
+        "snapshots": [_snapshot_to_dict(s) for s in snapshots],
+    }
+
+
+@app.post("/livesim/{live_sim_id}/advance")
+def advance_live_sim(
+    live_sim_id: int,
+    req: LiveSimAdvanceRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> dict:
+    plan_id = resolve_active_plan_id(db, current_user)
+    sim = _get_visible_live_sim(db, live_sim_id, plan_id)
+
+    if sim.status == "finished":
+        raise HTTPException(status_code=409, detail="Live simulation has already finished")
+
+    next_term = (sim.current_term if sim.current_term is not None else -1) + 1
+    next_term = max(next_term, 0)
+
+    patch = req.edits.model_dump(exclude_none=True) if req.edits else {}
+    edit_entry = {"effective_from_term": next_term, "patch": patch}
+    edits = list(sim.edits) + [edit_entry]
+
+    curriculum = load_curriculum_from_db(db, plan_id)
+    runner = LiveRunner(curriculum, sim.base_config, sim.base_scenario)
+    _start, end_term = runner.horizon(edits)
+
+    if next_term >= end_term:
+        raise HTTPException(status_code=409, detail="Live simulation has already finished")
+
+    try:
+        result = runner.replay(edits, next_term)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+    frame = result.frames[-1]
+    if frame["term"] != next_term:
+        raise HTTPException(status_code=500, detail="Replay did not reach the requested term")
+
+    snapshot = LiveTermSnapshot(
+        live_sim_id=sim.id,
+        term_index=next_term,
+        season=frame["season"],
+        label=frame["label"],
+        frame=frame,
+        summary=_cheap_running_summary(frame),
+        edits_applied=patch,
+    )
+    db.add(snapshot)
+
+    sim.edits = edits
+    sim.current_term = next_term
+    if next_term >= end_term - 1:
+        sim.status = "finished"
+    db.commit()
+    db.refresh(snapshot)
+
+    return {
+        "live_sim": _livesim_to_dict(sim, end_term),
+        "snapshot": _snapshot_to_dict(snapshot),
+    }
+
+
+@app.delete("/livesim/{live_sim_id}")
+def delete_live_sim(
+    live_sim_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> dict:
+    plan_id = resolve_active_plan_id(db, current_user)
+    sim = _get_visible_live_sim(db, live_sim_id, plan_id)
+
+    if sim.created_by_user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Only the creator may delete this live simulation")
+
+    db.query(LiveTermSnapshot).filter_by(live_sim_id=sim.id).delete()
+    db.delete(sim)
+    db.commit()
+    return {"ok": True}

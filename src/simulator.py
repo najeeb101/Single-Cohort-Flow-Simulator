@@ -3,12 +3,19 @@ from __future__ import annotations
 import math
 from collections import defaultdict
 from dataclasses import dataclass, field
+from typing import Callable
 
 from src.models.course import Course
 from src.models.semester import get_mandatory_seasons, mandatory_horizon_end_term, term_season, term_label
 from src.models.student import Student, registration_tier, curriculum_stage
 from src.datasource import DataSource, SyntheticDataSource, CohortSpec, EnrollmentRecord, OutcomeRecord
 from src.utils import grade_tier
+
+# A per-term overlay hook: given the calendar term index, returns (config_patch,
+# scenario_patch) dicts to shallow-merge on top of the Simulator's base config/scenario for
+# that term only (see src/livesim.py::LiveRunner, which is the only real caller). Returning
+# `({}, {})` for every term is equivalent to passing `overlay_provider=None`.
+OverlayProvider = Callable[[int], tuple[dict, dict]]
 
 STAGE_NODES = ["Admitted", "Year1", "Year2", "Year3", "Year4", "Graduated", "Dropped", "Censored"]
 
@@ -107,10 +114,20 @@ class Simulator:
         config: dict,
         scenario: dict,
         data_source: DataSource | None = None,
+        overlay_provider: OverlayProvider | None = None,
     ) -> None:
         self.curriculum = curriculum
+        # `config`/`scenario` are mutated in place, per term, when `overlay_provider` is set
+        # (see `_apply_overlay`) — `_base_config`/`_base_scenario` keep the untouched
+        # originals so every term's overlay is computed from the same starting point rather
+        # than compounding onto a previous term's patched view. When `overlay_provider` is
+        # None (the default — every existing caller), `self.config`/`self.scenario` are never
+        # reassigned and behavior is byte-identical to before this hook existed.
+        self._base_config = config
+        self._base_scenario = scenario
         self.config = config
         self.scenario = scenario
+        self.overlay_provider = overlay_provider
         self.seed: int = config["seed"]
         self.max_terms: int = config["max_terms"]
 
@@ -144,6 +161,7 @@ class Simulator:
             by_entry[entry_term].append(cohort_id)
 
         for term_idx in range(self.start_term, self.end_term):
+            self._apply_overlay(term_idx)
             for cohort_id in sorted(by_entry.get(term_idx, [])):
                 self._admit_cohort(cohort_id, term_idx)
             season = term_season(term_idx, self.config)
@@ -166,6 +184,23 @@ class Simulator:
     # ------------------------------------------------------------------ #
     # Student creation                                                    #
     # ------------------------------------------------------------------ #
+
+    def _apply_overlay(self, term_idx: int) -> None:
+        """Recompute `self.config`/`self.scenario` for `term_idx` from the untouched
+        `_base_config`/`_base_scenario` plus whatever `overlay_provider` returns for this
+        term — a fresh shallow merge every term, never compounding onto a previous term's
+        already-patched dict. No-op (config/scenario stay exactly the base objects, by
+        identity) when `overlay_provider` is None, so every pre-existing caller is
+        unaffected. `course_sections`/`pass_rate_overrides`/`offering_overrides`/
+        `capacity_overrides` are themselves dicts, so the patch's version (if present)
+        *replaces* the base map for that key rather than deep-merging key-by-key —
+        LiveRunner is responsible for handing in the right cumulative map each call.
+        """
+        if self.overlay_provider is None:
+            return
+        config_patch, scenario_patch = self.overlay_provider(term_idx)
+        self.config = {**self._base_config, **(config_patch or {})}
+        self.scenario = {**self._base_scenario, **(scenario_patch or {})}
 
     def _admit_cohort(self, cohort_id: int, entry_term: int) -> None:
         self.cohort_entry[cohort_id] = entry_term

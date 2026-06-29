@@ -113,3 +113,47 @@ class Run(Base):
     requested_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow)
     overrides_json: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
     summary_json: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+
+
+class LiveSimulation(Base):
+    """Phase 3: a live, stepwise simulation — persisted, advanced one term at a time, and
+    shared within a plan (any user whose active plan == `plan_id` can view/advance it; see
+    src/api.py's /livesim routes). `base_config`/`base_scenario` are frozen at creation time
+    (initial_state lives inside base_config) and never mutated; forward changes are
+    expressed as append-only `edits` entries consumed by src/livesim.py::LiveRunner's
+    replay, never by editing base_config/base_scenario directly — that's what keeps earlier
+    terms' snapshots byte-identical no matter how many edits accumulate later.
+    """
+
+    __tablename__ = "live_simulations"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    plan_id: Mapped[int] = mapped_column(ForeignKey("plans.id"), nullable=False)
+    created_by_user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
+    name: Mapped[str] = mapped_column(String, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow)
+    # None = created, no term simulated yet (first /advance call moves this to 0).
+    current_term: Mapped[int | None] = mapped_column(nullable=True)
+    status: Mapped[str] = mapped_column(String, default="active")  # "active" | "finished"
+    base_config: Mapped[dict] = mapped_column(JSON, nullable=False)
+    base_scenario: Mapped[dict] = mapped_column(JSON, nullable=False)
+    edits: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
+
+
+class LiveTermSnapshot(Base):
+    """One saved term of a LiveSimulation's replay — the frame plus a cheap running
+    summary and exactly which edit (if any) just took effect for this term. Unique on
+    (live_sim_id, term_index) since /advance only ever appends the next term in order."""
+
+    __tablename__ = "live_term_snapshots"
+    __table_args__ = (UniqueConstraint("live_sim_id", "term_index", name="uq_livesim_term"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    live_sim_id: Mapped[int] = mapped_column(ForeignKey("live_simulations.id"), nullable=False)
+    term_index: Mapped[int] = mapped_column(nullable=False)
+    season: Mapped[str] = mapped_column(String, nullable=False)
+    label: Mapped[str] = mapped_column(String, nullable=False)
+    frame: Mapped[dict] = mapped_column(JSON, nullable=False)
+    summary: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    edits_applied: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow)

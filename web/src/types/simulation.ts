@@ -380,3 +380,43 @@ export interface RunRecord {
   overrides_json: ScenarioRequest;
   summary_json: { metrics: Headline; admissions_recommendation: AdmissionsRecommendation };
 }
+
+// Phase 3: Live stepwise simulation — a LiveSim advances one term at a time (rather than
+// running the whole horizon at once like /simulate), with per-advance edits applied going
+// forward only. Mirrors src/api.py's /livesim* endpoints (see CLAUDE.md "Phase 3").
+export interface LiveSim {
+  id: number;
+  name: string;
+  plan_id: number;
+  created_by_user_id: number;
+  current_term: number | null; // null = created, no term simulated yet
+  status: "active" | "finished";
+  total_terms: number; // horizon, for progress display
+  created_at: string;
+}
+
+// The four knobs an admin can tweak before advancing to the next term — applied going
+// forward only (never retroactive to already-simulated terms). All optional: only send
+// fields the user actually changed (diff-style, like scenarioBuilder.ts::buildOverrides).
+export interface LiveEdits {
+  course_sections?: Record<string, number>; // sections per course (capacity lever)
+  pass_rate_overrides?: Record<string, number>; // 0..1
+  offering_overrides?: Record<string, string[]>; // e.g. ["Fall","Spring"]
+  cohort_size?: number; // admissions intake going forward
+  capacity_overrides?: Record<string, number>; // per-course seat multiplier
+}
+
+export interface TermSnapshot {
+  term_index: number;
+  season: string;
+  label: string;
+  frame: Frame; // reuse existing Frame type (has .courses, .stages, .label …)
+  summary: Record<string, unknown> | null;
+  edits_applied: LiveEdits | Record<string, never>;
+}
+
+export interface LiveSimDetail {
+  live_sim: LiveSim;
+  meta: { graph: Graph; stage_nodes: string[]; cohorts: CohortInfo[]; initial_state: InitialState };
+  snapshots: TermSnapshot[]; // in term order
+}
