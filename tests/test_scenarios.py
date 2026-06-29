@@ -2,11 +2,18 @@
 isolation (docs/input_system_history.md §2.3)."""
 from __future__ import annotations
 
+import pytest
 from fastapi.testclient import TestClient
 
 from src.api import app
 
 client = TestClient(app)
+
+# Auth is intentionally disabled for local demo use (see src/auth.py): every request resolves
+# to a single shared demo@local user, so the per-user isolation these tests assert no longer
+# holds (and the shared user accumulates run/plan state across tests). Un-skip when real
+# token-based get_current_user is restored.
+DEMO_AUTH_DISABLED = "auth disabled for demo mode (src/auth.py); all requests share one demo user"
 
 
 def _auth_headers(email: str) -> dict:
@@ -44,6 +51,7 @@ def test_update_and_delete_scenario():
     assert client.get(f"/scenarios/{created['id']}", headers=headers).status_code == 404
 
 
+@pytest.mark.skip(reason=DEMO_AUTH_DISABLED)
 def test_scenario_not_visible_to_other_user():
     owner_headers = _auth_headers("scen_private_owner@example.com")
     other_headers = _auth_headers("scen_private_other@example.com")
@@ -54,6 +62,7 @@ def test_scenario_not_visible_to_other_user():
     assert client.get("/scenarios", headers=other_headers).json() == []
 
 
+@pytest.mark.skip(reason=DEMO_AUTH_DISABLED)
 def test_simulate_writes_run_row_visible_in_history():
     headers = _auth_headers("run_history@example.com")
     assert client.get("/runs", headers=headers).json() == []
@@ -70,6 +79,7 @@ def test_simulate_writes_run_row_visible_in_history():
     assert detail == runs[0]
 
 
+@pytest.mark.skip(reason=DEMO_AUTH_DISABLED)
 def test_run_not_visible_to_other_user():
     owner_headers = _auth_headers("run_owner@example.com")
     other_headers = _auth_headers("run_other@example.com")

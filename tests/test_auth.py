@@ -1,11 +1,18 @@
 """Tests for src/auth.py and the auth gate on /meta and /simulate."""
 from __future__ import annotations
 
+import pytest
 from fastapi.testclient import TestClient
 
 from src.api import app
 
 client = TestClient(app)
+
+# Auth is intentionally disabled for local demo use (see src/auth.py): get_current_user
+# auto-resolves a single shared demo@local user instead of checking a token, so endpoints
+# no longer 401 and per-user isolation no longer holds. These tests guard the auth-on
+# behavior — un-skip them when get_current_user is restored to real token checking.
+DEMO_AUTH_DISABLED = "auth disabled for demo mode (src/auth.py); endpoints no longer require a token"
 
 
 def _register(email: str = "auth_test_user@example.com", password: str = "s3cret-pw") -> str:
@@ -43,11 +50,13 @@ def test_login_unknown_email_rejected():
     assert resp.status_code == 401
 
 
+@pytest.mark.skip(reason=DEMO_AUTH_DISABLED)
 def test_simulate_requires_auth():
     resp = client.post("/simulate", json={})
     assert resp.status_code == 401
 
 
+@pytest.mark.skip(reason=DEMO_AUTH_DISABLED)
 def test_meta_requires_auth():
     resp = client.get("/meta")
     assert resp.status_code == 401
