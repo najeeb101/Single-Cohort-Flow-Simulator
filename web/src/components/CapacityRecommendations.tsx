@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
+import { simulate } from "@/lib/api";
 import type { Frame, MetaResponse } from "@/types/simulation";
 
 interface CourseRec {
@@ -16,10 +17,15 @@ interface CourseRec {
   pctRelief: number;
 }
 
+interface TestResult {
+  gradRate: number;
+  baselineGradRate: number;
+  seatsPerStud: number | null;
+  baselineSeatsPerStud: number | null;
+}
+
 function buildRecommendations(frames: Frame[], meta: MetaResponse): CourseRec[] {
   const sps = meta.seats_per_section;
-  // Per-course totals across mandatory (Fall/Spring) terms only — optional term capacity
-  // is a separate, smaller model and shouldn't inflate these numbers.
   const denied: Record<string, number[]> = {};
 
   for (const frame of frames) {
@@ -56,8 +62,54 @@ function buildRecommendations(frames: Frame[], meta: MetaResponse): CourseRec[] 
   return recs.sort((a, b) => b.totalDenied - a.totalDenied).slice(0, 8);
 }
 
-export default function CapacityRecommendations({ frames, meta }: { frames: Frame[]; meta: MetaResponse }) {
+function delta(after: number, before: number, isPct = false): string {
+  const d = after - before;
+  const sign = d >= 0 ? "+" : "";
+  return isPct
+    ? `${sign}${(d * 100).toFixed(1)}pp`
+    : `${sign}${d.toFixed(1)}`;
+}
+
+export default function CapacityRecommendations({
+  frames,
+  meta,
+  baselineGradRate,
+  baselineSeatsPerStud,
+}: {
+  frames: Frame[];
+  meta: MetaResponse;
+  baselineGradRate: number;
+  baselineSeatsPerStud: number | null;
+}) {
   const recs = useMemo(() => buildRecommendations(frames, meta), [frames, meta]);
+  const [testing, setTesting] = useState<Record<string, boolean>>({});
+  const [results, setResults] = useState<Record<string, TestResult>>({});
+  const [errors, setErrors] = useState<Record<string, string>>({});
+
+  const runTest = async (r: CourseRec) => {
+    setTesting((t) => ({ ...t, [r.code]: true }));
+    setErrors((e) => ({ ...e, [r.code]: "" }));
+    try {
+      const res = await simulate({
+        course_sections_overrides: { [r.code]: r.currentSections + 1 },
+      });
+      const seatsPerStud = res.admissions_recommendation?.criteria
+        ?.find((c) => c.name === "seats_denied_per_stud")?.observed ?? null;
+      setResults((prev) => ({
+        ...prev,
+        [r.code]: {
+          gradRate: res.metrics.graduation_rate,
+          baselineGradRate,
+          seatsPerStud,
+          baselineSeatsPerStud,
+        },
+      }));
+    } catch {
+      setErrors((e) => ({ ...e, [r.code]: "Run failed" }));
+    } finally {
+      setTesting((t) => ({ ...t, [r.code]: false }));
+    }
+  };
 
   if (recs.length === 0) {
     return (
@@ -72,30 +124,19 @@ export default function CapacityRecommendations({ frames, meta }: { frames: Fram
     <section className="py-6">
       <h2 className="mb-1 text-[15px] font-bold">Section recommendations</h2>
       <p className="mb-4 max-w-3xl text-[12.5px] text-muted">
-        Courses ranked by total seat denials across the run. The{" "}
-        <span className="font-semibold text-ink">+1 section relief</span> column estimates how many of those
-        denials would be absorbed by opening one extra section ({meta.seats_per_section} seats) every mandatory
-        term. Go to{" "}
-        <Link href="/settings" className="font-semibold text-accent">
-          Settings → Baseline configuration → Admissions
-        </Link>{" "}
-        to adjust sections.
+        Courses ranked by total seat denials. <span className="font-semibold text-ink">+1 section relief</span>{" "}
+        is an estimate from existing frame data. <span className="font-semibold text-ink">Test +1 section</span>{" "}
+        runs a full simulation with one extra section on that course and shows the actual impact on graduation
+        rate and seat pressure. Go to{" "}
+        <Link href="/settings" className="font-semibold text-accent">Settings</Link>{" "}
+        to make the change permanent.
       </p>
 
       <div className="overflow-auto rounded-2xl border border-border bg-surface">
         <table className="w-full border-collapse text-[12.5px]">
           <thead>
             <tr>
-              {[
-                "Course",
-                "Current sections",
-                "Seats / term",
-                "Total denied",
-                "Oversubscribed terms",
-                "+1 section relief",
-                "Terms fully resolved",
-                "Still over after +1",
-              ].map((h) => (
+              {["Course", "Sections", "Seats/term", "Total denied", "+1 relief (est.)", "Test +1 section"].map((h) => (
                 <th
                   key={h}
                   className="whitespace-nowrap border-b border-border bg-surface px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-wide text-muted"
@@ -107,36 +148,60 @@ export default function CapacityRecommendations({ frames, meta }: { frames: Fram
           </thead>
           <tbody>
             {recs.map((r) => {
-              // Green if +1 section resolves ≥80% of denials, amber if 40–80%, red if <40%
-              const reliefColor =
-                r.pctRelief >= 0.8 ? "text-good" : r.pctRelief >= 0.4 ? "text-warn" : "text-bad";
+              const reliefColor = r.pctRelief >= 0.8 ? "text-good" : r.pctRelief >= 0.4 ? "text-warn" : "text-bad";
+              const result = results[r.code];
+              const isTesting = testing[r.code];
+              const err = errors[r.code];
 
               return (
                 <tr key={r.code} className="border-b border-border last:border-0">
-                  <td className="whitespace-nowrap px-3 py-2 font-semibold">{r.code}</td>
-                  <td className="whitespace-nowrap px-3 py-2 tabular-nums">{r.currentSections}</td>
-                  <td className="whitespace-nowrap px-3 py-2 tabular-nums text-muted">{r.seatsPerTerm}</td>
-                  <td className="whitespace-nowrap px-3 py-2 tabular-nums font-semibold text-bad">
+                  <td className="whitespace-nowrap px-3 py-2.5 font-semibold">{r.code}</td>
+                  <td className="whitespace-nowrap px-3 py-2.5 tabular-nums">{r.currentSections}</td>
+                  <td className="whitespace-nowrap px-3 py-2.5 tabular-nums text-muted">{r.seatsPerTerm}</td>
+                  <td className="whitespace-nowrap px-3 py-2.5 tabular-nums font-semibold text-bad">
                     {r.totalDenied.toLocaleString()}
                   </td>
-                  <td className="whitespace-nowrap px-3 py-2 tabular-nums text-muted">
-                    {r.oversubscribedTerms}
-                  </td>
-                  <td className={`whitespace-nowrap px-3 py-2 tabular-nums font-semibold ${reliefColor}`}>
+                  <td className={`whitespace-nowrap px-3 py-2.5 tabular-nums font-semibold ${reliefColor}`}>
                     ~{r.totalRelief.toLocaleString()} ({Math.round(r.pctRelief * 100)}%)
                   </td>
-                  <td className="whitespace-nowrap px-3 py-2 tabular-nums">
-                    {r.termsFullyResolved > 0 ? (
-                      <span className="text-good">{r.termsFullyResolved} term{r.termsFullyResolved !== 1 ? "s" : ""}</span>
+                  <td className="whitespace-nowrap px-3 py-2.5">
+                    {result ? (
+                      <div className="flex items-center gap-3">
+                        <span className="text-[11.5px]">
+                          Grad{" "}
+                          <b className={result.gradRate >= baselineGradRate ? "text-good" : "text-bad"}>
+                            {delta(result.gradRate, baselineGradRate, true)}
+                          </b>
+                          {result.seatsPerStud !== null && baselineSeatsPerStud !== null && (
+                            <>
+                              {" · "}Seats/std{" "}
+                              <b className={result.seatsPerStud <= baselineSeatsPerStud ? "text-good" : "text-bad"}>
+                                {delta(result.seatsPerStud, baselineSeatsPerStud)}
+                              </b>
+                            </>
+                          )}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setResults((prev) => { const n = { ...prev }; delete n[r.code]; return n; });
+                          }}
+                          className="text-[11px] text-muted hover:text-ink"
+                        >
+                          clear
+                        </button>
+                      </div>
+                    ) : err ? (
+                      <span className="text-[11.5px] text-bad">{err}</span>
                     ) : (
-                      <span className="text-muted">—</span>
-                    )}
-                  </td>
-                  <td className="whitespace-nowrap px-3 py-2 tabular-nums">
-                    {r.termsImproved > 0 ? (
-                      <span className="text-warn">{r.termsImproved} term{r.termsImproved !== 1 ? "s" : ""} still over</span>
-                    ) : (
-                      <span className="text-good">fully resolved</span>
+                      <button
+                        type="button"
+                        onClick={() => runTest(r)}
+                        disabled={isTesting}
+                        className="rounded-[7px] border border-border-2 bg-surface-2 px-2.5 py-1 text-[11.5px] font-semibold text-ink disabled:cursor-not-allowed disabled:opacity-50 hover:border-accent hover:text-accent"
+                      >
+                        {isTesting ? "Running…" : "▶ Test +1 section"}
+                      </button>
                     )}
                   </td>
                 </tr>
@@ -147,9 +212,8 @@ export default function CapacityRecommendations({ frames, meta }: { frames: Fram
       </div>
 
       <p className="mt-2 text-[11px] text-muted">
-        Relief estimate assumes one additional section of {meta.seats_per_section} seats runs every
-        mandatory term. Actual impact depends on whether the freed students were already eligible and
-        whether downstream courses have capacity for them.
+        Each test is a full simulation run with +1 section on that course only, everything else unchanged.
+        Results are not saved — go to Settings to make any change permanent.
       </p>
     </section>
   );
