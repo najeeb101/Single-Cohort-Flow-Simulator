@@ -13,15 +13,19 @@ export default function Home() {
   return (
     <main className="mx-auto w-full max-w-[1600px] px-7 pb-16">
       <header className="border-b border-border py-5">
-        <div className="flex items-center gap-3.5">
-          <div className="grid h-11 w-11 place-items-center rounded-xl bg-maroon text-[17px] font-extrabold text-white">
-            QU
-          </div>
-          <div>
-            <h1 className="text-[19px] font-bold tracking-tight">Computer Science — Flow Simulator</h1>
-            <p className="mt-0.5 text-[12.5px] text-[#c9a6b2]">
-              Multi-cohort, shared-seat university model — dashboard
-            </p>
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div className="flex items-center gap-3.5">
+            <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-maroon text-[17px] font-extrabold text-white">
+              QU
+            </div>
+            <div>
+              <h1 className="text-[19px] font-bold tracking-tight">CS Curriculum Flow Simulator</h1>
+              <p className="mt-0.5 text-[12.5px] text-muted">
+                Baseline run complete — explore results below or go to{" "}
+                <a href="/bottlenecks" className="font-semibold text-accent hover:underline">Bottlenecks</a>{" "}
+                to identify and test fixes.
+              </p>
+            </div>
           </div>
         </div>
       </header>
