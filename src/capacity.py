@@ -26,7 +26,11 @@ from __future__ import annotations
 import statistics
 from typing import TYPE_CHECKING
 
-from src.analytics import build_course_utilization, compute_admissions_recommendation
+from src.analytics import (
+    build_course_utilization,
+    compute_admissions_recommendation,
+    evaluate_health_criteria,
+)
 from src.models.semester import get_mandatory_seasons
 
 if TYPE_CHECKING:
@@ -161,3 +165,5 @@ def build_capacity_report(
         "instructor_capacity": build_instructor_capacity(result, instructors, curriculum),
         "admissions_recommendation": compute_admissions_recommendation(result),
     }
+
+

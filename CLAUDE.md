@@ -222,6 +222,49 @@ immediately, no server restart needed. See [Multi-Plan Model](#multi-plan-model)
 - **Plan Builder** (`web/src/app/(dashboard)/plan-builder/page.tsx`, `web/src/components/plan-builder/`): a 4-step wizard (name & seed → courses → config → review/save) for building a plan entirely client-side before the one and only network write (`POST /plans/import`, optionally followed by activate). "Seed" clones the default plan's `{curriculum, config}` via `GET /plans/{id}/export`, or starts blank (`web/src/lib/planBuilder.ts::BLANK_CONFIG`); the config step reuses the Scenario Builder's `AdmissionsTab`/`PassRatesDropoutTab`/`RegistrationPolicyTab` over a `BuilderState` built from the cloned/blank config (`metaFromPlanExport`).
 - Distinct from the Scenario Builder (ephemeral per-run overrides on top of whatever plan is active) and Settings (in-place edits to the *active* plan's curriculum/config, persisted immediately per edit).
 
+## Live Simulation Model (stepwise / "each term is a status")
+
+- Alongside the instant `/simulate` (which runs the whole window at once), a **live simulation**
+  runs **one term at a time**, persists each term as a reviewable snapshot, and is **advanced
+  manually**. It models the admin-department workflow: review a term, adjust knobs, advance.
+- **Persistence** (`src/db_models.py`): `LiveSimulation` (per `plan_id`, `created_by_user_id`,
+  `name`, `current_term` [None until the first advance], `status` active|finished, frozen
+  `base_config`/`base_scenario`, and an append-only `edits` list) + `LiveTermSnapshot` (one row
+  per advanced term: the `flow_timeline` `frame`, a cheap running `summary`, and the
+  `edits_applied` that took effect entering it). **Shared within a plan** — any user whose active
+  plan == the live sim's `plan_id` can view/advance it.
+- **Deterministic replay** (`src/livesim.py::LiveRunner`): no fragile engine-state
+  serialization. Each `edits` entry is `{effective_from_term, patch}` where patch holds the
+  editable knobs (`course_sections`, `seats_per_section_overrides`, `pass_rate_overrides`,
+  `offering_overrides`, `cohort_size`). Capacity is edited as **sections × seats/section** —
+  `seats_per_section_overrides` is a per-course override of the global `seats_per_section`
+  (`Simulator._seats_per_section(code)`); a course absent from it falls back to the global, so
+  it's sent diff-style, whereas `course_sections` is sent as the full map (the overlay replaces
+  it wholesale and a missing course would fall back to its curriculum-derived count). The old
+  per-course `capacity_overrides` seat multiplier is still honored on replay for any
+  pre-existing edit log but is no longer produced by the UI. Advancing to term N **replays from term 0**, folding each patch only
+  from its `effective_from_term` onward, and takes the newly-reached term's frame. Because edits
+  apply forward-only, earlier terms reproduce byte-identically, so previously-saved snapshots stay
+  valid (the core correctness property, covered by `tests/test_livesim.py`). `cohort_size` edits
+  use `_TimeVaryingCohortDataSource` so only cohorts admitted at/after the edit term resize.
+- **Engine hook**: `Simulator.__init__` takes an optional `overlay_provider:
+  Callable[[int], (config_patch, scenario_patch)]` (default `None`). On `None` the engine is
+  byte-identical to before (all prior callers/tests unaffected); `LiveRunner` is the only real
+  caller, applying the cumulative patch per term via `Simulator._apply_overlay`.
+- **API** (`src/api.py`): `POST /livesim` (create, no term run yet), `GET /livesim` (list for the
+  active plan), `GET /livesim/{id}` (`{live_sim, meta:{graph,stage_nodes,cohorts,initial_state},
+  snapshots}`), `POST /livesim/{id}/advance` (`{edits?}` → simulate next term, returns
+  `{live_sim, snapshot}`; 409 at the horizon), `DELETE /livesim/{id}` (creator only). `frame` is
+  the same per-term shape `/simulate` emits, so the frontend renders snapshots with the existing
+  components unchanged.
+- **Frontend** (`web/src/app/live/`, `web/src/components/live/`): the **Live Simulation** page
+  (its own route group *outside* `(dashboard)` so it isn't behind the dashboard's Start gate) —
+  create/list sims, current-term status on the program roadmap (`CurriculumGraph`) + stage flow
+  (`StageOverview`), an "Advance to next term" button, a collapsible edits panel for the four
+  knobs (diff-only, like the Scenario Builder), a read-only history scrubber over saved terms, and
+  a "Live" nav link. Reached via `web/src/lib/api.ts`'s `listLiveSims`/`createLiveSim`/
+  `getLiveSim`/`advanceLiveSim`/`deleteLiveSim`.
+
 ## Per-Term Loop (three phases)
 
 1. **Desired enrollment** — each active student (all cohorts) builds a priority-ordered list: retakes first, then `enrollment_priority_tiers` (config-defined category sets, each with an optional `min_ch` gate; QU CS default: cs_core/college_req > cs_elective at 60+ CH > math/science/english/gen_ed) subject to their load cap.

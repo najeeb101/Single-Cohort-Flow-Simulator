@@ -47,7 +47,7 @@ export default function PlanBuilderWizard() {
         seedCourses = [];
         seedConfig = { ...BLANK_CONFIG };
       }
-      const seeded = baselineFromMeta(metaFromPlanExport(seedCourses, seedConfig), []);
+      const seeded = baselineFromMeta(metaFromPlanExport(seedCourses, seedConfig));
       setCourses(seedCourses);
       setBaseConfig(seedConfig);
       setBuilderState(seeded);

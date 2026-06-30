@@ -44,10 +44,13 @@ export default function UniversityEnrollmentChart({ frames }: { frames: Frame[] 
 
   return (
     <div className="rounded-2xl border border-border bg-surface p-4">
-      <div className="mb-2 flex items-baseline justify-between gap-3 text-[13px] font-semibold">
+      <div className="mb-1 flex items-baseline justify-between gap-3 text-[13px] font-semibold">
         <span>University population over time</span>
         <span className="text-xs font-normal text-muted">global term · negative = incumbent warm-up</span>
       </div>
+      <p className="mb-3 text-[12px] text-muted">
+        Stacked area showing how many students are at each stage (Year 1–4, Graduated, Dropped, Censored) across every simulated term. A growing stack means more students are progressing; a collapsing one signals dropout or graduation. The negative terms on the left are the pre-existing student body warming up the university before the first new cohort arrives.
+      </p>
       <svg viewBox={`0 0 ${W + 16} ${H + 24}`} className="w-full" style={{ maxHeight: 260 }}>
         <g transform="translate(8,4)">
           {paths.map((p) => (

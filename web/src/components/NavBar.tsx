@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import ThemeToggle from "@/components/ThemeToggle";
 
 type NavLink = { href: string; label: string };
@@ -13,8 +13,7 @@ type NavLink = { href: string; label: string };
 // reusable configs (scenarios/curricula) rather than viewing output.
 const PRIMARY_LINKS: NavLink[] = [
   { href: "/", label: "Dashboard" },
-  { href: "/scenario-builder", label: "Scenario Builder" },
-  { href: "/capacity", label: "Capacity Planning" },
+  { href: "/live", label: "Live" },
 ];
 
 const GROUPS: { label: string; links: NavLink[] }[] = [
@@ -30,7 +29,6 @@ const GROUPS: { label: string; links: NavLink[] }[] = [
   {
     label: "Plans",
     links: [
-      { href: "/scenarios", label: "Scenarios" },
       { href: "/plans", label: "Plans" },
       { href: "/plan-builder", label: "Plan Builder" },
       { href: "/runs", label: "Run History" },
@@ -86,21 +84,6 @@ function NavDropdown({ label, links, active }: { label: string; links: NavLink[]
 
 export default function NavBar() {
   const pathname = usePathname();
-  const router = useRouter();
-  const [email, setEmail] = useState<string | null>(null);
-
-  useEffect(() => {
-    fetch("/api/auth/session")
-      .then((res) => res.json())
-      .then((data) => setEmail(data.authenticated ? data.email : null))
-      .catch(() => setEmail(null));
-  }, []);
-
-  const signOut = async () => {
-    await fetch("/api/auth/logout", { method: "POST" });
-    router.push("/login");
-    router.refresh();
-  };
 
   return (
     <nav className="border-b border-border bg-surface">
@@ -139,15 +122,7 @@ export default function NavBar() {
         >
           {SETTINGS_LINK.label}
         </Link>
-        <div className="ml-auto flex items-center gap-3 whitespace-nowrap py-3 text-[12.5px] text-muted">
-          {email && (
-            <>
-              <span>Signed in as {email}</span>
-              <button type="button" onClick={signOut} className="font-semibold text-accent">
-                Sign out
-              </button>
-            </>
-          )}
+        <div className="ml-auto flex items-center py-3">
           <ThemeToggle />
         </div>
       </div>

@@ -41,7 +41,6 @@ SessionLocal = sessionmaker(bind=ENGINE)
 
 CURRICULUM_JSON_PATH = Path("data/curriculum.json")
 CONFIG_JSON_PATH = Path("data/simulation_config.json")
-INSTRUCTORS_JSON_PATH = Path("data/instructors.json")
 
 DEFAULT_PLAN_NAME = "QU CS Baseline (default)"
 
@@ -102,30 +101,14 @@ def _course_to_row(course: Course, plan_id: int) -> db_models.Course:
     )
 
 
-def _instructor_to_row(instructor: dict, plan_id: int) -> db_models.Instructor:
-    return db_models.Instructor(
-        plan_id=plan_id,
-        name=instructor["name"],
-        categories=list(instructor.get("categories", [])),
-        max_sections_per_term=instructor["max_sections_per_term"],
-    )
-
-
-def load_instructors_json(path: str | Path = INSTRUCTORS_JSON_PATH) -> list[dict]:
-    return load_json(path)
-
-
 def _insert_plan_data(
     session: Session,
     plan_id: int,
     curriculum: dict[str, Course],
     config: dict,
-    instructors: list[dict] | None = None,
 ) -> None:
     for course in curriculum.values():
         session.add(_course_to_row(course, plan_id))
-    for instructor in instructors or []:
-        session.add(_instructor_to_row(instructor, plan_id))
     session.add(db_models.AppConfig(plan_id=plan_id, data=config))
 
 
@@ -142,34 +125,19 @@ def get_or_create_default_plan(session: Session, force_reseed: bool = False) -> 
         session.flush()  # assigns plan.id
         curriculum = load_curriculum(CURRICULUM_JSON_PATH)
         config = load_json(CONFIG_JSON_PATH)
-        instructors = load_instructors_json()
-        _insert_plan_data(session, plan.id, curriculum, config, instructors)
+        _insert_plan_data(session, plan.id, curriculum, config)
         session.commit()
     elif force_reseed:
         session.query(db_models.Course).filter_by(plan_id=plan.id).delete()
-        session.query(db_models.Instructor).filter_by(plan_id=plan.id).delete()
         config_row = session.query(db_models.AppConfig).filter_by(plan_id=plan.id).first()
         if config_row is not None:
             session.delete(config_row)
         session.flush()
         curriculum = load_curriculum(CURRICULUM_JSON_PATH)
         config = load_json(CONFIG_JSON_PATH)
-        instructors = load_instructors_json()
-        _insert_plan_data(session, plan.id, curriculum, config, instructors)
+        _insert_plan_data(session, plan.id, curriculum, config)
         session.commit()
     return plan
-
-
-def _validate_instructor_entry(entry: dict) -> None:
-    name = entry.get("name")
-    if not isinstance(name, str) or not name.strip():
-        raise PlanImportError("Every instructor must have a non-blank name")
-    categories = entry.get("categories")
-    if not isinstance(categories, list) or not all(isinstance(c, str) for c in categories):
-        raise PlanImportError(f"Instructor {name!r} categories must be a list of strings")
-    load = entry.get("max_sections_per_term")
-    if not isinstance(load, int) or isinstance(load, bool) or load < 0:
-        raise PlanImportError(f"Instructor {name!r} max_sections_per_term must be a non-negative integer")
 
 
 def import_plan(
@@ -178,13 +146,10 @@ def import_plan(
     name: str,
     curriculum_list: list[dict],
     config: dict,
-    instructors: list[dict] | None = None,
 ) -> db_models.Plan:
-    """Validate + insert a new user-owned Plan from uploaded curriculum.json/
-    simulation_config.json-shaped data (plus an optional instructors.json-shaped list).
-    Raises PlanImportError (caller maps to 422) on a malformed course/instructor entry or a
-    prerequisite cycle in the *whole* imported set — nothing is committed in any failure case.
-    `instructors` defaults to [] so a plan exported before this feature existed still imports.
+    """Validate + insert a new user-owned Plan from uploaded curriculum/config data.
+    Raises PlanImportError (caller maps to 422) on a malformed course entry or a
+    prerequisite cycle — nothing is committed in any failure case.
     """
     curriculum: dict[str, Course] = {}
     for entry in curriculum_list:
@@ -205,14 +170,10 @@ def import_plan(
     if "cohort_size" not in config or "scenarios" not in config:
         raise PlanImportError("Config must include at least cohort_size and scenarios")
 
-    instructors = instructors or []
-    for entry in instructors:
-        _validate_instructor_entry(entry)
-
     plan = db_models.Plan(owner_user_id=owner_user_id, name=name)
     session.add(plan)
     session.flush()
-    _insert_plan_data(session, plan.id, curriculum, config, instructors)
+    _insert_plan_data(session, plan.id, curriculum, config)
     session.commit()
     return plan
 
@@ -253,15 +214,3 @@ def load_config_from_db(session: Session, plan_id: int) -> dict:
     return copy.deepcopy(row.data)
 
 
-def load_instructors_from_db(session: Session, plan_id: int) -> list[dict]:
-    rows = session.query(db_models.Instructor).filter_by(plan_id=plan_id).order_by(db_models.Instructor.name).all()
-    return [_instructor_row_to_dict(row) for row in rows]
-
-
-def _instructor_row_to_dict(row: db_models.Instructor) -> dict:
-    return {
-        "id": row.id,
-        "name": row.name,
-        "categories": list(row.categories),
-        "max_sections_per_term": row.max_sections_per_term,
-    }

@@ -165,7 +165,7 @@
     "category": "cs_core",
     "capacity": 120,
     "study_plan_order": 10,
-    "study_plan_term": 5
+    "study_plan_term": 6
   },
   {
     "code": "CMPE355",
@@ -182,7 +182,7 @@
     "category": "cs_core",
     "capacity": 120,
     "study_plan_order": 11,
-    "study_plan_term": 6
+    "study_plan_term": 5
   },
   {
     "code": "CMPS350",
@@ -277,7 +277,7 @@
     "category": "cs_elective",
     "capacity": 60,
     "study_plan_order": 20,
-    "study_plan_term": 6
+    "study_plan_term": 5
   },
   {
     "code": "CSEL2",
@@ -361,7 +361,7 @@
     "title": "Linear Algebra",
     "credits": 3,
     "prerequisites": [
-      "MATH102"
+      "MATH101"
     ],
     "pass_rate": 0.78,
     "offering": [
@@ -371,7 +371,7 @@
     "category": "math",
     "capacity": 120,
     "study_plan_order": 32,
-    "study_plan_term": 3
+    "study_plan_term": 2
   },
   {
     "code": "GENG200",
@@ -561,7 +561,7 @@
     "category": "gen_ed",
     "capacity": 120,
     "study_plan_order": 61,
-    "study_plan_term": 2
+    "study_plan_term": 3
   },
   {
     "code": "CORE201",
@@ -606,7 +606,7 @@
     "category": "gen_ed",
     "capacity": 120,
     "study_plan_order": 64,
-    "study_plan_term": 5
+    "study_plan_term": 6
   },
   {
     "code": "CMPS307",

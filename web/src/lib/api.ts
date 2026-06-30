@@ -2,17 +2,19 @@ import type {
   CourseCreate,
   CourseRecord,
   CourseUpdate,
-  InstructorCreate,
-  InstructorRecord,
-  InstructorUpdate,
+  InitialState,
+
+  LiveEdits,
+  LiveSim,
+  LiveSimDetail,
   MetaResponse,
   PlanExportPayload,
   PlanImportPayload,
   PlanRecord,
   RunRecord,
-  ScenarioRecord,
   ScenarioRequest,
   SimulateResponse,
+  TermSnapshot,
 } from "@/types/simulation";
 
 // Relative + same-origin: resolves to localhost:3000/api/backend/..., which
@@ -24,15 +26,7 @@ export const API_BASE = "/api/backend";
 export class ApiError extends Error {}
 
 async function asJson<T>(res: Response): Promise<T> {
-  if (!res.ok) {
-    // The auth cookie can expire mid-session (e.g. partway through the Plan Builder
-    // wizard) — every API call surfaces the same 401, so handle it in one place rather
-    // than every page needing to special-case it. Skip on /login itself to avoid a loop.
-    if (res.status === 401 && typeof window !== "undefined" && window.location.pathname !== "/login") {
-      window.location.href = "/login";
-    }
-    throw new ApiError(await errorMessage(res));
-  }
+  if (!res.ok) throw new ApiError(await errorMessage(res));
   return (await res.json()) as T;
 }
 
@@ -57,37 +51,6 @@ export function simulate(overrides: ScenarioRequest): Promise<SimulateResponse> 
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(overrides),
   }).then((res) => asJson<SimulateResponse>(res));
-}
-
-export function listScenarios(): Promise<ScenarioRecord[]> {
-  return fetch(`${API_BASE}/scenarios`).then((res) => asJson<ScenarioRecord[]>(res));
-}
-
-export function createScenario(name: string, overrides: ScenarioRequest): Promise<ScenarioRecord> {
-  return fetch(`${API_BASE}/scenarios`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ name, overrides }),
-  }).then((res) => asJson<ScenarioRecord>(res));
-}
-
-export function getScenario(id: number): Promise<ScenarioRecord> {
-  return fetch(`${API_BASE}/scenarios/${id}`).then((res) => asJson<ScenarioRecord>(res));
-}
-
-export function updateScenario(
-  id: number,
-  patch: { name?: string; overrides?: ScenarioRequest }
-): Promise<ScenarioRecord> {
-  return fetch(`${API_BASE}/scenarios/${id}`, {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(patch),
-  }).then((res) => asJson<ScenarioRecord>(res));
-}
-
-export function deleteScenario(id: number): Promise<void> {
-  return fetch(`${API_BASE}/scenarios/${id}`, { method: "DELETE" }).then((res) => asJson<void>(res));
 }
 
 export function listRuns(): Promise<RunRecord[]> {
@@ -120,30 +83,6 @@ export function createCourse(course: CourseCreate): Promise<CourseRecord> {
 
 export function deleteCourse(code: string): Promise<void> {
   return fetch(`${API_BASE}/curriculum/${code}`, { method: "DELETE" }).then((res) => asJson<void>(res));
-}
-
-export function listInstructors(): Promise<InstructorRecord[]> {
-  return fetch(`${API_BASE}/instructors`).then((res) => asJson<InstructorRecord[]>(res));
-}
-
-export function createInstructor(instructor: InstructorCreate): Promise<InstructorRecord> {
-  return fetch(`${API_BASE}/instructors`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(instructor),
-  }).then((res) => asJson<InstructorRecord>(res));
-}
-
-export function updateInstructor(id: number, patch: InstructorUpdate): Promise<InstructorRecord> {
-  return fetch(`${API_BASE}/instructors/${id}`, {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(patch),
-  }).then((res) => asJson<InstructorRecord>(res));
-}
-
-export function deleteInstructor(id: number): Promise<void> {
-  return fetch(`${API_BASE}/instructors/${id}`, { method: "DELETE" }).then((res) => asJson<void>(res));
 }
 
 export function getConfig(): Promise<Record<string, unknown>> {
@@ -180,4 +119,35 @@ export function deletePlan(id: number): Promise<void> {
 
 export function exportPlan(id: number): Promise<PlanExportPayload> {
   return fetch(`${API_BASE}/plans/${id}/export`).then((res) => asJson<PlanExportPayload>(res));
+}
+
+export function listLiveSims(): Promise<LiveSim[]> {
+  return fetch(`${API_BASE}/livesim`).then((res) => asJson<LiveSim[]>(res));
+}
+
+export function createLiveSim(name: string, initialState?: InitialState): Promise<LiveSim> {
+  return fetch(`${API_BASE}/livesim`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(initialState ? { name, initial_state: initialState } : { name }),
+  }).then((res) => asJson<LiveSim>(res));
+}
+
+export function getLiveSim(id: number): Promise<LiveSimDetail> {
+  return fetch(`${API_BASE}/livesim/${id}`).then((res) => asJson<LiveSimDetail>(res));
+}
+
+export function advanceLiveSim(
+  id: number,
+  edits?: LiveEdits
+): Promise<{ live_sim: LiveSim; snapshot: TermSnapshot }> {
+  return fetch(`${API_BASE}/livesim/${id}/advance`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(edits && Object.keys(edits).length ? { edits } : {}),
+  }).then((res) => asJson<{ live_sim: LiveSim; snapshot: TermSnapshot }>(res));
+}
+
+export function deleteLiveSim(id: number): Promise<{ ok: true }> {
+  return fetch(`${API_BASE}/livesim/${id}`, { method: "DELETE" }).then((res) => asJson<{ ok: true }>(res));
 }

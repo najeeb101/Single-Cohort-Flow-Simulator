@@ -27,10 +27,9 @@ export default function HeadlineKpis({ headline }: { headline: Headline }) {
 
   return (
     <section className="py-6">
-      <h2 className="mb-4 flex items-center gap-2 text-[15px] font-bold">
-        <span className="grid h-6 w-6 place-items-center rounded-[7px] border border-border-2 bg-surface-2 text-xs font-bold text-accent">3</span>
+      <h2 className="mb-4 text-[15px] font-bold">
         Headline results
-        {mcNote && <span className="text-xs font-normal text-muted">{mcNote}</span>}
+        {mcNote && <span className="ml-2 text-xs font-normal text-muted">{mcNote}</span>}
       </h2>
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         <div className="col-span-2 row-span-2 flex flex-col justify-between rounded-2xl border border-l-[3px] border-border border-l-accent bg-surface p-5">

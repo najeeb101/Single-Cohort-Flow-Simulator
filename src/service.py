@@ -31,7 +31,6 @@ def run_simulation(
     config: dict,
     scenario: dict,
     data_source: "DataSource | None" = None,
-    instructors: list[dict] | None = None,
 ) -> dict:
     """Run one scenario end-to-end and return its results as a plain dict.
 
@@ -40,8 +39,7 @@ def run_simulation(
     `admissions_recommendation`, and `flow_timeline` (the full frontend-contract payload,
     without Monte Carlo — pass `monte_carlo=...` to flow_timeline_payload yourself on
     `result` if you need CIs merged in). `data_source` defaults to `SyntheticDataSource`;
-    pass a `RealDataSource` here once one exists. `instructors` (plain dicts, see
-    src/db_models.py::Instructor) feeds `flow_timeline.summary.capacity_planning`.
+    pass a `RealDataSource` here once one exists.
     """
     result = Simulator(curriculum, config, scenario, data_source=data_source).run()
     result.metrics = compute_metrics(result)
@@ -50,5 +48,5 @@ def run_simulation(
         "metrics": result.metrics,
         "cohort_metrics": compute_cohort_metrics(result),
         "admissions_recommendation": compute_admissions_recommendation(result),
-        "flow_timeline": flow_timeline_payload(result, curriculum, instructors=instructors),
+        "flow_timeline": flow_timeline_payload(result, curriculum),
     }

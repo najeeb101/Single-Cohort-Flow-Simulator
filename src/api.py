@@ -1,15 +1,11 @@
-"""Thin HTTP wrapper around src.service.run_simulation (ACIP plan §2.3/§3.2).
+"""Thin HTTP wrapper around src.service.run_simulation.
 
-Phase 2 (docs/input_system_history.md §2.1/§2.2): curriculum/config live in a SQLite DB
-(src/db.py), and every endpoint except /health and /auth/* requires a logged-in user
-(src/auth.py::get_current_user). The browser never calls this API directly — it goes
-through the Next.js dev server's rewrite (web/next.config.ts) to the same origin, so CORS
-stays scoped to that one local origin rather than a wildcard.
+Curriculum/config live in a SQLite DB (src/db.py). Every request auto-resolves to a single
+shared demo user (src/auth.py::get_current_user) — no login required. The browser calls
+this API through the Next.js dev server's rewrite (web/next.config.ts) to stay same-origin.
 
-Multi-plan support: curriculum/config are no longer cached module globals — each request
-resolves them fresh from the DB, keyed by the requesting user's *own* active plan
-(`_load_plan_data`), so two users can have two different active plans at once with no
-shared mutable state to race on.
+Multi-plan support: curriculum/config are resolved fresh per request from the DB, keyed by
+the active plan (`_load_plan_data`), so no shared mutable state.
 """
 from __future__ import annotations
 
@@ -25,7 +21,6 @@ from sqlalchemy.orm import Session
 
 from src.analytics import build_curriculum_graph
 from src.auth import get_current_user
-from src.auth import router as auth_router
 from src.curriculum_validation import CycleError, PlanImportError, check_no_cycle
 from src.db import (
     SessionLocal,
@@ -36,15 +31,18 @@ from src.db import (
     init_db,
     load_config_from_db,
     load_curriculum_from_db,
-    load_instructors_from_db,
+
     resolve_active_plan_id,
 )
 from src.db_models import AppConfig as AppConfigRow
 from src.db_models import Course as CourseRow
-from src.db_models import Instructor as InstructorRow
+
+from src.db_models import LiveSimulation, LiveTermSnapshot
 from src.db_models import Plan as PlanRow
 from src.db_models import Run, User
+from src.livesim import LiveRunner
 from src.models.course import Course
+from src.models.semester import effective_admit_interval_terms
 from src.montecarlo import run_monte_carlo
 from src.rules import gate_edges
 from src.scenarios import router as scenarios_router
@@ -55,7 +53,6 @@ with SessionLocal() as _session:
     get_or_create_default_plan(_session)
 
 app = FastAPI(title="Single-Cohort-Flow-Simulator API")
-app.include_router(auth_router)
 app.include_router(scenarios_router)
 
 # The Next.js dev server (web/, npm run dev on :3000) proxies to this API via
@@ -94,6 +91,7 @@ class ScenarioRequest(BaseModel):
     seed: int | None = None
     initial_state: dict | None = None      # {occupancy: {code: seats}, standing: {Year2/3/4: n}}
     course_sections_overrides: dict[str, int] = {}
+    seats_per_section_overrides: dict[str, int] = {}  # per-course seats/section (capacity lever)
     dropout_gpa_floor: float | None = Field(default=None, ge=0, le=4)
     dropout_base_hazard: float | None = Field(default=None, ge=0, le=1)
     dropout_early_multiplier: float | None = Field(default=None, ge=0, le=10)
@@ -179,53 +177,12 @@ class PlanImportRequest(BaseModel):
     name: str
     curriculum: list[dict]
     config: dict
-    instructors: list[dict] = []
 
 
 def _check_categories(values: list[str]) -> list[str]:
     if not set(values) <= VALID_CATEGORIES:
         raise ValueError(f"categories must be a subset of {sorted(VALID_CATEGORIES)}, got {values!r}")
     return values
-
-
-class InstructorCreate(BaseModel):
-    name: str
-    categories: list[str] = []
-    max_sections_per_term: int = Field(ge=0)
-
-    @field_validator("name")
-    @classmethod
-    def _validate_name(cls, v: str) -> str:
-        v = v.strip()
-        if not v:
-            raise ValueError("name must not be blank")
-        return v
-
-    @field_validator("categories")
-    @classmethod
-    def _validate_categories(cls, v: list[str]) -> list[str]:
-        return _check_categories(v)
-
-
-class InstructorUpdate(BaseModel):
-    name: str | None = None
-    categories: list[str] | None = None
-    max_sections_per_term: int | None = Field(default=None, ge=0)
-
-    @field_validator("name")
-    @classmethod
-    def _validate_name(cls, v: str | None) -> str | None:
-        if v is None:
-            return v
-        v = v.strip()
-        if not v:
-            raise ValueError("name must not be blank")
-        return v
-
-    @field_validator("categories")
-    @classmethod
-    def _validate_categories(cls, v: list[str] | None) -> list[str] | None:
-        return v if v is None else _check_categories(v)
 
 
 class CourseCreate(BaseModel):
@@ -284,15 +241,6 @@ def _course_to_dict(course) -> dict:
     }
 
 
-def _instructor_to_dict(row: InstructorRow) -> dict:
-    return {
-        "id": row.id,
-        "name": row.name,
-        "categories": list(row.categories),
-        "max_sections_per_term": row.max_sections_per_term,
-    }
-
-
 def _plan_to_dict(plan: PlanRow, current_user: User) -> dict:
     return {
         "id": plan.id,
@@ -337,18 +285,20 @@ def meta(db: Session = Depends(get_db), current_user: User = Depends(get_current
         "dropout_prob_on_repeated_fail": config.get("dropout_prob_on_repeated_fail"),
         "registration_tier_thresholds": config.get("registration_tier_thresholds", []),
         "enrollment_priority_tiers": config.get("enrollment_priority_tiers", []),
+        "admission_targets": config.get("admission_targets", {
+            "target_grad_rate": 0.70,
+            "max_avg_time_to_degree": 10.0,
+            "max_seats_denied_per_student": 1.0,
+            "min_throughput_stability": 0.85,
+        }),
     }
 
 
-@app.post("/simulate")
-def simulate(
-    req: ScenarioRequest,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-) -> dict:
-    curriculum, base_config, base_scenario = _load_plan_data(db, current_user)
-    plan_id = resolve_active_plan_id(db, current_user)
-    instructors = load_instructors_from_db(db, plan_id)
+def _apply_scenario_overrides(
+    req: ScenarioRequest, base_config: dict, base_scenario: dict
+) -> tuple[dict, dict]:
+    """Apply a ScenarioRequest's non-None overrides onto fresh copies of the plan's base
+    config/scenario, returning (config, scenario)."""
     config = copy.deepcopy(base_config)
     if req.cohort_size is not None:
         config["cohort_size"] = req.cohort_size
@@ -368,6 +318,11 @@ def simulate(
         config["course_sections"] = {
             **config.get("course_sections", {}),
             **req.course_sections_overrides,
+        }
+    if req.seats_per_section_overrides:
+        config["seats_per_section_overrides"] = {
+            **config.get("seats_per_section_overrides", {}),
+            **req.seats_per_section_overrides,
         }
     if req.dropout_gpa_floor is not None:
         config["dropout_gpa_floor"] = req.dropout_gpa_floor
@@ -395,9 +350,22 @@ def simulate(
         scenario["offering_overrides"] = req.offering_overrides
     if req.pass_rate_overrides:
         scenario["pass_rate_overrides"] = req.pass_rate_overrides
+    return config, scenario
+
+
+@app.post("/simulate")
+def simulate(
+    req: ScenarioRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> dict:
+    curriculum, base_config, base_scenario = _load_plan_data(db, current_user)
+    plan_id = resolve_active_plan_id(db, current_user)
+
+    config, scenario = _apply_scenario_overrides(req, base_config, base_scenario)
 
     try:
-        run = run_simulation(curriculum, config, scenario, instructors=instructors)
+        run = run_simulation(curriculum, config, scenario)
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
@@ -548,80 +516,6 @@ def update_curriculum(
     return _course_to_dict(updated_course)
 
 
-@app.get("/instructors")
-def list_instructors(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)) -> list[dict]:
-    plan_id = resolve_active_plan_id(db, current_user)
-    return load_instructors_from_db(db, plan_id)
-
-
-@app.post("/instructors")
-def create_instructor(
-    req: InstructorCreate,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-) -> dict:
-    plan_id = resolve_active_plan_id(db, current_user)
-
-    existing = db.query(InstructorRow).filter_by(plan_id=plan_id, name=req.name).first()
-    if existing is not None:
-        raise HTTPException(status_code=409, detail=f"Instructor {req.name!r} already exists in this plan")
-
-    row = InstructorRow(
-        plan_id=plan_id,
-        name=req.name,
-        categories=req.categories,
-        max_sections_per_term=req.max_sections_per_term,
-    )
-    db.add(row)
-    try:
-        db.commit()
-    except IntegrityError:
-        db.rollback()
-        raise HTTPException(status_code=409, detail=f"Instructor {req.name!r} already exists in this plan")
-
-    return _instructor_to_dict(row)
-
-
-@app.put("/instructors/{instructor_id}")
-def update_instructor(
-    instructor_id: int,
-    patch: InstructorUpdate,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-) -> dict:
-    plan_id = resolve_active_plan_id(db, current_user)
-    row = db.query(InstructorRow).filter_by(plan_id=plan_id, id=instructor_id).first()
-    if row is None:
-        raise HTTPException(status_code=404, detail=f"Instructor {instructor_id} not found")
-
-    for field, value in patch.model_dump(exclude_none=True).items():
-        setattr(row, field, value)
-
-    try:
-        db.commit()
-    except IntegrityError:
-        db.rollback()
-        raise HTTPException(status_code=409, detail=f"Instructor name {patch.name!r} already exists in this plan")
-
-    return _instructor_to_dict(row)
-
-
-@app.delete("/instructors/{instructor_id}")
-def delete_instructor(
-    instructor_id: int,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-) -> dict:
-    plan_id = resolve_active_plan_id(db, current_user)
-    row = db.query(InstructorRow).filter_by(plan_id=plan_id, id=instructor_id).first()
-    if row is None:
-        raise HTTPException(status_code=404, detail=f"Instructor {instructor_id} not found")
-
-    db.delete(row)
-    db.commit()
-    return {"ok": True}
-
-
 @app.get("/config")
 def get_config(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)) -> dict:
     _curriculum, config, _scenario = _load_plan_data(db, current_user)
@@ -671,7 +565,7 @@ def import_plan_endpoint(
     current_user: User = Depends(get_current_user),
 ) -> dict:
     try:
-        plan = import_plan(db, current_user.id, req.name, req.curriculum, req.config, req.instructors)
+        plan = import_plan(db, current_user.id, req.name, req.curriculum, req.config)
     except PlanImportError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     return _plan_to_dict(plan, current_user)
@@ -703,7 +597,6 @@ def delete_plan(
         raise HTTPException(status_code=404, detail="Plan not found")
 
     db.query(CourseRow).filter_by(plan_id=plan.id).delete()
-    db.query(InstructorRow).filter_by(plan_id=plan.id).delete()
     db.query(AppConfigRow).filter_by(plan_id=plan.id).delete()
     if current_user.active_plan_id == plan.id:
         current_user.active_plan_id = get_or_create_default_plan(db).id
@@ -719,9 +612,253 @@ def export_plan(
     plan = _get_visible_plan(db, plan_id, current_user)
     curriculum = load_curriculum_from_db(db, plan.id)
     config = load_config_from_db(db, plan.id)
-    instructors = load_instructors_from_db(db, plan.id)
     return {
         "curriculum": [_course_to_dict(c) for c in sorted(curriculum.values(), key=lambda c: c.study_plan_order)],
         "config": config,
-        "instructors": instructors,
     }
+
+
+# ------------------------------------------------------------------ #
+# Phase 3: live, stepwise simulation                                  #
+# ------------------------------------------------------------------ #
+# A LiveSimulation is shared within a plan: any user whose *active* plan matches the live
+# sim's plan_id can view/advance/list it (not owner-scoped like Plan/Scenario) — see
+# CLAUDE.md and src/livesim.py's module docstring for the replay model this builds on.
+
+class LiveSimCreateRequest(BaseModel):
+    name: str
+    initial_state: dict | None = None  # {occupancy: {code: seats}, standing: {Year2/3/4: n}}
+
+
+class LiveSimEditPatch(BaseModel):
+    course_sections: dict[str, int] | None = None
+    seats_per_section_overrides: dict[str, int] | None = None
+    pass_rate_overrides: dict[str, float] | None = None
+    offering_overrides: dict[str, list[str]] | None = None
+    cohort_size: int | None = Field(default=None, ge=1)
+    # Old per-course seat multiplier; still accepted so a pre-existing edit log replays
+    # unchanged, but the UI now expresses capacity via course_sections + seats_per_section.
+    capacity_overrides: dict[str, float] | None = None
+
+
+class LiveSimAdvanceRequest(BaseModel):
+    edits: LiveSimEditPatch | None = None
+
+
+def _livesim_to_dict(sim: LiveSimulation, total_terms: int) -> dict:
+    return {
+        "id": sim.id,
+        "name": sim.name,
+        "plan_id": sim.plan_id,
+        "created_by_user_id": sim.created_by_user_id,
+        "current_term": sim.current_term,
+        "status": sim.status,
+        "total_terms": total_terms,
+        "created_at": sim.created_at.isoformat(),
+    }
+
+
+def _snapshot_to_dict(snap: LiveTermSnapshot) -> dict:
+    return {
+        "term_index": snap.term_index,
+        "season": snap.season,
+        "label": snap.label,
+        "frame": snap.frame,
+        "summary": snap.summary,
+        "edits_applied": snap.edits_applied,
+    }
+
+
+def _cheap_running_summary(frame: dict) -> dict:
+    """A few free-to-compute running counts straight off this term's already-built frame —
+    deliberately not a re-run of compute_metrics (that needs the full SimulationResult, not
+    just one frame). Totals nodes already fold in initial_state.standing background, so
+    Graduated/Dropped/Censored/active-band counts here are the same headline numbers the
+    dashboard's flow chart is already showing for this term."""
+    nodes = frame.get("stages", {}).get("totals", {}).get("nodes", {})
+    active = sum(nodes.get(n, 0) for n in ("Admitted", "Year1", "Year2", "Year3", "Year4"))
+    return {
+        "active": active,
+        "graduated": nodes.get("Graduated", 0),
+        "dropped": nodes.get("Dropped", 0),
+        "censored": nodes.get("Censored", 0),
+    }
+
+
+def _get_visible_live_sim(db: Session, live_sim_id: int, plan_id: int) -> LiveSimulation:
+    sim = db.get(LiveSimulation, live_sim_id)
+    if sim is None or sim.plan_id != plan_id:
+        raise HTTPException(status_code=404, detail="Live simulation not found")
+    return sim
+
+
+@app.post("/livesim")
+def create_live_sim(
+    req: LiveSimCreateRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> dict:
+    plan_id = resolve_active_plan_id(db, current_user)
+    config = load_config_from_db(db, plan_id)  # already a deep copy (load_config_from_db)
+    if req.initial_state is not None:
+        _validate_initial_state(req.initial_state)
+        config["initial_state"] = req.initial_state
+    scenario = copy.deepcopy(config["scenarios"][0])
+
+    sim = LiveSimulation(
+        plan_id=plan_id,
+        created_by_user_id=current_user.id,
+        name=req.name,
+        current_term=None,
+        status="active",
+        base_config=config,
+        base_scenario=scenario,
+        edits=[],
+    )
+    db.add(sim)
+    db.commit()
+
+    runner = LiveRunner({}, sim.base_config, sim.base_scenario)
+    _start, end_term = runner.horizon(sim.edits)
+    return _livesim_to_dict(sim, end_term)
+
+
+@app.get("/livesim")
+def list_live_sims(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)) -> list[dict]:
+    plan_id = resolve_active_plan_id(db, current_user)
+    rows = (
+        db.query(LiveSimulation)
+        .filter_by(plan_id=plan_id)
+        .order_by(LiveSimulation.created_at.desc())
+        .all()
+    )
+    out = []
+    for sim in rows:
+        runner = LiveRunner({}, sim.base_config, sim.base_scenario)
+        _start, end_term = runner.horizon(sim.edits)
+        out.append(_livesim_to_dict(sim, end_term))
+    return out
+
+
+@app.get("/livesim/{live_sim_id}")
+def get_live_sim(
+    live_sim_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> dict:
+    plan_id = resolve_active_plan_id(db, current_user)
+    sim = _get_visible_live_sim(db, live_sim_id, plan_id)
+    curriculum = load_curriculum_from_db(db, plan_id)
+
+    runner = LiveRunner(curriculum, sim.base_config, sim.base_scenario)
+    _start, end_term = runner.horizon(sim.edits)
+
+    snapshots = (
+        db.query(LiveTermSnapshot)
+        .filter_by(live_sim_id=sim.id)
+        .order_by(LiveTermSnapshot.term_index)
+        .all()
+    )
+
+    # cohorts_meta: the admission schedule is pure config math (cohort_size patches only
+    # change a cohort's *size*, never its entry term or count), so this can be read
+    # straight off base_config without paying for a replay — mirrors
+    # src.livesim.LiveRunner.replay's own cohorts_meta construction.
+    num_cohorts = sim.base_config.get("num_cohorts", 1)
+    num_incumbents = sim.base_config.get("num_incumbent_cohorts", 0)
+    interval = effective_admit_interval_terms(sim.base_config)
+    cohorts_meta = sorted(
+        [{"id": c, "is_incumbent": False, "entry_term": c * interval} for c in range(num_cohorts)]
+        + [{"id": -k, "is_incumbent": True, "entry_term": -k * interval} for k in range(1, num_incumbents + 1)],
+        key=lambda c: c["entry_term"],
+    )
+
+    return {
+        "live_sim": _livesim_to_dict(sim, end_term),
+        "meta": {
+            "graph": build_curriculum_graph(curriculum),
+            "stage_nodes": ["Admitted", "Year1", "Year2", "Year3", "Year4",
+                            "Graduated", "Dropped", "Censored"],
+            "cohorts": cohorts_meta,
+            "initial_state": sim.base_config.get("initial_state", {"occupancy": {}, "standing": {}}),
+        },
+        "snapshots": [_snapshot_to_dict(s) for s in snapshots],
+    }
+
+
+@app.post("/livesim/{live_sim_id}/advance")
+def advance_live_sim(
+    live_sim_id: int,
+    req: LiveSimAdvanceRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> dict:
+    plan_id = resolve_active_plan_id(db, current_user)
+    sim = _get_visible_live_sim(db, live_sim_id, plan_id)
+
+    if sim.status == "finished":
+        raise HTTPException(status_code=409, detail="Live simulation has already finished")
+
+    next_term = (sim.current_term if sim.current_term is not None else -1) + 1
+    next_term = max(next_term, 0)
+
+    patch = req.edits.model_dump(exclude_none=True) if req.edits else {}
+    edit_entry = {"effective_from_term": next_term, "patch": patch}
+    edits = list(sim.edits) + [edit_entry]
+
+    curriculum = load_curriculum_from_db(db, plan_id)
+    runner = LiveRunner(curriculum, sim.base_config, sim.base_scenario)
+    _start, end_term = runner.horizon(edits)
+
+    if next_term >= end_term:
+        raise HTTPException(status_code=409, detail="Live simulation has already finished")
+
+    try:
+        result = runner.replay(edits, next_term)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+    frame = result.frames[-1]
+    if frame["term"] != next_term:
+        raise HTTPException(status_code=500, detail="Replay did not reach the requested term")
+
+    snapshot = LiveTermSnapshot(
+        live_sim_id=sim.id,
+        term_index=next_term,
+        season=frame["season"],
+        label=frame["label"],
+        frame=frame,
+        summary=_cheap_running_summary(frame),
+        edits_applied=patch,
+    )
+    db.add(snapshot)
+
+    sim.edits = edits
+    sim.current_term = next_term
+    if next_term >= end_term - 1:
+        sim.status = "finished"
+    db.commit()
+    db.refresh(snapshot)
+
+    return {
+        "live_sim": _livesim_to_dict(sim, end_term),
+        "snapshot": _snapshot_to_dict(snapshot),
+    }
+
+
+@app.delete("/livesim/{live_sim_id}")
+def delete_live_sim(
+    live_sim_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> dict:
+    plan_id = resolve_active_plan_id(db, current_user)
+    sim = _get_visible_live_sim(db, live_sim_id, plan_id)
+
+    if sim.created_by_user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Only the creator may delete this live simulation")
+
+    db.query(LiveTermSnapshot).filter_by(live_sim_id=sim.id).delete()
+    db.delete(sim)
+    db.commit()
+    return {"ok": True}

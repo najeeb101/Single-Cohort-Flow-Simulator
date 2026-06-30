@@ -89,6 +89,12 @@ export function metaFromPlanExport(curriculum: CourseRecord[], config: Record<st
     dropout_prob_on_repeated_fail: (config.dropout_prob_on_repeated_fail as number) ?? 0.2,
     registration_tier_thresholds: (config.registration_tier_thresholds as number[]) ?? [0, 30, 60, 90, 120],
     enrollment_priority_tiers: (config.enrollment_priority_tiers as EnrollmentPriorityTier[]) ?? [],
+    admission_targets: (config.admission_targets as MetaResponse["admission_targets"]) ?? {
+      target_grad_rate: 0.70,
+      max_avg_time_to_degree: 10.0,
+      max_seats_denied_per_student: 1.0,
+      min_throughput_stability: 0.85,
+    },
   };
 }
 
@@ -101,6 +107,14 @@ export function composePlanPayload(
   baseConfig: Record<string, unknown>,
   state: BuilderState
 ): PlanImportPayload {
+  // Only courses whose seats/section the admin changed off the plan's global default are
+  // persisted as per-course overrides — an unedited plan keeps an empty override map.
+  const globalSeats = Number(baseConfig.seats_per_section ?? 35);
+  const seatsPerSectionOverrides: Record<string, number> = {};
+  for (const [code, v] of Object.entries(state.seatsPerSection)) {
+    if (v !== globalSeats) seatsPerSectionOverrides[code] = v;
+  }
+
   const config: Record<string, unknown> = {
     ...baseConfig,
     cohort_size: state.cohortSize,
@@ -111,6 +125,7 @@ export function composePlanPayload(
     max_terms: state.maxTerms,
     seed: state.seed,
     course_sections: state.courseSections,
+    seats_per_section_overrides: seatsPerSectionOverrides,
     dropout_gpa_floor: state.dropoutGpaFloor,
     dropout_base_hazard: state.dropoutBaseHazard,
     dropout_early_multiplier: state.dropoutEarlyMultiplier,

@@ -23,10 +23,13 @@ export default function CohortFlowChart({ frames, cohorts }: { frames: Frame[]; 
 
   return (
     <div className="rounded-2xl border border-border bg-surface p-4">
-      <div className="mb-2 flex items-baseline justify-between gap-3 text-[13px] font-semibold">
+      <div className="mb-1 flex items-baseline justify-between gap-3 text-[13px] font-semibold">
         <span>Per-cohort flow</span>
         <span className="text-xs font-normal text-muted">still enrolled (active + delayed) vs. global term</span>
       </div>
+      <p className="mb-3 text-[12px] text-muted">
+        One line per cohort showing how many students are still enrolled over time. Lines that fall steeply signal early dropout; lines that stay high and flat signal students who are stuck — taking longer than expected to complete. Cohorts that finish fast (short lines) have clear prerequisite paths; slow-finishing ones face capacity or prerequisite bottlenecks.
+      </p>
       <svg viewBox={`0 0 ${W + 16} ${H + 24}`} className="w-full" style={{ maxHeight: 260 }}>
         <g transform="translate(8,4)">
           {zeroIdx >= 0 && (

@@ -1,14 +1,12 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
-import { getMeta, listScenarios, simulate } from "@/lib/api";
+import { getMeta, simulate } from "@/lib/api";
 import CurriculumGraph from "@/components/CurriculumGraph";
 import type {
   CohortInfo,
   Graph,
   MetaResponse,
-  ScenarioRecord,
-  ScenarioRequest,
   SimulateResponse,
 } from "@/types/simulation";
 
@@ -24,12 +22,7 @@ interface SimulationState {
   meta: MetaResponse;
   data: SimulateResponse;
   chartMeta: ChartMeta;
-  topCapacityCourses: string[];
   refreshBaseline: () => Promise<void>;
-  runScenario: (overrides: ScenarioRequest) => Promise<void>;
-  resetToBaseline: () => Promise<void>;
-  savedScenarios: ScenarioRecord[];
-  refreshScenarios: () => Promise<void>;
 }
 
 const SimulationContext = createContext<SimulationState | null>(null);
@@ -37,25 +30,11 @@ const SimulationContext = createContext<SimulationState | null>(null);
 export function SimulationProvider({ children }: { children: ReactNode }) {
   const [meta, setMeta] = useState<MetaResponse | null>(null);
   const [data, setData] = useState<SimulateResponse | null>(null);
-  // Fixed once the simulation is started — the curriculum graph structure, stage-node order,
-  // and cohort roster are scenario-invariant, and AnimationSection's child components key
-  // state off them positionally. Must NOT be recomputed from later live results.
   const [chartMeta, setChartMeta] = useState<ChartMeta | null>(null);
-  const [topCapacityCourses, setTopCapacityCourses] = useState<string[]>([]);
   const [phase, setPhase] = useState<Phase>("loading");
-  const [savedScenarios, setSavedScenarios] = useState<ScenarioRecord[]>([]);
-  // Nothing runs until the user presses Start — the dashboard loads only the program
-  // structure (meta) on mount and waits. This is deliberate: a simulation is never kicked
-  // off automatically.
   const [starting, setStarting] = useState(false);
   const [startError, setStartError] = useState<string | null>(null);
 
-  const refreshScenarios = useCallback(async () => {
-    setSavedScenarios(await listScenarios());
-  }, []);
-
-  // Mount: fetch the program structure only (no simulation). getMeta reads curriculum/config;
-  // it does not run the engine.
   useEffect(() => {
     getMeta()
       .then((m) => {
@@ -63,12 +42,10 @@ export function SimulationProvider({ children }: { children: ReactNode }) {
         setPhase("ready");
       })
       .catch(() => setPhase("error"));
-    refreshScenarios().catch(() => {});
-  }, [refreshScenarios]);
+  }, []);
 
   const applyResult = useCallback((d: SimulateResponse, freezeChartMeta: boolean) => {
     setData(d);
-    setTopCapacityCourses(d.flow_timeline.summary.top_bottlenecks.capacity.slice(0, 3).map(([code]) => code));
     if (freezeChartMeta) {
       setChartMeta({
         graph: d.flow_timeline.meta.graph,
@@ -78,7 +55,6 @@ export function SimulationProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  // The explicit Start: this is the ONLY place the baseline run is triggered on first load.
   const start = useCallback(async () => {
     setStarting(true);
     setStartError(null);
@@ -92,21 +68,10 @@ export function SimulationProvider({ children }: { children: ReactNode }) {
     }
   }, [applyResult]);
 
-  // Re-run the baseline (used after Settings edits) — only meaningful once started.
   const refreshBaseline = useCallback(async () => {
     const [m, d] = await Promise.all([getMeta(), simulate({})]);
     setMeta(m);
     applyResult(d, true);
-  }, [applyResult]);
-
-  const runScenario = useCallback(async (overrides: ScenarioRequest) => {
-    const d = await simulate(overrides);
-    applyResult(d, false);
-  }, [applyResult]);
-
-  const resetToBaseline = useCallback(async () => {
-    const d = await simulate({});
-    applyResult(d, false);
   }, [applyResult]);
 
   if (phase === "loading") {
@@ -129,8 +94,6 @@ export function SimulationProvider({ children }: { children: ReactNode }) {
     );
   }
 
-  // Structure loaded, but the simulation has not been started yet — show the program roadmap
-  // and a Start button. Nothing has been simulated at this point.
   if (!data || !chartMeta) {
     return (
       <main className="mx-auto w-full max-w-[1600px] px-7 pb-16">
@@ -167,19 +130,7 @@ export function SimulationProvider({ children }: { children: ReactNode }) {
   }
 
   return (
-    <SimulationContext.Provider
-      value={{
-        meta,
-        data,
-        chartMeta,
-        topCapacityCourses,
-        refreshBaseline,
-        runScenario,
-        resetToBaseline,
-        savedScenarios,
-        refreshScenarios,
-      }}
-    >
+    <SimulationContext.Provider value={{ meta, data, chartMeta, refreshBaseline }}>
       {children}
     </SimulationContext.Provider>
   );

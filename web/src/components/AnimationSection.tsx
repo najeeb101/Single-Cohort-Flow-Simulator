@@ -70,8 +70,7 @@ export default function AnimationSection({ graph, stageNodes, cohorts, frames }:
 
   return (
     <section className="py-6">
-      <h2 className="mb-4 flex items-center gap-2 text-[15px] font-bold">
-        <span className="grid h-6 w-6 place-items-center rounded-[7px] border border-border-2 bg-surface-2 text-xs font-bold text-accent">1</span>
+      <h2 className="mb-4 text-[15px] font-bold">
         Prerequisite flow <span className="text-xs font-normal text-muted">— semester by semester</span>
       </h2>
 
@@ -98,8 +97,8 @@ export default function AnimationSection({ graph, stageNodes, cohorts, frames }:
           "sidebar." Mobile collapses to a plain single-column stack via the unprefixed
           col-span-1 default (high-end-visual-design's "Asymmetrical Bento" archetype,
           scaled down for a data dashboard rather than a marketing grid). */}
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-6">
-        <div className="col-span-1 flex min-w-0 flex-col rounded-2xl border border-border bg-surface md:col-span-4 md:row-span-2">
+      <div className="flex flex-col gap-4">
+        <div className="flex min-w-0 flex-col rounded-2xl border border-border bg-surface">
           <div className="flex items-baseline justify-between gap-3 border-b border-border px-4 py-2.5 text-[13px] font-semibold">
             <span>Program roadmap</span>
             <span className="text-xs font-normal text-muted">
@@ -124,15 +123,17 @@ export default function AnimationSection({ graph, stageNodes, cohorts, frames }:
           </div>
         </div>
 
-        <aside className="col-span-1 flex flex-col rounded-2xl border border-border bg-surface px-4 pb-3.5 md:col-span-2">
-          <div className="border-b border-border py-2.5 text-[13px] font-semibold">Stage overview</div>
-          <StageOverview frame={frame} stageNodes={stageNodes} cohortSel={cohortSel} />
-        </aside>
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <aside className="flex flex-col rounded-2xl border border-border bg-surface px-4 pb-3.5">
+            <div className="border-b border-border py-2.5 text-[13px] font-semibold">Stage overview</div>
+            <StageOverview frame={frame} stageNodes={stageNodes} cohortSel={cohortSel} />
+          </aside>
 
-        <aside className="col-span-1 flex flex-col rounded-2xl border border-border bg-surface px-4 pb-3.5 md:col-span-2">
-          <div className="border-b border-border py-2.5 text-[13px] font-semibold">Biggest moves</div>
-          <FlowsList frame={frame} cohortSel={cohortSel} />
-        </aside>
+          <aside className="flex flex-col rounded-2xl border border-border bg-surface px-4 pb-3.5">
+            <div className="border-b border-border py-2.5 text-[13px] font-semibold">Biggest moves</div>
+            <FlowsList frame={frame} cohortSel={cohortSel} />
+          </aside>
+        </div>
       </div>
     </section>
   );
