@@ -2,9 +2,10 @@
 
 import { useSimulation } from "@/lib/SimulationContext";
 import BottlenecksPanel from "@/components/BottlenecksPanel";
+import CapacityRecommendations from "@/components/CapacityRecommendations";
 
 export default function BottlenecksPage() {
-  const { data } = useSimulation();
+  const { data, meta } = useSimulation();
 
   return (
     <main className="mx-auto w-full max-w-[1600px] px-7 pb-16">
@@ -15,6 +16,7 @@ export default function BottlenecksPage() {
         </p>
       </header>
       <BottlenecksPanel bottlenecks={data.flow_timeline.summary.top_bottlenecks} />
+      <CapacityRecommendations frames={data.flow_timeline.frames} meta={meta} />
     </main>
   );
 }

@@ -25,26 +25,16 @@ export default function Home() {
         </div>
       </header>
 
-      <section className="py-6">
-        <h2 className="mb-4 flex items-center gap-2 text-[15px] font-bold">
-          <span className="grid h-6 w-6 place-items-center rounded-[7px] border border-border-2 bg-surface-2 text-xs font-bold text-accent">0</span>
-          Inputs <span className="text-xs font-normal text-muted">— this run, edit in Scenario Builder</span>
-        </h2>
+      <section className="py-4">
         <div className="flex flex-wrap gap-2.5">
           {[
-            ["Study cohorts", data.flow_timeline.meta.num_cohorts],
-            [
-              "Existing students",
-              Object.values(data.flow_timeline.meta.initial_state?.standing ?? {}).reduce((a, b) => a + b, 0),
-            ],
+            ["Cohorts", data.flow_timeline.meta.num_cohorts],
             ["Cohort size", meta.cohort_size],
             ["Max semesters", data.flow_timeline.meta.max_terms],
             ["Seats / section", meta.seats_per_section],
             ["Courses", chartMeta.graph.nodes.length],
-            ["Prerequisite links", chartMeta.graph.edges.length],
-            ["Seed", data.flow_timeline.meta.seed],
           ].map(([k, v]) => (
-            <div key={String(k)} className="rounded-[10px] border border-border bg-surface px-3.5 py-2.5 text-[12.5px] text-muted">
+            <div key={String(k)} className="rounded-[10px] border border-border bg-surface px-3.5 py-2 text-[12.5px] text-muted">
               {k}: <b className="ml-0.5 font-bold text-ink">{v}</b>
             </div>
           ))}

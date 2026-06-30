@@ -4,9 +4,8 @@ import type { AdmissionsRecommendation as Rec } from "@/types/simulation";
 export default function AdmissionsRecommendation({ rec }: { rec: Rec }) {
   return (
     <section className="py-6">
-      <h2 className="mb-4 flex items-center gap-2 text-[15px] font-bold">
-        <span className="grid h-6 w-6 place-items-center rounded-[7px] border border-border-2 bg-surface-2 text-xs font-bold text-accent">2</span>
-        Admissions recommendation <span className="text-xs font-normal text-muted">— heuristic</span>
+      <h2 className="mb-4 text-[15px] font-bold">
+        Admissions recommendation <span className="text-xs font-normal text-muted">— heuristic, edit targets in Settings</span>
       </h2>
       <div className="rounded-2xl border border-border border-l-[3px] border-l-good bg-surface px-5.5 py-4.5">
         {!rec.recommended_intake ? (

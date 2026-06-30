@@ -11,10 +11,7 @@ export default function BottlenecksPanel({ bottlenecks }: { bottlenecks: TopBott
 
   return (
     <section className="py-6">
-      <h2 className="mb-1 flex items-center gap-2 text-[15px] font-bold">
-        <span className="grid h-6 w-6 place-items-center rounded-[7px] border border-border-2 bg-surface-2 text-xs font-bold text-accent">5</span>
-        Top bottlenecks
-      </h2>
+      <h2 className="mb-1 text-[15px] font-bold">Top bottlenecks</h2>
       <p className="mb-4 max-w-3xl text-[12.5px] text-muted">
         The four reasons a student couldn't take a course they needed — ranked by how often each course caused the problem across the whole run. <b className="text-ink">Failures</b>: attempted and failed. <b className="text-ink">Capacity blocks</b>: requested a seat but lost the allocation (course was full). <b className="text-ink">Offering blocks</b>: eligible but the course wasn't taught that term. <b className="text-ink">Prerequisite blocks</b>: prerequisites not yet satisfied. A course appearing at the top of multiple lists is the deepest structural delay point in the curriculum.
       </p>

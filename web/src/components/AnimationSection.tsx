@@ -70,8 +70,7 @@ export default function AnimationSection({ graph, stageNodes, cohorts, frames }:
 
   return (
     <section className="py-6">
-      <h2 className="mb-4 flex items-center gap-2 text-[15px] font-bold">
-        <span className="grid h-6 w-6 place-items-center rounded-[7px] border border-border-2 bg-surface-2 text-xs font-bold text-accent">1</span>
+      <h2 className="mb-4 text-[15px] font-bold">
         Prerequisite flow <span className="text-xs font-normal text-muted">— semester by semester</span>
       </h2>
 

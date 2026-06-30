@@ -5,10 +5,7 @@ import { pct } from "@/lib/format";
 export default function CohortsTable({ cohorts }: { cohorts: CohortMetric[] }) {
   return (
     <section className="py-6">
-      <h2 className="mb-1 flex items-center gap-2 text-[15px] font-bold">
-        <span className="grid h-6 w-6 place-items-center rounded-[7px] border border-border-2 bg-surface-2 text-xs font-bold text-accent">4</span>
-        Per-cohort outcomes
-      </h2>
+      <h2 className="mb-1 text-[15px] font-bold">Per-cohort outcomes</h2>
       <p className="mb-4 max-w-3xl text-[12.5px] text-muted">
         One row per cohort showing graduation rate, dropout rate, and average semesters to complete — plus the single course that blocked each cohort the most by seat denial, prerequisite, and failure. Cohorts that entered in busy years (when the university is already full) typically show lower graduation rates and higher seat-block counts than later cohorts.
       </p>
