@@ -144,7 +144,7 @@ export default function LivePage() {
           error={createError}
         />
 
-        <div>
+        <div className="min-w-0">
           {selectedId === null ? (
             <div className="rounded-2xl border border-border bg-surface px-4 py-10 text-center text-[12.5px] text-muted">
               Select a live simulation, or create a new one to get started.

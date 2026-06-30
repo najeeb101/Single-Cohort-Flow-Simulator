@@ -177,7 +177,14 @@ def compute_historical_transcripts(result: "SimulationResult", incumbents_only: 
 # Admissions recommendation (single-run heuristic)                    #
 # ------------------------------------------------------------------ #
 
-def compute_admissions_recommendation(result: "SimulationResult") -> dict:
+def evaluate_health_criteria(result: "SimulationResult") -> dict | None:
+    """The four steady-state "health" criteria + their slack, judged against
+    config['admission_targets']. Slack is normalized so >= 1 always passes and < 1 always
+    breaches, regardless of whether the target is a floor (grad rate, stability) or a ceiling
+    (time-to-degree, seats denied). Shared by compute_admissions_recommendation (which scales
+    intake by the worst slack) and capacity.run_intake_sweep (which judges every intake by the
+    exact same definitions). Returns None when there are no study cohorts to evaluate.
+    """
     config = result.config
     targets = config.get("admission_targets", {})
     cohort_metrics = compute_cohort_metrics(result)
@@ -186,10 +193,9 @@ def compute_admissions_recommendation(result: "SimulationResult") -> dict:
     # its horizon; fall back to the mean across study cohorts.
     study = {cid: m for cid, m in cohort_metrics.items() if not m["is_incumbent"]}
     if not study:
-        return {}
+        return None
 
     rep = _representative_cohort(result, study)
-
     # Throughput stability: graduates-per-term coefficient (1 - cv), clipped to [0,1].
     stability = _throughput_stability(result)
 
@@ -217,6 +223,15 @@ def compute_admissions_recommendation(result: "SimulationResult") -> dict:
         {"name": "throughput_stability", "observed": round(stability, 4), "target": tgt_s,
          "slack": (stability / tgt_s) if tgt_s else float("inf")},
     ]
+    return {"criteria": criteria, "representative_cohort": rep["cohort_id"]}
+
+
+def compute_admissions_recommendation(result: "SimulationResult") -> dict:
+    config = result.config
+    health = evaluate_health_criteria(result)
+    if health is None:
+        return {}
+    criteria = health["criteria"]
 
     binding = min(criteria, key=lambda c: c["slack"])
     f = binding["slack"]
@@ -230,7 +245,7 @@ def compute_admissions_recommendation(result: "SimulationResult") -> dict:
         "binding_criterion": binding["name"],
         "binding_slack": round(f, 4),
         "growth_capped_at": 1.25,
-        "representative_cohort": rep["cohort_id"],
+        "representative_cohort": health["representative_cohort"],
         "criteria": criteria,
         "note": "Single-run heuristic: intake scaled by the worst-performing health "
                 "criterion (slack<1 = breach -> shrink; slack>1 = headroom -> grow, capped 1.25x). "
@@ -415,16 +430,8 @@ def flow_timeline_payload(
     result: "SimulationResult",
     curriculum: dict[str, "Course"],
     monte_carlo: dict | None = None,
-    instructors: list[dict] | None = None,
 ) -> dict:
-    """The full frontend contract object (meta + frames + summary).
-
-    `instructors` (src/db_models.py::Instructor rows, as plain dicts) feeds the
-    `capacity_planning` summary key — src.capacity is imported locally here, not at module
-    level, because src.capacity itself imports build_course_utilization/
-    compute_admissions_recommendation from this module; a top-level import would be circular.
-    """
-    from src.capacity import build_capacity_report
+    """The full frontend contract object (meta + frames + summary)."""
     history = result.history
     cohorts_meta = [
         {"id": cid, "is_incumbent": cid < 0, "entry_term": et}
@@ -462,7 +469,6 @@ def flow_timeline_payload(
                 "offering": _top3(history.offering_block_counts),
                 "prereq":   _top3(history.prereq_block_counts),
             },
-            "capacity_planning": build_capacity_report(result, instructors or [], curriculum),
         },
     }
 
@@ -472,9 +478,8 @@ def build_flow_timeline_json(
     curriculum: dict[str, "Course"],
     output_path: Path,
     monte_carlo: dict | None = None,
-    instructors: list[dict] | None = None,
 ) -> dict:
-    payload = flow_timeline_payload(result, curriculum, monte_carlo, instructors=instructors)
+    payload = flow_timeline_payload(result, curriculum, monte_carlo)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     with open(output_path, "w", encoding="utf-8") as f:
         json.dump(payload, f, indent=2)

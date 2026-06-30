@@ -12,8 +12,8 @@ export const CATEGORIES = [
 ] as const;
 
 export interface BuilderState {
-  capacityMultipliers: Record<string, number>;
   courseSections: Record<string, number>;
+  seatsPerSection: Record<string, number>;
   cohortSize: number;
   passRates: Record<string, number>;
   dropoutGpaFloor: number;
@@ -31,12 +31,22 @@ export interface BuilderState {
   seed: number;
   registrationTierThresholds: number[];
   enrollmentPriorityTiers: EnrollmentPriorityTier[];
+  admissionTargets: {
+    target_grad_rate: number;
+    max_avg_time_to_degree: number;
+    max_seats_denied_per_student: number;
+    min_throughput_stability: number;
+  };
 }
 
-export function baselineFromMeta(meta: MetaResponse, topCapacityCourses: string[]): BuilderState {
+export function baselineFromMeta(meta: MetaResponse): BuilderState {
   return {
-    capacityMultipliers: Object.fromEntries(topCapacityCourses.map((code) => [code, 1])),
     courseSections: { ...meta.course_sections },
+    // Per-course seats/section baseline = the global default for every course; a course only
+    // diverges once the admin edits it (sent diff-style as seats_per_section_overrides).
+    seatsPerSection: Object.fromEntries(
+      Object.keys(meta.course_sections).map((code) => [code, meta.seats_per_section]),
+    ),
     cohortSize: meta.cohort_size,
     passRates: { ...meta.course_pass_rates },
     dropoutGpaFloor: meta.dropout_gpa_floor,
@@ -54,6 +64,7 @@ export function baselineFromMeta(meta: MetaResponse, topCapacityCourses: string[
     seed: meta.seed,
     registrationTierThresholds: [...meta.registration_tier_thresholds],
     enrollmentPriorityTiers: meta.enrollment_priority_tiers.map((t) => ({ ...t, categories: [...t.categories] })),
+    admissionTargets: { ...meta.admission_targets },
   };
 }
 
@@ -74,11 +85,11 @@ function recordDiff(state: Record<string, number>, baseline: Record<string, numb
 export function buildOverrides(state: BuilderState, baseline: BuilderState): ScenarioRequest {
   const req: ScenarioRequest = {};
 
-  const capacity_overrides = recordDiff(state.capacityMultipliers, baseline.capacityMultipliers);
-  if (Object.keys(capacity_overrides).length) req.capacity_overrides = capacity_overrides;
-
   const course_sections_overrides = recordDiff(state.courseSections, baseline.courseSections);
   if (Object.keys(course_sections_overrides).length) req.course_sections_overrides = course_sections_overrides;
+
+  const seats_per_section_overrides = recordDiff(state.seatsPerSection, baseline.seatsPerSection);
+  if (Object.keys(seats_per_section_overrides).length) req.seats_per_section_overrides = seats_per_section_overrides;
 
   if (numDiffers(state.cohortSize, baseline.cohortSize)) req.cohort_size = state.cohortSize;
 
@@ -133,8 +144,8 @@ export function buildOverrides(state: BuilderState, baseline: BuilderState): Sce
 // Scenario's overrides onto baseline (used when loading a saved/cloned scenario).
 export function applyOverrides(overrides: ScenarioRequest, baseline: BuilderState): BuilderState {
   return {
-    capacityMultipliers: { ...baseline.capacityMultipliers, ...overrides.capacity_overrides },
     courseSections: { ...baseline.courseSections, ...overrides.course_sections_overrides },
+    seatsPerSection: { ...baseline.seatsPerSection, ...overrides.seats_per_section_overrides },
     cohortSize: overrides.cohort_size ?? baseline.cohortSize,
     passRates: { ...baseline.passRates, ...overrides.pass_rate_overrides },
     dropoutGpaFloor: overrides.dropout_gpa_floor ?? baseline.dropoutGpaFloor,
@@ -152,5 +163,6 @@ export function applyOverrides(overrides: ScenarioRequest, baseline: BuilderStat
     seed: overrides.seed ?? baseline.seed,
     registrationTierThresholds: overrides.registration_tier_thresholds ?? baseline.registrationTierThresholds,
     enrollmentPriorityTiers: overrides.enrollment_priority_tiers ?? baseline.enrollmentPriorityTiers,
+    admissionTargets: baseline.admissionTargets,
   };
 }

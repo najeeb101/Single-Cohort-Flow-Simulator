@@ -97,6 +97,7 @@ export interface AdmissionsRecommendation {
   note?: string;
 }
 
+
 export interface ConfidenceInterval {
   mean: number;
   stdev: number;
@@ -144,56 +145,11 @@ export interface TopBottlenecks {
   prereq: TopList;
 }
 
-export interface SeatUtilizationRow {
-  course: string;
-  term: number;
-  label: string;
-  capacity: number;
-  registered: number;
-  granted: number;
-  denied: number;
-  utilization: number;
-  status: "oversubscribed" | "full" | "open";
-}
-
-export type CapacityStatus = "ok" | "tight" | "shortfall";
-
-export interface CategoryCapacityRow {
-  category: string;
-  peak_sections_needed: number;
-  representative_sections_needed: number;
-  instructor_capacity: number;
-  qualified_headcount: number;
-  shortfall: number;
-  status: CapacityStatus;
-}
-
-export interface CourseStaffingRisk {
-  course: string;
-  category: string;
-  peak_sections: number;
-  category_status: CapacityStatus;
-  top_driver: boolean;
-}
-
-export interface InstructorCapacity {
-  by_category: CategoryCapacityRow[];
-  course_staffing_risks: CourseStaffingRisk[];
-  note: string;
-}
-
-export interface CapacityPlanning {
-  seat_utilization: SeatUtilizationRow[];
-  instructor_capacity: InstructorCapacity;
-  admissions_recommendation: AdmissionsRecommendation;
-}
-
 export interface FlowTimelineSummary {
   headline: Headline;
   per_cohort: CohortMetric[];
   admissions_recommendation: AdmissionsRecommendation;
   top_bottlenecks: TopBottlenecks;
-  capacity_planning: CapacityPlanning;
 }
 
 export interface CohortInfo {
@@ -256,6 +212,12 @@ export interface MetaResponse {
   dropout_prob_on_repeated_fail: number;
   registration_tier_thresholds: number[];
   enrollment_priority_tiers: EnrollmentPriorityTier[];
+  admission_targets: {
+    target_grad_rate: number;
+    max_avg_time_to_degree: number;
+    max_seats_denied_per_student: number;
+    min_throughput_stability: number;
+  };
 }
 
 export interface ScenarioRequest {
@@ -271,6 +233,7 @@ export interface ScenarioRequest {
   seed?: number;
   initial_state?: InitialState;
   course_sections_overrides?: Record<string, number>;
+  seats_per_section_overrides?: Record<string, number>;
   dropout_gpa_floor?: number;
   dropout_base_hazard?: number;
   dropout_early_multiplier?: number;
@@ -281,14 +244,6 @@ export interface ScenarioRequest {
   enrollment_priority_tiers?: EnrollmentPriorityTier[];
   include_monte_carlo?: boolean;
   scenario_id?: number;
-}
-
-export interface ScenarioRecord {
-  id: number;
-  name: string;
-  overrides: ScenarioRequest;
-  created_at: string;
-  updated_at: string;
 }
 
 export type RuleExpr = string | { all: RuleExpr[] } | { any: RuleExpr[] } | { min_ch: number };
@@ -341,36 +296,15 @@ export interface PlanRecord {
   is_active: boolean;
 }
 
-export interface InstructorRecord {
-  id: number;
-  name: string;
-  categories: string[];
-  max_sections_per_term: number;
-}
-
-export interface InstructorCreate {
-  name: string;
-  categories: string[];
-  max_sections_per_term: number;
-}
-
-export interface InstructorUpdate {
-  name?: string;
-  categories?: string[];
-  max_sections_per_term?: number;
-}
-
 export interface PlanImportPayload {
   name: string;
   curriculum: CourseRecord[];
   config: Record<string, unknown>;
-  instructors?: InstructorRecord[];
 }
 
 export interface PlanExportPayload {
   curriculum: CourseRecord[];
   config: Record<string, unknown>;
-  instructors: InstructorRecord[];
 }
 
 export interface RunRecord {
@@ -400,10 +334,11 @@ export interface LiveSim {
 // fields the user actually changed (diff-style, like scenarioBuilder.ts::buildOverrides).
 export interface LiveEdits {
   course_sections?: Record<string, number>; // sections per course (capacity lever)
+  seats_per_section_overrides?: Record<string, number>; // per-course seats/section (capacity lever)
   pass_rate_overrides?: Record<string, number>; // 0..1
   offering_overrides?: Record<string, string[]>; // e.g. ["Fall","Spring"]
   cohort_size?: number; // admissions intake going forward
-  capacity_overrides?: Record<string, number>; // per-course seat multiplier
+  capacity_overrides?: Record<string, number>; // deprecated per-course seat multiplier (back-compat only)
 }
 
 export interface TermSnapshot {

@@ -41,7 +41,7 @@ export default function LiveSimDetailView({ meta, detail, onChanged, onDeleted }
     setAdvancing(true);
     setError(null);
     try {
-      const edits = pendingToEdits(pending);
+      const edits = pendingToEdits(pending, meta);
       await advanceLiveSim(liveSim.id, Object.keys(edits).length ? edits : undefined);
       setPending(emptyPending());
       await onChanged();
@@ -146,7 +146,7 @@ export default function LiveSimDetailView({ meta, detail, onChanged, onDeleted }
       )}
 
       <section className="grid gap-4 lg:grid-cols-[1fr_360px]">
-        <div className="rounded-2xl border border-border bg-surface">
+        <div className="min-w-0 rounded-2xl border border-border bg-surface">
           <div className="flex items-baseline justify-between gap-3 border-b border-border px-4 py-2.5 text-[13px] font-semibold">
             <span>Curriculum status</span>
             <span className="text-xs font-normal text-muted">

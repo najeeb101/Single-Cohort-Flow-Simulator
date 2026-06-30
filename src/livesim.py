@@ -4,8 +4,9 @@ product-level contract; this module is purely the engine seam.
 
 A live simulation is: one base `(curriculum, base_config, base_scenario)` triple plus an
 append-only, ordered list of edits — `{"effective_from_term": int, "patch": {...}}`. Each
-edit's patch may set any of `course_sections`, `pass_rate_overrides`, `offering_overrides`,
-`cohort_size`, `capacity_overrides`. "Advancing" the live sim to term N means: replay the
+edit's patch may set any of `course_sections`, `seats_per_section_overrides`,
+`pass_rate_overrides`, `offering_overrides`, `cohort_size`, `capacity_overrides`.
+"Advancing" the live sim to term N means: replay the
 engine from term 0, applying every edit whose `effective_from_term <= t` as of each term
 `t`, then take term N's frame. Because edits only ever apply forward and are never mutated
 in place, replaying to term N reproduces terms 0..N-1 byte-identically to any earlier
@@ -28,12 +29,14 @@ from src.models.student import Student
 from src.simulator import Simulator
 
 # The only config keys a live-sim edit patch is allowed to touch. `course_sections`/
-# `cohort_size` land in the working `config`; the rest land in the working `scenario` (see
-# CLAUDE.md's Capacity Planning Model / Scenarios sections for what each one means to the
-# engine). Anything else in a patch dict is ignored rather than erroring, so a slightly
-# over-eager frontend payload (e.g. accidentally including an unrelated key) degrades
-# gracefully instead of breaking a live sim mid-run.
-CONFIG_PATCH_KEYS = ("course_sections", "cohort_size")
+# `seats_per_section_overrides`/`cohort_size` land in the working `config`; the rest land in
+# the working `scenario` (see CLAUDE.md's Capacity Planning Model / Scenarios sections for
+# what each one means to the engine). `capacity_overrides` (the old per-course seat
+# multiplier) stays honored for any pre-existing edit log, but the UI now edits capacity via
+# `course_sections` + `seats_per_section_overrides` instead. Anything else in a patch dict is
+# ignored rather than erroring, so a slightly over-eager frontend payload (e.g. accidentally
+# including an unrelated key) degrades gracefully instead of breaking a live sim mid-run.
+CONFIG_PATCH_KEYS = ("course_sections", "seats_per_section_overrides", "cohort_size")
 SCENARIO_PATCH_KEYS = ("pass_rate_overrides", "offering_overrides", "capacity_overrides")
 
 

@@ -3,11 +3,10 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useSimulation } from "@/lib/SimulationContext";
-import { ApiError, listCurriculum, listInstructors, listPlans, updateConfig, updateCourse } from "@/lib/api";
+import { ApiError, listCurriculum, listPlans, updateConfig, updateCourse } from "@/lib/api";
 import { baselineFromMeta, buildOverrides, type BuilderState } from "@/lib/scenarioBuilder";
-import type { CourseRecord, InstructorRecord, PlanRecord } from "@/types/simulation";
+import type { CourseRecord, PlanRecord } from "@/types/simulation";
 import CurriculumTable from "@/components/settings/CurriculumTable";
-import InstructorTable from "@/components/settings/InstructorTable";
 import AdmissionsTab from "@/components/scenario-builder/AdmissionsTab";
 import PassRatesDropoutTab from "@/components/scenario-builder/PassRatesDropoutTab";
 import RegistrationPolicyTab from "@/components/scenario-builder/RegistrationPolicyTab";
@@ -18,18 +17,20 @@ import RegistrationPolicyTab from "@/components/scenario-builder/RegistrationPol
 // of building a one-run /simulate override.
 export default function SettingsPage() {
   const { meta } = useSimulation();
-  const baseline = baselineFromMeta(meta, []);
+  const baseline = baselineFromMeta(meta);
   const [state, setState] = useState<BuilderState>(baseline);
   const [courses, setCourses] = useState<CourseRecord[] | null>(null);
-  const [instructors, setInstructors] = useState<InstructorRecord[] | null>(null);
   const [activePlan, setActivePlan] = useState<PlanRecord | null>(null);
   const [status, setStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [error, setError] = useState<string | null>(null);
   const [optionalTermsEnabled, setOptionalTermsEnabled] = useState(meta.optional_terms_enabled);
+  const [admissionTargets, setAdmissionTargets] = useState({ ...meta.admission_targets });
+
+  const setAdmissionTarget = (key: keyof typeof admissionTargets, value: number) =>
+    setAdmissionTargets((prev) => ({ ...prev, [key]: value }));
 
   useEffect(() => {
     listCurriculum().then(setCourses).catch(() => setCourses([]));
-    listInstructors().then(setInstructors).catch(() => setInstructors([]));
     listPlans()
       .then((plans) => setActivePlan(plans.find((p) => p.is_active) ?? null))
       .catch(() => setActivePlan(null));
@@ -62,6 +63,8 @@ export default function SettingsPage() {
     if (overrides.registration_tier_thresholds !== undefined) configPatch.registration_tier_thresholds = overrides.registration_tier_thresholds;
     if (overrides.enrollment_priority_tiers !== undefined) configPatch.enrollment_priority_tiers = overrides.enrollment_priority_tiers;
     if (optionalTermsEnabled !== meta.optional_terms_enabled) configPatch.optional_terms_enabled = optionalTermsEnabled;
+    if (JSON.stringify(admissionTargets) !== JSON.stringify(meta.admission_targets))
+      configPatch.admission_targets = admissionTargets;
 
     try {
       if (Object.keys(configPatch).length > 0) {
@@ -132,22 +135,6 @@ export default function SettingsPage() {
       </section>
 
       <section className="py-6">
-        <h2 className="mb-3 text-[15px] font-bold">Instructors</h2>
-        <p className="mb-3 text-[12.5px] text-muted">
-          Synthetic/configurable faculty roster — drives the shortfall/surplus checks on the{" "}
-          <Link href="/capacity" className="text-accent">
-            Capacity Planning
-          </Link>{" "}
-          page. Each instructor is qualified to teach any course in their categories.
-        </p>
-        {instructors === null ? (
-          <p className="text-[12.5px] text-muted">Loading…</p>
-        ) : (
-          <InstructorTable instructors={instructors} onChange={setInstructors} />
-        )}
-      </section>
-
-      <section className="py-6">
         <h2 className="mb-3 text-[15px] font-bold">Term calendar</h2>
         <label className="flex items-start gap-3 text-[12.5px]">
           <input
@@ -167,6 +154,42 @@ export default function SettingsPage() {
             </span>
           </span>
         </label>
+      </section>
+
+      <section className="py-6">
+        <h2 className="mb-3 text-[15px] font-bold">Admissions health targets</h2>
+        <p className="mb-4 max-w-2xl text-[12.5px] text-muted">
+          The four pass/fail thresholds used by the Admissions recommendation on the Capacity Planning
+          page. Slack ≥ 1 means the criterion is met; the worst slack determines the recommended intake.
+        </p>
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+          {(
+            [
+              { key: "target_grad_rate", label: "Min graduation rate", min: 0, max: 1, step: 0.01 },
+              { key: "max_avg_time_to_degree", label: "Max avg time (terms)", min: 1, max: 24, step: 0.5 },
+              { key: "max_seats_denied_per_student", label: "Max seats denied / student", min: 0, max: 20, step: 0.1 },
+              { key: "min_throughput_stability", label: "Min throughput stability", min: 0, max: 1, step: 0.01 },
+            ] as const
+          ).map(({ key, label, min, max, step }) => {
+            const dirty = admissionTargets[key] !== meta.admission_targets[key];
+            return (
+              <label key={key} className="flex flex-col gap-1">
+                <span className={`text-[11.5px] font-semibold ${dirty ? "text-accent" : "text-muted"}`}>
+                  {label}{dirty ? " *" : ""}
+                </span>
+                <input
+                  type="number"
+                  value={admissionTargets[key]}
+                  min={min}
+                  max={max}
+                  step={step}
+                  onChange={(e) => setAdmissionTarget(key, parseFloat(e.target.value))}
+                  className="w-full rounded-[8px] border border-border bg-surface-2 px-3 py-1.5 text-[13px] text-ink focus:outline-none focus:ring-1 focus:ring-accent"
+                />
+              </label>
+            );
+          })}
+        </div>
       </section>
 
       <section className="py-6">

@@ -43,9 +43,9 @@ export default function CurriculumGraph({ graph, courses }: Props) {
   return (
     <div
       data-testid="curriculum-graph-viewport"
-      className="relative max-h-[72vh] min-h-[420px] flex-1 overflow-auto p-2"
+      className="relative min-h-[300px] flex-1 overflow-auto p-2"
     >
-      <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`}>
+      <svg width="100%" viewBox={`0 0 ${width} ${height}`} style={{ display: "block", minWidth: 600 }}>
         <defs>
           <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
             <path d="M0,0 L10,5 L0,10 z" fill="#d1453b" />

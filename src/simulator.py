@@ -494,7 +494,16 @@ class Simulator:
             exit_reason=reason,
         ))
 
-    def _seats_per_section(self) -> int:
+    def _seats_per_section(self, code: str | None = None) -> int:
+        # A per-course `seats_per_section_overrides` entry wins over the global default — it
+        # lets the live/what-if layer resize an individual course's sections (e.g. a 40-seat
+        # section) without touching every course. A course absent from the map uses the
+        # global `seats_per_section`, so a partial override map is correct as-is (unlike
+        # `course_sections`, whose fallback is the curriculum-derived count, not the global).
+        if code is not None:
+            overrides: dict[str, int] = self.config.get("seats_per_section_overrides", {})
+            if code in overrides:
+                return max(1, int(overrides[code]))
         return int(self.config.get("seats_per_section", 35))
 
     def _is_mandatory_season(self, season: str | None) -> bool:
@@ -539,7 +548,7 @@ class Simulator:
     def _effective_capacity(self, course: Course, season: str | None = None) -> int:
         # Per-term seats = sections × seats-per-section. Scenario hooks still scale it
         # for what-if experiments (capacity_overrides interpreted as a section multiplier).
-        seats = self._section_count(course, season) * self._seats_per_section()
+        seats = self._section_count(course, season) * self._seats_per_section(course.code)
         multiplier = float(self.scenario.get("capacity_multiplier", 1.0))
         overrides: dict[str, float] = self.scenario.get("capacity_overrides", {})
         if course.code in overrides:

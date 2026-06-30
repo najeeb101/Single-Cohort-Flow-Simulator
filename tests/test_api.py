@@ -17,10 +17,6 @@ from src.models.semester import get_mandatory_seasons
 from src.service import run_simulation
 
 client = TestClient(app)
-_token = client.post(
-    "/auth/register", json={"email": "test_api@example.com", "password": "test-password"}
-).json()["access_token"]
-client.headers.update({"Authorization": f"Bearer {_token}"})
 
 with SessionLocal() as _session:
     _plan = get_or_create_default_plan(_session)
@@ -47,6 +43,7 @@ def test_meta_shape():
         "dropout_base_hazard", "dropout_early_multiplier", "dropout_early_sem_cutoff",
         "dropout_fails_threshold", "dropout_prob_on_repeated_fail",
         "registration_tier_thresholds", "enrollment_priority_tiers",
+        "admission_targets",
     }
     assert len(body["graph"]["nodes"]) == len(CURRICULUM)
     assert set(body["course_pass_rates"]) == set(CURRICULUM)
@@ -98,15 +95,6 @@ def test_simulate_default_matches_run_simulation():
     assert body["flow_timeline"]["meta"]["graph"] == expected["flow_timeline"]["meta"]["graph"]
 
 
-def test_simulate_includes_capacity_planning_summary():
-    resp = client.post("/simulate", json={})
-    assert resp.status_code == 200
-    capacity_planning = resp.json()["flow_timeline"]["summary"]["capacity_planning"]
-    assert set(capacity_planning) == {"seat_utilization", "instructor_capacity", "admissions_recommendation"}
-    assert "by_category" in capacity_planning["instructor_capacity"]
-    assert "course_staffing_risks" in capacity_planning["instructor_capacity"]
-
-
 def test_simulate_capacity_override_changes_result():
     # Pick whichever course tops the baseline's capacity-block ranking — hardcoding
     # CMPS303 would silently no-op if hand-tuned section counts move the bottleneck.
@@ -144,6 +132,21 @@ def test_simulate_course_sections_override_changes_result():
 
     boosted = client.post(
         "/simulate", json={"course_sections_overrides": {code: current_sections + 5}}
+    ).json()
+    boosted_count = _mandatory_term_capacity_blocks(boosted["flow_timeline"]).get(code, 0)
+
+    assert boosted_count < baseline_count
+
+
+def test_simulate_seats_per_section_override_changes_result():
+    baseline = client.post("/simulate", json={}).json()
+    mandatory_blocks = _mandatory_term_capacity_blocks(baseline["flow_timeline"])
+    code, baseline_count = max(mandatory_blocks.items(), key=lambda kv: kv[1])
+    assert baseline_count > 0, "expected at least one mandatory-term capacity block to override against"
+
+    sps = BASE_CONFIG.get("seats_per_section", 35)
+    boosted = client.post(
+        "/simulate", json={"seats_per_section_overrides": {code: sps * 3}}
     ).json()
     boosted_count = _mandatory_term_capacity_blocks(boosted["flow_timeline"]).get(code, 0)
 

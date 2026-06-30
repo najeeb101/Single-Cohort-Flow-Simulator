@@ -8,26 +8,34 @@ const SEASONS = ["Fall", "Spring", "Winter", "Summer"] as const;
 
 interface PendingState {
   courseSections: Record<string, number>;
+  seatsPerSection: Record<string, number>;
   passRates: Record<string, number>;
   offerings: Record<string, string[]>;
   cohortSize: number | null;
-  capacityMultipliers: Record<string, number>;
 }
 
 export function emptyPending(): PendingState {
-  return { courseSections: {}, passRates: {}, offerings: {}, cohortSize: null, capacityMultipliers: {} };
+  return { courseSections: {}, seatsPerSection: {}, passRates: {}, offerings: {}, cohortSize: null };
 }
 
 // Diff-style: only fields the admin actually touched end up in the LiveEdits payload sent
 // to POST /livesim/{id}/advance, mirroring scenarioBuilder.ts::buildOverrides. Edits apply
 // going forward only (never retroactive to past snapshots).
-export function pendingToEdits(pending: PendingState): LiveEdits {
+//
+// `course_sections` is the one exception to diff-style: the engine overlay replaces the
+// whole map (src/simulator.py's _apply_overlay), and a course missing from it falls back to
+// its curriculum-derived section count, not the calibrated value — so we send the full
+// baseline map with the touched courses merged in. `seats_per_section_overrides` is safe to
+// send as a pure diff: a course absent from it correctly falls back to the global
+// seats_per_section.
+export function pendingToEdits(pending: PendingState, meta: MetaResponse): LiveEdits {
   const edits: LiveEdits = {};
-  if (Object.keys(pending.courseSections).length) edits.course_sections = pending.courseSections;
+  if (Object.keys(pending.courseSections).length)
+    edits.course_sections = { ...meta.course_sections, ...pending.courseSections };
+  if (Object.keys(pending.seatsPerSection).length) edits.seats_per_section_overrides = pending.seatsPerSection;
   if (Object.keys(pending.passRates).length) edits.pass_rate_overrides = pending.passRates;
   if (Object.keys(pending.offerings).length) edits.offering_overrides = pending.offerings;
   if (pending.cohortSize !== null) edits.cohort_size = pending.cohortSize;
-  if (Object.keys(pending.capacityMultipliers).length) edits.capacity_overrides = pending.capacityMultipliers;
   return edits;
 }
 
@@ -37,10 +45,10 @@ interface Props {
   setPending: (next: PendingState) => void;
 }
 
-// Collapsible "what changes on the NEXT advance" form — the four knobs from the API
-// contract's LiveEdits: per-course sections, admissions cohort_size, per-course offerings
-// (Fall/Spring/Winter/Summer toggles), and per-course pass rates. Reuses the Scenario
-// Builder's field primitives for visual consistency.
+// Collapsible "what changes on the NEXT advance" form — the knobs from the API contract's
+// LiveEdits: per-course sections + seats/section (total seats = the product), admissions
+// cohort_size, per-course offerings (Fall/Spring/Winter/Summer toggles), and per-course pass
+// rates. Reuses the Scenario Builder's field primitives for visual consistency.
 export default function LiveEditsPanel({ meta, pending, setPending }: Props) {
   const [open, setOpen] = useState(false);
   const courses = Object.keys(meta.course_sections).sort();
@@ -51,8 +59,11 @@ export default function LiveEditsPanel({ meta, pending, setPending }: Props) {
   const setPassRate = (code: string, value: number) =>
     setPending({ ...pending, passRates: { ...pending.passRates, [code]: value } });
 
-  const setCapacityMultiplier = (code: string, value: number) =>
-    setPending({ ...pending, capacityMultipliers: { ...pending.capacityMultipliers, [code]: value } });
+  const setSeatsPerSection = (code: string, value: number) =>
+    setPending({ ...pending, seatsPerSection: { ...pending.seatsPerSection, [code]: value } });
+
+  const sectionsFor = (code: string) => pending.courseSections[code] ?? meta.course_sections[code];
+  const seatsPerSectionFor = (code: string) => pending.seatsPerSection[code] ?? meta.seats_per_section;
 
   const currentOffering = (code: string): string[] => pending.offerings[code] ?? [];
 
@@ -64,9 +75,9 @@ export default function LiveEditsPanel({ meta, pending, setPending }: Props) {
 
   const changeCount =
     Object.keys(pending.courseSections).length +
+    Object.keys(pending.seatsPerSection).length +
     Object.keys(pending.passRates).length +
     Object.keys(pending.offerings).length +
-    Object.keys(pending.capacityMultipliers).length +
     (pending.cohortSize !== null ? 1 : 0);
 
   return (
@@ -108,14 +119,14 @@ export default function LiveEditsPanel({ meta, pending, setPending }: Props) {
           </SectionCard>
 
           <SectionCard
-            title="Per-course sections, capacity & pass rates"
-            hint="sections = config course_sections; capacity = seat multiplier; pass rate 0..1"
+            title="Per-course sections, seats & pass rates"
+            hint="total seats = sections × seats/section; pass rate 0..1"
           >
             <div className="max-h-[360px] overflow-auto rounded-lg border border-border">
               <table className="w-full border-collapse text-[12.5px]">
                 <thead>
                   <tr>
-                    {["Course", "Sections", "Capacity ×", "Pass rate", "Offered"].map((h) => (
+                    {["Course", "Sections", "Seats/section", "Total seats", "Pass rate", "Offered"].map((h) => (
                       <th
                         key={h}
                         className="sticky top-0 border-b border-border bg-surface px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-wide text-muted"
@@ -128,19 +139,20 @@ export default function LiveEditsPanel({ meta, pending, setPending }: Props) {
                 <tbody>
                   {courses.map((code) => {
                     const sectionsDirty = pending.courseSections[code] !== undefined;
-                    const capDirty = pending.capacityMultipliers[code] !== undefined;
+                    const seatsDirty = pending.seatsPerSection[code] !== undefined;
                     const passDirty = pending.passRates[code] !== undefined;
                     const offeringDirty = pending.offerings[code] !== undefined;
+                    const totalSeats = sectionsFor(code) * seatsPerSectionFor(code);
                     return (
                       <tr
                         key={code}
-                        className={sectionsDirty || capDirty || passDirty || offeringDirty ? "bg-accent/[0.07]" : ""}
+                        className={sectionsDirty || seatsDirty || passDirty || offeringDirty ? "bg-accent/[0.07]" : ""}
                       >
                         <td className="whitespace-nowrap border-b border-border px-3 py-1.5">{code}</td>
                         <td className="whitespace-nowrap border-b border-border px-3 py-1.5">
                           <div className="w-20">
                             <NumberBox
-                              value={pending.courseSections[code] ?? meta.course_sections[code]}
+                              value={sectionsFor(code)}
                               onChange={(v) => setSections(code, v)}
                               min={1}
                               max={20}
@@ -149,15 +161,18 @@ export default function LiveEditsPanel({ meta, pending, setPending }: Props) {
                           </div>
                         </td>
                         <td className="whitespace-nowrap border-b border-border px-3 py-1.5">
-                          <div className="w-20">
+                          <div className="w-24">
                             <NumberBox
-                              value={pending.capacityMultipliers[code] ?? 1}
-                              onChange={(v) => setCapacityMultiplier(code, v)}
-                              min={0.5}
-                              max={3}
-                              step={0.1}
+                              value={seatsPerSectionFor(code)}
+                              onChange={(v) => setSeatsPerSection(code, v)}
+                              min={5}
+                              max={300}
+                              step={5}
                             />
                           </div>
+                        </td>
+                        <td className="whitespace-nowrap border-b border-border px-3 py-1.5 tabular-nums text-muted">
+                          {totalSeats}
                         </td>
                         <td className="whitespace-nowrap border-b border-border px-3 py-1.5">
                           <div className="w-20">

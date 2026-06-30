@@ -234,9 +234,15 @@ immediately, no server restart needed. See [Multi-Plan Model](#multi-plan-model)
   `edits_applied` that took effect entering it). **Shared within a plan** — any user whose active
   plan == the live sim's `plan_id` can view/advance it.
 - **Deterministic replay** (`src/livesim.py::LiveRunner`): no fragile engine-state
-  serialization. Each `edits` entry is `{effective_from_term, patch}` where patch holds the four
-  editable knobs (`course_sections`, `pass_rate_overrides`, `offering_overrides`, `cohort_size`,
-  `capacity_overrides`). Advancing to term N **replays from term 0**, folding each patch only
+  serialization. Each `edits` entry is `{effective_from_term, patch}` where patch holds the
+  editable knobs (`course_sections`, `seats_per_section_overrides`, `pass_rate_overrides`,
+  `offering_overrides`, `cohort_size`). Capacity is edited as **sections × seats/section** —
+  `seats_per_section_overrides` is a per-course override of the global `seats_per_section`
+  (`Simulator._seats_per_section(code)`); a course absent from it falls back to the global, so
+  it's sent diff-style, whereas `course_sections` is sent as the full map (the overlay replaces
+  it wholesale and a missing course would fall back to its curriculum-derived count). The old
+  per-course `capacity_overrides` seat multiplier is still honored on replay for any
+  pre-existing edit log but is no longer produced by the UI. Advancing to term N **replays from term 0**, folding each patch only
   from its `effective_from_term` onward, and takes the newly-reached term's frame. Because edits
   apply forward-only, earlier terms reproduce byte-identically, so previously-saved snapshots stay
   valid (the core correctness property, covered by `tests/test_livesim.py`). `cohort_size` edits

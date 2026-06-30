@@ -70,11 +70,8 @@ def _isolate_demo_users_plan_state():
     _created_plan_ids.clear()
 
 
-def _register(email: str) -> dict[str, str]:
-    resp = client.post("/auth/register", json={"email": email, "password": "livesim-test-pw"})
-    assert resp.status_code == 200
-    token = resp.json()["access_token"]
-    return {"Authorization": f"Bearer {token}"}
+def _register(_email: str) -> dict[str, str]:
+    return {}  # auth removed — all requests auto-resolve to the shared demo user
 
 
 def _small_plan_payload(name: str) -> dict:
@@ -328,6 +325,33 @@ def test_course_sections_edit_changes_capacity_from_its_effective_term():
 
     assert edited_capacity > baseline_capacity
     assert edited["snapshot"]["edits_applied"] == {"course_sections": bumped_sections}
+
+
+def test_seats_per_section_override_changes_capacity_from_its_effective_term():
+    headers = _register("livesim_seats_per_section@example.com")
+    _activate_small_plan(headers, "Livesim seats-per-section plan")
+    sim = _create_live_sim(headers)
+    sim_id = sim["id"]
+
+    config = client.get("/config", headers=headers).json()
+    code = next(iter(config["course_sections"]))
+
+    baseline = client.post(f"/livesim/{sim_id}/advance", json={}, headers=headers).json()
+    baseline_capacity = baseline["snapshot"]["frame"]["courses"][code]["capacity"]
+
+    # Bigger sections for just this course — total seats = sections × seats/section, so a
+    # higher per-section count must raise its effective capacity, the same way adding
+    # sections does, without touching any other course.
+    bumped = int(config.get("seats_per_section", 35)) + 20
+    edited = client.post(
+        f"/livesim/{sim_id}/advance",
+        json={"edits": {"seats_per_section_overrides": {code: bumped}}},
+        headers=headers,
+    ).json()
+    edited_capacity = edited["snapshot"]["frame"]["courses"][code]["capacity"]
+
+    assert edited_capacity > baseline_capacity
+    assert edited["snapshot"]["edits_applied"] == {"seats_per_section_overrides": {code: bumped}}
 
 
 def test_replaying_through_api_matches_livesim_runner_directly():

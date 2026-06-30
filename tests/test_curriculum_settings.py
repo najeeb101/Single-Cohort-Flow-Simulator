@@ -9,10 +9,6 @@ from fastapi.testclient import TestClient
 from src.api import app
 
 client = TestClient(app)
-_token = client.post(
-    "/auth/register", json={"email": "settings_test@example.com", "password": "settings-pw"}
-).json()["access_token"]
-client.headers.update({"Authorization": f"Bearer {_token}"})
 
 
 def test_list_curriculum_shape():

@@ -3,9 +3,7 @@ import type {
   CourseRecord,
   CourseUpdate,
   InitialState,
-  InstructorCreate,
-  InstructorRecord,
-  InstructorUpdate,
+
   LiveEdits,
   LiveSim,
   LiveSimDetail,
@@ -14,7 +12,6 @@ import type {
   PlanImportPayload,
   PlanRecord,
   RunRecord,
-  ScenarioRecord,
   ScenarioRequest,
   SimulateResponse,
   TermSnapshot,
@@ -29,15 +26,7 @@ export const API_BASE = "/api/backend";
 export class ApiError extends Error {}
 
 async function asJson<T>(res: Response): Promise<T> {
-  if (!res.ok) {
-    // The auth cookie can expire mid-session (e.g. partway through the Plan Builder
-    // wizard) — every API call surfaces the same 401, so handle it in one place rather
-    // than every page needing to special-case it. Skip on /login itself to avoid a loop.
-    if (res.status === 401 && typeof window !== "undefined" && window.location.pathname !== "/login") {
-      window.location.href = "/login";
-    }
-    throw new ApiError(await errorMessage(res));
-  }
+  if (!res.ok) throw new ApiError(await errorMessage(res));
   return (await res.json()) as T;
 }
 
@@ -62,37 +51,6 @@ export function simulate(overrides: ScenarioRequest): Promise<SimulateResponse> 
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(overrides),
   }).then((res) => asJson<SimulateResponse>(res));
-}
-
-export function listScenarios(): Promise<ScenarioRecord[]> {
-  return fetch(`${API_BASE}/scenarios`).then((res) => asJson<ScenarioRecord[]>(res));
-}
-
-export function createScenario(name: string, overrides: ScenarioRequest): Promise<ScenarioRecord> {
-  return fetch(`${API_BASE}/scenarios`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ name, overrides }),
-  }).then((res) => asJson<ScenarioRecord>(res));
-}
-
-export function getScenario(id: number): Promise<ScenarioRecord> {
-  return fetch(`${API_BASE}/scenarios/${id}`).then((res) => asJson<ScenarioRecord>(res));
-}
-
-export function updateScenario(
-  id: number,
-  patch: { name?: string; overrides?: ScenarioRequest }
-): Promise<ScenarioRecord> {
-  return fetch(`${API_BASE}/scenarios/${id}`, {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(patch),
-  }).then((res) => asJson<ScenarioRecord>(res));
-}
-
-export function deleteScenario(id: number): Promise<void> {
-  return fetch(`${API_BASE}/scenarios/${id}`, { method: "DELETE" }).then((res) => asJson<void>(res));
 }
 
 export function listRuns(): Promise<RunRecord[]> {
@@ -125,30 +83,6 @@ export function createCourse(course: CourseCreate): Promise<CourseRecord> {
 
 export function deleteCourse(code: string): Promise<void> {
   return fetch(`${API_BASE}/curriculum/${code}`, { method: "DELETE" }).then((res) => asJson<void>(res));
-}
-
-export function listInstructors(): Promise<InstructorRecord[]> {
-  return fetch(`${API_BASE}/instructors`).then((res) => asJson<InstructorRecord[]>(res));
-}
-
-export function createInstructor(instructor: InstructorCreate): Promise<InstructorRecord> {
-  return fetch(`${API_BASE}/instructors`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(instructor),
-  }).then((res) => asJson<InstructorRecord>(res));
-}
-
-export function updateInstructor(id: number, patch: InstructorUpdate): Promise<InstructorRecord> {
-  return fetch(`${API_BASE}/instructors/${id}`, {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(patch),
-  }).then((res) => asJson<InstructorRecord>(res));
-}
-
-export function deleteInstructor(id: number): Promise<void> {
-  return fetch(`${API_BASE}/instructors/${id}`, { method: "DELETE" }).then((res) => asJson<void>(res));
 }
 
 export function getConfig(): Promise<Record<string, unknown>> {

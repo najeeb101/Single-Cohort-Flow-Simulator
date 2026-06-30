@@ -8,6 +8,12 @@ export default function BottlenecksPage() {
 
   return (
     <main className="mx-auto w-full max-w-[1600px] px-7 pb-16">
+      <header className="border-b border-border py-5">
+        <h1 className="text-[19px] font-bold tracking-tight">Bottlenecks</h1>
+        <p className="mt-0.5 max-w-2xl text-[12.5px] text-muted">
+          The top courses blocking student progress — split by the four block types. Use this to identify which courses need more seats, earlier offerings, or relaxed prerequisites.
+        </p>
+      </header>
       <BottlenecksPanel bottlenecks={data.flow_timeline.summary.top_bottlenecks} />
     </main>
   );

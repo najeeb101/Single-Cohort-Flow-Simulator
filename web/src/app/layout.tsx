@@ -31,10 +31,8 @@ export const metadata: Metadata = {
   description: "Cohort analytics, bottlenecks, and live what-if scenarios for the multi-cohort curriculum flow simulator.",
 };
 
-// NavBar + SimulationProvider live in (dashboard)/layout.tsx, not here — /login and
-// /register must not be wrapped by SimulationProvider, since its mount effect fetches
-// /meta + /simulate (now auth-gated) and would render an error box instead of the login
-// form for a not-yet-authenticated visitor.
+// NavBar + SimulationProvider live in (dashboard)/layout.tsx, not the root — pages outside
+// the dashboard (if any) don't get the simulation context overhead.
 export default function RootLayout({
   children,
 }: Readonly<{
