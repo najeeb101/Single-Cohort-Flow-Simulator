@@ -4,6 +4,7 @@ import { useSimulation } from "@/lib/SimulationContext";
 import AnimationSection from "@/components/AnimationSection";
 import AdmissionsRecommendation from "@/components/AdmissionsRecommendation";
 import HeadlineKpis from "@/components/HeadlineKpis";
+import WhatIfPanel from "@/components/WhatIfPanel";
 
 export default function Home() {
   const { meta, data, chartMeta } = useSimulation();
@@ -50,6 +51,16 @@ export default function Home() {
 
       <AdmissionsRecommendation rec={summary.admissions_recommendation} />
       <HeadlineKpis headline={summary.headline} />
+      <WhatIfPanel
+        meta={meta}
+        baseline={summary.headline}
+        topCapacity={summary.top_bottlenecks.capacity}
+        baselineSeatsPerStud={
+          summary.admissions_recommendation?.criteria?.find(
+            (c) => c.name === "seats_denied_per_stud"
+          )?.observed ?? null
+        }
+      />
     </main>
   );
 }

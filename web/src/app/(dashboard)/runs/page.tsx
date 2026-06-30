@@ -17,13 +17,14 @@ export default function RunsPage() {
     <main className="mx-auto w-full max-w-[1600px] px-7 pb-16">
       <header className="border-b border-border py-5">
         <h1 className="text-[19px] font-bold tracking-tight">Run History</h1>
+        <p className="mt-0.5 text-[12.5px] text-muted">Every simulation run logged with its overrides and headline outcomes. Click a row to see the full override payload.</p>
       </header>
 
       <section className="py-6">
         {runs === null ? (
           <p className="text-[12.5px] text-muted">Loading…</p>
         ) : runs.length === 0 ? (
-          <p className="text-[12.5px] text-muted">No runs yet — every Scenario Builder run is logged here.</p>
+          <p className="text-[12.5px] text-muted">No runs yet — every simulation run is logged here.</p>
         ) : (
           <table className="w-full border-collapse text-[12.5px]">
             <thead>
