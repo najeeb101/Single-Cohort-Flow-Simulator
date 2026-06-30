@@ -19,12 +19,9 @@ services:
         fromDatabase:
           name: scfs-db
           property: connectionString
-      - key: AUTH_SECRET
-        generateValue: true
       # Render serves every web service at https://<name>.onrender.com — hardcoded directly
-      # rather than via a fromService cross-reference, since that's simpler to verify than
-      # relying on exactly which URL shape a property like "host" resolves to. If you rename
-      # either service below, update both literal URLs to match.
+      # rather than via a fromService cross-reference. If you rename either service in the
+      # dashboard, update both literal URLs here to match.
       - key: CORS_ORIGINS
         value: "https://scfs-frontend.onrender.com"
 
