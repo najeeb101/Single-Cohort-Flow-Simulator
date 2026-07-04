@@ -9,7 +9,7 @@
 ### 1. Describe what you did during this period.
 
 This period was spent building a discrete-term, agent-based simulation of Qatar University's
-Computer Science curriculum — modeling how students move through prerequisite chains,
+Computer Science curriculum, modeling how students move through prerequisite chains,
 registration priority, and course capacity over up to 12 semesters, with the goal of identifying
 which bottlenecks cause delay or non-completion.
 
@@ -35,21 +35,21 @@ pass, and a deployment configuration for hosting the app on Render.
 **Week 3: Live Simulation + Scope Simplification**
 I added a "Live Simulation" mode that runs one semester at a time instead of the whole window at
 once, so an admin can review a term's results, adjust capacity/policy knobs, and manually advance
-to the next term — closer to how a real academic-planning workflow works. I then did a
+to the next term, closer to how a real academic-planning workflow works. I then did a
 significant simplification pass: after reviewing what was actually load-bearing for the research
 question, I removed authentication, the Scenario Builder, the Capacity Planning page, and the
 instructor-staffing model to cut down the product to its core value, and added an inline
 "what-if" panel plus capacity-section recommendations directly on the main dashboard.
 
 **Week 4: UI Refactor**
-I refactored the dashboard's navigation and component structure — extracting a dedicated
+I refactored the dashboard's navigation and component structure: extracting a dedicated
 pre-start screen, moving the what-if panel into the Bottlenecks page, promoting Bottlenecks to
 primary navigation, and adding live running totals to the in-progress simulation view, based on
 usability issues I noticed while using the tool myself.
 
 ### 2. Describe what you learned during this period.
 
-I learned how to design and build a complete simulation product end-to-end — from the modeling
+I learned how to design and build a complete simulation product end-to-end, from the modeling
 logic (agent-based simulation, prerequisite/eligibility rule evaluation, seat-allocation policy)
 through a REST API layer to an animated frontend dashboard. On the backend side, I learned how to
 structure a FastAPI service with a proper database layer, authentication, and a clean separation
@@ -62,7 +62,7 @@ I also learned a project-management lesson I didn't expect going in: after build
 feature-rich version of the tool (auth, multi-plan support, capacity planning, instructor
 modeling), I realized a lot of that complexity wasn't serving the core research question, and I
 learned to make the call to strip it back down rather than keep adding features. That
-simplification pass was one of the most useful things I did this period — it taught me to keep
+simplification pass was one of the most useful things I did this period; it taught me to keep
 re-asking what the tool is actually for, instead of just accumulating functionality.
 
 Working mostly independently on a long-running codebase also pushed me to get better at reading
