@@ -37,6 +37,21 @@ export default function LiveSimDetailView({ meta, detail, onChanged, onDeleted }
 
   const courses = useMemo(() => current?.frame.courses ?? {}, [current]);
 
+  const runningTotals = useMemo(() => {
+    if (snapshots.length === 0) return null;
+    const latest = snapshots[snapshots.length - 1];
+    const s = latest.summary as Record<string, number> | null;
+    const capacityBlocks = snapshots.reduce((total, snap) => {
+      return total + Object.values(snap.frame.courses).reduce((t, c) => t + (c.denied ?? 0), 0);
+    }, 0);
+    return {
+      graduated: s?.graduated ?? 0,
+      dropped: s?.dropped ?? 0,
+      active: s?.active ?? 0,
+      capacityBlocks,
+    };
+  }, [snapshots]);
+
   const handleAdvance = async () => {
     setAdvancing(true);
     setError(null);
@@ -142,6 +157,22 @@ export default function LiveSimDetailView({ meta, detail, onChanged, onDeleted }
       {!isLatest && (
         <div className="rounded-xl border border-border-2 bg-surface-2 px-4 py-2 text-[12px] text-muted">
           Viewing a past term read-only. Edits above apply on top of the latest term, not this one.
+        </div>
+      )}
+
+      {runningTotals && (
+        <div className="flex flex-wrap gap-3 rounded-2xl border border-border bg-surface px-4 py-3">
+          <span className="text-[11px] font-semibold uppercase tracking-wide text-muted self-center mr-1">Running totals</span>
+          {[
+            { label: "Graduated", value: runningTotals.graduated, color: "text-good" },
+            { label: "Dropped", value: runningTotals.dropped, color: "text-bad" },
+            { label: "Still enrolled", value: runningTotals.active, color: "text-ink" },
+            { label: "Capacity blocks", value: runningTotals.capacityBlocks.toLocaleString(), color: "text-warn" },
+          ].map(({ label, value, color }) => (
+            <div key={label} className="rounded-[9px] border border-border bg-surface-2 px-3 py-1.5 text-[12.5px] text-muted">
+              {label}: <b className={`ml-0.5 font-bold ${color}`}>{value}</b>
+            </div>
+          ))}
         </div>
       )}
 

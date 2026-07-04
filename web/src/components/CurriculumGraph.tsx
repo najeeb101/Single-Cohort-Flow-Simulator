@@ -43,7 +43,7 @@ export default function CurriculumGraph({ graph, courses }: Props) {
   return (
     <div
       data-testid="curriculum-graph-viewport"
-      className="relative min-h-[300px] flex-1 overflow-auto p-2"
+      className="relative min-h-[300px] flex-1 overflow-auto p-2 bg-white"
     >
       <svg width="100%" viewBox={`0 0 ${width} ${height}`} style={{ display: "block", minWidth: 600 }}>
         <defs>

@@ -13,6 +13,7 @@ type NavLink = { href: string; label: string };
 // reusable configs (scenarios/curricula) rather than viewing output.
 const PRIMARY_LINKS: NavLink[] = [
   { href: "/", label: "Dashboard" },
+  { href: "/bottlenecks", label: "Bottlenecks" },
   { href: "/live", label: "Live" },
 ];
 
@@ -21,7 +22,6 @@ const GROUPS: { label: string; links: NavLink[] }[] = [
     label: "Analytics",
     links: [
       { href: "/cohorts", label: "Cohorts" },
-      { href: "/bottlenecks", label: "Bottlenecks" },
       { href: "/figures", label: "Figures" },
       { href: "/prerequisites", label: "Prerequisites" },
     ],

@@ -3,12 +3,14 @@
 import { useSimulation } from "@/lib/SimulationContext";
 import BottlenecksPanel from "@/components/BottlenecksPanel";
 import CapacityRecommendations from "@/components/CapacityRecommendations";
+import WhatIfPanel from "@/components/WhatIfPanel";
 
 export default function BottlenecksPage() {
   const { data, meta } = useSimulation();
-  const baselineGradRate = data.flow_timeline.summary.headline.graduation_rate;
+  const summary = data.flow_timeline.summary;
+  const baselineGradRate = summary.headline.graduation_rate;
   const baselineSeatsPerStud =
-    data.flow_timeline.summary.admissions_recommendation?.criteria
+    summary.admissions_recommendation?.criteria
       ?.find((c) => c.name === "seats_denied_per_stud")?.observed ?? null;
 
   return (
@@ -19,11 +21,17 @@ export default function BottlenecksPage() {
           The top courses blocking student progress — split by the four block types. Use this to identify which courses need more seats, earlier offerings, or relaxed prerequisites.
         </p>
       </header>
-      <BottlenecksPanel bottlenecks={data.flow_timeline.summary.top_bottlenecks} />
+      <BottlenecksPanel bottlenecks={summary.top_bottlenecks} />
       <CapacityRecommendations
         frames={data.flow_timeline.frames}
         meta={meta}
         baselineGradRate={baselineGradRate}
+        baselineSeatsPerStud={baselineSeatsPerStud}
+      />
+      <WhatIfPanel
+        meta={meta}
+        baseline={summary.headline}
+        topCapacity={summary.top_bottlenecks.capacity}
         baselineSeatsPerStud={baselineSeatsPerStud}
       />
     </main>
