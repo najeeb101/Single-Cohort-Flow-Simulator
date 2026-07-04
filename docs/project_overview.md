@@ -54,13 +54,18 @@ passed *and* a minimum credit-hour count, all at once — which is the curriculu
 satisfy cleanly.
 
 **One shared seat pool, not one cohort in isolation.** A real registrar doesn't size a course's
-seats for one entering class — every cohort currently enrolled (freshmen through seniors) shows
+seats for one entering class: every cohort currently enrolled (freshmen through seniors) shows
 up wanting the same popular course in the same term, and someone has to decide who gets in. A
 single-cohort model can't represent that competition at all. This simulator runs several cohorts
-at once: a new cohort is admitted every year, and a handful of "incumbent" cohorts are seeded in
-*before* the study window starts specifically so that, by the time the cohorts you actually care
-about arrive, the gateway courses are already realistically full — not an artificially empty
-campus. All cohorts draw from the exact same per-course seat pool, term after term.
+at once, all drawing from the exact same per-course seat pool, term after term. Rather than
+simulating a separate set of "incumbent" cohorts before the study window starts, the university
+is warm-started from an admin-entered **initial state**: how many seats in each course are
+already occupied by the existing student body, and how many students are already sitting at each
+year standing (Year 2/3/4). That occupancy is subtracted from every course's free seats on every
+mandatory term, so gateway courses are realistically full from the very first simulated term
+without the engine having to simulate years of pre-history to get there. (The engine still
+supports seeding literal incumbent cohorts at negative terms as a lower-level option, but the
+shipped configuration doesn't use it — that knob defaults to zero.)
 
 **The term calendar.** Every cohort always has a guaranteed Fall and Spring term — those are
 *mandatory*: they're what advances a student's personal graduation clock and what every cohort is
@@ -90,8 +95,9 @@ during those term-by-term loops.
 ### 3.2 Two clocks, not one
 
 There's a single **global clock** shared by the whole university (term 0, term 1, term 2, ...,
-running negative for the incumbent warm-start cohorts admitted before the study window). But a
-student's own graduation deadline is judged on their **personal clock** — their own semester count
+which only runs negative if incumbent cohorts are explicitly configured; the shipped
+configuration instead warm-starts via the initial-state occupancy/standing numbers described in
+§2). But a student's own graduation deadline is judged on their **personal clock** — their own semester count
 since *their* admission, which only ticks forward on a mandatory term. A student admitted years
 into the simulation still gets a full personal budget of semesters, exactly like the first cohort
 admitted. This distinction is also what makes an optional Winter/Summer term "free": a student can
@@ -184,8 +190,8 @@ seed and that student's own unique ID, re-created identically every time a given
 run. That means **the same simulated student draws the exact same sequence of "random" pass/fail
 outcomes in every scenario you compare them across** — so if you add five seats to a gateway course
 and graduation rate moves, you know that's because of the seats, not because the dice happened to
-land differently. This is what makes structural what-if comparisons (Scenario Builder) causally
-meaningful instead of just noisy. A student's fixed ability score and their seat-allocation
+land differently. This is what makes structural what-if comparisons (the Bottlenecks page's
+what-if panel, or a persisted config edit in Settings) causally meaningful instead of just noisy. A student's fixed ability score and their seat-allocation
 tiebreak token are deliberately kept on separate draws so they don't perturb the pass/fail stream
 itself.
 
@@ -217,19 +223,20 @@ data/curriculum.json, simulation_config.json
         ▼
 Simulator.run()  ──►  History (raw counters, per-term snapshots, the four block signals)
         ▼
-analytics.py  (headline metrics, per-cohort metrics, the bottleneck/capacity-planning report)
+analytics.py  (headline metrics, per-cohort metrics, the bottleneck report)
         ▼
    ┌────┴───────────────────────────────┐
    ▼                                     ▼
 visualize.py                       service.py::run_simulation()
 (static charts, the offline/batch     (the same engine, returned as an
- `py run.py` path)                     in-memory dict — the API's seam)
+ `py run.py` path)                     in-memory dict, the API's seam)
                                               ▼
                                         FastAPI backend
                                               ▼
-                                  Next.js dashboard — Scenario Builder,
-                                  animated curriculum graph, Settings,
-                                  Capacity Planning, multiple saved Plans
+                                  Next.js dashboard: animated curriculum graph,
+                                  Bottlenecks (what-if panel + section
+                                  recommendations), Settings (curriculum +
+                                  config editing), Live Simulation, Plans
 ```
 
 There is only **one** simulation engine. The offline batch run and the live web dashboard call the
@@ -256,8 +263,9 @@ Because the four signals (§3.4) are tracked separately rather than collapsed in
   courses is how the model points you at the real chokepoint instead of its symptoms.
 - *If we relieve one specific bottleneck (add a section, add a second offering season, raise a
   pass rate), does the overall graduation rate actually move, or was that never the binding
-  constraint?* This is what the Scenario Builder is for — Common Random Numbers (§3.6) make the
-  *difference* between two scenarios trustworthy even when neither scenario's absolute number is.
+  constraint?* This is what the Bottlenecks page's what-if panel is for. Common Random Numbers
+  (§3.6) make the *difference* between two scenarios trustworthy even when neither scenario's
+  absolute number is.
 - *How much does the shared seat pool's behavior vary year to year just from cohort-to-cohort
   noise, at a fixed intake size?* — which is the actual question behind the admissions
   recommendation (§3.8): whether the pool can absorb a given intake size *smoothly*, not just on
@@ -278,11 +286,11 @@ Every choice below traded something away on purpose. Knowing *why* matters more 
 | **Agent-based (individual students), not an aggregate flow model** | Delay can be attributed to a specific course-level cause for a specific (simulated) student, not just inferred from pooled counts | More computation than a pooled-counts model; doesn't scale to a much larger university without rework |
 | **Common Random Numbers (paired seeds per student across scenarios)** | Causally clean scenario comparisons — a metric change can be attributed to the structural change you made, not random noise | A single scenario's output isn't an independent draw from "the real world"; only *comparisons* are fully trustworthy |
 | **Four separate, never-summed block signals** | Distinguishes course difficulty from scheduling from prerequisite structure from seat capacity — the actual point of the project | More to interpret than one combined "trouble score"; requires reading each panel on its own terms |
-| **Multi-cohort, shared seat pool, warm-started incumbents** | Captures real priority-registration competition between simultaneously-enrolled cohorts, not just one cohort in an empty university | More moving parts than a single-cohort model; per-cohort outcomes need their own bookkeeping |
+| **Multi-cohort, shared seat pool, warm-started via initial state** | Captures real priority-registration competition between simultaneously-enrolled cohorts, not just one cohort in an empty university | More moving parts than a single-cohort model; per-cohort outcomes need their own bookkeeping |
 | **Config-driven term calendar, with optional terms as an explicit admin toggle** | Winter/Summer behavior can be switched on or off without touching code or re-entering data; generalizes beyond a strict 2-season assumption | More branching logic in the season/capacity helpers than a single hardcoded calendar would need |
 | **Section-based capacity (sections × seats-per-section), auto-calibrated then hand-tunable** | Capacity is data, not code — relieving a bottleneck is a config edit | Calibration is a manual/semi-automatic demand-percentile step, not driven by real staffing data |
 | **One fixed ability score per student, not per-subject or time-varying** | Simple, one RNG draw, trivially reproducible | Can't represent "strong at math, weak at writing," or a student maturing/burning out over time |
-| **Multi-plan architecture (each plan a full, independent copy of curriculum + config + instructors)** | Two plans can never accidentally corrupt each other; switching plans is instant and per-user | Two 95%-similar plans store two full separate copies of every course row, not a diff |
+| **Multi-plan architecture (each plan a full, independent copy of curriculum + config)** | Two plans can never accidentally corrupt each other; switching plans is instant and per-user | Two 95%-similar plans store two full separate copies of every course row, not a diff |
 | **No caching on the simulate endpoint** | No shared mutable state between users on different active plans — nothing to race | Every API call fully re-runs the simulation; identical repeated requests aren't free |
 | **SQLite, not Postgres/MySQL, for local dev** | Zero setup — the database is just a file | Not built for concurrent multi-process write load; fine for this scale, not a production multi-tenant system |
 
@@ -341,18 +349,22 @@ identical seeds per student so the *differences* between scenarios are real even
 
 ## 7. How a curriculum committee actually uses this
 
-- **Settings** — edit the curriculum (courses, prerequisites, offerings, pass rates), the
-  instructor roster, and the baseline configuration in place. This is where the optional-term
-  toggle lives. Edits here persist immediately as the new baseline for every future run.
-- **Scenario Builder** — try a structural change (add a section, change a course's offering
-  season, adjust a dropout parameter) as a one-off comparison against the current baseline,
-  without touching it. This is the right tool for "what if we did X" questions.
-- **Capacity Planning** — a combined seat-capacity and instructor-staffing feasibility report:
-  which course categories are tight or in shortfall given the current configured demand and the
-  current (synthetic/configurable) faculty roster, plus the admissions recommendation (§3.8).
+- **Settings** — edit the curriculum (courses, prerequisites, offerings, pass rates) and the
+  baseline configuration in place, covering the same admissions/pass-rate/dropout/registration
+  knobs a one-off scenario would, but as a *persistent* change rather than a per-run override.
+  This is where the optional-term toggle lives. Edits here persist immediately as the new
+  baseline for every future run.
+- **Bottlenecks** — the primary "what's actually wrong, and what would fix it" page: the
+  four-signal breakdown by course, per-course section recommendations (estimated relief from
+  adding a section), and an inline what-if panel that runs a one-off comparison (bump cohort
+  size, add sections to specific courses) against the current baseline without saving anything.
+- **Live Simulation** — advance the university one semester at a time instead of running the
+  whole window at once, reviewing each term's results and adjusting capacity/policy knobs before
+  advancing, useful for walking through the model's behavior term by term rather than reading one
+  instant report.
 - **Plans** — more than one full curriculum + configuration combination can exist at once (e.g.
   to compare the current 2024 study plan against a hypothetical revised one), each fully
-  independent, switchable per user.
+  independent, importable/exportable via the Plan Builder.
 
 ---
 
