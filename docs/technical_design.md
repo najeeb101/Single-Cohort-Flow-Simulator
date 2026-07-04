@@ -408,28 +408,29 @@ what-if panel and Live Simulation's edits both build on.
 
 ```
 Single-Cohort-Flow-Simulator/
-├── src/
-│   ├── models/
-│   │   ├── course.py        # Course dataclass + load_curriculum()
-│   │   ├── student.py       # Student state, GPA, enrollment logic
-│   │   └── semester.py      # term_season(), term_year(), term_label()
-│   ├── simulator.py         # Simulator + History + SimulationResult
-│   ├── analytics.py         # compute_metrics(), build_summary_csv()
-│   ├── visualize.py         # save_all_figures() + per-figure functions
-│   └── utils.py             # load_json(), grade_tier()
+├── src/                     # see §6 for the full module map
+├── web/                     # Next.js/TypeScript dashboard
 ├── data/
-│   ├── curriculum.json      # 38 courses, 120 CH, source of truth
+│   ├── curriculum.json      # 41 courses, 120 CH, source of truth (one-time DB seed)
 │   ├── simulation_config.json
-│   └── qu_raw/              # downloaded QU open data CSVs (validation only)
+│   ├── instructors.json     # seeds the (now-orphaned) Instructor table, see §6
+│   ├── app.db                # gitignored SQLite DB; authoritative after first API boot
+│   └── qu_raw/               # downloaded QU open data CSVs (validation only)
 ├── outputs/
-│   ├── figures/             # funnel, graduation_histogram, bottlenecks_*, curriculum_network, stage_flow_*
-│   └── reports/             # simulation_summary.csv
+│   ├── figures/              # university_enrollment, cohort_flow, bottlenecks_<scenario>,
+│   │                        # curriculum_network, survival_curve, etc.
+│   └── reports/              # simulation_summary.csv, flow_timeline.json, etc.
 ├── scripts/
-│   └── analyze_qu_data.py   # real QU graduation rate from open data
+│   ├── size_sections.py      # recalibrates course_sections to peak demand
+│   ├── migrate_json_to_db.py # (re)seeds data/app.db from the JSON files
+│   └── analyze_qu_data.py    # real QU graduation rate from open data
+├── tests/                    # pytest suite
 ├── docs/
-│   ├── assumptions.md
-│   └── technical_design.md
+│   ├── project_overview.md
+│   ├── technical_design.md   # this file
+│   └── assumptions.md
 ├── run.py
+├── render.yaml                # Render deployment blueprint
 └── CLAUDE.md
 ```
 
@@ -437,18 +438,28 @@ Single-Cohort-Flow-Simulator/
 
 ## 9. Face-Validity Checks
 
-Before trusting results, verify these targets after Scenario A runs:
+> **These numbers are a historical snapshot** from an earlier single-cohort, 100-student,
+> pseudo-course calibration run (the original `A_baseline` scenario) — before the curriculum
+> switched to real course codes, the Fall/Spring offering restrictions were dropped, and the
+> multi-cohort/initial-state model replaced the single isolated cohort. They no longer reflect
+> today's configuration and shouldn't be quoted as current. The *targets/ranges* (what a sane
+> run should roughly look like) are still a reasonable sanity check; for the actual current
+> numbers, run the simulation (`py run.py`) and read `outputs/reports/simulation_summary.csv`.
 
-| Check | Expected range | A_baseline actual | Status |
+Targets to sanity-check any run against:
+
+| Check | Expected range | Snapshot value (stale, see above) | Status (at the time) |
 |---|---|---|---|
-| Graduation rate | 50–70% within 12 semesters | 71% (≈ 72.3% QU benchmark) | ✓ |
-| On-time graduation (≤ 8 sem) | 30–50% | 21% | ✗ (structural; see assumptions §K) |
-| Probation rate | 15–25% hit it at least once | 17% | ✓ |
-| Top failure bottleneck | CMPS303 or CMPS323 | CMPS323 (49 failures) | ✓ |
-| Academic dropout rate | 15–30% | 20% | ✓ |
+| Graduation rate | 50-70% within 12 semesters | 71% (against a 72.3% QU benchmark) | checked out |
+| On-time graduation (≤ 8 sem) | 30-50% | 21% | missed (structural; see assumptions §K) |
+| Probation rate | 15-25% hit it at least once | 17% | checked out |
+| Top failure bottleneck | CMPS303 or CMPS323 | CMPS323 (49 failures) | checked out |
+| Academic dropout rate | 15-30% | 20% | checked out |
 | Censored rate (hit horizon) | — | 9% | — |
 
-See `docs/assumptions.md §K` for the full discussion. The probation rate falls in range because of grade replacement (passing a retake removes prior F attempts from the GPA denominator); without it, probation exceeded 30%.
+See `docs/assumptions.md §K` for the full discussion. The probation rate falls in range because
+of grade replacement (passing a retake removes prior F attempts from the GPA denominator);
+without it, probation exceeded 30%.
 
 ---
 
@@ -456,9 +467,9 @@ See `docs/assumptions.md §K` for the full discussion. The probation rate falls 
 
 | Metric | Description |
 |---|---|
-| Graduation rate | % of 100 students graduating within 12 semesters |
-| Academic dropout rate | % who trigger the repeated-fail dropout rule (3 fails of same course → 25% per additional fail) |
-| Censored rate | % still enrolled when the 12-semester horizon is hit |
+| Graduation rate | % of a cohort graduating within `max_terms` semesters |
+| Academic dropout rate | % who trigger either dropout rule (repeated-fail or chronic-low-GPA, §4.9) |
+| Censored rate | % still enrolled when the `max_terms` horizon is hit |
 | Average graduation time | Mean semesters among graduates |
 | On-time graduation | % graduating in ≤ 8 semesters |
 | Probation rate | % who hit probation at least once |
@@ -474,9 +485,18 @@ See `docs/assumptions.md §K` for the full discussion. The probation rate falls 
 The model layers a **steady-state university** on top of the single-student mechanics in §§1–10.
 
 ### 11.1 Admissions & the global clock
-- `num_cohorts` study cohorts of `cohort_size` are admitted every `admit_interval_terms` (default: 4 cohorts, yearly Fall → entry terms 0, 2, 4, 6).
-- `num_incumbent_cohorts` prior cohorts are admitted at **negative** terms (−2, −4, −6) as a *warm start* — they are fully simulated from their negative entry forward, so by global term 0 they already occupy gateway seats. No fake state; the global loop simply starts earlier: `start_term = −num_incumbent_cohorts × admit_interval`, `end_term = (num_cohorts−1) × admit_interval + max_terms`.
-- `term_season` is unchanged and works for negative indices (`−6 % 2 == 0` → Fall).
+- `num_cohorts` study cohorts of `cohort_size` are admitted every `admit_interval_terms` (default: 4 cohorts, yearly Fall, entry terms 0, 4, 8, 12 under the current 4-season config; terms 0/2/4/6 under the legacy 2-season one).
+- **Warm start, current default: initial state, not simulated incumbents.** Rather than admitting
+  `num_incumbent_cohorts` prior cohorts at negative terms, the shipped config instead defines
+  `initial_state.occupancy` (seats already taken per course by the existing, un-simulated student
+  body) and `initial_state.standing` (a head-count already at each year standing). Occupancy is
+  subtracted from every course's free seats on every mandatory term; standing is folded into the
+  aggregate stage-node counts for display. `num_incumbent_cohorts` still exists as a lower-level
+  engine knob (admitting cohorts at negative terms, fully simulated from their negative entry
+  forward, so the global loop's `start_term = −num_incumbent_cohorts × admit_interval`) but
+  defaults to 0 in the shipped config.
+- `term_season` works for negative indices regardless (`−6 % 2 == 0` → Fall under the legacy
+  2-season cycle), so the incumbent-cohort option still works if an admin re-enables it.
 
 ### 11.2 Personal vs. global time
 Each horizon rule uses `personal_semester = global_term − entry_term + 1`, so every student gets exactly `max_terms` semesters measured from their own admission. GRADUATED/DELAYED/CENSORED and `graduation_times` are all personal-time based. Headline metrics are scoped to **study cohorts** (`entry_term ≥ 0`); incumbents appear only in the per-cohort ledger.
@@ -485,7 +505,17 @@ Each horizon rule uses `personal_semester = global_term − entry_term + 1`, so 
 All active students from all cohorts enter the same Phase-2 allocation. Because requesters are already sorted by `registration_tier(completed_ch)`, seniors from older cohorts outrank freshmen automatically — a delayed senior class starves incoming freshmen of gateway seats, and congestion compounds cohort over cohort. This is the phenomenon the model exists to study.
 
 ### 11.4 Sections model (capacity)
-Per-term seats for a course = `course_sections[code] × seats_per_section` (default section size 35). `scripts/size_sections.py` auto-calibrates `course_sections` to each course's **peak per-term demand** under unconstrained seats (`sections = ceil(peak_demand / seats_per_section)`) and writes the integer map into the config; it is then hand-tunable (add/cut sections per course — the realistic lever an administrator pulls). This replaces an earlier global `capacity_scale` multiplier: section counts now vary by course (gateway/intro courses get more sections than niche ones — e.g. the Spring-only CMPS323/CMPS405 calibrate to the most sections because delayed students concentrate there). Demand-matched sizing yields a well-resourced baseline (~80% graduation, little capacity blocking); trimming a course's sections re-introduces scarcity to study a specific bottleneck. Scenario `capacity_overrides` still apply as a section multiplier for what-if experiments.
+Per-term seats for a course = `course_sections[code] × seats_per_section` (default section size
+35), minus any `initial_state.occupancy` for that course (§11.1). `scripts/size_sections.py`
+auto-calibrates `course_sections` to each course's **peak per-term demand** under unconstrained
+seats (`sections = ceil(peak_demand / seats_per_section)`) and writes the integer map into the
+config; it is then hand-tunable (add/cut sections per course, the realistic lever an
+administrator pulls). Section counts vary by course (gateway/intro courses get more sections
+than niche ones); since every course is now offered Fall + Spring (§2), demand concentrates on
+whichever courses sit downstream of the CMPS303 gateway rather than on a hardcoded seasonal
+subset. Demand-matched sizing yields a well-resourced baseline with little capacity blocking;
+trimming a course's sections re-introduces scarcity to study a specific bottleneck. Scenario
+`capacity_overrides` still apply as a section multiplier for what-if experiments.
 
 ### 11.5 Identity, RNG, determinism
 Study cohorts get `cohort_id` `0..n−1`; incumbents `−1, −2, −3`. Globally-unique `student_id = (cohort_id + num_incumbent_cohorts) × cohort_size + i`; RNG seed remains `seed + student_id`, so CRN and full determinism are preserved.
@@ -505,4 +535,12 @@ The `web/` Next.js dashboard lays out the graph by longest-path layering and rep
 `run_monte_carlo` re-runs the baseline across `n_runs` seeds (`base_seed + k`) and reports mean ± 95% CI per headline metric. The canonical timeline/animation stays on the single base seed (deterministic for the frontend); the CIs only annotate the dashboard.
 
 ### 11.9 Engine-as-a-service boundary
-`src/service.py::run_simulation(curriculum, config, scenario) -> dict` is the single function boundary between the engine and any caller — script, test, or future API (`docs/roadmap.md` §2.3). It runs one scenario and returns `result` (the raw `SimulationResult`), `metrics`, `cohort_metrics`, `admissions_recommendation`, and `flow_timeline` as a plain dict; it never touches disk or prints. `run.py` is now a thin wrapper: load JSON from disk → `run_simulation` per scenario → hand the returned `SimulationResult` to `analytics.py`'s CSV/JSON writers and `visualize.py`'s figure writers, which remain the only file-I/O layer. Monte Carlo stays a separate, opt-in call (§11.8) rather than folded into `run_simulation`, since re-running a scenario dozens of times isn't something every caller wants paid for by default.
+`src/service.py::run_simulation(curriculum, config, scenario, instructors=None) -> dict` is the
+single function boundary between the engine and any caller: script, test, or the FastAPI layer
+(`src/api.py`). It runs one scenario and returns `result` (the raw `SimulationResult`), `metrics`,
+`cohort_metrics`, `admissions_recommendation`, and `flow_timeline` as a plain dict; it never
+touches disk or prints. `run.py` is a thin wrapper: load JSON from disk → `run_simulation` per
+scenario → hand the returned `SimulationResult` to `analytics.py`'s CSV/JSON writers and
+`visualize.py`'s figure writers, which remain the only file-I/O layer. Monte Carlo stays a
+separate, opt-in call (§11.8) rather than folded into `run_simulation`, since re-running a
+scenario dozens of times isn't something every caller wants paid for by default.
