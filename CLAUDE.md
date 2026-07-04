@@ -42,9 +42,6 @@ py -m pytest tests/ -v
 py -m pip install -r requirements.txt
 ```
 
-Deploying a live instance (Render free tier, one `render.yaml` blueprint for backend + frontend
-+ Postgres): see [docs/deployment.md](docs/deployment.md).
-
 ## Architecture
 
 ```
