@@ -22,6 +22,29 @@
      highlight instead of a drop shadow. */
   --shadow-ambient: 0 1px 0 rgba(255, 255, 255, 0.05), 0 16px 40px -12px rgba(0, 0, 0, 0.75), 0 4px 12px -4px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.06);
   --shadow-accent: 0 10px 24px -6px color-mix(in srgb, var(--accent) 65%, transparent);
+
+  /* Dark mode node colors */
+  --cs-core-fill: rgba(30, 58, 95, 0.4);
+  --cs-core-border: #4d8ad4;
+  --cs-core-text: #bcd4ec;
+
+  --cs-elective-fill: rgba(85, 30, 20, 0.4);
+  --cs-elective-border: #cf7363;
+  --cs-elective-text: #e8b9b1;
+
+  --math-fill: rgba(85, 70, 20, 0.4);
+  --math-border: #d4a52c;
+  --math-text: #f3df9c;
+
+  --science-fill: rgba(55, 60, 70, 0.4);
+  --science-border: #8fa0b5;
+  --science-text: #d6dae1;
+
+  --english-fill: rgba(25, 65, 75, 0.4);
+  --english-border: #52a4b8;
+  --english-text: #d4ebf1;
+
+  --node-offered-muted: #5d6878;
 }
 
 /* Light theme — warm monochrome + a single restrained accent (minimalist-ui skill):
@@ -45,6 +68,29 @@
   /* Ambient elevation ("Soft Structuralism" lite) — diffused, low-opacity, neutral. */
   --shadow-ambient: 0 1px 2px rgba(20, 20, 18, 0.06), 0 18px 36px -12px rgba(20, 20, 18, 0.16), 0 4px 10px -4px rgba(20, 20, 18, 0.08);
   --shadow-accent: 0 10px 24px -6px color-mix(in srgb, var(--accent) 45%, transparent);
+
+  /* Light mode node colors */
+  --cs-core-fill: #bcd4ec;
+  --cs-core-border: #5f8cb8;
+  --cs-core-text: #16202c;
+
+  --cs-elective-fill: #e8b9b1;
+  --cs-elective-border: #cf8a7c;
+  --cs-elective-text: #3a1c17;
+
+  --math-fill: #f3df9c;
+  --math-border: #d3b352;
+  --math-text: #3b3211;
+
+  --science-fill: #d6dae1;
+  --science-border: #9aa5b3;
+  --science-text: #242830;
+
+  --english-fill: #d4ebf1;
+  --english-border: #86b6c5;
+  --english-text: #162f36;
+
+  --node-offered-muted: #7c8694;
 }
 
 @theme inline {

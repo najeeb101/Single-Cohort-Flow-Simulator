@@ -30,6 +30,36 @@ export default function CurriculumGraph({ graph, courses }: Props) {
   );
   const [selected, setSelected] = useState<string | null>(null);
 
+  const { activePrereqs, activeUnlocks } = useMemo(() => {
+    if (!selected) return { activePrereqs: new Set<string>(), activeUnlocks: new Set<string>() };
+    
+    const prereqs = new Set<string>();
+    const queue = [selected];
+    while (queue.length > 0) {
+      const current = queue.shift()!;
+      graph.edges.forEach((e) => {
+        if (e.to === current && !prereqs.has(e.from)) {
+          prereqs.add(e.from);
+          queue.push(e.from);
+        }
+      });
+    }
+    
+    const unlocks = new Set<string>();
+    const uQueue = [selected];
+    while (uQueue.length > 0) {
+      const current = uQueue.shift()!;
+      graph.edges.forEach((e) => {
+        if (e.from === current && !unlocks.has(e.to)) {
+          unlocks.add(e.to);
+          uQueue.push(e.to);
+        }
+      });
+    }
+    
+    return { activePrereqs: prereqs, activeUnlocks: unlocks };
+  }, [selected, graph]);
+
   const nodeByCode = useMemo(() => {
     const m: Record<string, Graph["nodes"][number]> = {};
     graph.nodes.forEach((n) => (m[n.code] = n));
@@ -43,12 +73,18 @@ export default function CurriculumGraph({ graph, courses }: Props) {
   return (
     <div
       data-testid="curriculum-graph-viewport"
-      className="relative min-h-[300px] flex-1 overflow-auto p-2 bg-white"
+      className="relative min-h-[300px] flex-1 overflow-auto p-4 bg-surface-2/40 backdrop-blur-md rounded-2xl border border-border shadow-inner"
     >
       <svg width="100%" viewBox={`0 0 ${width} ${height}`} style={{ display: "block", minWidth: 600 }}>
         <defs>
           <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
             <path d="M0,0 L10,5 L0,10 z" fill="#d1453b" />
+          </marker>
+          <marker id="arrow-prereq" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="var(--warn)" />
+          </marker>
+          <marker id="arrow-unlock" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="var(--good)" />
           </marker>
         </defs>
 
@@ -79,7 +115,7 @@ export default function CurriculumGraph({ graph, courses }: Props) {
           </g>
         ))}
 
-        {/* Prerequisite arrows (red, like the printed roadmap) */}
+        {/* Prerequisite arrows */}
         {graph.edges.map((e, i) => {
           const a = positions[e.from];
           const b = positions[e.to];
@@ -89,16 +125,42 @@ export default function CurriculumGraph({ graph, courses }: Props) {
           const x2 = b.x;
           const y2 = b.y + b.h / 2;
           const mx = (x1 + x2) / 2;
+
+          const isPrereqEdge = selected && (e.to === selected || activePrereqs.has(e.to)) && activePrereqs.has(e.from);
+          const isUnlockEdge = selected && (e.from === selected || activeUnlocks.has(e.from)) && activeUnlocks.has(e.to);
+          
+          let strokeColor = "#d1453b";
+          let strokeOpacity = 0.55;
+          let strokeWidth = 1.3;
+          let markerEnd = "url(#arrow)";
+
+          if (selected) {
+            if (isPrereqEdge) {
+              strokeColor = "var(--warn)";
+              strokeOpacity = 0.95;
+              strokeWidth = 2.0;
+              markerEnd = "url(#arrow-prereq)";
+            } else if (isUnlockEdge) {
+              strokeColor = "var(--good)";
+              strokeOpacity = 0.95;
+              strokeWidth = 2.0;
+              markerEnd = "url(#arrow-unlock)";
+            } else {
+              strokeOpacity = 0.06;
+            }
+          }
+
           return (
             <path
               key={`${e.from}-${e.to}-${i}`}
               d={`M ${x1} ${y1} C ${mx} ${y1}, ${mx} ${y2}, ${x2} ${y2}`}
               fill="none"
-              stroke="#d1453b"
-              strokeOpacity={0.55}
-              strokeWidth={1.3}
+              stroke={strokeColor}
+              strokeOpacity={strokeOpacity}
+              strokeWidth={strokeWidth}
               strokeDasharray={e.kind === "one_of" ? "4 3" : undefined}
-              markerEnd="url(#arrow)"
+              markerEnd={markerEnd}
+              style={{ transition: "stroke 200ms, stroke-opacity 200ms, stroke-width 200ms" }}
             />
           );
         })}
@@ -112,7 +174,12 @@ export default function CurriculumGraph({ graph, courses }: Props) {
           const offered = st?.offered ?? false;
           const util = offered && st.capacity ? st.granted / st.capacity : 0;
           const isSelected = selected === n.code;
+          const isPrereqNode = activePrereqs.has(n.code);
+          const isUnlockNode = activeUnlocks.has(n.code);
           const full = offered && st.full;
+
+          const hasHighlight = selected !== null;
+          const isHighlighted = isSelected || isPrereqNode || isUnlockNode;
 
           let statLine = "";
           if (offered) {
@@ -120,6 +187,23 @@ export default function CurriculumGraph({ graph, courses }: Props) {
             statLine =
               `${st.granted}/${st.capacity}${full ? " ▣" : ""}` +
               (st.passed || st.failed ? `  ✓${st.passed} ✗${st.failed}` : waiting ? `  ${waiting} wait` : "");
+          }
+
+          let strokeColor = cat.border;
+          let strokeWidth = 1.3;
+          
+          if (isSelected) {
+            strokeColor = "var(--accent)";
+            strokeWidth = 2.5;
+          } else if (isPrereqNode) {
+            strokeColor = "var(--warn)";
+            strokeWidth = 2.0;
+          } else if (isUnlockNode) {
+            strokeColor = "var(--good)";
+            strokeWidth = 2.0;
+          } else if (full) {
+            strokeColor = "#d1453b";
+            strokeWidth = 2.4;
           }
 
           return (
@@ -130,7 +214,8 @@ export default function CurriculumGraph({ graph, courses }: Props) {
                 e.stopPropagation();
                 setSelected((cur) => (cur === n.code ? null : n.code));
               }}
-              className="cursor-pointer"
+              className="cursor-pointer transition-opacity duration-200"
+              style={{ opacity: hasHighlight && !isHighlighted ? 0.15 : 1 }}
             >
               <rect
                 width={p.w}
@@ -138,12 +223,13 @@ export default function CurriculumGraph({ graph, courses }: Props) {
                 rx={7}
                 fill={cat.fill}
                 fillOpacity={offered ? 1 : 0.45}
-                stroke={isSelected ? "#5b9dff" : full ? "#d1453b" : cat.border}
-                strokeWidth={isSelected ? 2.5 : full ? 2.4 : 1.3}
+                stroke={strokeColor}
+                strokeWidth={strokeWidth}
+                style={{ transition: "stroke 200ms, stroke-width 200ms" }}
               />
-              <text x={8} y={16} fontSize={11} fontWeight={800} fill="#16202c">{n.code}</text>
-              <text x={8} y={29} fontSize={8.5} fontWeight={600} fill="#3a4654">{truncate(n.title, 26)}</text>
-              <text x={8} y={43} fontSize={8.5} fontWeight={700} fill={offered ? "#1d2734" : "#7c8694"}>
+              <text x={8} y={16} fontSize={11} fontWeight={800} fill={cat.text}>{n.code}</text>
+              <text x={8} y={29} fontSize={8.5} fontWeight={600} fill={cat.text} fillOpacity={0.8}>{truncate(n.title, 26)}</text>
+              <text x={8} y={43} fontSize={8.5} fontWeight={700} fill={offered ? cat.text : "var(--node-offered-muted)"}>
                 {offered ? statLine : "not offered"}
               </text>
               {/* Seat-use bar along the bottom edge — keeps the live capacity signal without

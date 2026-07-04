@@ -85,19 +85,20 @@ export interface CategoryStyle {
   label: string;
   fill: string;
   border: string;
+  text: string;
 }
 
 export const CATEGORY_STYLE: Record<string, CategoryStyle> = {
-  cs_core: { label: "Major Core", fill: "#bcd4ec", border: "#5f8cb8" },
-  cs_elective: { label: "Major Elective", fill: "#e8b9b1", border: "#cf8a7c" },
-  math: { label: "College Requirement", fill: "#f3df9c", border: "#d3b352" },
-  college_req: { label: "College Requirement", fill: "#f3df9c", border: "#d3b352" },
-  science: { label: "Major Supporting", fill: "#d6dae1", border: "#9aa5b3" },
-  english: { label: "Core Curriculum", fill: "#d4ebf1", border: "#86b6c5" },
-  gen_ed: { label: "Core Curriculum", fill: "#d4ebf1", border: "#86b6c5" },
+  cs_core: { label: "Major Core", fill: "var(--cs-core-fill)", border: "var(--cs-core-border)", text: "var(--cs-core-text)" },
+  cs_elective: { label: "Major Elective", fill: "var(--cs-elective-fill)", border: "var(--cs-elective-border)", text: "var(--cs-elective-text)" },
+  math: { label: "College Requirement", fill: "var(--math-fill)", border: "var(--math-border)", text: "var(--math-text)" },
+  college_req: { label: "College Requirement", fill: "var(--math-fill)", border: "var(--math-border)", text: "var(--math-text)" },
+  science: { label: "Major Supporting", fill: "var(--science-fill)", border: "var(--science-border)", text: "var(--science-text)" },
+  english: { label: "Core Curriculum", fill: "var(--english-fill)", border: "var(--english-border)", text: "var(--english-text)" },
+  gen_ed: { label: "Core Curriculum", fill: "var(--english-fill)", border: "var(--english-border)", text: "var(--english-text)" },
 };
 
-const FALLBACK_STYLE: CategoryStyle = { label: "Other", fill: "#e4e7ec", border: "#9aa3b0" };
+const FALLBACK_STYLE: CategoryStyle = { label: "Other", fill: "var(--border-2)", border: "var(--border)", text: "var(--ink)" };
 
 export function categoryStyle(category: string): CategoryStyle {
   return CATEGORY_STYLE[category] ?? FALLBACK_STYLE;

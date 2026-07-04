@@ -31,7 +31,6 @@ from src.db import (
     init_db,
     load_config_from_db,
     load_curriculum_from_db,
-
     resolve_active_plan_id,
 )
 from src.db_models import AppConfig as AppConfigRow
@@ -69,8 +68,9 @@ app.add_middleware(
 )
 
 
-def _load_plan_data(db: Session, current_user: User) -> tuple[dict, dict, dict]:
-    """Resolve (curriculum, config, scenario) for the current user's active plan."""
+def _load_plan_data(db: Session) -> tuple[dict, dict, dict]:
+    """Resolve (curriculum, config, scenario) for the active plan."""
+    current_user = get_current_user(db)
     plan_id = resolve_active_plan_id(db, current_user)
     curriculum = load_curriculum_from_db(db, plan_id)
     config = load_config_from_db(db, plan_id)
@@ -241,12 +241,12 @@ def _course_to_dict(course) -> dict:
     }
 
 
-def _plan_to_dict(plan: PlanRow, current_user: User) -> dict:
+def _plan_to_dict(plan: PlanRow, user: User) -> dict:
     return {
         "id": plan.id,
         "name": plan.name,
         "is_default": plan.owner_user_id is None,
-        "is_active": plan.id == current_user.active_plan_id,
+        "is_active": plan.id == user.active_plan_id,
     }
 
 
@@ -256,8 +256,8 @@ def health() -> dict:
 
 
 @app.get("/meta")
-def meta(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)) -> dict:
-    curriculum, config, scenario = _load_plan_data(db, current_user)
+def meta(db: Session = Depends(get_db)) -> dict:
+    curriculum, config, scenario = _load_plan_data(db)
     return {
         "graph": build_curriculum_graph(curriculum),
         "course_sections": config.get("course_sections", {}),
@@ -357,9 +357,9 @@ def _apply_scenario_overrides(
 def simulate(
     req: ScenarioRequest,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
 ) -> dict:
-    curriculum, base_config, base_scenario = _load_plan_data(db, current_user)
+    current_user = get_current_user(db)
+    curriculum, base_config, base_scenario = _load_plan_data(db)
     plan_id = resolve_active_plan_id(db, current_user)
 
     config, scenario = _apply_scenario_overrides(req, base_config, base_scenario)
@@ -391,8 +391,8 @@ def simulate(
 
 
 @app.get("/curriculum")
-def list_curriculum(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)) -> list[dict]:
-    curriculum, _config, _scenario = _load_plan_data(db, current_user)
+def list_curriculum(db: Session = Depends(get_db)) -> list[dict]:
+    curriculum, _config, _scenario = _load_plan_data(db)
     return [_course_to_dict(c) for c in sorted(curriculum.values(), key=lambda c: c.study_plan_order)]
 
 
@@ -400,9 +400,8 @@ def list_curriculum(db: Session = Depends(get_db), current_user: User = Depends(
 def create_course(
     req: CourseCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
 ) -> dict:
-    plan_id = resolve_active_plan_id(db, current_user)
+    plan_id = resolve_active_plan_id(db, get_current_user(db))
     curriculum = load_curriculum_from_db(db, plan_id)
 
     if req.code in curriculum:
@@ -447,9 +446,8 @@ def create_course(
 def delete_course(
     code: str,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
 ) -> dict:
-    plan_id = resolve_active_plan_id(db, current_user)
+    plan_id = resolve_active_plan_id(db, get_current_user(db))
 
     row = db.query(CourseRow).filter_by(plan_id=plan_id, code=code).first()
     if row is None:
@@ -485,9 +483,8 @@ def update_curriculum(
     code: str,
     patch: CourseUpdate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
 ) -> dict:
-    plan_id = resolve_active_plan_id(db, current_user)
+    plan_id = resolve_active_plan_id(db, get_current_user(db))
     curriculum = load_curriculum_from_db(db, plan_id)
 
     row = db.query(CourseRow).filter_by(plan_id=plan_id, code=code).first()
@@ -517,8 +514,8 @@ def update_curriculum(
 
 
 @app.get("/config")
-def get_config(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)) -> dict:
-    _curriculum, config, _scenario = _load_plan_data(db, current_user)
+def get_config(db: Session = Depends(get_db)) -> dict:
+    _curriculum, config, _scenario = _load_plan_data(db)
     return config
 
 
@@ -526,7 +523,6 @@ def get_config(db: Session = Depends(get_db), current_user: User = Depends(get_c
 def update_config(
     patch: dict,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
 ) -> dict:
     if "registration_tier_thresholds" in patch:
         thresholds = patch["registration_tier_thresholds"]
@@ -539,7 +535,7 @@ def update_config(
     if "initial_state" in patch:
         _validate_initial_state(patch["initial_state"])
 
-    plan_id = resolve_active_plan_id(db, current_user)
+    plan_id = resolve_active_plan_id(db, get_current_user(db))
     row = db.query(AppConfigRow).filter_by(plan_id=plan_id).first()
     row.data = {**row.data, **patch}
     db.commit()
@@ -548,7 +544,8 @@ def update_config(
 
 
 @app.get("/plans")
-def list_plans(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)) -> list[dict]:
+def list_plans(db: Session = Depends(get_db)) -> list[dict]:
+    current_user = get_current_user(db)
     rows = (
         db.query(PlanRow)
         .filter((PlanRow.owner_user_id.is_(None)) | (PlanRow.owner_user_id == current_user.id))
@@ -562,8 +559,8 @@ def list_plans(db: Session = Depends(get_db), current_user: User = Depends(get_c
 def import_plan_endpoint(
     req: PlanImportRequest,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
 ) -> dict:
+    current_user = get_current_user(db)
     try:
         plan = import_plan(db, current_user.id, req.name, req.curriculum, req.config)
     except PlanImportError as exc:
@@ -571,17 +568,18 @@ def import_plan_endpoint(
     return _plan_to_dict(plan, current_user)
 
 
-def _get_visible_plan(db: Session, plan_id: int, current_user: User) -> PlanRow:
+def _get_visible_plan(db: Session, plan_id: int, user: User) -> PlanRow:
     plan = db.get(PlanRow, plan_id)
-    if plan is None or (plan.owner_user_id is not None and plan.owner_user_id != current_user.id):
+    if plan is None or (plan.owner_user_id is not None and plan.owner_user_id != user.id):
         raise HTTPException(status_code=404, detail="Plan not found")
     return plan
 
 
 @app.post("/plans/{plan_id}/activate")
 def activate_plan(
-    plan_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
+    plan_id: int, db: Session = Depends(get_db)
 ) -> dict:
+    current_user = get_current_user(db)
     plan = _get_visible_plan(db, plan_id, current_user)
     current_user.active_plan_id = plan.id
     db.commit()
@@ -590,8 +588,9 @@ def activate_plan(
 
 @app.delete("/plans/{plan_id}")
 def delete_plan(
-    plan_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
+    plan_id: int, db: Session = Depends(get_db)
 ) -> dict:
+    current_user = get_current_user(db)
     plan = db.get(PlanRow, plan_id)
     if plan is None or plan.owner_user_id != current_user.id:
         raise HTTPException(status_code=404, detail="Plan not found")
@@ -607,9 +606,9 @@ def delete_plan(
 
 @app.get("/plans/{plan_id}/export")
 def export_plan(
-    plan_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
+    plan_id: int, db: Session = Depends(get_db)
 ) -> dict:
-    plan = _get_visible_plan(db, plan_id, current_user)
+    plan = _get_visible_plan(db, plan_id, get_current_user(db))
     curriculum = load_curriculum_from_db(db, plan.id)
     config = load_config_from_db(db, plan.id)
     return {
@@ -696,8 +695,8 @@ def _get_visible_live_sim(db: Session, live_sim_id: int, plan_id: int) -> LiveSi
 def create_live_sim(
     req: LiveSimCreateRequest,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
 ) -> dict:
+    current_user = get_current_user(db)
     plan_id = resolve_active_plan_id(db, current_user)
     config = load_config_from_db(db, plan_id)  # already a deep copy (load_config_from_db)
     if req.initial_state is not None:
@@ -724,8 +723,8 @@ def create_live_sim(
 
 
 @app.get("/livesim")
-def list_live_sims(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)) -> list[dict]:
-    plan_id = resolve_active_plan_id(db, current_user)
+def list_live_sims(db: Session = Depends(get_db)) -> list[dict]:
+    plan_id = resolve_active_plan_id(db, get_current_user(db))
     rows = (
         db.query(LiveSimulation)
         .filter_by(plan_id=plan_id)
@@ -744,9 +743,8 @@ def list_live_sims(db: Session = Depends(get_db), current_user: User = Depends(g
 def get_live_sim(
     live_sim_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
 ) -> dict:
-    plan_id = resolve_active_plan_id(db, current_user)
+    plan_id = resolve_active_plan_id(db, get_current_user(db))
     sim = _get_visible_live_sim(db, live_sim_id, plan_id)
     curriculum = load_curriculum_from_db(db, plan_id)
 
@@ -803,9 +801,8 @@ def advance_live_sim(
     live_sim_id: int,
     req: LiveSimAdvanceRequest,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
 ) -> dict:
-    plan_id = resolve_active_plan_id(db, current_user)
+    plan_id = resolve_active_plan_id(db, get_current_user(db))
     sim = _get_visible_live_sim(db, live_sim_id, plan_id)
 
     if sim.status == "finished":

@@ -86,7 +86,7 @@ export default function NavBar() {
   const pathname = usePathname();
 
   return (
-    <nav className="border-b border-border bg-surface">
+    <nav className="border-b border-border bg-surface/85 backdrop-blur-md sticky top-0 z-50">
       <div className="mx-auto flex max-w-[1600px] items-center gap-1 px-7">
         {PRIMARY_LINKS.map((link) => {
           const active = pathname === link.href;
