@@ -87,42 +87,45 @@ export default function NavBar() {
 
   return (
     <nav className="border-b border-border bg-surface/85 backdrop-blur-md sticky top-0 z-50">
-      <div className="mx-auto flex max-w-[1600px] items-center gap-1 px-7">
-        {PRIMARY_LINKS.map((link) => {
-          const active = pathname === link.href;
-          return (
-            <Link
-              key={link.href}
-              href={link.href}
-              className={
-                active
-                  ? "whitespace-nowrap border-b-2 border-accent px-3 py-3 text-[13px] font-semibold text-ink"
-                  : "whitespace-nowrap border-b-2 border-transparent px-3 py-3 text-[13px] font-semibold text-muted hover:text-ink"
-              }
-            >
-              {link.label}
-            </Link>
-          );
-        })}
-        {GROUPS.map((group) => (
-          <NavDropdown
-            key={group.label}
-            label={group.label}
-            links={group.links}
-            active={group.links.some((l) => l.href === pathname)}
-          />
-        ))}
-        <Link
-          href={SETTINGS_LINK.href}
-          className={
-            pathname === SETTINGS_LINK.href
-              ? "whitespace-nowrap border-b-2 border-accent px-3 py-3 text-[13px] font-semibold text-ink"
-              : "whitespace-nowrap border-b-2 border-transparent px-3 py-3 text-[13px] font-semibold text-muted hover:text-ink"
-          }
-        >
-          {SETTINGS_LINK.label}
-        </Link>
-        <div className="ml-auto flex items-center py-3">
+      <div className="mx-auto grid max-w-[1600px] grid-cols-[1fr_auto_1fr] items-center px-7">
+        <div />
+        <div className="flex items-center justify-center gap-1">
+          {PRIMARY_LINKS.map((link) => {
+            const active = pathname === link.href;
+            return (
+              <Link
+                key={link.href}
+                href={link.href}
+                className={
+                  active
+                    ? "whitespace-nowrap border-b-2 border-accent px-3 py-3 text-[13px] font-semibold text-ink"
+                    : "whitespace-nowrap border-b-2 border-transparent px-3 py-3 text-[13px] font-semibold text-muted hover:text-ink"
+                }
+              >
+                {link.label}
+              </Link>
+            );
+          })}
+          {GROUPS.map((group) => (
+            <NavDropdown
+              key={group.label}
+              label={group.label}
+              links={group.links}
+              active={group.links.some((l) => l.href === pathname)}
+            />
+          ))}
+          <Link
+            href={SETTINGS_LINK.href}
+            className={
+              pathname === SETTINGS_LINK.href
+                ? "whitespace-nowrap border-b-2 border-accent px-3 py-3 text-[13px] font-semibold text-ink"
+                : "whitespace-nowrap border-b-2 border-transparent px-3 py-3 text-[13px] font-semibold text-muted hover:text-ink"
+            }
+          >
+            {SETTINGS_LINK.label}
+          </Link>
+        </div>
+        <div className="flex items-center justify-end py-3">
           <ThemeToggle />
         </div>
       </div>

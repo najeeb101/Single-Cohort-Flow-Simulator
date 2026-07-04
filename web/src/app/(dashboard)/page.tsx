@@ -12,25 +12,21 @@ export default function Home() {
   return (
     <main className="mx-auto w-full max-w-[1600px] px-7 pb-16">
       <header className="border-b border-border py-5">
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          <div className="flex items-center gap-3.5">
-            <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-maroon text-[17px] font-extrabold text-white">
-              QU
-            </div>
-            <div>
-              <h1 className="text-[19px] font-bold tracking-tight">CS Curriculum Flow Simulator</h1>
-              <p className="mt-0.5 text-[12.5px] text-muted">
-                Baseline run complete — explore results below or go to{" "}
-                <a href="/bottlenecks" className="font-semibold text-accent hover:underline">Bottlenecks</a>{" "}
-                to identify and test fixes.
-              </p>
-            </div>
+        <div className="mx-auto flex max-w-2xl flex-col items-center gap-1 text-center">
+          <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-maroon text-[17px] font-extrabold text-white">
+            QU
           </div>
+          <h1 className="mt-1.5 text-[19px] font-bold tracking-tight">CS Curriculum Flow Simulator</h1>
+          <p className="text-[12.5px] text-muted">
+            Baseline run complete — explore results below or go to{" "}
+            <a href="/bottlenecks" className="font-semibold text-accent hover:underline">Bottlenecks</a>{" "}
+            to identify and test fixes.
+          </p>
         </div>
       </header>
 
       <section className="py-4">
-        <div className="flex flex-wrap gap-2.5">
+        <div className="flex flex-wrap justify-center gap-2.5">
           {[
             ["Cohorts", data.flow_timeline.meta.num_cohorts],
             ["Cohort size", meta.cohort_size],
