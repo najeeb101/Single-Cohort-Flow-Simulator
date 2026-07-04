@@ -216,4 +216,5 @@ so the simulation is fully **deterministic**. Full mechanics:
 
 - **[docs/project_overview.md](docs/project_overview.md)** — what the project is, how the simulation works, design tradeoffs, and known limitations. Deliberately has no point-in-time output numbers (those depend on the active configuration and go stale the moment it changes) — run the simulation for today's actual figures.
 - **[docs/technical_design.md](docs/technical_design.md)** — model architecture and execution walkthrough.
+- **[docs/code_walkthrough.md](docs/code_walkthrough.md)** — deep code-level reference (real function signatures and snippets, module by module), for reading alongside the source.
 - **[docs/assumptions.md](docs/assumptions.md)** — every assumption and parameter, with justification.
