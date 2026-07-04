@@ -100,9 +100,10 @@ validated as a directed graph with an explicit cycle check (`networkx`-based), w
 application of the graph algorithms I covered in Data Structures and Algorithms. I had to
 actually reason about what a cycle in a prerequisite graph would mean for the simulation (a
 course that can never become eligible) rather than just calling a library function. The
-per-plan, multi-tenant database schema (one `Plan` owning its own `Course`/`Instructor`/`Config`
-rows, scoped per user) is a direct application of relational schema design and normalization
-from my Database Systems course. The engine/API/CLI separation (`service.py` as a pure,
+database schema, where one `Plan` owns its own `Course`/`Instructor`/`Config` rows so several
+curricula can be stored side by side without their data colliding, is a direct application of
+relational schema design and normalization from my Database Systems course. The engine/API/CLI
+separation (`service.py` as a pure,
 file-I/O-free boundary called by both `run.py` and the FastAPI layer) is the layered-architecture
 and separation-of-concerns principle from Software Engineering, applied to a real, growing
 codebase instead of a textbook example. And the reproducible, seeded-RNG-per-student design, plus
