@@ -183,7 +183,7 @@ export default function SettingsPage() {
                   min={min}
                   max={max}
                   step={step}
-                  onChange={(e) => setAdmissionTarget(key, parseFloat(e.target.value))}
+                  onChange={(e) => setAdmissionTarget(key, Number(e.target.value))}
                   className="w-full rounded-[8px] border border-border bg-surface-2 px-3 py-1.5 text-[13px] text-ink focus:outline-none focus:ring-1 focus:ring-accent"
                 />
               </label>
