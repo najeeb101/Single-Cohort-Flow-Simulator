@@ -753,6 +753,17 @@ def get_live_sim(
     runner = LiveRunner(curriculum, sim.base_config, sim.base_scenario)
     _start, end_term = runner.horizon(sim.edits)
 
+    # The baseline trajectory is just a replay with no edits applied — LiveRunner.replay
+    # doesn't treat an empty edit list specially, so this reuses the exact same engine path
+    # as advancing with edits, just against base_config/base_scenario alone. Recomputed on
+    # every GET rather than cached: this is the same cost class /advance already pays on
+    # every call, not a new performance tier for this endpoint.
+    baseline_result = runner.replay([], end_term - 1)
+    baseline_trajectory = [
+        {"term_index": f["term"], "label": f["label"], **_cheap_running_summary(f)}
+        for f in baseline_result.frames
+    ]
+
     snapshots = (
         db.query(LiveTermSnapshot)
         .filter_by(live_sim_id=sim.id)
@@ -781,6 +792,7 @@ def get_live_sim(
                             "Graduated", "Dropped", "Censored"],
             "cohorts": cohorts_meta,
             "initial_state": sim.base_config.get("initial_state", {"occupancy": {}, "standing": {}}),
+            "baseline_trajectory": baseline_trajectory,
         },
         "snapshots": [_snapshot_to_dict(s) for s in snapshots],
     }

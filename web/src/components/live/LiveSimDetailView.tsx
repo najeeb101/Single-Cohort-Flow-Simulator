@@ -52,6 +52,12 @@ export default function LiveSimDetailView({ meta, detail, onChanged, onDeleted }
     };
   }, [snapshots]);
 
+  const baselineByTerm = useMemo(
+    () => new Map(simMeta.baseline_trajectory.map((p) => [p.term_index, p])),
+    [simMeta],
+  );
+  const baselineAtCurrent = current ? baselineByTerm.get(current.term_index) ?? null : null;
+
   const handleAdvance = async () => {
     setAdvancing(true);
     setError(null);
@@ -161,18 +167,27 @@ export default function LiveSimDetailView({ meta, detail, onChanged, onDeleted }
       )}
 
       {runningTotals && (
-        <div className="flex flex-wrap gap-3 rounded-2xl border border-border bg-surface px-4 py-3">
-          <span className="text-[11px] font-semibold uppercase tracking-wide text-muted self-center mr-1">Running totals</span>
-          {[
-            { label: "Graduated", value: runningTotals.graduated, color: "text-good" },
-            { label: "Dropped", value: runningTotals.dropped, color: "text-bad" },
-            { label: "Still enrolled", value: runningTotals.active, color: "text-ink" },
-            { label: "Capacity blocks", value: runningTotals.capacityBlocks.toLocaleString(), color: "text-warn" },
-          ].map(({ label, value, color }) => (
-            <div key={label} className="rounded-[9px] border border-border bg-surface-2 px-3 py-1.5 text-[12.5px] text-muted">
-              {label}: <b className={`ml-0.5 font-bold ${color}`}>{value}</b>
-            </div>
-          ))}
+        <div className="flex flex-col gap-2 rounded-2xl border border-border bg-surface px-4 py-3">
+          <div className="flex flex-wrap gap-3">
+            <span className="text-[11px] font-semibold uppercase tracking-wide text-muted self-center mr-1">Running totals</span>
+            {[
+              { label: "Graduated", value: runningTotals.graduated, color: "text-good" },
+              { label: "Dropped", value: runningTotals.dropped, color: "text-bad" },
+              { label: "Still enrolled", value: runningTotals.active, color: "text-ink" },
+              { label: "Capacity blocks", value: runningTotals.capacityBlocks.toLocaleString(), color: "text-warn" },
+            ].map(({ label, value, color }) => (
+              <div key={label} className="rounded-[9px] border border-border bg-surface-2 px-3 py-1.5 text-[12.5px] text-muted">
+                {label}: <b className={`ml-0.5 font-bold ${color}`}>{value}</b>
+              </div>
+            ))}
+          </div>
+          {baselineAtCurrent && current && (
+            <p className="text-[12px] text-muted">
+              At {current.label} in the baseline run: <b className="font-semibold text-ink">{baselineAtCurrent.graduated}</b>{" "}
+              graduated · <b className="font-semibold text-ink">{baselineAtCurrent.dropped}</b> dropped ·{" "}
+              <b className="font-semibold text-ink">{baselineAtCurrent.active}</b> still enrolled
+            </p>
+          )}
         </div>
       )}
 

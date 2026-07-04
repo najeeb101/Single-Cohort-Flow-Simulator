@@ -350,8 +350,26 @@ export interface TermSnapshot {
   edits_applied: LiveEdits | Record<string, never>;
 }
 
+// One term of the live sim's baseline (no-edits) trajectory — same shape as a snapshot's
+// cheap running summary, keyed by term_index so it lines up with whichever term is being
+// viewed regardless of which edits have since been applied.
+export interface BaselineTrajectoryPoint {
+  term_index: number;
+  label: string;
+  active: number;
+  graduated: number;
+  dropped: number;
+  censored: number;
+}
+
 export interface LiveSimDetail {
   live_sim: LiveSim;
-  meta: { graph: Graph; stage_nodes: string[]; cohorts: CohortInfo[]; initial_state: InitialState };
+  meta: {
+    graph: Graph;
+    stage_nodes: string[];
+    cohorts: CohortInfo[];
+    initial_state: InitialState;
+    baseline_trajectory: BaselineTrajectoryPoint[];
+  };
   snapshots: TermSnapshot[]; // in term order
 }

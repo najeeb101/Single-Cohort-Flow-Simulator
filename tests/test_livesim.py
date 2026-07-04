@@ -166,11 +166,40 @@ def test_get_live_sim_shape():
     assert resp.status_code == 200
     body = resp.json()
     assert set(body) == {"live_sim", "meta", "snapshots"}
-    assert set(body["meta"]) == {"graph", "stage_nodes", "cohorts", "initial_state"}
+    assert set(body["meta"]) == {"graph", "stage_nodes", "cohorts", "initial_state", "baseline_trajectory"}
     assert body["snapshots"] == []
     assert body["meta"]["stage_nodes"] == [
         "Admitted", "Year1", "Year2", "Year3", "Year4", "Graduated", "Dropped", "Censored",
     ]
+    # Populated straight from base_config/base_scenario — no advance needed.
+    assert len(body["meta"]["baseline_trajectory"]) > 0
+    assert set(body["meta"]["baseline_trajectory"][0]) == {
+        "term_index", "label", "active", "graduated", "dropped", "censored",
+    }
+
+
+def test_baseline_trajectory_unaffected_by_live_edits():
+    headers = _register("livesim_baseline_unaffected@example.com")
+    _activate_small_plan(headers, "Livesim baseline plan")
+
+    unedited = _create_live_sim(headers, "Unedited")
+    edited = _create_live_sim(headers, "Edited")
+
+    config = client.get("/config", headers=headers).json()
+    code = next(iter(config["course_sections"]))
+    bumped_sections = {**config["course_sections"], code: config["course_sections"][code] + 10}
+    for _ in range(3):
+        resp = client.post(
+            f"/livesim/{edited['id']}/advance",
+            json={"edits": {"course_sections": bumped_sections}},
+            headers=headers,
+        )
+        assert resp.status_code == 200
+
+    unedited_baseline = client.get(f"/livesim/{unedited['id']}", headers=headers).json()["meta"]["baseline_trajectory"]
+    edited_baseline = client.get(f"/livesim/{edited['id']}", headers=headers).json()["meta"]["baseline_trajectory"]
+
+    assert unedited_baseline == edited_baseline
 
 
 def test_get_live_sim_not_found_returns_404():
