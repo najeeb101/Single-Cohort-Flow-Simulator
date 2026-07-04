@@ -2,8 +2,17 @@
 ## CS Flow Simulator: Qatar University CS Program
 
 > **Note (multi-cohort extension):** §§1–10 below describe the per-student mechanics, which still
-> hold exactly. The simulator now runs **many cohorts on a shared seat pool** with an incumbent
-> warm start and emits a frontend timeline. See **§11. Multi-Cohort Extension** for that layer.
+> hold exactly. The simulator now runs **many cohorts on a shared seat pool**, warm-started by an
+> admin-entered initial state (not a simulated incumbent cohort, by default) and emits a frontend
+> timeline. See **§11. Multi-Cohort Extension** for that layer.
+>
+> **Note (curriculum data model):** §2's course catalog below predates a later switch from
+> abstracted "pseudo-courses" (`MATH_1`, `PHYS_1`, `GED_1`, `ELEC_1`...) to the real official QU
+> course codes (`MATH101`, `PHYS191`-`194`, `CSEL1`-`4`, etc.) actually used by
+> `data/curriculum.json` today, and predates the later removal of Fall-only/Spring-only offering
+> restrictions (every course is now offered Fall + Spring; only `study_plan_term` still records
+> the recommended semester). §2 has been rewritten below to match; see `CLAUDE.md`'s "Key
+> Constraints" section for the canonical current summary.
 
 ---
 
@@ -33,79 +42,73 @@ A student may only register for CMPS 493 after satisfying **all three** conditio
 
 ## 2. Extracted Course Catalog
 
-### CS Major Core Courses (15 courses, 49 CH), Simulated in Full Detail
+**As of this revision, `data/curriculum.json` uses the real official QU course codes directly**
+(no abstracted "pseudo-courses"), and **every course is offered Fall + Spring** — the earlier
+Fall-only/Spring-only restrictions described in older revisions of this document were dropped
+once the curriculum became the real 2024 study plan. `study_plan_term` (1-8) still records each
+course's *recommended* semester (used to lay out the roadmap UI), but it is not an offering
+restriction. All 41 courses, in `study_plan_term` order:
 
-CMPS 200, CMPS 205, and CMPS 307 are **not** Major Core (see category note below).
+| Code | Title | CH | Prerequisites | Category | Term | Pass rate* |
+|---|---|---|---|---|---|---|
+| CMPS151 | Programming Concepts | 3 | — | cs_core | 1 | 0.80 |
+| MATH101 | Calculus I | 3 | — | math | 1 | 0.78 |
+| CHEM101 | General Chemistry I | 3 | — | science | 1 | 0.82 |
+| CHEM103 | Experimental General Chemistry I | 1 | — | science | 1 | 0.92 |
+| ENGL202 | English Language I | 3 | — | english | 1 | 0.88 |
+| HIS121 | History of Qatar | 3 | — | gen_ed | 1 | 0.92 |
+| CMPS251 | Object-Oriented Programming | 4 | CMPS151 | cs_core | 2 | 0.78 |
+| MATH102 | Calculus II | 3 | MATH101 | math | 2 | 0.76 |
+| MATH231 | Linear Algebra | 3 | MATH101 | math | 2 | 0.78 |
+| PHYS191 | General Physics for Engineering I | 3 | — | science | 2 | 0.80 |
+| PHYS192 | Experimental General Physics for Engineering I | 1 | — | science | 2 | 0.92 |
+| ENGL203 | English Language II | 3 | ENGL202 | english | 2 | 0.88 |
+| CMPS205 | Discrete Structures | 3 | CMPS151 | cs_core | 3 | 0.80 |
+| CMPS200 | Computer Ethics | 1 | — | cs_core | 3 | 0.92 |
+| CMPS303 | Data Structures | 4 | CMPS251 | cs_core | 3 | 0.76 |
+| PHYS193 | General Physics for Engineering II | 3 | PHYS191 | science | 3 | 0.80 |
+| PHYS194 | Experimental General Physics for Engineering II | 1 | PHYS192 | science | 3 | 0.92 |
+| ARAB100 | Arabic Language I | 3 | — | gen_ed | 3 | 0.92 |
+| CMPE263 | Computer Architecture and Organization I | 3 | CMPS205 | cs_core | 4 | 0.78 |
+| CMPS323 | Design and Analysis of Algorithms | 3 | CMPS303, CMPS205 | cs_core | 4 | 0.76 |
+| CMPS351 | Fundamentals of Database | 4 | CMPS303 | cs_core | 4 | 0.80 |
+| GENG200 | Probability and Statistics | 3 | MATH102 | math | 4 | 0.80 |
+| CORE201 | Core Knowledge and Skills Package | 3 | — | gen_ed | 4 | 0.90 |
+| CMPS310 | Software Engineering | 4 | CMPS251 | cs_core | 5 | 0.82 |
+| CMPE355 | Data Communication and Computer Networks I | 4 | CMPE263 | cs_core | 5 | 0.78 |
+| CMPS380 | Cybersecurity Fundamentals | 3 | CMPS303 | cs_core | 5 | 0.82 |
+| CSEL1 | Major Elective I | 3 | — | cs_elective | 5 | 0.85 |
+| NSMP201 | Natural Science/Mathematics Package | 3 | — | gen_ed | 5 | 0.90 |
+| CMPS405 | Operating Systems | 4 | CMPS303, CMPE263 | cs_core | 6 | 0.76 |
+| CMPS350 | Web Development | 3 | CMPS251 | cs_core | 6 | 0.84 |
+| CSEL2 | Major Elective II | 3 | — | cs_elective | 6 | 0.85 |
+| GENG300 | Numerical Methods | 3 | MATH231 | math | 6 | 0.80 |
+| DAWA111 | Islamic Culture | 3 | — | gen_ed | 6 | 0.92 |
+| CMPS493 | Senior Project I | 3 | see §1 special rule | cs_core | 7 | 0.88 |
+| CSEL3 | Major Elective III | 3 | — | cs_elective | 7 | 0.85 |
+| CMPS307 | Intro to Project Management & Entrepreneurship | 2 | — | gen_ed | 7 | 0.90 |
+| HUMF201 | Humanities/Fine Arts Package | 3 | — | gen_ed | 7 | 0.90 |
+| CMPS499 | Senior Project II | 3 | CMPS493 | cs_core | 8 | 0.90 |
+| CSEL4 | Major Elective IV | 3 | — | cs_elective | 8 | 0.85 |
+| MAGT101 | Principles of Management | 3 | — | gen_ed | 8 | 0.90 |
+| SOCB201 | Social and Behavioral Package | 3 | — | gen_ed | 8 | 0.90 |
 
-Prerequisites and offering seasons below match `data/curriculum.json` (the source of truth) and the 2024 CS Prerequisite Flowchart.
+\*Pass rates are calibrated *estimates* in `data/curriculum.json`, hand-tunable per course; treat
+the values above as a snapshot, not a fixed constant — check the JSON file for the current value
+before quoting a specific number.
 
-| Code | Title | CH | Prerequisites | Offering | Category |
-|---|---|---|---|---|---|
-| CMPS 151 | Programming Concepts | 3 | — | Fall + Spring | cs_core |
-| CMPS 200 | Computer Ethics | 1 | — | Fall + Spring | cs_core |
-| CMPS 205 | Discrete Structures | 3 | — | Fall + Spring | cs_core |
-| CMPS 251 | Object-Oriented Programming | 4 | CMPS151 | Fall + Spring | cs_core |
-| CMPS 303 | Data Structures | 4 | CMPS251 | Fall + Spring | cs_core |
-| CMPS 350 | Web Development Fundamentals | 3 | CMPS251 | Fall + Spring | cs_core |
-| CMPS 351 | Fundamentals of Database Systems | 4 | CMPS251 | **Spring only** | cs_core |
-| CMPS 310 | Software Engineering | 4 | CMPS251 | **Fall only** | cs_core |
-| CMPE 263 | Computer Architecture and Organization I | 3 | CMPS151, CMPS205 | Fall + Spring | cs_core |
-| CMPE 355 | Data Communication & Computer Networks I | 4 | CMPE263 | **Fall only** | cs_core |
-| CMPS 380 | Cybersecurity Fundamentals | 3 | CMPS303 | **Fall only** | cs_core |
-| CMPS 323 | Design and Analysis of Algorithms | 3 | CMPS303, CMPS205 | **Spring only** | cs_core |
-| CMPS 405 | Operating Systems | 4 | CMPS303, CMPE263 | **Spring only** | cs_core |
-| CMPS 493 | Senior Project I | 3 | see §1 special rule | Fall + Spring | cs_core |
-| CMPS 499 | Senior Project II | 3 | CMPS493 | Fall + Spring | cs_core |
+**The CMPS303 gateway**: CMPS303 (Data Structures) is the prerequisite for exactly three courses:
+CMPS380, CMPS323, and CMPS405. It is the highest-leverage node in the prerequisite graph; a
+failure or deferral here blocks all three simultaneously. This is still the model's headline
+structural finding (§4.11), but it now shows up purely as a `prereq_block` effect, not an
+`offering_block` one, since (per the note above) no course is season-restricted anymore.
 
-**The CMPS 303 gateway**: CMPS 303 (Data Structures) is the prerequisite for exactly three courses: CMPS 380, CMPS 323, and CMPS 405. It is the highest-leverage node in the prerequisite graph; a failure or deferral here blocks all three simultaneously.
+**Major Electives (`CSEL1`-`4`, 4 x 3 CH = 12 CH)**: available once the student has completed
+≥ 60 CH (config: `enrollment_priority_tiers`), no course-level prerequisites.
 
-**Category note**: CMPS200 (1 CH) and CMPS205 (3 CH) are counted as cs_core above, which yields exactly 49 CH / 15 courses matching the study plan. CMPS307 (2 CH) and MAGT101 (3 CH) are Major Supporting (5 CH, 2 courses); they appear below in the pseudo-course table.
-
-### Major Electives (4 slots, 12 CH)
-Four abstract `ELEC_1` through `ELEC_4` (3 CH each). Available once the student has completed ≥ 60 CH. No course prerequisites. Offering: Fall + Spring.
-
-### Non-CS Courses, Expanded as Pseudo-Courses
-
-Bundles are expanded into individual pseudo-courses so that:
-- Each has an exact credit-hour value
-- Prerequisite chains within bundles are explicit
-- "Blocked" detection works the same way as for CS courses
-- Credit accounting is trivially verifiable
-
-| Code | Covers | CH | Prerequisites | Offering |
-|---|---|---|---|---|
-| MATH_1 | MATH101 Calculus I | 3 | — | Fall + Spring |
-| MATH_2 | MATH102 Calculus II | 3 | MATH_1 | Fall + Spring |
-| MATH_3 | MATH231 Linear Algebra | 3 | MATH_1 | Fall + Spring |
-| MATH_4 | GENG200 Probability & Statistics | 3 | MATH_2 | Fall + Spring |
-| MATH_5 | GENG300 Numerical Methods | 3 | MATH_4 | Fall + Spring |
-| PHYS_1 | PHYS191 + PHYS192 Physics I | 4 | — | Fall + Spring |
-| PHYS_2 | PHYS193 + PHYS194 Physics II | 4 | PHYS_1 | Fall + Spring |
-| CHEM_1 | CHEM101 + CHEM103 Chemistry I | 4 | — | Fall + Spring |
-| ENGL_1 | ENGL202 English Language I | 3 | — | Fall + Spring |
-| ENGL_2 | ENGL203 English Language II | 3 | ENGL_1 | Fall + Spring |
-| GED_1 | HIST121 History of Qatar | 3 | — | Fall + Spring |
-| GED_2 | ARAB100 Arabic Language I | 3 | — | Fall + Spring |
-| GED_3 | Core Knowledge & Skills Package | 3 | — | Fall + Spring |
-| GED_4 | DAWA111 Islamic Culture | 3 | — | Fall + Spring |
-| GED_5 | Natural Science/Mathematics Package | 3 | — | Fall + Spring |
-| GED_6 | Humanities/Fine Arts Package | 3 | — | Fall + Spring |
-| GED_7 | Social/Behavioral Sciences Package | 3 | — | Fall + Spring |
-| SUPP_1 | CMPS307 Project Management | 2 | — | Fall + Spring |
-| SUPP_2 | MAGT101 Principles of Management | 3 | — | Fall + Spring |
-
-### Credit Hour Reconciliation (must equal 120)
-| Group | Courses | CH |
-|---|---|---|
-| CS core (15 courses) | CMPS151…CMPS499 | 49 |
-| Major Supporting (2) | CMPS307, MAGT101 | 5 |
-| Major Electives (4) | ELEC_1…ELEC_4 | 12 |
-| Math sequence (5) | MATH_1…MATH_5 | 15 |
-| Physics (2) | PHYS_1, PHYS_2 | 8 |
-| Chemistry (1) | CHEM_1 | 4 |
-| English (2) | ENGL_1, ENGL_2 | 6 |
-| General education (7) | GED_1…GED_7 | 21 |
-| **Total** | **38 pseudo-courses + 4 elective slots** | **120** |
+**Credit-hour reconciliation**: the 41 real courses above sum to exactly 120 CH (verified
+directly from `data/curriculum.json`, not a separately-maintained table) — completing all of them
+guarantees the 120-CH graduation requirement (§3).
 
 ---
 
@@ -120,9 +123,11 @@ Do **not** use `completed_ch ≥ 120` as a separate gate. Because the catalog is
 ## 4. Simulation Assumptions
 
 ### 4.1 Cohort
-- 100 students, all starting Fall Semester 1
-- Maximum study duration: 12 regular semesters (6 academic years)
+- `cohort_size` students per cohort (config default: 100), all starting the same admission term
+- Maximum study duration: `max_terms` regular semesters (config default: 12, i.e. 6 academic years)
 - Reproducible via fixed seed (default 42)
+- This section describes the mechanics for *one* cohort in isolation; the shipped configuration
+  actually runs several cohorts admitted over time on one shared seat pool — see §11.
 
 ### 4.2 Common Random Numbers (CRN)
 
@@ -146,23 +151,8 @@ Ability is sampled once per student (using their RNG) at cohort creation, before
 
 ### 4.4 Pass Rates (Base)
 
-Values match `data/curriculum.json`.
-
-| Course | Pass Rate | Course | Pass Rate |
-|---|---|---|---|
-| CMPS 151 | 0.78 | CMPS 310 | 0.72 |
-| CMPS 200 | 0.98 | CMPE 355 | 0.72 |
-| CMPS 205 | 0.76 | CMPS 380 | 0.75 |
-| CMPS 251 | 0.72 | CMPS 405 | 0.65 |
-| CMPS 303 | 0.71 | CMPS 350 | 0.76 |
-| CMPS 323 | 0.65 | CMPS 307 (SUPP_1) | 0.92 |
-| CMPE 263 | 0.76 | CMPS 493 | 0.88 |
-| CMPS 351 | 0.75 | CMPS 499 | 0.90 |
-| ELEC_X | 0.78 | MATH_1 / MATH_3 | 0.82 |
-| MATH_2 | 0.85 | MATH_4 / MATH_5 | 0.82 |
-| PHYS_1 | 0.84 | PHYS_2 | 0.80 |
-| CHEM_1 | 0.88 | ENGL_X | 0.90 |
-| GED_X | 0.92 | SUPP_2 (MAGT101) | 0.92 |
+See §2's course table for the current per-course pass rates (`data/curriculum.json` is the
+source of truth; they're hand-tunable and change as the model gets recalibrated).
 
 ### 4.5 Grade Distribution
 When a student passes a course, their letter grade is sampled from a weighted distribution based on the **course's base `pass_rate`** (not the student-shifted effective rate; ability affects whether you pass, not which tier the course belongs to):
@@ -188,19 +178,25 @@ A grade of **D or better** satisfies a prerequisite. There is no minimum-grade r
 - Order of operations each semester: resolve grades → update `completed_ch` → recalculate GPA → check probation → determine next semester's load
 
 ### 4.8 Enrollment Rules
-Priority order per semester:
-1. Failed required CS core courses (retakes first)
-2. New eligible CS core courses (study-plan sequence order)
-3. Major elective slots (once ≥ 60 CH completed)
-4. Non-CS pseudo-courses (fill remaining credit space)
+Priority order per semester (config: `enrollment_priority_tiers`):
+1. Retakes of any previously-failed course, always first
+2. `cs_core` / `college_req` courses (required), in `study_plan_order`
+3. `cs_elective` slots (`CSEL1`-`4`), once ≥ 60 completed CH
+4. `math` / `science` / `english` / `gen_ed` courses (fill remaining credit space)
 
-Subject to: Normal ≤ 18 CH | Probation ≤ 12 CH | Summer ≤ 12 CH (normal) / 6 CH (probation)
+Subject to: Normal ≤ `normal_load_ch` CH (18) | Probation ≤ `probation_load_ch` CH (12). A
+different program redefines these tiers/thresholds in config, not in code.
 
 ### 4.9 Dropout Rules
-| Trigger | Probability |
+
+Two independent, config-driven triggers can end a student's career early (values below are the
+current `simulation_config.json` defaults, hand-tunable):
+
+| Trigger | Mechanism |
 |---|---|
-| Same course failed 3 times (`dropout_fails_threshold`) | 25% dropout per additional failure (`dropout_prob_on_repeated_fail`) |
-| Exceeded 12-semester maximum | Censored (counted as non-completion, not academic dropout) |
+| **Chronic low GPA** | Once a student has enough credits for GPA to be meaningful, each term their GPA sits below `dropout_gpa_floor` (2.0) carries a real per-term hazard of leaving; that hazard is front-loaded, multiplied by `dropout_early_multiplier` (2.0) for a student's first `dropout_early_sem_cutoff` (4) semesters, matching how real first-year/sophomore attrition is heavily weighted toward the early years. |
+| **Stuck on one course** | Same course failed ≥ `dropout_fails_threshold` (3) times → `dropout_prob_on_repeated_fail` (0.15) chance of dropping, per additional failure past the threshold — independent of overall GPA. |
+| Exceeded `max_terms` (12) | `CENSORED` (non-completion, not counted as an academic dropout). |
 
 ### 4.10 Status Transitions
 Status values (uppercase, as in `student.py` / `simulator.py`): `ACTIVE`, `DELAYED`, `GRADUATED`, `DROPPED`, `CENSORED`.
@@ -229,17 +225,28 @@ Do **not** lump these together. They have different causes and different fixes, 
 
 **Unit caveat:** these four are *not* comparable in magnitude. `fail_counts` counts per-attempt events; `offering_block` and `prereq_block` accumulate one event per active eligible student per term they remain blocked, so they run an order of magnitude larger. Compare *within* a signal (across courses), never *across* signals.
 
-**The dominant findings are scheduling-driven, not failure-driven.** Two structural patterns surface from these counters:
-1. **The CMPS 310 senior-project gate**: CMPS 310 is Fall-only and required by the CMPS 493 compound rule, so a missed Fall offering delays the entire senior-project sequence by a year. It is the most pivotal `offering_block` in the curriculum.
-2. **The CMPS 303 gateway**: the three courses gated by CMPS 303 (CMPS 405, CMPS 323, CMPS 380) carry the highest `prereq_block` counts outside the senior project, blocked in lockstep.
+**Historical note:** an earlier revision of the curriculum had CMPS310 as Fall-only and several
+other courses Spring-only, which made `offering_block` (a once-a-year scheduling gap) one of the
+model's headline findings alongside the CMPS303 gateway. Once the curriculum switched to the real
+QU data (§2), that restriction was dropped: every mandatory-term course is now offered Fall +
+Spring, so `offering_block` is structurally near-zero unless optional Winter/Summer terms are
+enabled and a course isn't on that smaller offering list (see CLAUDE.md's "Term/Season Model").
 
-Both are availability/prerequisite bottlenecks, not failure ones; that distinction is the central finding of the simulation and is surfaced in the four-panel bottleneck figure.
+**What still holds as the headline structural finding**: **the CMPS303 gateway**. CMPS303 (Data
+Structures) gates CMPS380, CMPS323, and CMPS405 simultaneously, so a delay or failure at CMPS303
+now shows up as a `prereq_block` spike on all three at once, even though nothing is actually wrong
+with those three courses themselves — that lockstep pattern is what points you at the real
+chokepoint (CMPS303) instead of its three symptoms. Whether `capacity_block` (seat scarcity) or
+`prereq_block` (this gateway effect) dominates in a given run now depends on the configured
+section counts (`course_sections`) and cohort size, not on a hardcoded seasonal restriction, so
+this is a claim to re-check against a current run rather than treat as a fixed fact — see
+`docs/project_overview.md` §6 on why point-in-time output numbers go stale.
 
 ---
 
 ## 5. How the Model Works (Execution Walkthrough)
 
-The simulator is a **discrete-term agent-based model**. Time advances in whole semesters; the agents are 100 independent `Student` objects; and one shared `Simulator` drives them through the curriculum. There is no continuous time and no inter-student interaction except competition for finite seats. This section traces exactly what happens from start to finish, anchored to the real functions in `src/`.
+The simulator is a **discrete-term agent-based model**. Time advances in whole semesters; the agents are independent `Student` objects (one cohort's worth at a time in this section's walkthrough, `cohort_size` per cohort, several cohorts at once in the real shipped model per §11); and one shared `Simulator` drives them through the curriculum. There is no continuous time and no inter-student interaction except competition for finite seats. This section traces exactly what happens from start to finish, anchored to the real functions in `src/`.
 
 > **Update**: this walkthrough predates the multi-cohort model (§4 below covers that) and now
 > also predates the generalized term/season model — the 2-season ("Fall, Spring, Fall, ...")
@@ -251,7 +258,7 @@ The simulator is a **discrete-term agent-based model**. Time advances in whole s
 ### 5.1 Top-Level Run (`Simulator.run`)
 
 ```
-1. _make_students()                     # build the 100-student cohort
+1. _make_students()                     # build the cohort (cohort_size students)
 2. for term_idx in 0 .. max_terms-1:    # 12 terms = Fall, Spring, Fall, ...
        season = term_season(term_idx)   # even idx → Fall, odd idx → Spring
        _run_term(term_idx, season)
@@ -297,7 +304,10 @@ For each granted seat:
 - `record_grade` updates GPA and credit hours (see §5.4).
 
 **Post-phase bookkeeping (still inside `_run_term`):**
-- **Dropout check**: for each student, if any single course has been failed `≥ dropout_fails_threshold` (4) times, roll `rng.random() < dropout_prob` (0.25); on success the student becomes `DROPPED`.
+- **Dropout check**: two independent triggers, both config-driven (§4.9) — a repeated-fail check
+  (any single course failed `≥ dropout_fails_threshold` times rolls `dropout_prob_on_repeated_fail`
+  per additional failure) and a chronic-low-GPA hazard, front-loaded toward early semesters. Either
+  success marks the student `DROPPED`.
 - **Graduation / delayed check**: a student who has passed *every* course in the curriculum becomes `GRADUATED` and their term number is appended to `graduation_times`; a still-active student past term 8 is flagged `DELAYED` (behind the nominal plan but still progressing).
 - **Block recording (`_record_blocks`)**: for every active student and every not-yet-passed course, classify *why* they aren't taking it this term (see §5.5).
 - **Snapshot (`History.record_snapshot`)**: tally `ACTIVE/DELAYED/GRADUATED/DROPPED/CENSORED` counts and the four credit-hour bands for the survivorship and stage-flow figures.
@@ -330,66 +340,51 @@ The research question is *which prerequisite chains and scheduling constraints c
 
 ## 6. Class Architecture
 
-This reflects the actual code (`src/`), not an idealized design.
+This reflects the actual code (`src/`) as of this revision — see `CLAUDE.md`'s own
+"Architecture" section for the living, most-current version of this map.
 
 ```
 src/
 ├── models/
-│   ├── course.py
-│   │   ├── Course (dataclass)
-│   │   └── load_curriculum(path) -> dict[str, Course]
-│   │
-│   ├── student.py
-│   │   ├── Student
-│   │   │   ├── student_id, rng (random.Random(seed + student_id))
-│   │   │   ├── ability_score                # sampled once at creation
-│   │   │   ├── completed_courses: dict[str, str]   # code -> grade letter
-│   │   │   ├── failed_attempts: dict[str, int]     # code -> fail count
-│   │   │   ├── gpa, completed_ch
-│   │   │   ├── status: str                  # ACTIVE/DELAYED/GRADUATED/DROPPED/CENSORED
-│   │   │   ├── ever_probation: bool
-│   │   │   ├── effective_pass_rate(course) -> float
-│   │   │   ├── prerequisites_met(course, curriculum) -> bool
-│   │   │   └── is_active() -> bool
-│   │   └── registration_tier(completed_ch) -> int   # QU priority bands
-│   │
-│   └── semester.py
-│       └── term_season(), term_year(), term_label()
+│   ├── course.py       # Course (dataclass) + load_curriculum()
+│   ├── student.py      # Student (rng, ability, GPA, status, registration_tier())
+│   └── semester.py     # term_season()/term_year()/term_label(), config-driven season cycle
 │
-├── simulator.py
-│   ├── History (dataclass)                  # the four block signals + snapshots
-│   │   ├── snapshots: list[dict]            # per-term cohort counts + CH bands
-│   │   ├── fail_counts: dict[str, int]
-│   │   ├── capacity_block_counts: dict[str, int]
-│   │   ├── offering_block_counts: dict[str, int]
-│   │   ├── prereq_block_counts: dict[str, int]
-│   │   └── graduation_times: list[int]
-│   │
-│   ├── SimulationResult (dataclass)         # history + students + scenario/config + metrics
-│   │
-│   └── Simulator
-│       ├── __init__(curriculum, config, scenario)
-│       └── run() -> SimulationResult        # three-phase per-term loop (see §5.3)
-│
-├── analytics.py
-│   ├── compute_metrics(result) -> dict
-│   └── build_summary_csv(results, path) -> None
-│
-├── service.py
-│   └── run_simulation(curriculum, config, scenario) -> dict   # engine-as-a-service
-│       boundary (§11.9 / roadmap.md §2.3): Simulator + every
-│       analytics.py derivation, in memory, zero file I/O — the seam an API calls.
-│
-├── visualize.py
-│   ├── save_all_figures(results, curriculum, config, dir)
-│   └── per-figure functions: funnel, graduation_histogram,
-│       bottlenecks_<scenario> (4-panel), curriculum_network, stage_flow_<scenario>
-│
-└── utils.py
-    ├── load_json(path)
-    └── grade_tier(pass_rate) -> str         # "hard" | "medium" | "easy"
+├── datasource.py        # DataSource seam: CohortSpec + SyntheticDataSource (population
+│                         # creation, decoupled from the engine so a future real-data source
+│                         # can plug in without touching Simulator)
+├── rules.py             # evaluate_rule()/gate_edges() — generic compound prerequisite
+│                         # expressions (how CMPS493's rule is expressed, not hardcoded)
+├── simulator.py         # Simulator (staggered admission + 3-phase per-term loop) + History
+│                         # (the four block signals + snapshots) + SimulationResult
+├── analytics.py         # compute_metrics(), per-cohort metrics, admissions recommendation,
+│                         # curriculum graph, flow_timeline JSON, CSV writers
+├── service.py           # run_simulation(curriculum, config, scenario, instructors=None)
+│                         # -> dict — the engine-as-a-service boundary: Simulator + every
+│                         # analytics.py derivation, in memory, zero file I/O
+├── livesim.py            # LiveRunner — deterministic term-by-term replay for Live Simulation
+│                         # (§11 does not cover this; see CLAUDE.md's "Live Simulation Model")
+├── db.py / db_models.py  # SQLAlchemy engine/session + User/Plan/Course/AppConfig/
+│                         # Instructor/Scenario/Run tables (per-plan, multi-plan support)
+├── auth.py               # get_current_user — a stub shared demo user today, not real
+│                         # login/JWT (that was built, then removed in a later simplification
+│                         # pass; the DB/route plumbing for it is gone from api.py)
+├── curriculum_validation.py  # check_no_cycle() — prerequisite-cycle guard for Settings
+│                         # edits and Plan imports
+├── capacity.py            # build_capacity_report()/build_instructor_capacity() — still
+│                         # physically present but orphaned: no /capacity or /instructors
+│                         # route calls it anymore (removed in the same simplification pass)
+├── api.py                # FastAPI wrapper: /health, /meta, /simulate, /curriculum, /config,
+│                         # /plans, /livesim — every route resolves the requester's active Plan
+│                         # fresh, no cached globals
+├── montecarlo.py         # run_monte_carlo() — mean ± 95% CI over many seeds
+├── visualize.py          # save_all_figures() + per-figure functions (offline `py run.py` path)
+└── utils.py              # load_json(), grade_tier()
 
-run.py   # entry point: load -> run_simulation() per scenario -> save figures + CSV
+web/         Next.js/TypeScript dashboard — Dashboard, Bottlenecks (what-if panel + section
+             recommendations), Cohorts, Figures, Prerequisites, Settings (curriculum + config
+             editing), Plans/Plan Builder, Run History, Live Simulation
+run.py       # entry point: load -> run_simulation() per scenario -> save figures + CSV
 ```
 
 ---
@@ -398,9 +393,14 @@ run.py   # entry point: load -> run_simulation() per scenario -> save figures + 
 
 | Name | Description |
 |---|---|
-| A_baseline | Default pass rates, default capacities (1× multiplier). All semester constraints active. |
+| baseline | Default pass rates, default capacities (1x multiplier). All semester constraints active. |
 
-A single baseline scenario is implemented. The `capacity_multiplier` field in `simulation_config.json` allows future scenarios to scale all capacities uniformly. Per-course overrides are supported via `capacity_overrides` and `pass_rate_overrides` in the scenario dict.
+A single `baseline` scenario ships in `simulation_config.json` (renamed from an earlier
+`A_baseline`, after a second calibrated scenario was tried and later dropped). The
+`capacity_multiplier` field allows a future scenario to scale all capacities uniformly.
+Per-course overrides are supported via `capacity_overrides`, `offering_overrides`, and
+`pass_rate_overrides` in a scenario/override dict — these are the hooks the Bottlenecks page's
+what-if panel and Live Simulation's edits both build on.
 
 ---
 
