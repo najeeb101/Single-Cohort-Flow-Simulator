@@ -8,6 +8,25 @@
 
 ### 1. Describe what you did during this period.
 
+**Database schema** (`src/db_models.py`) — one `Plan` owns its own `Course`/`Instructor`/`AppConfig` rows so multiple curricula can be stored side by side without their data colliding; `User.active_plan_id` makes plan selection per-user rather than a single global mutable baseline.
+
+![Database schema: Plan-scoped Course/Instructor/AppConfig tables, User/Scenario/Run tables, and the Live Simulation append-only edit log](images/db_schema.png)
+
+**Dashboard** — the program roadmap animates term by term as the simulation runs, showing seat usage and status per course, colored by requirement type, with a running narrative of what happened each semester.
+
+![Dashboard mid-run: Fall Y4, showing seat usage per course and a running narrative of enrollments, capacity blocks, and graduations](images/dashboard_running.png)
+
+**Analytics** — the Bottlenecks page ranks courses by which of the four block signals (failure, capacity, offering, prerequisite) delays students most, and the Figures page charts population and per-cohort survival over the full run.
+
+![Bottlenecks page: top courses ranked by failure/capacity/offering/prerequisite blocks, plus section-addition recommendations](images/analytics_bottlenecks.png)
+
+![Analytics figures: university population over time and per-cohort enrollment survival curves](images/analytics_figures.png)
+
+**Live Simulation** — a separate stepwise mode that advances one term at a time so an admin can review a term and edit capacity/policy knobs before advancing.
+
+![Live Simulation page: term-by-term advance control, running totals, and the same program roadmap reused for a live-edited run](images/live_simulation.png)
+
+
 This period was spent building a discrete-term, agent-based simulation of Qatar University's
 Computer Science curriculum, modeling how students move through prerequisite chains,
 registration priority, and course capacity over up to 12 semesters, with the goal of identifying
