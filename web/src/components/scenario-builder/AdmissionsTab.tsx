@@ -1,17 +1,20 @@
+import type { CourseRecord } from "@/types/simulation";
 import type { BuilderState } from "@/lib/scenarioBuilder";
 import { FieldRow, NumberBox, SectionCard } from "./fields";
+import InitialOccupancyTable from "./InitialOccupancyTable";
 
 interface Props {
   mode: "simple" | "advanced";
   state: BuilderState;
   baseline: BuilderState;
+  courses: CourseRecord[];
   setField: <K extends keyof BuilderState>(key: K, value: BuilderState[K]) => void;
-  setRecordField: (key: "standing", code: string, value: number) => void;
+  setRecordField: (key: "standing" | "initialOccupancy", code: string, value: number) => void;
 }
 
 const STANDING_NODES = ["Year2", "Year3", "Year4"] as const;
 
-export default function AdmissionsTab({ mode, state, baseline, setField, setRecordField }: Props) {
+export default function AdmissionsTab({ mode, state, baseline, courses, setField, setRecordField }: Props) {
   const dirty = (key: keyof BuilderState) => state[key] !== baseline[key];
   const standingDirty = (node: string) => (state.standing[node] ?? 0) !== (baseline.standing[node] ?? 0);
 
@@ -49,7 +52,7 @@ export default function AdmissionsTab({ mode, state, baseline, setField, setReco
         <p className="mb-2.5 text-xs text-muted">
           Head-count of students already enrolled at each year-standing when the simulation
           starts. Added as a constant background to the flow chart so it isn&apos;t empty at term&nbsp;0.
-          Per-course occupied seats are set under the <b>Capacity</b> tab.
+          Per-course occupied seats are entered in the table below (Advanced only).
         </p>
         <div className="flex flex-wrap gap-2">
           {STANDING_NODES.map((node) => (
@@ -65,6 +68,10 @@ export default function AdmissionsTab({ mode, state, baseline, setField, setReco
           ))}
         </div>
       </SectionCard>
+
+      {mode === "advanced" && (
+        <InitialOccupancyTable courses={courses} state={state} baseline={baseline} setRecordField={setRecordField} />
+      )}
     </div>
   );
 }

@@ -74,7 +74,7 @@ export default function PlanBuilderWizard() {
   const setField = <K extends keyof BuilderState>(key: K, value: BuilderState[K]) =>
     setBuilderState((prev) => (prev ? { ...prev, [key]: value } : prev));
 
-  const setRecordField = (key: "passRates" | "standing", code: string, value: number) =>
+  const setRecordField = (key: "passRates" | "standing" | "initialOccupancy", code: string, value: number) =>
     setBuilderState((prev) => (prev ? { ...prev, [key]: { ...prev[key], [code]: value } } : prev));
 
   const save = async () => {
@@ -197,6 +197,7 @@ export default function PlanBuilderWizard() {
             meta={metaFromPlanExport(courses, baseConfig)}
             state={builderState}
             baseline={baselineState}
+            courses={courses}
             setField={setField}
             setRecordField={setRecordField}
           />

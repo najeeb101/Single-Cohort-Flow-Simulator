@@ -39,7 +39,7 @@ export default function SettingsPage() {
   const setField = <K extends keyof BuilderState>(key: K, value: BuilderState[K]) =>
     setState((prev) => ({ ...prev, [key]: value }));
 
-  const setRecordField = (key: "passRates" | "standing", code: string, value: number) =>
+  const setRecordField = (key: "passRates" | "standing" | "initialOccupancy", code: string, value: number) =>
     setState((prev) => ({ ...prev, [key]: { ...prev[key], [code]: value } }));
 
   const saveConfig = async () => {
@@ -195,7 +195,14 @@ export default function SettingsPage() {
       <section className="py-6">
         <h2 className="mb-3 text-[15px] font-bold">Baseline configuration</h2>
         <div className="flex flex-col gap-4">
-          <AdmissionsTab mode="advanced" state={state} baseline={baseline} setField={setField} setRecordField={setRecordField} />
+          <AdmissionsTab
+            mode="advanced"
+            state={state}
+            baseline={baseline}
+            courses={courses ?? []}
+            setField={setField}
+            setRecordField={setRecordField}
+          />
           <PassRatesDropoutTab mode="advanced" meta={meta} state={state} baseline={baseline} setField={setField} setRecordField={setRecordField} />
           <RegistrationPolicyTab mode="advanced" state={state} baseline={baseline} setField={setField} />
         </div>
