@@ -16,7 +16,7 @@ import RegistrationPolicyTab from "@/components/scenario-builder/RegistrationPol
 // baseline via PUT /config (+ per-course PUT /curriculum for any pass_rate edits) instead
 // of building a one-run /simulate override.
 export default function SettingsPage() {
-  const { meta } = useSimulation();
+  const { meta, refreshBaseline } = useSimulation();
   const baseline = baselineFromMeta(meta);
   const [state, setState] = useState<BuilderState>(baseline);
   const [courses, setCourses] = useState<CourseRecord[] | null>(null);
@@ -35,6 +35,14 @@ export default function SettingsPage() {
       .then((plans) => setActivePlan(plans.find((p) => p.is_active) ?? null))
       .catch(() => setActivePlan(null));
   }, []);
+
+  // CurriculumTable saves each add/edit/delete immediately (independent of the "Save as new
+  // baseline" button below) — refresh the shared context the same way so those edits show up
+  // on the Dashboard/Bottlenecks/Analytics/Live pages right away instead of after a reload.
+  const handleCoursesChange = (next: CourseRecord[]) => {
+    setCourses(next);
+    refreshBaseline().catch(() => {});
+  };
 
   const setField = <K extends keyof BuilderState>(key: K, value: BuilderState[K]) =>
     setState((prev) => ({ ...prev, [key]: value }));
@@ -98,6 +106,16 @@ export default function SettingsPage() {
       return;
     }
 
+    // The saved rows above are the source of truth; re-fetch meta + re-run the baseline
+    // simulation so the shared SimulationContext (Dashboard, Bottlenecks, Analytics, Live)
+    // reflects the new baseline immediately instead of only after a hard reload.
+    try {
+      await refreshBaseline();
+    } catch {
+      // Config/course rows already saved successfully — a refresh hiccup here shouldn't
+      // be reported as a save failure. The next page load will pick up the new baseline.
+    }
+
     setStatus("saved");
   };
 
@@ -130,7 +148,7 @@ export default function SettingsPage() {
         {courses === null ? (
           <p className="text-[12.5px] text-muted">Loading…</p>
         ) : (
-          <CurriculumTable courses={courses} onChange={setCourses} />
+          <CurriculumTable courses={courses} onChange={handleCoursesChange} />
         )}
       </section>
 
