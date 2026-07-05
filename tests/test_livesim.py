@@ -40,7 +40,7 @@ def _isolate_demo_users_plan_state():
 
     from src.auth import DEMO_USER_EMAIL
     from src.db import SessionLocal, get_or_create_default_plan
-    from src.db_models import AppConfig, Course, Instructor, LiveSimulation, LiveTermSnapshot, User
+    from src.db_models import AppConfig, Course, LiveSimulation, LiveTermSnapshot, User
 
     with SessionLocal() as session:
         default_plan = get_or_create_default_plan(session)
@@ -58,7 +58,6 @@ def _isolate_demo_users_plan_state():
                 ).delete(synchronize_session=False)
                 session.query(LiveSimulation).filter_by(plan_id=plan_id).delete(synchronize_session=False)
             session.query(Course).filter_by(plan_id=plan_id).delete(synchronize_session=False)
-            session.query(Instructor).filter_by(plan_id=plan_id).delete(synchronize_session=False)
             session.query(AppConfig).filter_by(plan_id=plan_id).delete(synchronize_session=False)
 
         if _created_plan_ids:
@@ -185,13 +184,11 @@ def test_baseline_trajectory_unaffected_by_live_edits():
     unedited = _create_live_sim(headers, "Unedited")
     edited = _create_live_sim(headers, "Edited")
 
-    config = client.get("/config", headers=headers).json()
-    code = next(iter(config["course_sections"]))
-    bumped_sections = {**config["course_sections"], code: config["course_sections"][code] + 10}
+    code = client.get("/meta").json()["graph"]["nodes"][0]["code"]
     for _ in range(3):
         resp = client.post(
             f"/livesim/{edited['id']}/advance",
-            json={"edits": {"course_sections": bumped_sections}},
+            json={"edits": {"capacity_overrides": {code: 1.5}}},
             headers=headers,
         )
         assert resp.status_code == 200
@@ -313,12 +310,10 @@ def test_edit_does_not_change_snapshots_of_earlier_terms():
     frame1_before = client.post(f"/livesim/{sim_id}/advance", json={}, headers=headers).json()["snapshot"]["frame"]
 
     # Now advance to term 2 WITH an edit effective at term 2 (the term being advanced to).
-    config = client.get("/config", headers=headers).json()
-    code = next(iter(config["course_sections"]))
-    bumped_sections = {**config["course_sections"], code: config["course_sections"][code] + 10}
+    code = client.get("/meta").json()["graph"]["nodes"][0]["code"]
     resp = client.post(
         f"/livesim/{sim_id}/advance",
-        json={"edits": {"course_sections": bumped_sections}},
+        json={"edits": {"capacity_overrides": {code: 1.5}}},
         headers=headers,
     )
     assert resp.status_code == 200
@@ -332,55 +327,26 @@ def test_edit_does_not_change_snapshots_of_earlier_terms():
     assert snap1["frame"] == frame1_before
 
 
-def test_course_sections_edit_changes_capacity_from_its_effective_term():
+def test_capacity_override_changes_capacity_from_its_effective_term():
     headers = _register("livesim_edit_changes_capacity@example.com")
     _activate_small_plan(headers, "Livesim capacity-edit plan")
     sim = _create_live_sim(headers)
     sim_id = sim["id"]
 
-    config = client.get("/config", headers=headers).json()
-    code = next(iter(config["course_sections"]))
+    code = client.get("/meta").json()["graph"]["nodes"][0]["code"]
 
     baseline = client.post(f"/livesim/{sim_id}/advance", json={}, headers=headers).json()
     baseline_capacity = baseline["snapshot"]["frame"]["courses"][code]["capacity"]
 
-    bumped_sections = {**config["course_sections"], code: config["course_sections"][code] + 10}
     edited = client.post(
         f"/livesim/{sim_id}/advance",
-        json={"edits": {"course_sections": bumped_sections}},
+        json={"edits": {"capacity_overrides": {code: 2.0}}},
         headers=headers,
     ).json()
     edited_capacity = edited["snapshot"]["frame"]["courses"][code]["capacity"]
 
     assert edited_capacity > baseline_capacity
-    assert edited["snapshot"]["edits_applied"] == {"course_sections": bumped_sections}
-
-
-def test_seats_per_section_override_changes_capacity_from_its_effective_term():
-    headers = _register("livesim_seats_per_section@example.com")
-    _activate_small_plan(headers, "Livesim seats-per-section plan")
-    sim = _create_live_sim(headers)
-    sim_id = sim["id"]
-
-    config = client.get("/config", headers=headers).json()
-    code = next(iter(config["course_sections"]))
-
-    baseline = client.post(f"/livesim/{sim_id}/advance", json={}, headers=headers).json()
-    baseline_capacity = baseline["snapshot"]["frame"]["courses"][code]["capacity"]
-
-    # Bigger sections for just this course — total seats = sections × seats/section, so a
-    # higher per-section count must raise its effective capacity, the same way adding
-    # sections does, without touching any other course.
-    bumped = int(config.get("seats_per_section", 35)) + 20
-    edited = client.post(
-        f"/livesim/{sim_id}/advance",
-        json={"edits": {"seats_per_section_overrides": {code: bumped}}},
-        headers=headers,
-    ).json()
-    edited_capacity = edited["snapshot"]["frame"]["courses"][code]["capacity"]
-
-    assert edited_capacity > baseline_capacity
-    assert edited["snapshot"]["edits_applied"] == {"seats_per_section_overrides": {code: bumped}}
+    assert edited["snapshot"]["edits_applied"] == {"capacity_overrides": {code: 2.0}}
 
 
 def test_replaying_through_api_matches_livesim_runner_directly():

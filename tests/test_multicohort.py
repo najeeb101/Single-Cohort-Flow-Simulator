@@ -84,13 +84,12 @@ def test_initial_state_occupancy_reduces_capacity_and_standing_populates_totals(
     result, config, curriculum = _run()
     occupancy = config["initial_state"]["occupancy"]
     standing = config["initial_state"]["standing"]
-    sps = config["seats_per_section"]
 
     # A course with occupancy has its free seats reduced by exactly that many on a
-    # mandatory term: free = sections * seats_per_section - occupied.
+    # mandatory term: free = capacity - occupied.
     sim = Simulator(curriculum, config, config["scenarios"][0])
     code = "CMPS151"
-    expected = config["course_sections"][code] * sps - occupancy[code]
+    expected = curriculum[code].capacity - occupancy[code]
     assert sim._effective_capacity(curriculum[code]) == expected
 
     # Standing head-counts are folded into the aggregate stage nodes (and exposed as
@@ -101,17 +100,16 @@ def test_initial_state_occupancy_reduces_capacity_and_standing_populates_totals(
         assert frame0["stages"]["totals"]["nodes"][node] >= count
 
 
-def test_effective_capacity_is_sections_times_section_size():
+def test_effective_capacity_is_course_capacity():
     config, curriculum = _setup()
     sim = Simulator(curriculum, config, config["scenarios"][0])
-    sps = config["seats_per_section"]
     occupancy = config.get("initial_state", {}).get("occupancy", {})
     for code in ["CMPS303", "CMPS405", "HIS121"]:
         course = curriculum[code]
-        # Effective capacity is sections × seats, minus any steady-state initial occupancy.
-        expected = config["course_sections"][code] * sps - occupancy.get(code, 0)
+        # Effective capacity is the course's own capacity, minus any steady-state
+        # initial occupancy.
+        expected = course.capacity - occupancy.get(code, 0)
         assert sim._effective_capacity(course) == expected
-        assert sim._section_count(course) == config["course_sections"][code]
 
 
 # ── Shared pool: seniors beat freshmen across cohorts ────────────── #

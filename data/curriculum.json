@@ -10,7 +10,7 @@
       "Spring"
     ],
     "category": "cs_core",
-    "capacity": 120,
+    "capacity": 70,
     "study_plan_order": 1,
     "study_plan_term": 1
   },
@@ -27,7 +27,7 @@
       "Spring"
     ],
     "category": "cs_core",
-    "capacity": 120,
+    "capacity": 70,
     "study_plan_order": 2,
     "study_plan_term": 2
   },
@@ -44,7 +44,7 @@
       "Spring"
     ],
     "category": "cs_core",
-    "capacity": 120,
+    "capacity": 70,
     "study_plan_order": 3,
     "study_plan_term": 3
   },
@@ -59,7 +59,7 @@
       "Spring"
     ],
     "category": "cs_core",
-    "capacity": 120,
+    "capacity": 105,
     "study_plan_order": 4,
     "study_plan_term": 3
   },
@@ -76,7 +76,7 @@
       "Spring"
     ],
     "category": "cs_core",
-    "capacity": 120,
+    "capacity": 70,
     "study_plan_order": 5,
     "study_plan_term": 3
   },
@@ -93,7 +93,7 @@
       "Spring"
     ],
     "category": "cs_core",
-    "capacity": 120,
+    "capacity": 70,
     "study_plan_order": 6,
     "study_plan_term": 4
   },
@@ -111,7 +111,7 @@
       "Spring"
     ],
     "category": "cs_core",
-    "capacity": 120,
+    "capacity": 70,
     "study_plan_order": 7,
     "study_plan_term": 4
   },
@@ -128,7 +128,7 @@
       "Spring"
     ],
     "category": "cs_core",
-    "capacity": 120,
+    "capacity": 70,
     "study_plan_order": 8,
     "study_plan_term": 4
   },
@@ -145,7 +145,7 @@
       "Spring"
     ],
     "category": "cs_core",
-    "capacity": 120,
+    "capacity": 35,
     "study_plan_order": 9,
     "study_plan_term": 5
   },
@@ -163,7 +163,7 @@
       "Spring"
     ],
     "category": "cs_core",
-    "capacity": 120,
+    "capacity": 70,
     "study_plan_order": 10,
     "study_plan_term": 6
   },
@@ -180,7 +180,7 @@
       "Spring"
     ],
     "category": "cs_core",
-    "capacity": 120,
+    "capacity": 70,
     "study_plan_order": 11,
     "study_plan_term": 5
   },
@@ -197,7 +197,7 @@
       "Spring"
     ],
     "category": "cs_core",
-    "capacity": 120,
+    "capacity": 70,
     "study_plan_order": 12,
     "study_plan_term": 6
   },
@@ -214,7 +214,7 @@
       "Spring"
     ],
     "category": "cs_core",
-    "capacity": 120,
+    "capacity": 70,
     "study_plan_order": 13,
     "study_plan_term": 5
   },
@@ -229,7 +229,7 @@
       "Spring"
     ],
     "category": "cs_core",
-    "capacity": 30,
+    "capacity": 35,
     "rule_expr": {
       "all": [
         "CMPS310",
@@ -260,7 +260,7 @@
       "Spring"
     ],
     "category": "cs_core",
-    "capacity": 30,
+    "capacity": 35,
     "study_plan_order": 15,
     "study_plan_term": 8
   },
@@ -275,7 +275,7 @@
       "Spring"
     ],
     "category": "cs_elective",
-    "capacity": 60,
+    "capacity": 35,
     "study_plan_order": 20,
     "study_plan_term": 5
   },
@@ -290,7 +290,7 @@
       "Spring"
     ],
     "category": "cs_elective",
-    "capacity": 60,
+    "capacity": 70,
     "study_plan_order": 21,
     "study_plan_term": 6
   },
@@ -305,7 +305,7 @@
       "Spring"
     ],
     "category": "cs_elective",
-    "capacity": 60,
+    "capacity": 35,
     "study_plan_order": 22,
     "study_plan_term": 7
   },
@@ -320,7 +320,7 @@
       "Spring"
     ],
     "category": "cs_elective",
-    "capacity": 60,
+    "capacity": 35,
     "study_plan_order": 23,
     "study_plan_term": 8
   },
@@ -335,7 +335,7 @@
       "Spring"
     ],
     "category": "math",
-    "capacity": 120,
+    "capacity": 105,
     "study_plan_order": 30,
     "study_plan_term": 1
   },
@@ -352,7 +352,7 @@
       "Spring"
     ],
     "category": "math",
-    "capacity": 120,
+    "capacity": 105,
     "study_plan_order": 31,
     "study_plan_term": 2
   },
@@ -369,7 +369,7 @@
       "Spring"
     ],
     "category": "math",
-    "capacity": 120,
+    "capacity": 70,
     "study_plan_order": 32,
     "study_plan_term": 2
   },
@@ -386,7 +386,7 @@
       "Spring"
     ],
     "category": "math",
-    "capacity": 120,
+    "capacity": 70,
     "study_plan_order": 33,
     "study_plan_term": 4
   },
@@ -403,7 +403,7 @@
       "Spring"
     ],
     "category": "math",
-    "capacity": 120,
+    "capacity": 70,
     "study_plan_order": 34,
     "study_plan_term": 6
   },
@@ -418,7 +418,7 @@
       "Spring"
     ],
     "category": "science",
-    "capacity": 120,
+    "capacity": 105,
     "study_plan_order": 40,
     "study_plan_term": 1
   },
@@ -433,7 +433,7 @@
       "Spring"
     ],
     "category": "science",
-    "capacity": 120,
+    "capacity": 105,
     "study_plan_order": 41,
     "study_plan_term": 1
   },
@@ -448,7 +448,7 @@
       "Spring"
     ],
     "category": "science",
-    "capacity": 120,
+    "capacity": 105,
     "study_plan_order": 42,
     "study_plan_term": 2
   },
@@ -463,7 +463,7 @@
       "Spring"
     ],
     "category": "science",
-    "capacity": 120,
+    "capacity": 105,
     "study_plan_order": 43,
     "study_plan_term": 2
   },
@@ -480,7 +480,7 @@
       "Spring"
     ],
     "category": "science",
-    "capacity": 120,
+    "capacity": 105,
     "study_plan_order": 44,
     "study_plan_term": 3
   },
@@ -497,7 +497,7 @@
       "Spring"
     ],
     "category": "science",
-    "capacity": 120,
+    "capacity": 105,
     "study_plan_order": 45,
     "study_plan_term": 3
   },
@@ -512,7 +512,7 @@
       "Spring"
     ],
     "category": "english",
-    "capacity": 100,
+    "capacity": 105,
     "study_plan_order": 50,
     "study_plan_term": 1
   },
@@ -529,7 +529,7 @@
       "Spring"
     ],
     "category": "english",
-    "capacity": 100,
+    "capacity": 105,
     "study_plan_order": 51,
     "study_plan_term": 2
   },
@@ -544,7 +544,7 @@
       "Spring"
     ],
     "category": "gen_ed",
-    "capacity": 120,
+    "capacity": 105,
     "study_plan_order": 60,
     "study_plan_term": 1
   },
@@ -559,7 +559,7 @@
       "Spring"
     ],
     "category": "gen_ed",
-    "capacity": 120,
+    "capacity": 70,
     "study_plan_order": 61,
     "study_plan_term": 3
   },
@@ -574,7 +574,7 @@
       "Spring"
     ],
     "category": "gen_ed",
-    "capacity": 120,
+    "capacity": 70,
     "study_plan_order": 62,
     "study_plan_term": 4
   },
@@ -589,7 +589,7 @@
       "Spring"
     ],
     "category": "gen_ed",
-    "capacity": 120,
+    "capacity": 70,
     "study_plan_order": 63,
     "study_plan_term": 5
   },
@@ -604,7 +604,7 @@
       "Spring"
     ],
     "category": "gen_ed",
-    "capacity": 120,
+    "capacity": 70,
     "study_plan_order": 64,
     "study_plan_term": 6
   },
@@ -619,7 +619,7 @@
       "Spring"
     ],
     "category": "gen_ed",
-    "capacity": 120,
+    "capacity": 70,
     "study_plan_order": 65,
     "study_plan_term": 7
   },
@@ -634,7 +634,7 @@
       "Spring"
     ],
     "category": "gen_ed",
-    "capacity": 120,
+    "capacity": 70,
     "study_plan_order": 66,
     "study_plan_term": 7
   },
@@ -649,7 +649,7 @@
       "Spring"
     ],
     "category": "gen_ed",
-    "capacity": 120,
+    "capacity": 70,
     "study_plan_order": 67,
     "study_plan_term": 8
   },
@@ -664,7 +664,7 @@
       "Spring"
     ],
     "category": "gen_ed",
-    "capacity": 120,
+    "capacity": 70,
     "study_plan_order": 68,
     "study_plan_term": 8
   }

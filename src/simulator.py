@@ -191,8 +191,8 @@ class Simulator:
         term — a fresh shallow merge every term, never compounding onto a previous term's
         already-patched dict. No-op (config/scenario stay exactly the base objects, by
         identity) when `overlay_provider` is None, so every pre-existing caller is
-        unaffected. `course_sections`/`pass_rate_overrides`/`offering_overrides`/
-        `capacity_overrides` are themselves dicts, so the patch's version (if present)
+        unaffected. `pass_rate_overrides`/`offering_overrides`/`capacity_overrides` are
+        themselves dicts, so the patch's version (if present)
         *replaces* the base map for that key rather than deep-merging key-by-key —
         LiveRunner is responsible for handing in the right cumulative map each call.
         """
@@ -234,7 +234,6 @@ class Simulator:
             cap = self._effective_capacity(c, season) if offered else 0
             course_stats[code] = {
                 "capacity": cap,
-                "sections": self._section_count(c, season) if offered else 0,
                 "registered": 0, "granted": 0, "denied": 0,
                 "passed": 0, "failed": 0,
                 "prereq_waiting": 0, "offering_blocked": 0,
@@ -494,45 +493,8 @@ class Simulator:
             exit_reason=reason,
         ))
 
-    def _seats_per_section(self, code: str | None = None) -> int:
-        # A per-course `seats_per_section_overrides` entry wins over the global default — it
-        # lets the live/what-if layer resize an individual course's sections (e.g. a 40-seat
-        # section) without touching every course. A course absent from the map uses the
-        # global `seats_per_section`, so a partial override map is correct as-is (unlike
-        # `course_sections`, whose fallback is the curriculum-derived count, not the global).
-        if code is not None:
-            overrides: dict[str, int] = self.config.get("seats_per_section_overrides", {})
-            if code in overrides:
-                return max(1, int(overrides[code]))
-        return int(self.config.get("seats_per_section", 35))
-
     def _is_mandatory_season(self, season: str | None) -> bool:
         return season is None or season in get_mandatory_seasons(self.config)
-
-    def _section_count(self, course: Course, season: str | None = None) -> int:
-        """How many sections of this course the university runs per term.
-
-        Taken from the calibrated `course_sections` map; falls back to whatever the
-        single-cohort `capacity` implies if a course is missing from the map. `season`
-        defaults to `None` (treated as mandatory) so existing callers that don't pass it
-        keep today's exact behavior. On an optional (non-mandatory) season, sections come
-        from the separate, smaller `optional_term_course_sections` map, falling back to a
-        scaled-down regular section count (`optional_term_capacity_scale`) — see CLAUDE.md's
-        "Term/Season Model".
-        """
-        smap: dict[str, int] = self.config.get("course_sections", {})
-        regular = (
-            max(1, int(smap[course.code])) if course.code in smap
-            else max(1, math.ceil(course.capacity / self._seats_per_section()))
-        )
-        if self._is_mandatory_season(season):
-            return regular
-
-        optional_smap: dict[str, int] = self.config.get("optional_term_course_sections", {})
-        if course.code in optional_smap:
-            return max(1, int(optional_smap[course.code]))
-        scale = float(self.config.get("optional_term_capacity_scale", 0.3))
-        return max(1, math.floor(regular * scale))
 
     def _initial_occupancy(self, code: str) -> int:
         """Seats in `code` already taken by the pre-existing student body at the start of the
@@ -546,9 +508,16 @@ class Simulator:
         return int(occupancy.get(code, 0))
 
     def _effective_capacity(self, course: Course, season: str | None = None) -> int:
-        # Per-term seats = sections × seats-per-section. Scenario hooks still scale it
-        # for what-if experiments (capacity_overrides interpreted as a section multiplier).
-        seats = self._section_count(course, season) * self._seats_per_section(course.code)
+        # Per-term seats = the course's own `capacity` — the one number that drives both the
+        # curriculum roadmap display and the simulation, so editing it in Settings actually
+        # changes the run. On an optional (non-mandatory) season, a separate, much smaller
+        # capacity model applies (`optional_term_capacity_scale`) — see CLAUDE.md's
+        # "Term/Season Model". Scenario hooks still scale it for what-if experiments
+        # (`capacity_overrides` interpreted as a per-course multiplier).
+        seats = course.capacity
+        if not self._is_mandatory_season(season):
+            scale = float(self.config.get("optional_term_capacity_scale", 0.3))
+            seats = max(1, math.floor(seats * scale))
         multiplier = float(self.scenario.get("capacity_multiplier", 1.0))
         overrides: dict[str, float] = self.scenario.get("capacity_overrides", {})
         if course.code in overrides:

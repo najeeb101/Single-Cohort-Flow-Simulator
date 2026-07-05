@@ -109,11 +109,12 @@ def test_exactly_capacity_granted_when_over():
     """When requesters > capacity, exactly `capacity` seats are granted."""
     sim = _sim()
     curric = sim.curriculum
-    course = curric["CMPS493"]  # capacity 25
-    cap = course.capacity  # 25
+    course = curric["CMPS493"]
+    cap = course.capacity
 
-    # Create 30 students, all tier 5 (completed_ch = 0)
-    requesters = [Student(i, SEED) for i in range(30)]
+    # Create more students than there are seats, all tier 5 (completed_ch = 0).
+    num_requesters = cap + 10
+    requesters = [Student(i, SEED) for i in range(num_requesters)]
     for s in requesters:
         s.completed_ch = 0
 
@@ -129,7 +130,7 @@ def test_exactly_capacity_granted_when_over():
 
     granted_count = sum(len(v) for v in granted.values())
     assert granted_count == cap
-    assert sim.history.capacity_block_counts[course.code] == 30 - cap
+    assert sim.history.capacity_block_counts[course.code] == num_requesters - cap
 
 
 def test_higher_tier_wins_seat_over_lower():
@@ -168,7 +169,7 @@ def test_capacity_multiplier_scales_seats():
 
 
 def test_capacity_override_per_course():
-    # Capacity is now sections × seats_per_section; an override scales that base.
+    # Capacity is the course's own capacity; an override scales that base.
     base = _sim({"name": "base", "capacity_multiplier": 1.0})
     course = base.curriculum["CMPS303"]
     base_cap = base._effective_capacity(course)

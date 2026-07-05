@@ -160,7 +160,10 @@ separate levers compose:
 
 ```python
 def _effective_capacity(self, course, season=None) -> int:
-    seats = self._section_count(course, season) * self._seats_per_section(course.code)
+    seats = course.capacity
+    if not self._is_mandatory_season(season):
+        scale = float(self.config.get("optional_term_capacity_scale", 0.3))
+        seats = max(1, math.floor(seats * scale))
     multiplier = float(self.scenario.get("capacity_multiplier", 1.0))
     overrides = self.scenario.get("capacity_overrides", {})
     if course.code in overrides:
@@ -173,9 +176,10 @@ def _effective_capacity(self, course, season=None) -> int:
     return seats
 ```
 
-Order matters: sections × seats-per-section, then the scenario's capacity multiplier/override,
-*then* subtract initial-state occupancy — and the occupancy subtraction is skipped entirely on an
-optional (non-mandatory) term, since that's a separate, smaller capacity model.
+Order matters: the course's own `capacity`, scaled down first on an optional term, then the
+scenario's capacity multiplier/override, *then* subtract initial-state occupancy — and the
+occupancy subtraction is skipped entirely on an optional (non-mandatory) term, since that's a
+separate, smaller capacity model.
 
 ### Phase 3 — take courses (`_resolve_grade`)
 
@@ -400,7 +404,7 @@ folding in every edit whose `effective_from_term <= N`, so earlier terms reprodu
 byte-identically no matter how many later edits are added.
 
 ```python
-CONFIG_PATCH_KEYS = ("course_sections", "seats_per_section_overrides", "cohort_size")
+CONFIG_PATCH_KEYS = ("cohort_size",)
 SCENARIO_PATCH_KEYS = ("pass_rate_overrides", "offering_overrides", "capacity_overrides")
 
 def _cumulative_patch(edits: list[dict], term_idx: int) -> dict:
@@ -450,8 +454,8 @@ admitted with even after a later edit changes `cohort_size` going forward.
 
 ## 10. Persistence (`src/db_models.py`)
 
-SQLAlchemy 2.0-style `Mapped[...]` models. The load-bearing relationship: `Course`/`Instructor`/
-`AppConfig` are all scoped to a `plan_id`, not global rows —
+SQLAlchemy 2.0-style `Mapped[...]` models. The load-bearing relationship: `Course`/`AppConfig`
+are all scoped to a `plan_id`, not global rows —
 
 ```python
 class Course(Base):
@@ -464,11 +468,6 @@ class Course(Base):
 — so `"CMPS151"` is unique *within* a plan, not across the whole database, letting two plans each
 define their own course with the same code. `User.active_plan_id` is what makes "which plan am I
 looking at" a per-user setting rather than one shared mutable global.
-
-`Instructor` is defined here and seeded from `data/instructors.json`, but is **orphaned**: no
-route in `src/api.py` reads or writes it anymore (removed along with Capacity Planning in an
-earlier simplification pass). `src/capacity.py`'s `build_instructor_capacity()` still knows how
-to consume it, but nothing calls that function either.
 
 `LiveSimulation`/`LiveTermSnapshot` back Live Simulation: `base_config`/`base_scenario` are frozen
 at creation and never mutated in place; every forward change is an append-only row in `edits`,
@@ -525,7 +524,7 @@ No simulation logic lives here — every function is a pure derivation over a fi
 data/curriculum.json, simulation_config.json
         │  one-time seed (src/db.py::get_or_create_default_plan)
         ▼
-data/app.db (SQLite)  ── per-plan Course/AppConfig/Instructor rows
+data/app.db (SQLite)  ── per-plan Course/AppConfig rows
         │
         ├─ py run.py:  load from disk → run_simulation() per scenario
         │              → analytics.py CSV/JSON writers + visualize.py figures → outputs/

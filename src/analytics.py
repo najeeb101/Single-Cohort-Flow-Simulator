@@ -456,7 +456,6 @@ def flow_timeline_payload(
             "num_cohorts": result.config.get("num_cohorts"),
             "num_incumbent_cohorts": result.config.get("num_incumbent_cohorts", 0),
             "initial_state": result.config.get("initial_state", {"occupancy": {}, "standing": {}}),
-            "seats_per_section": result.config.get("seats_per_section", 35),
         },
         "frames": history.timeline,
         "summary": {

@@ -12,8 +12,6 @@ export const CATEGORIES = [
 ] as const;
 
 export interface BuilderState {
-  courseSections: Record<string, number>;
-  seatsPerSection: Record<string, number>;
   cohortSize: number;
   passRates: Record<string, number>;
   dropoutGpaFloor: number;
@@ -41,12 +39,6 @@ export interface BuilderState {
 
 export function baselineFromMeta(meta: MetaResponse): BuilderState {
   return {
-    courseSections: { ...meta.course_sections },
-    // Per-course seats/section baseline = the global default for every course; a course only
-    // diverges once the admin edits it (sent diff-style as seats_per_section_overrides).
-    seatsPerSection: Object.fromEntries(
-      Object.keys(meta.course_sections).map((code) => [code, meta.seats_per_section]),
-    ),
     cohortSize: meta.cohort_size,
     passRates: { ...meta.course_pass_rates },
     dropoutGpaFloor: meta.dropout_gpa_floor,
@@ -84,12 +76,6 @@ function recordDiff(state: Record<string, number>, baseline: Record<string, numb
 // the diff-only-changed pattern from the old LiveWhatIfPanel so an unedited form is a no-op.
 export function buildOverrides(state: BuilderState, baseline: BuilderState): ScenarioRequest {
   const req: ScenarioRequest = {};
-
-  const course_sections_overrides = recordDiff(state.courseSections, baseline.courseSections);
-  if (Object.keys(course_sections_overrides).length) req.course_sections_overrides = course_sections_overrides;
-
-  const seats_per_section_overrides = recordDiff(state.seatsPerSection, baseline.seatsPerSection);
-  if (Object.keys(seats_per_section_overrides).length) req.seats_per_section_overrides = seats_per_section_overrides;
 
   if (numDiffers(state.cohortSize, baseline.cohortSize)) req.cohort_size = state.cohortSize;
 
@@ -144,8 +130,6 @@ export function buildOverrides(state: BuilderState, baseline: BuilderState): Sce
 // Scenario's overrides onto baseline (used when loading a saved/cloned scenario).
 export function applyOverrides(overrides: ScenarioRequest, baseline: BuilderState): BuilderState {
   return {
-    courseSections: { ...baseline.courseSections, ...overrides.course_sections_overrides },
-    seatsPerSection: { ...baseline.seatsPerSection, ...overrides.seats_per_section_overrides },
     cohortSize: overrides.cohort_size ?? baseline.cohortSize,
     passRates: { ...baseline.passRates, ...overrides.pass_rate_overrides },
     dropoutGpaFloor: overrides.dropout_gpa_floor ?? baseline.dropoutGpaFloor,

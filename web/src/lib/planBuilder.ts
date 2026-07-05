@@ -2,8 +2,8 @@ import type { CourseRecord, EnrollmentPriorityTier, MetaResponse, PlanImportPayl
 import type { BuilderState } from "@/lib/scenarioBuilder";
 
 // Sensible scalar defaults for a "start blank" plan — same shape/values as
-// data/simulation_config.json, minus per-course course_sections (the engine falls back to
-// ceil(capacity / seats_per_section) for any course missing from that map).
+// data/simulation_config.json. Per-course seat capacity lives on each course's own
+// `capacity` field (see emptyCourse() below), not here.
 export const BLANK_CONFIG: Record<string, unknown> = {
   seed: 42,
   cohort_size: 100,
@@ -12,8 +12,6 @@ export const BLANK_CONFIG: Record<string, unknown> = {
   num_incumbent_cohorts: 0,
   initial_state: { occupancy: {}, standing: { Year2: 0, Year3: 0, Year4: 0 } },
   admit_interval_terms: 2,
-  seats_per_section: 35,
-  course_sections: {},
   registration_tier_thresholds: [0, 30, 60, 90, 120],
   enrollment_priority_tiers: [],
   dropout_gpa_floor: 2.0,
@@ -69,9 +67,7 @@ export function metaFromPlanExport(curriculum: CourseRecord[], config: Record<st
   const scenarios = (config.scenarios as Record<string, unknown>[] | undefined) ?? [{ name: "baseline" }];
   return {
     graph: { nodes: [], edges: [] },
-    course_sections: (config.course_sections as Record<string, number>) ?? {},
     course_pass_rates: Object.fromEntries(curriculum.map((c) => [c.code, c.pass_rate])),
-    seats_per_section: (config.seats_per_section as number) ?? 35,
     baseline_scenario: (scenarios[0] as MetaResponse["baseline_scenario"]) ?? { name: "baseline" },
     cohort_size: (config.cohort_size as number) ?? 100,
     num_cohorts: (config.num_cohorts as number) ?? 4,
@@ -99,22 +95,14 @@ export function metaFromPlanExport(curriculum: CourseRecord[], config: Record<st
 }
 
 // Folds the config step's edited BuilderState back into the cloned/blank base config
-// (preserving fields the tabs don't expose, e.g. `scenarios`, `seats_per_section`,
-// `section_demand_percentile`) and applies any pass-rate edits onto the course list.
+// (preserving fields the tabs don't expose, e.g. `scenarios`) and applies any pass-rate
+// edits onto the course list.
 export function composePlanPayload(
   name: string,
   courses: CourseRecord[],
   baseConfig: Record<string, unknown>,
   state: BuilderState
 ): PlanImportPayload {
-  // Only courses whose seats/section the admin changed off the plan's global default are
-  // persisted as per-course overrides — an unedited plan keeps an empty override map.
-  const globalSeats = Number(baseConfig.seats_per_section ?? 35);
-  const seatsPerSectionOverrides: Record<string, number> = {};
-  for (const [code, v] of Object.entries(state.seatsPerSection)) {
-    if (v !== globalSeats) seatsPerSectionOverrides[code] = v;
-  }
-
   const config: Record<string, unknown> = {
     ...baseConfig,
     cohort_size: state.cohortSize,
@@ -124,8 +112,6 @@ export function composePlanPayload(
     admit_interval_terms: state.admitIntervalTerms,
     max_terms: state.maxTerms,
     seed: state.seed,
-    course_sections: state.courseSections,
-    seats_per_section_overrides: seatsPerSectionOverrides,
     dropout_gpa_floor: state.dropoutGpaFloor,
     dropout_base_hazard: state.dropoutBaseHazard,
     dropout_early_multiplier: state.dropoutEarlyMultiplier,

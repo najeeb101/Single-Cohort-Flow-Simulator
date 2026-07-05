@@ -12,7 +12,7 @@ Model" section.
 configs that already set `terms_per_year` without this flag are unaffected) is a runtime
 on/off switch for that 4-season cycle, independent of whether `terms_per_year` is actually
 present in the config: a plan can carry `terms_per_year`/`mandatory_terms`/
-`optional_term_course_sections` data the whole time, inert, and an admin flips
+`optional_term_capacity_scale` data the whole time, inert, and an admin flips
 `optional_terms_enabled` on later (Settings -> PUT /config) without re-entering any of it.
 When `False`, every helper below collapses to the mandatory-only cycle (`mandatory_terms`,
 or `DEFAULT_TERMS` if that's also absent) — there is no separate "legacy mode"; disabling

@@ -26,11 +26,9 @@ from src.utils import load_json
 def main() -> None:
     curriculum_path = Path("data/curriculum.json")
     config_path     = Path("data/simulation_config.json")
-    instructors_path = Path("data/instructors.json")
 
     config      = load_json(config_path)
     curriculum  = load_curriculum(curriculum_path)
-    instructors = load_json(instructors_path) if instructors_path.exists() else []
 
     total_ch = sum(c.credits for c in curriculum.values())
     print(f"Loaded {len(curriculum)} courses, {total_ch} total CH")
@@ -43,7 +41,7 @@ def main() -> None:
     for scenario in config["scenarios"]:
         name = scenario["name"]
         print(f"\nRunning {name}...")
-        run = run_simulation(curriculum, config, scenario, instructors=instructors)
+        run = run_simulation(curriculum, config, scenario)
         runs[name] = run
         results[name] = run["result"]
 
@@ -83,7 +81,7 @@ def main() -> None:
         build_monte_carlo_csv(monte_carlo, reports_dir / "monte_carlo.csv")
 
     # Dashboard data: the same flow_timeline shape web/ gets back from POST /simulate.
-    build_flow_timeline_json(baseline, curriculum, reports_dir / "flow_timeline.json", monte_carlo, instructors)
+    build_flow_timeline_json(baseline, curriculum, reports_dir / "flow_timeline.json", monte_carlo)
     print("  Saved simulation_summary.csv, cohort_flow.csv, cohort_summary.csv,")
     print("        course_utilization.csv, monte_carlo.csv, flow_timeline.json")
 

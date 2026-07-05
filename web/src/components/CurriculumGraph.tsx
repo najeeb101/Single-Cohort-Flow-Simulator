@@ -270,7 +270,6 @@ export default function CurriculumGraph({ graph, courses }: Props) {
           {selectedStat?.offered ? (
             <div className="mb-2 grid grid-cols-2 gap-1 rounded-lg bg-surface p-2 text-ink">
               <span>Granted: {selectedStat.granted}/{selectedStat.capacity}</span>
-              <span>Sections: {selectedStat.sections ?? "—"}</span>
               <span>Passed: {selectedStat.passed ?? 0}</span>
               <span>Failed: {selectedStat.failed ?? 0}</span>
               <span>Denied: {selectedStat.denied ?? 0}</span>

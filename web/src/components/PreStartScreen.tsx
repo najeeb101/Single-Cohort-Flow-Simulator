@@ -50,7 +50,6 @@ export default function PreStartScreen({ meta, onStart, starting, error }: Props
               ["Prerequisite links", totalPrereqs],
               ["Max semesters", meta.max_terms],
               ["Cohort size", meta.cohort_size],
-              ["Seats / section", meta.seats_per_section],
             ].map(([k, v]) => (
               <div key={String(k)} className="rounded-[10px] border border-border bg-surface px-3.5 py-2 text-[12.5px] text-muted">
                 {k}: <b className="ml-0.5 font-bold text-ink">{v}</b>

@@ -64,26 +64,27 @@ They were set by curricular role and expected difficulty, then checked against t
 ## D. Course Capacity
 
 Capacities are **assumed**; no section-size data is publicly available. Each course's
-per-term seats = `course_sections[code] × seats_per_section` (35). Section counts are
-auto-calibrated by [scripts/size_sections.py](../scripts/size_sections.py), then hand-tunable.
+per-term seats is a single `capacity` field on the course (`data/curriculum.json`), directly
+auto-calibrated by [scripts/size_capacity.py](../scripts/size_capacity.py), then hand-tunable
+per course (in the JSON file or Settings) with no derived arithmetic in between.
 
 **Sizing policy — CS courses are deliberately under-provisioned.** A real department staffs
 for typical load, not its single worst term, so popular gateway courses fill up during
 enrolment bulges. To reproduce this, CS courses (`cs_core`, `cs_elective`) are sized to the
-**75th percentile** (`section_demand_percentile`) of their unconstrained per-term demand,
-while non-CS courses (math/science/english/gen-ed) are sized to their full **peak** so they
-never bottleneck. This concentrates all seat scarcity on the CS major's own specialist
-courses, which is where it occurs in reality.
+**75th percentile** of their unconstrained per-term demand, while non-CS courses
+(math/science/english/gen-ed) are sized to their full **peak** so they never bottleneck. This
+concentrates all seat scarcity on the CS major's own specialist courses, which is where it
+occurs in reality.
 
 The binding set that results (top capacity-blocked courses, all CS):
 
-| Course | Sections × 35 | Why binding |
+| Course | Capacity | Why binding |
 |---|---|---|
-| CMPS303 | 2 = 70 | Gateway (unlocks CMPS323/380/405); cohorts collide here — **#1 capacity bottleneck** |
-| CMPS350 | 2 = 70 | CMPS493 compound-rule option; spiky demand |
-| CMPS151 | 3 = 105 | Early course the whole cohort funnels through |
-| CMPS493/499 | 2 = 70 | Senior-project gate, naturally small |
-| ELEC_1–4 | 2 = 70 | CS electives concentrate into few terms |
+| CMPS303 | 42 | Gateway (unlocks CMPS323/380/405); cohorts collide here — **#1 capacity bottleneck** |
+| CMPS350 | 31 | CMPS493 compound-rule option; spiky demand |
+| CMPS151 | 63 | Early course the whole cohort funnels through |
+| CMPS493/499 | 30 / 29 | Senior-project gate, naturally small |
+| CSEL1–4 | 29–38 | CS electives concentrate into few terms |
 
 Non-CS pseudo-courses are sized to peak and are effectively non-binding.
 

@@ -4,9 +4,8 @@ product-level contract; this module is purely the engine seam.
 
 A live simulation is: one base `(curriculum, base_config, base_scenario)` triple plus an
 append-only, ordered list of edits — `{"effective_from_term": int, "patch": {...}}`. Each
-edit's patch may set any of `course_sections`, `seats_per_section_overrides`,
-`pass_rate_overrides`, `offering_overrides`, `cohort_size`, `capacity_overrides`.
-"Advancing" the live sim to term N means: replay the
+edit's patch may set any of `pass_rate_overrides`, `offering_overrides`, `cohort_size`,
+`capacity_overrides`. "Advancing" the live sim to term N means: replay the
 engine from term 0, applying every edit whose `effective_from_term <= t` as of each term
 `t`, then take term N's frame. Because edits only ever apply forward and are never mutated
 in place, replaying to term N reproduces terms 0..N-1 byte-identically to any earlier
@@ -28,15 +27,14 @@ from src.models.semester import effective_admit_interval_terms, mandatory_horizo
 from src.models.student import Student
 from src.simulator import Simulator
 
-# The only config keys a live-sim edit patch is allowed to touch. `course_sections`/
-# `seats_per_section_overrides`/`cohort_size` land in the working `config`; the rest land in
-# the working `scenario` (see CLAUDE.md's Capacity Planning Model / Scenarios sections for
-# what each one means to the engine). `capacity_overrides` (the old per-course seat
-# multiplier) stays honored for any pre-existing edit log, but the UI now edits capacity via
-# `course_sections` + `seats_per_section_overrides` instead. Anything else in a patch dict is
-# ignored rather than erroring, so a slightly over-eager frontend payload (e.g. accidentally
-# including an unrelated key) degrades gracefully instead of breaking a live sim mid-run.
-CONFIG_PATCH_KEYS = ("course_sections", "seats_per_section_overrides", "cohort_size")
+# The only config keys a live-sim edit patch is allowed to touch. `cohort_size` lands in the
+# working `config`; the rest land in the working `scenario` (see CLAUDE.md's Scenarios
+# section for what each one means to the engine). `capacity_overrides` is a per-course seat
+# multiplier — the one capacity lever a live-sim edit can use. Anything else in a patch dict
+# is ignored rather than erroring, so a slightly over-eager frontend payload (e.g.
+# accidentally including an unrelated key) degrades gracefully instead of breaking a live sim
+# mid-run.
+CONFIG_PATCH_KEYS = ("cohort_size",)
 SCENARIO_PATCH_KEYS = ("pass_rate_overrides", "offering_overrides", "capacity_overrides")
 
 
@@ -45,8 +43,8 @@ def _cumulative_patch(edits: list[dict], term_idx: int) -> dict:
     ascending effective_from_term order (ties broken by list order) so a later edit's keys
     win over an earlier one's for the same key — "what's the current value of each knob as
     of this term" rather than a deep per-course merge. Each individual map-valued knob
-    (`course_sections`, etc.) replaces the prior edit's map wholesale for that key: callers
-    that want an incremental change (bump one course's sections) must pass the full
+    (`capacity_overrides`, etc.) replaces the prior edit's map wholesale for that key: callers
+    that want an incremental change (bump one course's capacity) must pass the full
     resulting map, same as the existing /simulate ScenarioRequest contract.
     """
     applicable = sorted(

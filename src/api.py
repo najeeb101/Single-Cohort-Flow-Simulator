@@ -90,8 +90,6 @@ class ScenarioRequest(BaseModel):
     max_terms: int | None = Field(default=None, ge=1)
     seed: int | None = None
     initial_state: dict | None = None      # {occupancy: {code: seats}, standing: {Year2/3/4: n}}
-    course_sections_overrides: dict[str, int] = {}
-    seats_per_section_overrides: dict[str, int] = {}  # per-course seats/section (capacity lever)
     dropout_gpa_floor: float | None = Field(default=None, ge=0, le=4)
     dropout_base_hazard: float | None = Field(default=None, ge=0, le=1)
     dropout_early_multiplier: float | None = Field(default=None, ge=0, le=10)
@@ -260,9 +258,7 @@ def meta(db: Session = Depends(get_db)) -> dict:
     curriculum, config, scenario = _load_plan_data(db)
     return {
         "graph": build_curriculum_graph(curriculum),
-        "course_sections": config.get("course_sections", {}),
         "course_pass_rates": {code: c.pass_rate for code, c in curriculum.items()},
-        "seats_per_section": config.get("seats_per_section", 35),
         "baseline_scenario": scenario,
         "cohort_size": config["cohort_size"],
         "num_cohorts": config.get("num_cohorts"),
@@ -314,16 +310,6 @@ def _apply_scenario_overrides(
         config["seed"] = req.seed
     if req.initial_state is not None:
         config["initial_state"] = req.initial_state
-    if req.course_sections_overrides:
-        config["course_sections"] = {
-            **config.get("course_sections", {}),
-            **req.course_sections_overrides,
-        }
-    if req.seats_per_section_overrides:
-        config["seats_per_section_overrides"] = {
-            **config.get("seats_per_section_overrides", {}),
-            **req.seats_per_section_overrides,
-        }
     if req.dropout_gpa_floor is not None:
         config["dropout_gpa_floor"] = req.dropout_gpa_floor
     if req.dropout_base_hazard is not None:
@@ -630,13 +616,10 @@ class LiveSimCreateRequest(BaseModel):
 
 
 class LiveSimEditPatch(BaseModel):
-    course_sections: dict[str, int] | None = None
-    seats_per_section_overrides: dict[str, int] | None = None
     pass_rate_overrides: dict[str, float] | None = None
     offering_overrides: dict[str, list[str]] | None = None
     cohort_size: int | None = Field(default=None, ge=1)
-    # Old per-course seat multiplier; still accepted so a pre-existing edit log replays
-    # unchanged, but the UI now expresses capacity via course_sections + seats_per_section.
+    # Per-course seat multiplier — the one capacity lever a live-sim edit can use.
     capacity_overrides: dict[str, float] | None = None
 
 

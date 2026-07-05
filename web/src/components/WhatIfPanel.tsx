@@ -34,8 +34,8 @@ export default function WhatIfPanel({
 }) {
   const [open, setOpen] = useState(false);
   const [cohortSize, setCohortSize] = useState(meta.cohort_size);
-  // Courses being tested: map of code → extra sections to add
-  const [courseSections, setCourseSections] = useState<Record<string, number>>(
+  // Courses being tested: map of code → extra seats to add
+  const [courseSeats, setCourseSeats] = useState<Record<string, number>>(
     () => Object.fromEntries(topCapacity.slice(0, 3).map(([code]) => [code, 0]))
   );
   const [search, setSearch] = useState("");
@@ -43,37 +43,41 @@ export default function WhatIfPanel({
   const [running, setRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const allCodes = Object.keys(meta.course_sections).sort();
+  const capacityByCode: Record<string, number> = {};
+  for (const node of meta.graph.nodes) capacityByCode[node.code] = node.capacity;
+
+  const allCodes = Object.keys(capacityByCode).sort();
   const searchResults = search.trim()
     ? allCodes.filter(
-        (c) => c.toLowerCase().includes(search.toLowerCase()) && !(c in courseSections)
+        (c) => c.toLowerCase().includes(search.toLowerCase()) && !(c in courseSeats)
       ).slice(0, 6)
     : [];
 
   const addCourse = (code: string) => {
-    setCourseSections((prev) => ({ ...prev, [code]: 0 }));
+    setCourseSeats((prev) => ({ ...prev, [code]: 0 }));
     setSearch("");
   };
 
   const removeCourse = (code: string) => {
-    setCourseSections((prev) => { const n = { ...prev }; delete n[code]; return n; });
+    setCourseSeats((prev) => { const n = { ...prev }; delete n[code]; return n; });
   };
 
   const hasChanges =
     cohortSize !== meta.cohort_size ||
-    Object.values(courseSections).some((v) => v > 0);
+    Object.values(courseSeats).some((v) => v > 0);
 
   const run = async () => {
     setRunning(true);
     setError(null);
     try {
       const overrides: Record<string, number> = {};
-      for (const [code, extra] of Object.entries(courseSections)) {
-        if (extra > 0) overrides[code] = (meta.course_sections[code] ?? 1) + extra;
+      for (const [code, extra] of Object.entries(courseSeats)) {
+        const cur = capacityByCode[code] ?? 0;
+        if (extra > 0 && cur > 0) overrides[code] = (cur + extra) / cur;
       }
       const res = await simulate({
         ...(cohortSize !== meta.cohort_size ? { cohort_size: cohortSize } : {}),
-        ...(Object.keys(overrides).length ? { course_sections_overrides: overrides } : {}),
+        ...(Object.keys(overrides).length ? { capacity_overrides: overrides } : {}),
       });
       const seatsPerStud =
         res.admissions_recommendation?.criteria?.find(
@@ -89,7 +93,7 @@ export default function WhatIfPanel({
 
   const reset = () => {
     setCohortSize(meta.cohort_size);
-    setCourseSections(Object.fromEntries(topCapacity.slice(0, 3).map(([code]) => [code, 0])));
+    setCourseSeats(Object.fromEntries(topCapacity.slice(0, 3).map(([code]) => [code, 0])));
     setResult(null);
     setError(null);
     setSearch("");
@@ -133,11 +137,11 @@ export default function WhatIfPanel({
               </div>
             </div>
 
-            {/* Sections panel */}
+            {/* Capacity panel */}
             <div className="rounded-2xl border border-border bg-surface p-4">
               <div className="mb-3 flex items-center justify-between gap-2">
                 <div className="text-[11px] font-semibold uppercase tracking-wide text-muted">
-                  Extra sections per course
+                  Extra seats per course
                 </div>
                 {/* Search to add a course */}
                 <div className="relative">
@@ -159,7 +163,7 @@ export default function WhatIfPanel({
                         >
                           {code}
                           <span className="ml-2 text-[11px] text-muted">
-                            {meta.course_sections[code] ?? "?"} sec
+                            {capacityByCode[code] ?? "?"} seats
                           </span>
                         </button>
                       ))}
@@ -169,9 +173,9 @@ export default function WhatIfPanel({
               </div>
 
               <div className="flex flex-wrap gap-2">
-                {Object.keys(courseSections).map((code) => {
-                  const cur = meta.course_sections[code] ?? 1;
-                  const extra = courseSections[code] ?? 0;
+                {Object.keys(courseSeats).map((code) => {
+                  const cur = capacityByCode[code] ?? 0;
+                  const extra = courseSeats[code] ?? 0;
                   return (
                     <div key={code} className="flex items-center gap-1.5 rounded-[9px] border border-border bg-surface-2 px-2.5 py-1.5">
                       <span className="text-[12px] font-semibold text-ink">{code}</span>
@@ -180,18 +184,18 @@ export default function WhatIfPanel({
                       <input
                         type="number"
                         min={0}
-                        max={10}
-                        step={1}
+                        max={200}
+                        step={5}
                         value={extra}
                         onChange={(e) => {
-                          setCourseSections((prev) => ({ ...prev, [code]: Math.max(0, Number(e.target.value)) }));
+                          setCourseSeats((prev) => ({ ...prev, [code]: Math.max(0, Number(e.target.value)) }));
                           setResult(null);
                         }}
-                        className="w-10 rounded-[5px] border border-border-2 bg-surface px-1.5 py-0.5 text-center text-[12px] text-ink focus:outline-none focus:ring-1 focus:ring-accent"
+                        className="w-14 rounded-[5px] border border-border-2 bg-surface px-1.5 py-0.5 text-center text-[12px] text-ink focus:outline-none focus:ring-1 focus:ring-accent"
                       />
                       {extra > 0 && (
                         <span className="text-[10.5px] font-semibold text-good">
-                          →{(cur + extra) * meta.seats_per_section}
+                          →{cur + extra}
                         </span>
                       )}
                       <button
@@ -205,7 +209,7 @@ export default function WhatIfPanel({
                     </div>
                   );
                 })}
-                {Object.keys(courseSections).length === 0 && (
+                {Object.keys(courseSeats).length === 0 && (
                   <span className="text-[12px] text-muted">Search above to add a course</span>
                 )}
               </div>

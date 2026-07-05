@@ -30,7 +30,6 @@ export interface Graph {
 
 export interface CourseFrameStat {
   capacity: number;
-  sections: number;
   registered: number;
   granted: number;
   denied: number;
@@ -169,7 +168,6 @@ export interface FlowTimelineMeta {
   num_cohorts: number;
   num_incumbent_cohorts: number;
   initial_state: InitialState;
-  seats_per_section: number;
 }
 
 export interface FlowTimeline {
@@ -192,9 +190,7 @@ export interface EnrollmentPriorityTier {
 
 export interface MetaResponse {
   graph: Graph;
-  course_sections: Record<string, number>;
   course_pass_rates: Record<string, number>;
-  seats_per_section: number;
   baseline_scenario: Record<string, unknown> & { name: string };
   cohort_size: number;
   num_cohorts: number;
@@ -232,8 +228,6 @@ export interface ScenarioRequest {
   max_terms?: number;
   seed?: number;
   initial_state?: InitialState;
-  course_sections_overrides?: Record<string, number>;
-  seats_per_section_overrides?: Record<string, number>;
   dropout_gpa_floor?: number;
   dropout_base_hazard?: number;
   dropout_early_multiplier?: number;
@@ -333,12 +327,10 @@ export interface LiveSim {
 // forward only (never retroactive to already-simulated terms). All optional: only send
 // fields the user actually changed (diff-style, like scenarioBuilder.ts::buildOverrides).
 export interface LiveEdits {
-  course_sections?: Record<string, number>; // sections per course (capacity lever)
-  seats_per_section_overrides?: Record<string, number>; // per-course seats/section (capacity lever)
   pass_rate_overrides?: Record<string, number>; // 0..1
   offering_overrides?: Record<string, string[]>; // e.g. ["Fall","Spring"]
   cohort_size?: number; // admissions intake going forward
-  capacity_overrides?: Record<string, number>; // deprecated per-course seat multiplier (back-compat only)
+  capacity_overrides?: Record<string, number>; // per-course seat multiplier (capacity lever)
 }
 
 export interface TermSnapshot {

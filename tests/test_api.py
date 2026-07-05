@@ -13,7 +13,6 @@ from src.db import (
     load_config_from_db,
     load_curriculum_from_db,
 )
-from src.models.semester import get_mandatory_seasons
 from src.service import run_simulation
 
 client = TestClient(app)
@@ -36,7 +35,7 @@ def test_meta_shape():
     assert resp.status_code == 200
     body = resp.json()
     assert set(body) == {
-        "graph", "course_sections", "course_pass_rates", "seats_per_section",
+        "graph", "course_pass_rates",
         "baseline_scenario", "cohort_size", "num_cohorts", "num_incumbent_cohorts",
         "initial_state",
         "admit_interval_terms", "optional_terms_enabled", "max_terms", "seed", "dropout_gpa_floor",
@@ -52,8 +51,7 @@ def test_meta_shape():
 
 def test_simulate_initial_state_override_changes_capacity_and_background():
     code = next(iter(CURRICULUM))
-    sections = BASE_CONFIG["course_sections"].get(code, 1)
-    sps = BASE_CONFIG.get("seats_per_section", 35)
+    capacity = CURRICULUM[code].capacity
     overridden = {"occupancy": {code: 7}, "standing": {"Year3": 123}}
 
     resp = client.post("/simulate", json={"initial_state": overridden})
@@ -62,7 +60,7 @@ def test_simulate_initial_state_override_changes_capacity_and_background():
     frame0 = next(f for f in frames if f["term"] == 0)
 
     # Occupancy reduced the course's free seats by exactly 7 on this mandatory term.
-    assert frame0["courses"][code]["capacity"] == sections * sps - 7
+    assert frame0["courses"][code]["capacity"] == capacity - 7
     # Standing flowed into the aggregate stage nodes / background.
     assert frame0["background"] == {"Year3": 123}
     assert frame0["stages"]["totals"]["nodes"]["Year3"] >= 123
@@ -103,52 +101,6 @@ def test_simulate_capacity_override_changes_result():
 
     boosted = client.post("/simulate", json={"capacity_overrides": {code: 3.0}}).json()
     boosted_count = dict(boosted["metrics"]["top_capacity_blocks"]).get(code, 0)
-
-    assert boosted_count < baseline_count
-
-
-def _mandatory_term_capacity_blocks(flow_timeline: dict) -> dict[str, int]:
-    """`course_sections_overrides` only patches the regular (mandatory-term) section map —
-    courses offered in an optional term (Winter/Summer) use a separate, smaller capacity
-    model (see CLAUDE.md's Term/Season Model) the override doesn't touch. Recompute
-    denied-seat totals scoped to mandatory-term frames so the override's actual contract
-    is what gets tested, independent of which course happens to be globally top-blocked."""
-    mandatory = get_mandatory_seasons(BASE_CONFIG)
-    totals: dict[str, int] = {}
-    for frame in flow_timeline["frames"]:
-        if frame["season"] not in mandatory:
-            continue
-        for code, stats in frame["courses"].items():
-            totals[code] = totals.get(code, 0) + stats["denied"]
-    return totals
-
-
-def test_simulate_course_sections_override_changes_result():
-    baseline = client.post("/simulate", json={}).json()
-    mandatory_blocks = _mandatory_term_capacity_blocks(baseline["flow_timeline"])
-    code, baseline_count = max(mandatory_blocks.items(), key=lambda kv: kv[1])
-    assert baseline_count > 0, "expected at least one mandatory-term capacity block to override against"
-    current_sections = BASE_CONFIG["course_sections"].get(code, 1)
-
-    boosted = client.post(
-        "/simulate", json={"course_sections_overrides": {code: current_sections + 5}}
-    ).json()
-    boosted_count = _mandatory_term_capacity_blocks(boosted["flow_timeline"]).get(code, 0)
-
-    assert boosted_count < baseline_count
-
-
-def test_simulate_seats_per_section_override_changes_result():
-    baseline = client.post("/simulate", json={}).json()
-    mandatory_blocks = _mandatory_term_capacity_blocks(baseline["flow_timeline"])
-    code, baseline_count = max(mandatory_blocks.items(), key=lambda kv: kv[1])
-    assert baseline_count > 0, "expected at least one mandatory-term capacity block to override against"
-
-    sps = BASE_CONFIG.get("seats_per_section", 35)
-    boosted = client.post(
-        "/simulate", json={"seats_per_section_overrides": {code: sps * 3}}
-    ).json()
-    boosted_count = _mandatory_term_capacity_blocks(boosted["flow_timeline"]).get(code, 0)
 
     assert boosted_count < baseline_count
 

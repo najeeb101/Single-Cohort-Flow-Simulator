@@ -31,7 +31,6 @@ export default function Home() {
             ["Cohorts", data.flow_timeline.meta.num_cohorts],
             ["Cohort size", meta.cohort_size],
             ["Max semesters", data.flow_timeline.meta.max_terms],
-            ["Seats / section", meta.seats_per_section],
             ["Courses", chartMeta.graph.nodes.length],
           ].map(([k, v]) => (
             <div key={String(k)} className="rounded-[10px] border border-border bg-surface px-3.5 py-2 text-[12.5px] text-muted">

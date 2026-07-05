@@ -22,7 +22,6 @@ FOUR_SEASON_CONFIG_BASE = {
     "seed": 1,
     "terms_per_year": ["Fall", "Winter", "Spring", "Summer"],
     "mandatory_terms": ["Fall", "Spring"],
-    "seats_per_section": 35,
     "normal_load_ch": 9,        # exactly one 9-credit course per term, for deterministic sequencing
     "probation_load_ch": 9,
     "probation_gpa_threshold": 2.0,
@@ -90,8 +89,7 @@ def test_personal_semester_skips_optional_terms_but_lets_student_progress():
         "C3": _course("C3", 9, [], ["Fall", "Spring", "Winter"], 3),
     }
     config = {**FOUR_SEASON_CONFIG_BASE, "cohort_size": 15, "max_terms": 6,
-              "num_cohorts": 1, "num_incumbent_cohorts": 0, "admit_interval_terms": 4,
-              "course_sections": {"C1": 1, "C2": 1, "C3": 1}}
+              "num_cohorts": 1, "num_incumbent_cohorts": 0, "admit_interval_terms": 4}
     result = Simulator(curriculum, config, {"name": "t"}).run()
 
     seasons_seen = {f["season"] for f in result.history.timeline}
@@ -110,8 +108,7 @@ def test_personal_semester_skips_optional_terms_but_lets_student_progress():
 def test_cohorts_never_admitted_in_optional_terms():
     curriculum = {"C1": _course("C1", 3, [], ["Fall", "Spring"], 1)}
     config = {**FOUR_SEASON_CONFIG_BASE, "cohort_size": 5, "max_terms": 2,
-              "num_cohorts": 3, "num_incumbent_cohorts": 2, "admit_interval_terms": 4,
-              "course_sections": {"C1": 1}}
+              "num_cohorts": 3, "num_incumbent_cohorts": 2, "admit_interval_terms": 4}
     result = Simulator(curriculum, config, {"name": "t"}).run()
 
     mandatory = get_mandatory_seasons(config)
@@ -122,32 +119,19 @@ def test_cohorts_never_admitted_in_optional_terms():
 
 # ── Optional-term capacity is smaller/separate ─────────────────────────── #
 
-def test_optional_term_capacity_uses_explicit_override():
-    course = _course("C1", 3, [], ["Fall", "Spring", "Summer"], 1)
+def test_optional_term_capacity_uses_scale():
+    course = _course("C1", 3, [], ["Fall", "Spring", "Summer"], 1)  # capacity=35, see _course()
     config = {**FOUR_SEASON_CONFIG_BASE, "cohort_size": 1, "max_terms": 1,
               "num_cohorts": 1, "num_incumbent_cohorts": 0, "admit_interval_terms": 4,
-              "course_sections": {"C1": 5},
-              "optional_term_course_sections": {"C1": 1}}
+              "optional_term_capacity_scale": 0.5}
     sim = Simulator({"C1": course}, config, {"name": "t"})
 
     regular = sim._effective_capacity(course, "Fall")
     optional = sim._effective_capacity(course, "Summer")
-    assert regular == 5 * config["seats_per_section"]
-    assert optional == 1 * config["seats_per_section"]
+    expected_optional = max(1, math.floor(course.capacity * 0.5))
+    assert regular == course.capacity          # mandatory season -> unaffected
+    assert optional == expected_optional
     assert optional < regular
-
-
-def test_optional_term_capacity_falls_back_to_scale():
-    course = _course("C1", 3, [], ["Fall", "Spring", "Summer"], 1)
-    config = {**FOUR_SEASON_CONFIG_BASE, "cohort_size": 1, "max_terms": 1,
-              "num_cohorts": 1, "num_incumbent_cohorts": 0, "admit_interval_terms": 4,
-              "course_sections": {"C1": 4}, "optional_term_capacity_scale": 0.5}
-    sim = Simulator({"C1": course}, config, {"name": "t"})
-
-    expected_sections = max(1, math.floor(4 * 0.5))
-    assert sim._section_count(course, "Summer") == expected_sections
-    assert sim._section_count(course) == 4          # no season arg -> unaffected, legacy path
-    assert sim._section_count(course, "Fall") == 4   # mandatory season -> unaffected
 
 
 # ── prereq_block during an optional term: only for courses offered then ── #
@@ -163,8 +147,7 @@ def test_prereq_block_scoped_to_courses_offered_in_optional_term():
         "C": _course("C", 3, ["A"], ["Fall", "Spring"], 3),
     }
     config = {**FOUR_SEASON_CONFIG_BASE, "cohort_size": 1, "max_terms": 4,
-              "num_cohorts": 1, "num_incumbent_cohorts": 0, "admit_interval_terms": 4,
-              "course_sections": {"A": 1, "B": 1, "C": 1}}
+              "num_cohorts": 1, "num_incumbent_cohorts": 0, "admit_interval_terms": 4}
     sim = Simulator(curriculum, config, {"name": "t"})
     student = Student(0, seed=1, cohort_id=0, entry_term=0)
     sim.students = [student]
@@ -230,7 +213,6 @@ def test_optional_terms_toggle_off_produces_legacy_two_season_simulation():
         **FOUR_SEASON_CONFIG_BASE, "optional_terms_enabled": False,
         "cohort_size": 5, "max_terms": 2,
         "num_cohorts": 1, "num_incumbent_cohorts": 0,
-        "course_sections": {"C1": 1},
     }
     result = Simulator(curriculum, config, {"name": "t"}).run()
     seasons_seen = {f["season"] for f in result.history.timeline}

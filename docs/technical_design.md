@@ -238,7 +238,7 @@ now shows up as a `prereq_block` spike on all three at once, even though nothing
 with those three courses themselves — that lockstep pattern is what points you at the real
 chokepoint (CMPS303) instead of its three symptoms. Whether `capacity_block` (seat scarcity) or
 `prereq_block` (this gateway effect) dominates in a given run now depends on the configured
-section counts (`course_sections`) and cohort size, not on a hardcoded seasonal restriction, so
+configured per-course `capacity` values and cohort size, not on a hardcoded seasonal restriction, so
 this is a claim to re-check against a current run rather than treat as a fixed fact — see
 `docs/project_overview.md` §6 on why point-in-time output numbers go stale.
 
@@ -359,21 +359,18 @@ src/
 │                         # (the four block signals + snapshots) + SimulationResult
 ├── analytics.py         # compute_metrics(), per-cohort metrics, admissions recommendation,
 │                         # curriculum graph, flow_timeline JSON, CSV writers
-├── service.py           # run_simulation(curriculum, config, scenario, instructors=None)
+├── service.py           # run_simulation(curriculum, config, scenario, data_source=None)
 │                         # -> dict — the engine-as-a-service boundary: Simulator + every
 │                         # analytics.py derivation, in memory, zero file I/O
 ├── livesim.py            # LiveRunner — deterministic term-by-term replay for Live Simulation
 │                         # (§11 does not cover this; see CLAUDE.md's "Live Simulation Model")
 ├── db.py / db_models.py  # SQLAlchemy engine/session + User/Plan/Course/AppConfig/
-│                         # Instructor/Scenario/Run tables (per-plan, multi-plan support)
+│                         # Scenario/Run tables (per-plan, multi-plan support)
 ├── auth.py               # get_current_user — a stub shared demo user today, not real
 │                         # login/JWT (that was built, then removed in a later simplification
 │                         # pass; the DB/route plumbing for it is gone from api.py)
 ├── curriculum_validation.py  # check_no_cycle() — prerequisite-cycle guard for Settings
 │                         # edits and Plan imports
-├── capacity.py            # build_capacity_report()/build_instructor_capacity() — still
-│                         # physically present but orphaned: no /capacity or /instructors
-│                         # route calls it anymore (removed in the same simplification pass)
 ├── api.py                # FastAPI wrapper: /health, /meta, /simulate, /curriculum, /config,
 │                         # /plans, /livesim — every route resolves the requester's active Plan
 │                         # fresh, no cached globals
@@ -381,7 +378,7 @@ src/
 ├── visualize.py          # save_all_figures() + per-figure functions (offline `py run.py` path)
 └── utils.py              # load_json(), grade_tier()
 
-web/         Next.js/TypeScript dashboard — Dashboard, Bottlenecks (what-if panel + section
+web/         Next.js/TypeScript dashboard — Dashboard, Bottlenecks (what-if panel + capacity
              recommendations), Cohorts, Figures, Prerequisites, Settings (curriculum + config
              editing), Plans/Plan Builder, Run History, Live Simulation
 run.py       # entry point: load -> run_simulation() per scenario -> save figures + CSV
@@ -413,7 +410,6 @@ Single-Cohort-Flow-Simulator/
 ├── data/
 │   ├── curriculum.json      # 41 courses, 120 CH, source of truth (one-time DB seed)
 │   ├── simulation_config.json
-│   ├── instructors.json     # seeds the (now-orphaned) Instructor table, see §6
 │   ├── app.db                # gitignored SQLite DB; authoritative after first API boot
 │   └── qu_raw/               # downloaded QU open data CSVs (validation only)
 ├── outputs/
@@ -421,7 +417,7 @@ Single-Cohort-Flow-Simulator/
 │   │                        # curriculum_network, survival_curve, etc.
 │   └── reports/              # simulation_summary.csv, flow_timeline.json, etc.
 ├── scripts/
-│   ├── size_sections.py      # recalibrates course_sections to peak demand
+│   ├── size_capacity.py      # recalibrates each course's capacity to peak demand
 │   ├── migrate_json_to_db.py # (re)seeds data/app.db from the JSON files
 │   └── analyze_qu_data.py    # real QU graduation rate from open data
 ├── tests/                    # pytest suite
@@ -504,18 +500,19 @@ Each horizon rule uses `personal_semester = global_term − entry_term + 1`, so 
 ### 11.3 Shared seat pool (the core dynamic)
 All active students from all cohorts enter the same Phase-2 allocation. Because requesters are already sorted by `registration_tier(completed_ch)`, seniors from older cohorts outrank freshmen automatically — a delayed senior class starves incoming freshmen of gateway seats, and congestion compounds cohort over cohort. This is the phenomenon the model exists to study.
 
-### 11.4 Sections model (capacity)
-Per-term seats for a course = `course_sections[code] × seats_per_section` (default section size
-35), minus any `initial_state.occupancy` for that course (§11.1). `scripts/size_sections.py`
-auto-calibrates `course_sections` to each course's **peak per-term demand** under unconstrained
-seats (`sections = ceil(peak_demand / seats_per_section)`) and writes the integer map into the
-config; it is then hand-tunable (add/cut sections per course, the realistic lever an
-administrator pulls). Section counts vary by course (gateway/intro courses get more sections
-than niche ones); since every course is now offered Fall + Spring (§2), demand concentrates on
-whichever courses sit downstream of the CMPS303 gateway rather than on a hardcoded seasonal
-subset. Demand-matched sizing yields a well-resourced baseline with little capacity blocking;
-trimming a course's sections re-introduces scarcity to study a specific bottleneck. Scenario
-`capacity_overrides` still apply as a section multiplier for what-if experiments.
+### 11.4 Capacity model
+Per-term seats for a course = its own `capacity` field (`data/curriculum.json`), minus any
+`initial_state.occupancy` for that course (§11.1). `scripts/size_capacity.py` auto-calibrates
+each course's `capacity` to its **peak per-term demand** under unconstrained seats and writes
+the integer directly into `curriculum.json`; it is then hand-tunable per course (the realistic
+lever an administrator pulls — raise or lower one course's capacity, no derived arithmetic).
+Capacity varies by course (gateway/intro courses get more seats than niche ones); since every
+course is now offered Fall + Spring (§2), demand concentrates on whichever courses sit
+downstream of the CMPS303 gateway rather than on a hardcoded seasonal subset. Demand-matched
+sizing yields a well-resourced baseline with little capacity blocking; lowering a course's
+capacity re-introduces scarcity to study a specific bottleneck. Scenario `capacity_overrides`
+still apply as a per-course multiplier for what-if experiments, and on an optional (Summer/
+Winter) term capacity is scaled down further by `optional_term_capacity_scale`.
 
 ### 11.5 Identity, RNG, determinism
 Study cohorts get `cohort_id` `0..n−1`; incumbents `−1, −2, −3`. Globally-unique `student_id = (cohort_id + num_incumbent_cohorts) × cohort_size + i`; RNG seed remains `seed + student_id`, so CRN and full determinism are preserved.
@@ -535,7 +532,7 @@ The `web/` Next.js dashboard lays out the graph by longest-path layering and rep
 `run_monte_carlo` re-runs the baseline across `n_runs` seeds (`base_seed + k`) and reports mean ± 95% CI per headline metric. The canonical timeline/animation stays on the single base seed (deterministic for the frontend); the CIs only annotate the dashboard.
 
 ### 11.9 Engine-as-a-service boundary
-`src/service.py::run_simulation(curriculum, config, scenario, instructors=None) -> dict` is the
+`src/service.py::run_simulation(curriculum, config, scenario, data_source=None) -> dict` is the
 single function boundary between the engine and any caller: script, test, or the FastAPI layer
 (`src/api.py`). It runs one scenario and returns `result` (the raw `SimulationResult`), `metrics`,
 `cohort_metrics`, `admissions_recommendation`, and `flow_timeline` as a plain dict; it never
