@@ -85,13 +85,16 @@ web/                   # Next.js/TypeScript dashboard — talks to src/api.py vi
 ```
 
 **Dashboard start gate + roadmap layout** (`web/src/lib/SimulationContext.tsx`,
-`web/src/components/CurriculumGraph.tsx`, `web/src/lib/graphLayout.ts`): the dashboard does
-**not** auto-run the engine. On load it fetches only the program structure (`GET /meta`). If
-`initial_state` is still completely empty, it first shows the required
-[`InitialStateGate`](#initial-state-model) setup screen; once that's dismissed (or on every
-later load, since the values are then non-empty) it shows the curriculum **roadmap** + a
-"▶ Start simulation" button; the baseline run fires only when the user clicks Start
-(`SimulationProvider.start`). The roadmap is a Qatar-University-style
+`web/src/components/CurriculumGraph.tsx`, `web/src/lib/graphLayout.ts`): on load the dashboard
+fetches only the program structure (`GET /meta`). If `initial_state` is still completely empty
+(and the `initial-state-setup-done` localStorage flag isn't set), it first shows the required
+[`InitialStateGate`](#initial-state-model) setup screen. Once that's past (dismissed, or on any
+later load where the values are non-empty) the baseline **auto-runs** — there is no manual
+"Start" button. `SimulationProvider`'s effect fires `start()` exactly once (a `useRef` guard
+turns a *failed* run into a retry surface instead of a loop, `StartingScreen` shows a
+"Running the baseline simulation…" state meanwhile). Re-running the baseline after an edit
+(`refreshBaseline`, called from Settings/Plans/initial-state writes) sets a `refreshing` flag
+that renders a fixed "Updating simulation…" pill. The roadmap is a Qatar-University-style
 program-roadmap layout — `computeSemesterLayout` places each course in its `study_plan_term`
 column (term 1 = Year 1 Fall, 2 = Year 1 Spring, …), grouped under Year 1–4 bands with
 Fall/Spring + credit-hour headers, boxes coloured by requirement type (`CATEGORY_STYLE`), red
@@ -199,7 +202,7 @@ immediately, no server restart needed. See [Multi-Plan Model](#multi-plan-model)
 - Wired through `/meta` (read), `POST /simulate` (`ScenarioRequest.initial_state` override), and `PUT /config` (persist, validated by `src/api.py::_validate_initial_state`). `meta.flow_timeline.meta.initial_state` carries it to the dashboard.
 - `num_incumbent_cohorts` and `initial_state` are independent and *can* coexist, but the default QU plan uses only `initial_state`.
 - **Frontend editing surfaces** — two entry points share one editor, `web/src/components/scenario-builder/InitialStateEditor.tsx` (year-standing number-boxes + `InitialOccupancyTable.tsx`'s per-course occupancy table, sorted by `study_plan_term`), so there is one implementation, not two:
-  - **Required first-run setup gate** (`web/src/components/InitialStateGate.tsx`, wired into `web/src/lib/SimulationContext.tsx`'s render waterfall, between the loading/error checks and the pre-existing `PreStartScreen` gate): whenever `meta.initial_state` is fully empty (no occupancy rows *and* every standing count zero) and a `localStorage` flag (`initial-state-setup-done`) isn't already `"1"`, the admin sees this screen instead of `PreStartScreen` — occupancy/standing must be reviewed (zero is an accepted answer) and "Continue" clicked (`PUT /config`, sets the flag) before the normal Start-simulation flow becomes reachable at all. This makes entering today's real department state a mandatory first step, not an optional Settings tab an admin could skip past.
+  - **Required first-run setup gate** (`web/src/components/InitialStateGate.tsx`, wired into `web/src/lib/SimulationContext.tsx`'s render waterfall, between the loading/error checks and the auto-run): whenever `meta.initial_state` is fully empty (no occupancy rows *and* every standing count zero) and a `localStorage` flag (`initial-state-setup-done`) isn't already `"1"`, the admin sees this screen before anything else — occupancy/standing must be reviewed (zero is an accepted answer) and "Continue" clicked (`PUT /config`, sets the flag) before the baseline auto-run becomes reachable at all. This makes entering today's real department state a mandatory first step, not an optional Settings tab an admin could skip past.
   - **`AdmissionsTab.tsx`** (Settings, Plan Builder's Config step) — the same editor, for revisiting the values any time after the gate.
   - **CSV import** (`InitialStateImportModal.tsx`, launched from a header button on either surface): paste or upload a two-column `code,value` CSV — `code` matches a course code (→ occupancy) or `Year2`/`Year3`/`Year4` (→ standing), case-insensitively; a header row is auto-detected; unknown codes or non-numeric values are skipped with a reason shown in a preview, never fatal to the rest of the batch. Lets a department head bulk-load real numbers instead of hand-typing ~41 rows.
 
