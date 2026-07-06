@@ -3,6 +3,7 @@
 import { useSimulation } from "@/lib/SimulationContext";
 import BottlenecksPanel from "@/components/BottlenecksPanel";
 import CapacityRecommendations from "@/components/CapacityRecommendations";
+import AutofillPanel from "@/components/AutofillPanel";
 import WhatIfPanel from "@/components/WhatIfPanel";
 
 export default function BottlenecksPage() {
@@ -28,6 +29,7 @@ export default function BottlenecksPage() {
         baselineGradRate={baselineGradRate}
         baselineSeatsPerStud={baselineSeatsPerStud}
       />
+      <AutofillPanel />
       <WhatIfPanel
         meta={meta}
         baseline={summary.headline}

@@ -43,6 +43,7 @@ from src.livesim import LiveRunner
 from src.models.course import Course
 from src.models.semester import effective_admit_interval_terms
 from src.montecarlo import run_monte_carlo
+from src.optimizer import DEFAULT_RUN_BUDGET, MAX_RUN_BUDGET, solve_for_targets
 from src.rules import gate_edges
 from src.scenarios import router as scenarios_router
 from src.service import run_simulation
@@ -374,6 +375,30 @@ def simulate(
         "admissions_recommendation": run["admissions_recommendation"],
         "flow_timeline": flow_timeline,
     }
+
+
+class AutofillRequest(BaseModel):
+    # How many candidate simulations the solver may run (each is one full run). Clamped to
+    # [1, MAX_RUN_BUDGET] inside solve_for_targets so a request can't wedge the server.
+    run_budget: int = Field(default=DEFAULT_RUN_BUDGET, ge=1, le=MAX_RUN_BUDGET)
+    # Whether to probe intake reductions when capacity alone can't meet every target.
+    tune_intake_fallback: bool = True
+
+
+@app.post("/autofill")
+def autofill(req: AutofillRequest, db: Session = Depends(get_db)) -> dict:
+    """Auto-fill solver: search the smallest capacity additions that meet the active plan's
+    admission health targets at the current intake. Read-only — returns a recommendation the
+    caller applies itself via PUT /curriculum/{code} + PUT /config. See src/optimizer.py."""
+    curriculum, config, _scenario = _load_plan_data(db)
+    try:
+        return solve_for_targets(
+            curriculum, config,
+            run_budget=req.run_budget,
+            tune_intake_fallback=req.tune_intake_fallback,
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
 @app.get("/curriculum")

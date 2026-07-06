@@ -2,6 +2,7 @@
 
 import { useSimulation } from "@/lib/SimulationContext";
 import AnimationSection from "@/components/AnimationSection";
+import AdvisorPanel from "@/components/AdvisorPanel";
 import AdmissionsRecommendation from "@/components/AdmissionsRecommendation";
 import HeadlineKpis from "@/components/HeadlineKpis";
 
@@ -47,6 +48,7 @@ export default function Home() {
         frames={data.flow_timeline.frames}
       />
 
+      <AdvisorPanel summary={summary} />
       <AdmissionsRecommendation rec={summary.admissions_recommendation} />
       <HeadlineKpis headline={summary.headline} />
     </main>

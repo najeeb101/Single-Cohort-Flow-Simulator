@@ -105,6 +105,57 @@ export interface ConfidenceInterval {
   n_runs: number;
 }
 
+// Auto-fill solver (POST /autofill, src/optimizer.py): smallest capacity additions that meet
+// the admission health targets at the current intake. `recommended` is keyed by course code,
+// changed courses only.
+export interface AutofillCapacityRec {
+  current: number;
+  recommended: number;
+  added: number;
+}
+
+export interface AutofillCriterion {
+  name: string;
+  observed: number;
+  target: number;
+  slack: number;
+  met: boolean;
+}
+
+export interface AutofillTraceRow {
+  iteration: number;
+  action: string;
+  course?: string;
+  from?: number;
+  to?: number;
+  worst_criterion?: string | null;
+  worst_slack?: number | null;
+}
+
+export interface AutofillIntakeSuggestion {
+  recommended_intake: number | null;
+  note: string;
+}
+
+export interface AutofillResult {
+  feasible: boolean;
+  runs: number;
+  current_intake: number;
+  recommended: Record<string, AutofillCapacityRec>;
+  total_seats_added: number;
+  final_metrics: {
+    graduation_rate: number;
+    on_time_rate: number;
+    avg_graduation_time: number;
+    academic_dropout_rate: number;
+    censored_rate: number;
+  };
+  criteria: AutofillCriterion[];
+  trace: AutofillTraceRow[];
+  intake_suggestion: AutofillIntakeSuggestion | null;
+  note: string;
+}
+
 export interface Headline {
   graduation_rate: number;
   academic_dropout_rate: number;

@@ -1,4 +1,5 @@
 import type {
+  AutofillResult,
   CourseCreate,
   CourseRecord,
   CourseUpdate,
@@ -51,6 +52,14 @@ export function simulate(overrides: ScenarioRequest): Promise<SimulateResponse> 
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(overrides),
   }).then((res) => asJson<SimulateResponse>(res));
+}
+
+export function autofill(runBudget?: number): Promise<AutofillResult> {
+  return fetch(`${API_BASE}/autofill`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(runBudget ? { run_budget: runBudget } : {}),
+  }).then((res) => asJson<AutofillResult>(res));
 }
 
 export function listRuns(): Promise<RunRecord[]> {
