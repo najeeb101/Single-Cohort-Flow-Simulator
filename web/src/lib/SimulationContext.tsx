@@ -1,8 +1,8 @@
 "use client";
 
-import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { getMeta, simulate } from "@/lib/api";
-import PreStartScreen from "@/components/PreStartScreen";
+import CurriculumGraph from "@/components/CurriculumGraph";
 import InitialStateGate from "@/components/InitialStateGate";
 import type {
   CohortInfo,
@@ -32,6 +32,7 @@ interface SimulationState {
   data: SimulateResponse;
   chartMeta: ChartMeta;
   refreshBaseline: () => Promise<void>;
+  refreshing: boolean;
 }
 
 const SimulationContext = createContext<SimulationState | null>(null);
@@ -43,6 +44,8 @@ export function SimulationProvider({ children }: { children: ReactNode }) {
   const [phase, setPhase] = useState<Phase>("loading");
   const [starting, setStarting] = useState(false);
   const [startError, setStartError] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+  const autoStarted = useRef(false);
   const [initialStateDismissed, setInitialStateDismissed] = useState(
     () => typeof window !== "undefined" && window.localStorage.getItem(INITIAL_STATE_SETUP_DONE_KEY) === "1"
   );
@@ -81,10 +84,27 @@ export function SimulationProvider({ children }: { children: ReactNode }) {
   }, [applyResult]);
 
   const refreshBaseline = useCallback(async () => {
-    const [m, d] = await Promise.all([getMeta(), simulate({})]);
-    setMeta(m);
-    applyResult(d, true);
+    setRefreshing(true);
+    try {
+      const [m, d] = await Promise.all([getMeta(), simulate({})]);
+      setMeta(m);
+      applyResult(d, true);
+    } finally {
+      setRefreshing(false);
+    }
   }, [applyResult]);
+
+  // Past the first-run setup gate but no results yet -> auto-run the baseline once, so the
+  // admin never has to click a separate "Start" button (the whole point of the auto-run UX).
+  // The ref guard means a *failed* run surfaces a retry instead of silently re-firing in a
+  // loop, and a *successful* run fills `data`, so the condition can never become true again.
+  const pastGate = !!meta && (initialStateDismissed || !isInitialStateUnset(meta));
+  useEffect(() => {
+    if (phase === "ready" && pastGate && !data && !starting && !startError && !autoStarted.current) {
+      autoStarted.current = true;
+      start();
+    }
+  }, [phase, pastGate, data, starting, startError, start]);
 
   if (phase === "loading") {
     return (
@@ -120,14 +140,90 @@ export function SimulationProvider({ children }: { children: ReactNode }) {
     );
   }
 
+  // No manual Start screen anymore: the effect above kicks off the run automatically once we
+  // get here. This is the transient "running…" view (or a retry, if that run failed).
   if (!data || !chartMeta) {
-    return <PreStartScreen meta={meta} onStart={start} starting={starting} error={startError} />;
+    return <StartingScreen meta={meta} error={startError} onRetry={start} retrying={starting} />;
   }
 
   return (
-    <SimulationContext.Provider value={{ meta, data, chartMeta, refreshBaseline }}>
+    <SimulationContext.Provider value={{ meta, data, chartMeta, refreshBaseline, refreshing }}>
+      {refreshing && <UpdatingIndicator />}
       {children}
     </SimulationContext.Provider>
+  );
+}
+
+// Shown while the baseline auto-runs on first load (and as a retry surface if it fails). The
+// roadmap preview is the same graph the dashboard fills in once results arrive, so the hand-off
+// is visually seamless rather than a jarring blank-to-populated jump.
+function StartingScreen({
+  meta,
+  error,
+  onRetry,
+  retrying,
+}: {
+  meta: MetaResponse;
+  error: string | null;
+  onRetry: () => void;
+  retrying: boolean;
+}) {
+  const totalCourses = meta.graph.nodes.length;
+  const totalCH = meta.graph.nodes.reduce((s, n) => s + (n.credits || 0), 0);
+
+  return (
+    <main className="mx-auto w-full max-w-[1600px] px-7 pb-16">
+      <div className="border-b border-border py-10">
+        <div className="mx-auto flex max-w-2xl flex-col items-center text-center">
+          <div className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-maroon text-[18px] font-extrabold text-white">
+            QU
+          </div>
+          <h1 className="mt-3 text-[24px] font-extrabold tracking-tight text-ink">
+            CS Curriculum Flow Simulator
+          </h1>
+          {error ? (
+            <>
+              <p className="mt-3 text-[13.5px] text-bad">{error}</p>
+              <button
+                type="button"
+                onClick={onRetry}
+                disabled={retrying}
+                className="mt-4 rounded-[10px] bg-accent px-6 py-2 text-[14px] font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {retrying ? "Running…" : "Try again"}
+              </button>
+            </>
+          ) : (
+            <p className="mt-3 flex items-center gap-2 text-[14px] text-muted">
+              <span className="inline-block h-2.5 w-2.5 animate-ping rounded-full bg-accent" />
+              Running the baseline simulation…
+            </p>
+          )}
+        </div>
+      </div>
+
+      <section className="mt-6 rounded-2xl border border-border bg-surface">
+        <div className="flex items-baseline justify-between gap-3 border-b border-border px-4 py-2.5 text-[13px] font-semibold">
+          <span>Programme roadmap — QU CS 2024</span>
+          <span className="text-xs font-normal text-muted">
+            {totalCourses} courses · {totalCH} CH · coloured by requirement type
+          </span>
+        </div>
+        <CurriculumGraph graph={meta.graph} courses={{}} />
+      </section>
+    </main>
+  );
+}
+
+// Fixed-position pill shown whenever the shared baseline is re-running after an edit (Settings,
+// Plans, initial-state changes). Lives inside the provider because NavBar sits outside it and
+// can't read this state.
+function UpdatingIndicator() {
+  return (
+    <div className="fixed bottom-5 right-5 z-[60] flex items-center gap-2 rounded-full border border-border-2 bg-surface px-4 py-2 text-[12.5px] font-semibold text-ink shadow-lg">
+      <span className="inline-block h-2 w-2 animate-ping rounded-full bg-accent" />
+      Updating simulation…
+    </div>
   );
 }
 
