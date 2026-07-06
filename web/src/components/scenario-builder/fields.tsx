@@ -70,12 +70,25 @@ export function SliderBox({ value, onChange, min, max, step, display }: SliderBo
   );
 }
 
-export function SectionCard({ title, hint, children }: { title: string; hint?: string; children: ReactNode }) {
+export function SectionCard({
+  title,
+  hint,
+  actions,
+  children,
+}: {
+  title: string;
+  hint?: string;
+  actions?: ReactNode;
+  children: ReactNode;
+}) {
   return (
     <div className="rounded-2xl border border-border bg-surface p-4">
       <div className="mb-3 flex items-baseline justify-between gap-3 text-[13px] font-semibold">
         <span>{title}</span>
-        {hint && <span className="text-xs font-normal text-muted">{hint}</span>}
+        <div className="flex items-center gap-2.5">
+          {hint && <span className="text-xs font-normal text-muted">{hint}</span>}
+          {actions}
+        </div>
       </div>
       {children}
     </div>

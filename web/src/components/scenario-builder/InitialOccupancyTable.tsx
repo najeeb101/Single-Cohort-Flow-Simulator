@@ -1,22 +1,22 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, type ReactNode } from "react";
 import type { CourseRecord } from "@/types/simulation";
-import type { BuilderState } from "@/lib/scenarioBuilder";
 import { NumberBox, SectionCard } from "./fields";
 
 interface Props {
   courses: CourseRecord[];
-  state: BuilderState;
-  baseline: BuilderState;
-  setRecordField: (key: "initialOccupancy", code: string, value: number) => void;
+  occupancy: Record<string, number>;
+  baselineOccupancy?: Record<string, number>;
+  onChange: (code: string, value: number) => void;
+  actions?: ReactNode;
 }
 
 // Mirrors PassRatesDropoutTab's "All courses" table pattern — sorted the same way the
 // program roadmap orders columns (study_plan_term ascending, unscheduled trailing; see
 // web/src/lib/graphLayout.ts's computeSemesterLayout) so the row order matches what the
 // admin already sees on the roadmap.
-export default function InitialOccupancyTable({ courses, state, baseline, setRecordField }: Props) {
+export default function InitialOccupancyTable({ courses, occupancy, baselineOccupancy, onChange, actions }: Props) {
   const sorted = useMemo(() => {
     return [...courses].sort((a, b) => {
       const at = a.study_plan_term > 0 ? a.study_plan_term : Infinity;
@@ -30,6 +30,7 @@ export default function InitialOccupancyTable({ courses, state, baseline, setRec
     <SectionCard
       title="All courses — initial occupancy"
       hint="seats already taken by the existing student body, subtracted from capacity every mandatory term"
+      actions={actions}
     >
       <div className="max-h-[420px] overflow-auto rounded-lg border border-border">
         <table className="w-full border-collapse text-[12.5px]">
@@ -47,11 +48,11 @@ export default function InitialOccupancyTable({ courses, state, baseline, setRec
           </thead>
           <tbody>
             {sorted.map((course) => {
-              const occupancy = state.initialOccupancy[course.code] ?? 0;
-              const baselineOccupancy = baseline.initialOccupancy[course.code] ?? 0;
-              const dirty = Math.abs(occupancy - baselineOccupancy) > 1e-9;
-              const exceeds = occupancy > course.capacity;
-              const free = Math.max(0, course.capacity - occupancy);
+              const value = occupancy[course.code] ?? 0;
+              const baseValue = baselineOccupancy?.[course.code] ?? 0;
+              const dirty = Math.abs(value - baseValue) > 1e-9;
+              const exceeds = value > course.capacity;
+              const free = Math.max(0, course.capacity - value);
               return (
                 <tr key={course.code} className={dirty ? "bg-accent/[0.07]" : ""}>
                   <td className="whitespace-nowrap border-b border-border px-3 py-1.5 font-semibold">{course.code}</td>
@@ -62,7 +63,7 @@ export default function InitialOccupancyTable({ courses, state, baseline, setRec
                   <td className="whitespace-nowrap border-b border-border px-3 py-1.5 tabular-nums text-muted">{course.capacity}</td>
                   <td className="whitespace-nowrap border-b border-border px-3 py-1.5">
                     <div className="w-24">
-                      <NumberBox value={occupancy} onChange={(v) => setRecordField("initialOccupancy", course.code, v)} min={0} step={1} />
+                      <NumberBox value={value} onChange={(v) => onChange(course.code, v)} min={0} step={1} />
                     </div>
                   </td>
                   <td className={`whitespace-nowrap border-b border-border px-3 py-1.5 tabular-nums ${exceeds ? "text-bad" : "text-muted"}`}>

@@ -1,7 +1,7 @@
 import type { CourseRecord } from "@/types/simulation";
 import type { BuilderState } from "@/lib/scenarioBuilder";
 import { FieldRow, NumberBox, SectionCard } from "./fields";
-import InitialOccupancyTable from "./InitialOccupancyTable";
+import InitialStateEditor from "./InitialStateEditor";
 
 interface Props {
   mode: "simple" | "advanced";
@@ -12,11 +12,8 @@ interface Props {
   setRecordField: (key: "standing" | "initialOccupancy", code: string, value: number) => void;
 }
 
-const STANDING_NODES = ["Year2", "Year3", "Year4"] as const;
-
 export default function AdmissionsTab({ mode, state, baseline, courses, setField, setRecordField }: Props) {
   const dirty = (key: keyof BuilderState) => state[key] !== baseline[key];
-  const standingDirty = (node: string) => (state.standing[node] ?? 0) !== (baseline.standing[node] ?? 0);
 
   return (
     <div className="flex flex-col gap-4">
@@ -45,32 +42,18 @@ export default function AdmissionsTab({ mode, state, baseline, courses, setField
         </div>
       </SectionCard>
 
-      <SectionCard
-        title="Initial state — existing student body"
-        hint="the university the first cohort walks into (replaces the old incumbent cohorts)"
-      >
-        <p className="mb-2.5 text-xs text-muted">
-          Head-count of students already enrolled at each year-standing when the simulation
-          starts. Added as a constant background to the flow chart so it isn&apos;t empty at term&nbsp;0.
-          Per-course occupied seats are entered in the table below (Advanced only).
-        </p>
-        <div className="flex flex-wrap gap-2">
-          {STANDING_NODES.map((node) => (
-            <FieldRow key={node} label={`${node} standing`} dirty={standingDirty(node)}>
-              <NumberBox
-                value={state.standing[node] ?? 0}
-                onChange={(v) => setRecordField("standing", node, v)}
-                min={0}
-                max={5000}
-                step={5}
-              />
-            </FieldRow>
-          ))}
-        </div>
-      </SectionCard>
-
       {mode === "advanced" && (
-        <InitialOccupancyTable courses={courses} state={state} baseline={baseline} setRecordField={setRecordField} />
+        <InitialStateEditor
+          courses={courses}
+          occupancy={state.initialOccupancy}
+          standing={state.standing}
+          baselineOccupancy={baseline.initialOccupancy}
+          baselineStanding={baseline.standing}
+          onOccupancyChange={(code, v) => setRecordField("initialOccupancy", code, v)}
+          onOccupancyBulkChange={(patch) => setField("initialOccupancy", { ...state.initialOccupancy, ...patch })}
+          onStandingChange={(node, v) => setRecordField("standing", node, v)}
+          onStandingBulkChange={(patch) => setField("standing", { ...state.standing, ...patch })}
+        />
       )}
     </div>
   );

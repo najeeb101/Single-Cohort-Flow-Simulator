@@ -3,12 +3,21 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
 import { getMeta, simulate } from "@/lib/api";
 import PreStartScreen from "@/components/PreStartScreen";
+import InitialStateGate from "@/components/InitialStateGate";
 import type {
   CohortInfo,
   Graph,
   MetaResponse,
   SimulateResponse,
 } from "@/types/simulation";
+
+const INITIAL_STATE_SETUP_DONE_KEY = "initial-state-setup-done";
+
+function isInitialStateUnset(meta: MetaResponse): boolean {
+  const occupancy = meta.initial_state?.occupancy ?? {};
+  const standing = meta.initial_state?.standing ?? {};
+  return Object.keys(occupancy).length === 0 && Object.values(standing).every((v) => v === 0);
+}
 
 type Phase = "loading" | "ready" | "error";
 
@@ -34,6 +43,9 @@ export function SimulationProvider({ children }: { children: ReactNode }) {
   const [phase, setPhase] = useState<Phase>("loading");
   const [starting, setStarting] = useState(false);
   const [startError, setStartError] = useState<string | null>(null);
+  const [initialStateDismissed, setInitialStateDismissed] = useState(
+    () => typeof window !== "undefined" && window.localStorage.getItem(INITIAL_STATE_SETUP_DONE_KEY) === "1"
+  );
 
   useEffect(() => {
     getMeta()
@@ -91,6 +103,20 @@ export function SimulationProvider({ children }: { children: ReactNode }) {
           (from the repo root) and reload.
         </div>
       </main>
+    );
+  }
+
+  if (!initialStateDismissed && isInitialStateUnset(meta)) {
+    return (
+      <InitialStateGate
+        meta={meta}
+        onComplete={async () => {
+          const freshMeta = await getMeta();
+          setMeta(freshMeta);
+          window.localStorage.setItem(INITIAL_STATE_SETUP_DONE_KEY, "1");
+          setInitialStateDismissed(true);
+        }}
+      />
     );
   }
 
