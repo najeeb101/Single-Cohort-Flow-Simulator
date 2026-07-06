@@ -68,7 +68,9 @@ src/
 ├── curriculum_validation.py  # check_no_cycle() — networkx prerequisite-cycle check for Settings
 │                         # edits and Plan imports; PlanImportError for malformed/cyclic imports
 ├── livesim.py             # LiveRunner — deterministic replay engine for stepwise Live Simulation
-├── api.py                # FastAPI wrapper: /health, /meta, /simulate, /scenarios, /runs,
+├── optimizer.py           # solve_for_targets() — Auto-fill solver: bounded greedy search for the
+│                         # smallest capacity additions meeting admission_targets at current intake
+├── api.py                # FastAPI wrapper: /health, /meta, /simulate, /autofill, /scenarios, /runs,
 │                         # /curriculum (GET/POST/PUT/DELETE), /config, /plans, /livesim — no
 │                         # login required (see auth.py); see docs/api.md for the full reference
 ├── montecarlo.py         # run_monte_carlo() — mean ± 95% CI over many seeds
@@ -287,6 +289,33 @@ Each also has a `*_by_cohort` variant (`cohort_id -> {course -> count}`) powerin
 > No frontend changes are needed when adding scenarios; `py run.py` also picks them up in the
 > same loop. The `capacity_overrides` and `offering_overrides` fields already in the engine
 > (§11 in `docs/technical_design.md`) are the correct hooks for structural intervention scenarios.
+
+## Advisor + Auto-fill
+
+Two decision-support features layered on top of a completed run, both reading the same
+`evaluate_health_criteria` slacks (vs `config['admission_targets']`) the admissions
+recommendation already uses.
+
+- **Advisor** (`web/src/components/AdvisorPanel.tsx`, on the Dashboard) — a **rules-based**
+  (no-LLM, no-API-key) reading of the run's existing `flow_timeline.summary` (headline metrics,
+  the four health criteria, top bottlenecks) into a prioritized list of plain-language
+  recommendations. Pure frontend: it computes from data already in the `/simulate` payload, no
+  extra request. This is **Phase A of a planned hybrid advisor**; **Phase B** (an optional
+  Claude-powered chat box, `POST /advisor/chat`) is designed but **not built — deferred until an
+  Anthropic API key is available**. Build Phase B with the `claude-api` skill.
+- **Auto-fill** (`src/optimizer.py::solve_for_targets`, `POST /autofill`, panel
+  `web/src/components/AutofillPanel.tsx` on the Bottlenecks page) — a bounded **greedy** solver:
+  each iteration runs one simulation, finds the course with the worst single-(mandatory-)term
+  seat shortfall, and bumps its capacity by that shortfall (the same "peak shortfall" heuristic
+  `CapacityRecommendations` shows), until the **seat-denial** target is met or `run_budget`
+  (default 20, clamped ≤ 40) is exhausted. It only drives `seats_denied_per_stud` — the one
+  target capacity actually fixes — and reports grad-rate/time-to-degree/throughput-stability
+  breaches as **non-capacity** (with an intake-reduction fallback probe), so it never overstates
+  the seats needed. Objective is fixed as *"fewest capacity additions at the current intake"*
+  (intake is a fallback lever only). Read-only endpoint; the panel **applies** the result via the
+  existing `PUT /curriculum/{code}` + `PUT /config` + `refreshBaseline()` path. Single-seed per
+  candidate (deterministic) — Monte-Carlo-verify the final pick before committing. Covered by
+  `tests/test_optimizer.py`.
 
 ## Key Constraints
 
