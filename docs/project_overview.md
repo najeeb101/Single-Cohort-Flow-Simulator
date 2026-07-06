@@ -43,7 +43,7 @@ relieve the most of it? See §6 for exactly what it does and doesn't claim to kn
 
 ## 2. The university being modeled
 
-**The curriculum.** QU's 2024 CS study plan is 38 courses, 120 credit hours, on a nominal
+**The curriculum.** QU's 2024 CS study plan is 41 courses, 120 credit hours, on a nominal
 8-semester path. A handful of upper-level courses are only taught in one season a year (e.g. a
 Fall-only software engineering course, Spring-only algorithms/operating-systems/database
 courses) — missing one of those isn't a one-semester slip, it's a full-year wait. One course
@@ -349,6 +349,12 @@ identical seeds per student so the *differences* between scenarios are real even
 
 ## 7. How a curriculum committee actually uses this
 
+- **Initial-state setup (first run)** — before the simulation panel unlocks at all, a required
+  screen asks for today's real department state: seats already taken in each course, and how
+  many students already sit at each year-standing (zero is an accepted answer for a from-scratch
+  university). A CSV paste/upload fills in a batch of courses and year-standing counts at once,
+  so this is realistically a five-minute step rather than hand-typing every course. The same
+  editor stays reachable afterward from Settings, for whenever those numbers change.
 - **Settings** — edit the curriculum (courses, prerequisites, offerings, pass rates) and the
   baseline configuration in place, covering the same admissions/pass-rate/dropout/registration
   knobs a one-off scenario would, but as a *persistent* change rather than a per-run override.

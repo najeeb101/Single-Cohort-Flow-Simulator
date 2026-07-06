@@ -10,6 +10,8 @@ It now models a **multi-cohort, steady-state university**: a new cohort is admit
 
 Full design document: [docs/technical_design.md](docs/technical_design.md)
 Assumptions log: [docs/assumptions.md](docs/assumptions.md)
+API reference: [docs/api.md](docs/api.md)
+Database schema: [docs/database.md](docs/database.md)
 
 ## Commands
 
@@ -24,16 +26,14 @@ py scripts/size_capacity.py
 # rerun with --force after hand-editing curriculum.json/simulation_config.json to resync)
 py scripts/migrate_json_to_db.py [--force]
 
-# Run the HTTP API. AUTH_SECRET must be set (the process fails fast at import time if it
-# isn't — no hardcoded dev-secret fallback, by design):
-#   PowerShell: $env:AUTH_SECRET = "some-32+-byte-local-dev-secret"
-#   bash:       export AUTH_SECRET="some-32+-byte-local-dev-secret"
+# Run the HTTP API (no auth/env-secret required — every request resolves to a single
+# shared auto-provisioned demo user, see src/auth.py)
 py -m uvicorn src.api:app --reload --port 8001
 
 # Run the Next.js dashboard (talks to the API above via next.config.ts's rewrite, see
 # web/README.md). Must open http://localhost:3000, not 127.0.0.1:3000 — Next.js 16 dev
 # mode blocks cross-origin dev requests from origins not in `allowedDevOrigins`.
-cd web && npm install && npm run dev   # then open http://localhost:3000, register an account
+cd web && npm install && npm run dev   # then open http://localhost:3000
 
 # Run tests
 py -m pytest tests/ -v
@@ -61,32 +61,37 @@ src/
 ├── db_models.py          # User/Plan/Course/AppConfig/Scenario/Run ORM tables
 │                         # (Course/AppConfig are per-Plan; User.active_plan_id
 │                         # picks which Plan drives that user)
-├── auth.py               # JWT register/login, get_current_user (header or `session` cookie)
-├── scenarios.py          # Persistent /scenarios + /runs endpoints, scoped per user
+├── auth.py               # Auth removed — get_current_user gets-or-creates a single shared
+│                         # demo user on every call (no token/cookie check); kept only so
+│                         # every endpoint's Depends() signature is unchanged
+├── scenarios.py          # Persistent /scenarios + /runs endpoints, scoped to the demo user
 ├── curriculum_validation.py  # check_no_cycle() — networkx prerequisite-cycle check for Settings
 │                         # edits and Plan imports; PlanImportError for malformed/cyclic imports
-├── api.py                # FastAPI wrapper: /health, /auth/*, /meta, /simulate, /scenarios, /runs,
-│                         # /curriculum (GET/POST/PUT/DELETE),
-│                         # /config, /plans — every endpoint but /health + /auth/* requires login
+├── livesim.py             # LiveRunner — deterministic replay engine for stepwise Live Simulation
+├── api.py                # FastAPI wrapper: /health, /meta, /simulate, /scenarios, /runs,
+│                         # /curriculum (GET/POST/PUT/DELETE), /config, /plans, /livesim — no
+│                         # login required (see auth.py); see docs/api.md for the full reference
 ├── montecarlo.py         # run_monte_carlo() — mean ± 95% CI over many seeds
 ├── visualize.py          # save_all_figures() + per-figure functions
 └── utils.py              # load_json(), grade_tier()
 web/                   # Next.js/TypeScript dashboard — talks to src/api.py via next.config.ts's
-                       # /api/backend/* rewrite (so the browser stays same-origin and the httpOnly
-                       # auth cookie reaches FastAPI without CORS-with-credentials). Includes the
-                       # animated curriculum graph, the static figures (ported as React/SVG),
-                       # the Scenario Builder, login/register, saved Scenarios + Run History,
+                       # /api/backend/* rewrite (so the browser stays same-origin; no auth cookie
+                       # involved since auth was removed). Includes the animated curriculum graph,
+                       # the static figures (ported as React/SVG), saved Scenarios + Run History,
                        # Settings (curriculum CRUD + baseline config editing), Plans (import/
-                       # activate/export/delete alternate curriculum+config combos per
-                       # user), and the Plan Builder wizard (create a new plan from scratch or by
-                       # cloning the default, entering courses/config by hand before the first save).
+                       # activate/export/delete alternate curriculum+config combos), the Plan
+                       # Builder wizard (create a new plan from scratch or by cloning the default),
+                       # and the Live Simulation page (stepwise, term-by-term runs).
 ```
 
 **Dashboard start gate + roadmap layout** (`web/src/lib/SimulationContext.tsx`,
 `web/src/components/CurriculumGraph.tsx`, `web/src/lib/graphLayout.ts`): the dashboard does
-**not** auto-run the engine. On load it fetches only the program structure (`GET /meta`) and
-shows the curriculum **roadmap** + a "▶ Start simulation" button; the baseline run fires only
-when the user clicks Start (`SimulationProvider.start`). The roadmap is a Qatar-University-style
+**not** auto-run the engine. On load it fetches only the program structure (`GET /meta`). If
+`initial_state` is still completely empty, it first shows the required
+[`InitialStateGate`](#initial-state-model) setup screen; once that's dismissed (or on every
+later load, since the values are then non-empty) it shows the curriculum **roadmap** + a
+"▶ Start simulation" button; the baseline run fires only when the user clicks Start
+(`SimulationProvider.start`). The roadmap is a Qatar-University-style
 program-roadmap layout — `computeSemesterLayout` places each course in its `study_plan_term`
 column (term 1 = Year 1 Fall, 2 = Year 1 Spring, …), grouped under Year 1–4 bands with
 Fall/Spring + credit-hour headers, boxes coloured by requirement type (`CATEGORY_STYLE`), red
@@ -191,8 +196,12 @@ immediately, no server restart needed. See [Multi-Plan Model](#multi-plan-model)
 - Replaces the old simulated-incumbent warm start: instead of admitting cohorts at negative terms, the admin enters an **initial state** describing the university the first simulated cohort walks into. It lives in `config["initial_state"]` (per-plan, in `AppConfig.data`) with two parts:
   - **`occupancy`** (`{course_code: seats}`) — seats in each course already taken by the existing, un-simulated student body. `src/simulator.py::_effective_capacity` subtracts this from a course's free seats on **every mandatory term** (steady-state background load, not just term 0; floored at 0). Optional (Summer/Winter) terms are left alone — their separate, much smaller capacity model shouldn't be zeroed out by it. A course whose seats are fully consumed reports `full` even with no requesters.
   - **`standing`** (`{Year2|Year3|Year4: count}`) — a head-count of pre-existing students at each year-standing, folded into the **aggregate** (`stages.totals`) stage nodes (and exposed per-frame as `frame["background"]`) so the flow chart starts non-empty. Display-only and constant every term; per-cohort node counts stay exactly the simulated population, and headline metrics are unaffected.
-- Wired through `/meta` (read), `POST /simulate` (`ScenarioRequest.initial_state` override), and `PUT /config` (persist, validated by `src/api.py::_validate_initial_state`). Frontend: the Scenario Builder's **Capacity** tab edits per-course occupancy, its **Admissions** tab edits year-standing, and Settings persists standing to the active plan. `meta.flow_timeline.meta.initial_state` carries it to the dashboard.
+- Wired through `/meta` (read), `POST /simulate` (`ScenarioRequest.initial_state` override), and `PUT /config` (persist, validated by `src/api.py::_validate_initial_state`). `meta.flow_timeline.meta.initial_state` carries it to the dashboard.
 - `num_incumbent_cohorts` and `initial_state` are independent and *can* coexist, but the default QU plan uses only `initial_state`.
+- **Frontend editing surfaces** — two entry points share one editor, `web/src/components/scenario-builder/InitialStateEditor.tsx` (year-standing number-boxes + `InitialOccupancyTable.tsx`'s per-course occupancy table, sorted by `study_plan_term`), so there is one implementation, not two:
+  - **Required first-run setup gate** (`web/src/components/InitialStateGate.tsx`, wired into `web/src/lib/SimulationContext.tsx`'s render waterfall, between the loading/error checks and the pre-existing `PreStartScreen` gate): whenever `meta.initial_state` is fully empty (no occupancy rows *and* every standing count zero) and a `localStorage` flag (`initial-state-setup-done`) isn't already `"1"`, the admin sees this screen instead of `PreStartScreen` — occupancy/standing must be reviewed (zero is an accepted answer) and "Continue" clicked (`PUT /config`, sets the flag) before the normal Start-simulation flow becomes reachable at all. This makes entering today's real department state a mandatory first step, not an optional Settings tab an admin could skip past.
+  - **`AdmissionsTab.tsx`** (Settings, Plan Builder's Config step) — the same editor, for revisiting the values any time after the gate.
+  - **CSV import** (`InitialStateImportModal.tsx`, launched from a header button on either surface): paste or upload a two-column `code,value` CSV — `code` matches a course code (→ occupancy) or `Year2`/`Year3`/`Year4` (→ standing), case-insensitively; a header row is auto-detected; unknown codes or non-numeric values are skipped with a reason shown in a preview, never fatal to the rest of the batch. Lets a department head bulk-load real numbers instead of hand-typing ~41 rows.
 
 ## Multi-Plan Model
 
