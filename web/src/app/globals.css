@@ -12,7 +12,11 @@
   --ink: #e7ecf3;
   --muted: #8b97ab;
   --faint: #5d6878;
-  --accent: #5b8cff;
+  /* Maroon-forward identity: the primary interactive accent is QU maroon, lifted to a
+     legible crimson-rose on the dark canvas. The old blue is kept as --info for the few
+     genuinely informational highlights, not as the brand colour. */
+  --accent: #e05c81;
+  --info: #5b8cff;
   --maroon: #a51c45;
   --good: #51c878;
   --warn: #e8b84b;
@@ -60,7 +64,9 @@
   --ink: #2f3437;
   --muted: #787774;
   --faint: #9b9a97;
-  --accent: #3b66d6;
+  /* On the off-white canvas the brand maroon carries full strength as the accent. */
+  --accent: #a51c45;
+  --info: #3b66d6;
   --maroon: #a51c45;
   --good: #2f7d4f;
   --warn: #946800;
@@ -103,6 +109,7 @@
   --color-muted: var(--muted);
   --color-faint: var(--faint);
   --color-accent: var(--accent);
+  --color-info: var(--info);
   --color-maroon: var(--maroon);
   --color-good: var(--good);
   --color-warn: var(--warn);
@@ -112,7 +119,12 @@
 }
 
 body {
-  background: var(--bg);
+  /* A single soft maroon bloom anchored above the fold gives the flat canvas depth and
+     ties the whole surface to the brand, without the "even 45deg gradient" AI tell. */
+  background:
+    radial-gradient(1000px 460px at 50% -240px, color-mix(in srgb, var(--maroon) 13%, transparent), transparent 70%),
+    var(--bg);
+  background-attachment: fixed;
   color: var(--ink);
   /* Numbers in a data-heavy dashboard must hold a fixed column width as they update
      (a stat ticking from "92.5%" to "100%" shouldn't reflow its neighbors), so this is
@@ -147,6 +159,13 @@ button:active {
 .bg-surface:not(nav) {
   box-shadow: var(--shadow-ambient);
   border-radius: 18px;
+}
+/* Give card titles more presence than the timid 15px they ship with. Unlayered, so it
+   wins over the per-component text-[15px] utilities without editing ~30 files. */
+.bg-surface:not(nav) h2 {
+  font-size: 1.0625rem;
+  line-height: 1.25;
+  letter-spacing: -0.012em;
 }
 nav.bg-surface {
   box-shadow: 0 8px 24px -16px rgba(0, 0, 0, 0.3);

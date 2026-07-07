@@ -14,10 +14,10 @@ export default function Home() {
     <main className="mx-auto w-full max-w-[1600px] px-7 pb-16">
       <header className="border-b border-border py-5">
         <div className="mx-auto flex max-w-2xl flex-col items-center gap-1 text-center">
-          <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-maroon text-[17px] font-extrabold text-white">
+          <div className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-maroon text-[18px] font-extrabold text-white shadow-[0_10px_24px_-8px_rgba(165,28,69,0.6)]">
             QU
           </div>
-          <h1 className="mt-1.5 text-[19px] font-bold tracking-tight">CS Curriculum Flow Simulator</h1>
+          <h1 className="mt-2 text-[28px] font-extrabold tracking-tight text-ink">CS Curriculum Flow Simulator</h1>
           <p className="text-[12.5px] text-muted">
             Baseline run complete — explore results below or go to{" "}
             <a href="/bottlenecks" className="font-semibold text-accent hover:underline">Bottlenecks</a>{" "}
