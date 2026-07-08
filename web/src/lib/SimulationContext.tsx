@@ -4,6 +4,7 @@ import { createContext, useCallback, useContext, useEffect, useRef, useState, ty
 import { getMeta, simulate } from "@/lib/api";
 import CurriculumGraph from "@/components/CurriculumGraph";
 import InitialStateGate from "@/components/InitialStateGate";
+import OnboardingIntro from "@/components/OnboardingIntro";
 import type {
   CohortInfo,
   Graph,
@@ -12,6 +13,7 @@ import type {
 } from "@/types/simulation";
 
 const INITIAL_STATE_SETUP_DONE_KEY = "initial-state-setup-done";
+const ONBOARDING_INTRO_DONE_KEY = "onboarding-intro-done";
 
 function isInitialStateUnset(meta: MetaResponse): boolean {
   const occupancy = meta.initial_state?.occupancy ?? {};
@@ -46,6 +48,9 @@ export function SimulationProvider({ children }: { children: ReactNode }) {
   const [startError, setStartError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const autoStarted = useRef(false);
+  const [introDismissed, setIntroDismissed] = useState(
+    () => typeof window !== "undefined" && window.localStorage.getItem(ONBOARDING_INTRO_DONE_KEY) === "1"
+  );
   const [initialStateDismissed, setInitialStateDismissed] = useState(
     () => typeof window !== "undefined" && window.localStorage.getItem(INITIAL_STATE_SETUP_DONE_KEY) === "1"
   );
@@ -123,6 +128,17 @@ export function SimulationProvider({ children }: { children: ReactNode }) {
           (from the repo root) and reload.
         </div>
       </main>
+    );
+  }
+
+  if (!introDismissed) {
+    return (
+      <OnboardingIntro
+        onComplete={() => {
+          window.localStorage.setItem(ONBOARDING_INTRO_DONE_KEY, "1");
+          setIntroDismissed(true);
+        }}
+      />
     );
   }
 

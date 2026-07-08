@@ -143,21 +143,34 @@ function buildAdvice(summary: FlowTimelineSummary): Advice[] {
     .slice(0, 6);
 }
 
-export default function AdvisorPanel({ summary }: { summary: FlowTimelineSummary }) {
+export default function AdvisorPanel({
+  summary,
+  showHeading = true,
+}: {
+  summary: FlowTimelineSummary;
+  // The dedicated /advisor page renders its own page-level <h1>/description, so it opts out
+  // of this component's internal heading to avoid showing "Advisor" twice — same pattern as
+  // AdmissionsTab's `showInitialState` prop.
+  showHeading?: boolean;
+}) {
   const advice = useMemo(() => buildAdvice(summary), [summary]);
 
   if (advice.length === 0) return null;
 
   return (
     <section className="py-6">
-      <div className="mb-1 flex items-baseline gap-2">
-        <h2 className="text-[15px] font-bold">Advisor</h2>
-        <span className="text-xs font-normal text-muted">— what this run is telling you</span>
-      </div>
-      <p className="mb-4 max-w-3xl text-[12.5px] text-muted">
-        Automatic reading of the results against your admission targets. Each card is grounded in this
-        run&apos;s numbers — most important first.
-      </p>
+      {showHeading && (
+        <>
+          <div className="mb-1 flex items-baseline gap-2">
+            <h2 className="text-[15px] font-bold">Advisor</h2>
+            <span className="text-xs font-normal text-muted">— what this run is telling you</span>
+          </div>
+          <p className="mb-4 max-w-3xl text-[12.5px] text-muted">
+            Automatic reading of the results against your admission targets. Each card is grounded in this
+            run&apos;s numbers — most important first.
+          </p>
+        </>
+      )}
 
       <div className="grid gap-3 sm:grid-cols-2">
         {advice.map((a) => {

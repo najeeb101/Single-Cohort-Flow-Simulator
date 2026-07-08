@@ -21,6 +21,7 @@ const GROUPS: { label: string; links: NavLink[] }[] = [
   {
     label: "Analytics",
     links: [
+      { href: "/advisor", label: "Advisor" },
       { href: "/cohorts", label: "Cohorts" },
       { href: "/figures", label: "Figures" },
       { href: "/prerequisites", label: "Prerequisites" },
@@ -125,7 +126,15 @@ export default function NavBar() {
             {SETTINGS_LINK.label}
           </Link>
         </div>
-        <div className="flex items-center justify-end py-3">
+        <div className="flex items-center justify-end gap-2 py-3">
+          <Link
+            href="/about"
+            title="About this tool"
+            aria-label="About this tool"
+            className="grid h-8 w-8 place-items-center rounded-[8px] border border-border-2 bg-surface-2 text-[13px] font-bold text-ink transition-colors hover:bg-surface"
+          >
+            ?
+          </Link>
           <ThemeToggle />
         </div>
       </div>
