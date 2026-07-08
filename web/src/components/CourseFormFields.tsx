@@ -3,12 +3,12 @@
 import type { CourseRecord, RuleExpr } from "@/types/simulation";
 import RuleExprEditor from "./settings/RuleExprEditor";
 
-export const CATEGORIES = ["cs_core", "cs_elective", "college_req", "math", "science", "english", "gen_ed"] as const;
 const OFFERINGS = ["Fall", "Spring", "Summer", "Winter"] as const;
 
 interface Props {
   value: CourseRecord;
   allCourseCodes: string[]; // should exclude value.code
+  knownCategories?: string[]; // categories already used elsewhere in this plan, for autocomplete
   onChange: (next: CourseRecord) => void;
   editableCode?: boolean; // true when creating a new course (code not yet fixed)
 }
@@ -16,7 +16,7 @@ interface Props {
 // Controlled course-field form shared by the Settings curriculum editor (editing/adding a
 // row in the active plan) and the Plan Builder wizard (composing a brand-new plan client-side
 // before anything is saved) — no server calls here, just `value`/`onChange`.
-export default function CourseFormFields({ value, allCourseCodes, onChange, editableCode }: Props) {
+export default function CourseFormFields({ value, allCourseCodes, knownCategories, onChange, editableCode }: Props) {
   const toggleOffering = (season: string) => {
     const has = value.offering.includes(season);
     onChange({ ...value, offering: has ? value.offering.filter((o) => o !== season) : [...value.offering, season] });
@@ -56,17 +56,18 @@ export default function CourseFormFields({ value, allCourseCodes, onChange, edit
         </label>
         <label className="flex flex-col gap-1 text-muted">
           Category
-          <select
+          <input
             value={value.category}
             onChange={(e) => onChange({ ...value, category: e.target.value })}
-            className="rounded-[8px] border border-border-2 bg-surface px-2.5 py-1.5 text-ink"
-          >
-            {CATEGORIES.map((cat) => (
-              <option key={cat} value={cat}>
-                {cat}
-              </option>
+            list="course-category-options"
+            placeholder="e.g. core, elective"
+            className="w-40 rounded-[8px] border border-border-2 bg-surface px-2.5 py-1.5 text-ink"
+          />
+          <datalist id="course-category-options">
+            {(knownCategories ?? []).map((cat) => (
+              <option key={cat} value={cat} />
             ))}
-          </select>
+          </datalist>
         </label>
         <label className="flex flex-col gap-1 text-muted">
           Credits

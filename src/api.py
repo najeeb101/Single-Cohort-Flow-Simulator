@@ -104,17 +104,18 @@ class ScenarioRequest(BaseModel):
                                            # this run came from; doesn't affect simulation
 
 
-# Course.category (src/models/course.py) and the offering seasons are conceptually enums
-# but stored as plain strings in JSON/the DB — validate against the known set here so a
-# typo'd category/season fails fast with a clear 422 instead of silently producing a course
-# the engine's enrollment-priority-tier / offering logic never matches against.
-VALID_CATEGORIES = {"cs_core", "cs_elective", "college_req", "math", "science", "english", "gen_ed"}
+# The offering seasons are a conceptual enum tied to the engine's season cycle, stored as
+# plain strings — validate against the known set here so a typo'd season fails fast with a
+# clear 422 instead of silently producing a course the engine's offering logic never matches
+# against. Course.category (src/models/course.py) is free text — different plans (different
+# departments) use different category taxonomies, so only presence is checked, matching how
+# bulk plan-import already treats it.
 VALID_OFFERINGS = {"Fall", "Spring", "Summer", "Winter"}
 
 
 def _check_category(value: str) -> str:
-    if value not in VALID_CATEGORIES:
-        raise ValueError(f"category must be one of {sorted(VALID_CATEGORIES)}, got {value!r}")
+    if not value.strip():
+        raise ValueError("category is required")
     return value
 
 
@@ -176,12 +177,6 @@ class PlanImportRequest(BaseModel):
     name: str
     curriculum: list[dict]
     config: dict
-
-
-def _check_categories(values: list[str]) -> list[str]:
-    if not set(values) <= VALID_CATEGORIES:
-        raise ValueError(f"categories must be a subset of {sorted(VALID_CATEGORIES)}, got {values!r}")
-    return values
 
 
 class CourseCreate(BaseModel):

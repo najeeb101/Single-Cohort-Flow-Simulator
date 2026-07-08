@@ -167,10 +167,20 @@ def test_create_and_delete_course_scoped_to_active_plan_only():
     assert "CMPS999" not in default_courses_after
 
 
-def test_create_course_rejects_unknown_category():
-    _activate_private_plan("Bad-category plan")
+def test_create_course_accepts_any_nonblank_category():
+    # Category is free text (different plans/departments use different taxonomies) — only
+    # presence is enforced, matching how bulk plan-import already treats it.
+    _activate_private_plan("Custom-category plan")
 
-    resp = client.post("/curriculum", json={**_NEW_COURSE, "category": "not_a_real_category"})
+    resp = client.post("/curriculum", json={**_NEW_COURSE, "category": "nursing_core"})
+    assert resp.status_code == 200
+    assert resp.json()["category"] == "nursing_core"
+
+
+def test_create_course_rejects_blank_category():
+    _activate_private_plan("Blank-category plan")
+
+    resp = client.post("/curriculum", json={**_NEW_COURSE, "category": "   "})
     assert resp.status_code == 422
 
 
@@ -205,12 +215,16 @@ def test_create_course_rejects_blank_code_or_title():
     assert client.post("/curriculum", json={**_NEW_COURSE, "title": ""}).status_code == 422
 
 
-def test_update_course_rejects_unknown_category_and_offering():
+def test_update_course_accepts_any_nonblank_category_rejects_unknown_offering():
     _activate_private_plan("Update-invalid plan")
     existing_code = client.get("/curriculum").json()[0]["code"]
 
+    resp = client.put(f"/curriculum/{existing_code}", json={"category": "nursing_core"})
+    assert resp.status_code == 200
+    assert resp.json()["category"] == "nursing_core"
+
     assert client.put(
-        f"/curriculum/{existing_code}", json={"category": "nope"}
+        f"/curriculum/{existing_code}", json={"category": "  "}
     ).status_code == 422
     assert client.put(
         f"/curriculum/{existing_code}", json={"offering": ["Autumn"]}

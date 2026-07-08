@@ -35,7 +35,7 @@ export default function ConfigStep({
         setField={setField}
         setRecordField={setRecordField}
       />
-      <RegistrationPolicyTab mode="advanced" state={state} baseline={baseline} setField={setField} />
+      <RegistrationPolicyTab mode="advanced" state={state} baseline={baseline} courses={courses} setField={setField} />
     </div>
   );
 }

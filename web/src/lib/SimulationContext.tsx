@@ -176,10 +176,10 @@ function StartingScreen({
       <div className="border-b border-border py-10">
         <div className="mx-auto flex max-w-2xl flex-col items-center text-center">
           <div className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-maroon text-[18px] font-extrabold text-white">
-            QU
+            CA
           </div>
           <h1 className="mt-3 text-[24px] font-extrabold tracking-tight text-ink">
-            CS Curriculum Flow Simulator
+            Cohort Flow Simulator
           </h1>
           {error ? (
             <>
@@ -204,7 +204,7 @@ function StartingScreen({
 
       <section className="mt-6 rounded-2xl border border-border bg-surface">
         <div className="flex items-baseline justify-between gap-3 border-b border-border px-4 py-2.5 text-[13px] font-semibold">
-          <span>Programme roadmap — QU CS 2024</span>
+          <span>Programme roadmap</span>
           <span className="text-xs font-normal text-muted">
             {totalCourses} courses · {totalCH} CH · coloured by requirement type
           </span>

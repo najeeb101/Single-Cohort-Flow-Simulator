@@ -4,22 +4,27 @@ import { useMemo } from "react";
 import type { Frame, Graph } from "@/types/simulation";
 import { computeLayout, utilColor } from "@/lib/graphLayout";
 
-const CS_CATEGORIES = new Set(["cs_core", "cs_elective"]);
-
 interface Props {
   graph: Graph;
   frames: Frame[];
 }
 
-// Port of src/visualize.py::plot_curriculum_network — same CS-only subgraph, same
-// fail-count shading, but laid out with the layered DAG positions from graphLayout.ts
-// (computeLayout) instead of a spring layout, since that's already wired into this app
-// and a forced layout adds nothing a reader couldn't get from the layered one.
-function buildCsSubgraph(graph: Graph): Graph {
-  const codes = new Set(graph.nodes.filter((n) => CS_CATEGORIES.has(n.category)).map((n) => n.code));
+// Port of src/visualize.py::plot_curriculum_network — same fail-count shading, but laid out
+// with the layered DAG positions from graphLayout.ts (computeLayout) instead of a spring
+// layout, since that's already wired into this app and a forced layout adds nothing a reader
+// couldn't get from the layered one. Scoped to courses that actually participate in a
+// prerequisite chain (not just a fixed set of categories, since different plans use different
+// category taxonomies) — isolated courses with no prereqs/dependents would just be clutter in
+// a "prerequisite network" view.
+function buildConnectedSubgraph(graph: Graph): Graph {
+  const codes = new Set<string>();
+  for (const e of graph.edges) {
+    codes.add(e.from);
+    codes.add(e.to);
+  }
   return {
     nodes: graph.nodes.filter((n) => codes.has(n.code)),
-    edges: graph.edges.filter((e) => codes.has(e.from) && codes.has(e.to)),
+    edges: graph.edges,
   };
 }
 
@@ -35,7 +40,7 @@ function totalFailCounts(frames: Frame[], codes: Iterable<string>): Map<string, 
 }
 
 export default function PrerequisiteNetwork({ graph, frames }: Props) {
-  const subgraph = useMemo(() => buildCsSubgraph(graph), [graph]);
+  const subgraph = useMemo(() => buildConnectedSubgraph(graph), [graph]);
   const { positions, width, height } = useMemo(() => computeLayout(subgraph), [subgraph]);
   const fails = useMemo(
     () => totalFailCounts(frames, subgraph.nodes.map((n) => n.code)),
@@ -47,7 +52,7 @@ export default function PrerequisiteNetwork({ graph, frames }: Props) {
     <div className="rounded-2xl border border-border bg-surface p-4">
       <div className="mb-2 flex items-baseline justify-between gap-3 text-[13px] font-semibold">
         <span>Prerequisite network — failure hotspots</span>
-        <span className="text-xs font-normal text-muted">CS courses only · shaded by total failures, whole run</span>
+        <span className="text-xs font-normal text-muted">Courses with prerequisite links · shaded by total failures, whole run</span>
       </div>
       <div className="max-h-[72vh] overflow-auto rounded-lg border border-border p-2">
         <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`}>

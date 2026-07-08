@@ -23,10 +23,11 @@ export const BLANK_CONFIG: Record<string, unknown> = {
   scenarios: [{ name: "baseline" }],
 };
 
-// Mirrors src/api.py's CourseCreate validators (VALID_CATEGORIES/VALID_OFFERINGS, credits
-// 0-6, capacity >= 1, non-blank code/title) so a bad course gets a clear inline message
-// before the round trip, not a generic "API returned 422" after submitting.
-const VALID_CATEGORIES = ["cs_core", "cs_elective", "college_req", "math", "science", "english", "gen_ed"];
+// Mirrors src/api.py's CourseCreate validators (VALID_OFFERINGS, credits 0-6, capacity >= 1,
+// non-blank code/title/category) so a bad course gets a clear inline message before the
+// round trip, not a generic "API returned 422" after submitting. Category is free text
+// (different plans/departments use different taxonomies) — only presence is checked, same
+// as the backend.
 const VALID_OFFERINGS = ["Fall", "Spring", "Summer", "Winter"];
 
 export function validateCourseDraft(draft: CourseRecord, existingCodes: string[]): string | null {
@@ -38,7 +39,7 @@ export function validateCourseDraft(draft: CourseRecord, existingCodes: string[]
   if (draft.capacity < 1) return "Capacity must be at least 1";
   if (draft.offering.length === 0) return "Select at least one offering season";
   if (!draft.offering.every((s) => VALID_OFFERINGS.includes(s))) return `Offering must be one of ${VALID_OFFERINGS.join(", ")}`;
-  if (!VALID_CATEGORIES.includes(draft.category)) return `Category must be one of ${VALID_CATEGORIES.join(", ")}`;
+  if (!draft.category.trim()) return "Category is required";
   return null;
 }
 
@@ -50,7 +51,7 @@ export function emptyCourse(): CourseRecord {
     prerequisites: [],
     pass_rate: 0.85,
     offering: ["Fall", "Spring"],
-    category: "cs_elective",
+    category: "",
     capacity: 30,
     rule_expr: null,
     study_plan_order: 99,

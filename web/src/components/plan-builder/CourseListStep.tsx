@@ -8,13 +8,14 @@ import type { CourseRecord } from "@/types/simulation";
 interface RowProps {
   course: CourseRecord;
   allCourseCodes: string[];
+  knownCategories: string[];
   onSave: (updated: CourseRecord) => void;
   onRemove: () => void;
 }
 
 // All edits here are purely local React state (no network calls) — the wizard only talks
 // to the backend once, on the final "Save plan" step (POST /plans/import).
-function CourseRow({ course, allCourseCodes, onSave, onRemove }: RowProps) {
+function CourseRow({ course, allCourseCodes, knownCategories, onSave, onRemove }: RowProps) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState<CourseRecord>(course);
 
@@ -49,7 +50,7 @@ function CourseRow({ course, allCourseCodes, onSave, onRemove }: RowProps) {
   return (
     <tr>
       <td colSpan={5} className="border-b border-border bg-surface-2 px-3 py-3">
-        <CourseFormFields value={draft} allCourseCodes={allCourseCodes} onChange={setDraft} />
+        <CourseFormFields value={draft} allCourseCodes={allCourseCodes} knownCategories={knownCategories} onChange={setDraft} />
         <div className="mt-3 flex gap-2">
           <button
             type="button"
@@ -86,6 +87,7 @@ export default function CourseListStep({
   const [error, setError] = useState<string | null>(null);
 
   const codes = courses.map((c) => c.code);
+  const knownCategories = Array.from(new Set(courses.map((c) => c.category))).filter(Boolean).sort();
 
   const addCourse = () => {
     const validationError = validateCourseDraft(draft, codes);
@@ -126,6 +128,7 @@ export default function CourseListStep({
                   key={course.code}
                   course={course}
                   allCourseCodes={codes.filter((c) => c !== course.code)}
+                  knownCategories={knownCategories}
                   onSave={(updated) => onChange(courses.map((c) => (c.code === course.code ? updated : c)))}
                   onRemove={() => onChange(courses.filter((c) => c.code !== course.code))}
                 />
@@ -137,7 +140,7 @@ export default function CourseListStep({
 
       {adding ? (
         <div className="rounded-lg border border-border bg-surface-2 p-4">
-          <CourseFormFields value={draft} allCourseCodes={codes} onChange={setDraft} editableCode />
+          <CourseFormFields value={draft} allCourseCodes={codes} knownCategories={knownCategories} onChange={setDraft} editableCode />
           {error && <p className="mt-2 text-[12.5px] text-bad">{error}</p>}
           <div className="mt-3 flex gap-2">
             <button

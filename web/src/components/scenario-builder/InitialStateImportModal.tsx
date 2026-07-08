@@ -16,41 +16,36 @@ function stripQuotes(cell: string): string {
   return cell.replace(/^"(.*)"$/, "$1").trim();
 }
 
-// Pure, no-I/O parser: two columns `key,value`. `key` first tries to match a standing node
-// (Year2/Year3/Year4), then a course code — both case-insensitively — so one CSV can set
-// occupancy and standing head-counts in a single import. Never aborts on a bad row; each row
-// is independently applied or skipped with a reason.
-export function parseInitialStateCsv(raw: string, courses: CourseRecord[]): InitialStateImportResult {
+// Shared, pure row -> {occupancy, standing, skipped} mapper used by BOTH the CSV parser and
+// the spreadsheet (.xlsx) reader, so the two formats converge on one set of rules. Two columns
+// `key,value`: `key` first tries a standing node (Year2/Year3/Year4), then a course code —
+// both case-insensitively — so one file can set occupancy and standing head-counts at once. A
+// header row is auto-detected. Never aborts on a bad row; each row is applied or skipped with a
+// reason.
+export function mapRowsToInitialState(rows: string[][], courses: CourseRecord[]): InitialStateImportResult {
   const result: InitialStateImportResult = { occupancy: {}, standing: {}, skipped: [] };
-
-  const lines = raw
-    .split(/\r\n|\r|\n/)
-    .map((l) => l.trim())
-    .filter((l) => l.length > 0);
-  if (lines.length === 0) return result;
+  if (rows.length === 0) return result;
 
   const standingByUpper = new Map(STANDING_NODES.map((n) => [n.toUpperCase(), n]));
   const courseByUpper = new Map(courses.map((c) => [c.code.toUpperCase(), c.code]));
 
-  const parseLine = (line: string): string[] => line.split(",").map(stripQuotes);
+  // Treat the first row as a header (labels) when its second cell isn't a number.
+  let dataRows = rows;
+  const first = rows[0];
+  const firstValueLooksNumeric = first.length >= 2 && first[1] !== "" && Number.isFinite(Number(first[1]));
+  if (!firstValueLooksNumeric) dataRows = rows.slice(1);
 
-  let dataLines = lines;
-  const firstCells = parseLine(lines[0]);
-  const firstValueLooksNumeric = firstCells.length >= 2 && firstCells[1] !== "" && Number.isFinite(Number(firstCells[1]));
-  if (!firstValueLooksNumeric) dataLines = lines.slice(1);
-
-  for (const line of dataLines) {
-    const cells = parseLine(line);
+  for (const cells of dataRows) {
+    const label = cells.join(",");
     if (cells.length < 2) {
-      result.skipped.push({ row: line, reason: "malformed row" });
+      result.skipped.push({ row: label, reason: "malformed row" });
       continue;
     }
-    const [rawKey, rawValue] = cells;
-    const key = rawKey.trim();
+    const key = cells[0].trim();
     const upper = key.toUpperCase();
-    const value = Number(rawValue);
+    const value = Number(cells[1]);
     if (!Number.isFinite(value) || value < 0) {
-      result.skipped.push({ row: line, reason: "invalid value" });
+      result.skipped.push({ row: label, reason: "invalid value" });
       continue;
     }
     const standingNode = standingByUpper.get(upper);
@@ -63,10 +58,21 @@ export function parseInitialStateCsv(raw: string, courses: CourseRecord[]): Init
       result.occupancy[courseCode] = value;
       continue;
     }
-    result.skipped.push({ row: line, reason: "unknown code" });
+    result.skipped.push({ row: label, reason: "unknown code" });
   }
 
   return result;
+}
+
+// CSV adapter: split text into rows of cells, then hand off to the shared mapper. Public
+// signature/behavior unchanged, so the reactive textarea preview keeps working as before.
+export function parseInitialStateCsv(raw: string, courses: CourseRecord[]): InitialStateImportResult {
+  const rows = raw
+    .split(/\r\n|\r|\n/)
+    .map((l) => l.trim())
+    .filter((l) => l.length > 0)
+    .map((line) => line.split(",").map(stripQuotes));
+  return mapRowsToInitialState(rows, courses);
 }
 
 interface Props {
@@ -80,20 +86,77 @@ const SKIPPED_PREVIEW_LIMIT = 10;
 
 export default function InitialStateImportModal({ open, onClose, courses, onApply }: Props) {
   const [text, setText] = useState("");
+  // A binary spreadsheet can't live in the textarea, so its parsed result is held separately
+  // and takes precedence over the pasted/CSV text. The two sources are kept mutually exclusive:
+  // uploading a spreadsheet clears the text, and editing the text clears the file result.
+  const [fileResult, setFileResult] = useState<InitialStateImportResult | null>(null);
+  const [fileName, setFileName] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const result = useMemo(() => parseInitialStateCsv(text, courses), [text, courses]);
+  const textResult = useMemo(() => parseInitialStateCsv(text, courses), [text, courses]);
+  const result = fileResult ?? textResult;
   const occupancyCount = Object.keys(result.occupancy).length;
   const standingCount = Object.keys(result.standing).length;
   const hasAnything = occupancyCount > 0 || standingCount > 0;
 
+  const clearFile = () => {
+    setFileResult(null);
+    setFileName(null);
+    setError(null);
+  };
+
   const handleClose = () => {
     setText("");
+    clearFile();
     onClose();
   };
 
-  const handleFile = (file: File) => {
-    file.text().then(setText);
+  const handleTextChange = (value: string) => {
+    setText(value);
+    clearFile();
+  };
+
+  const handleCsvFile = (file: File) => {
+    file.text().then((t) => {
+      clearFile();
+      setText(t);
+    });
+  };
+
+  const handleSpreadsheet = async (file: File) => {
+    try {
+      const buf = await file.arrayBuffer();
+      // Dynamic import so the ~1 MB SheetJS lib is a lazy chunk, fetched only on the first
+      // spreadsheet upload rather than shipped in the initial bundle.
+      const XLSX = await import("xlsx");
+      const wb = XLSX.read(buf, { type: "array" });
+      // First sheet that actually has rows (skips stray empty sheets). header:1 yields an
+      // array-of-arrays in column order; keep only the first two columns and stringify so
+      // numeric vs header cells behave exactly like the CSV path.
+      let rows: string[][] = [];
+      for (const name of wb.SheetNames) {
+        const aoa = XLSX.utils.sheet_to_json<unknown[]>(wb.Sheets[name], { header: 1, blankrows: false, defval: "" });
+        if (aoa.length > 0) {
+          rows = aoa.map((r) => r.slice(0, 2).map((c) => String(c ?? "")));
+          break;
+        }
+      }
+      setText("");
+      setError(null);
+      setFileName(file.name);
+      setFileResult(mapRowsToInitialState(rows, courses));
+    } catch {
+      clearFile();
+      setError("Couldn't read that spreadsheet. Make sure it's a valid .xlsx or .xls file.");
+    }
+  };
+
+  const handleFileInput = (file: File) => {
+    const isSpreadsheet =
+      /\.(xlsx|xls)$/i.test(file.name) || file.type.includes("spreadsheet") || file.type === "application/vnd.ms-excel";
+    if (isSpreadsheet) handleSpreadsheet(file);
+    else handleCsvFile(file);
   };
 
   const handleApply = () => {
@@ -102,17 +165,20 @@ export default function InitialStateImportModal({ open, onClose, courses, onAppl
   };
 
   return (
-    <Modal open={open} onClose={handleClose} title="Import initial state from CSV">
+    <Modal open={open} onClose={handleClose} title="Import initial state from a file">
       <p className="mb-2.5 text-xs text-muted">
         Two columns: <code className="rounded bg-black/20 px-1 py-0.5">code,value</code>. A header row is
         auto-detected. Rows use either a course code (occupancy) or <code className="rounded bg-black/20 px-1 py-0.5">Year2</code>/
         <code className="rounded bg-black/20 px-1 py-0.5">Year3</code>/<code className="rounded bg-black/20 px-1 py-0.5">Year4</code> (standing).
+        Paste below, or upload a <code className="rounded bg-black/20 px-1 py-0.5">.csv</code> or Excel{" "}
+        <code className="rounded bg-black/20 px-1 py-0.5">.xlsx</code>/<code className="rounded bg-black/20 px-1 py-0.5">.xls</code> file.
+        Its first sheet&apos;s first two columns are read the same way.
       </p>
 
       <textarea
         value={text}
-        onChange={(e) => setText(e.target.value)}
-        placeholder={"code,value\nYear2,40\nCMPS303,30"}
+        onChange={(e) => handleTextChange(e.target.value)}
+        placeholder={"code,value\nYear2,40\nCOURSE101,30"}
         className="h-32 w-full resize-y rounded-[8px] border border-border-2 bg-surface-2 px-2.5 py-1.5 font-mono text-[12.5px] text-ink focus:outline-none focus:ring-1 focus:ring-accent"
       />
 
@@ -120,11 +186,11 @@ export default function InitialStateImportModal({ open, onClose, courses, onAppl
         <input
           ref={fileInputRef}
           type="file"
-          accept=".csv,text/csv"
+          accept=".csv,.xlsx,.xls,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
           className="hidden"
           onChange={(e) => {
             const file = e.target.files?.[0];
-            if (file) handleFile(file);
+            if (file) handleFileInput(file);
             e.target.value = "";
           }}
         />
@@ -133,12 +199,19 @@ export default function InitialStateImportModal({ open, onClose, courses, onAppl
           onClick={() => fileInputRef.current?.click()}
           className="rounded-md border border-border-2 px-2.5 py-1 text-[11px] font-semibold text-ink hover:bg-surface-2"
         >
-          Upload .csv file
+          Upload file
         </button>
       </div>
 
-      {text.trim().length > 0 && (
+      {error && <p className="mt-2 text-[12px] text-bad">{error}</p>}
+
+      {(fileResult !== null || text.trim().length > 0) && (
         <div className="mt-3 rounded-lg border border-border bg-surface-2 px-3 py-2 text-[12px]">
+          {fileName && (
+            <p className="mb-1 text-muted">
+              Loaded from <span className="font-semibold text-ink">{fileName}</span>
+            </p>
+          )}
           {hasAnything ? (
             <p className="text-ink">
               <b>{occupancyCount}</b> occupancy row{occupancyCount === 1 ? "" : "s"} and <b>{standingCount}</b> standing

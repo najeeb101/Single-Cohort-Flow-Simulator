@@ -19,8 +19,8 @@ interface Props {
 }
 
 // The shared "initial state — existing student body" editor: year-standing head-counts +
-// per-course occupancy, plus one CSV import that can bulk-fill both at once. Used by
-// AdmissionsTab (Settings, Plan Builder) and the pre-simulation InitialStateGate.
+// per-course occupancy, plus one file import (CSV or Excel) that can bulk-fill both at once.
+// Used by AdmissionsTab (Settings, Plan Builder) and the pre-simulation InitialStateGate.
 export default function InitialStateEditor({
   courses,
   occupancy,
@@ -45,7 +45,7 @@ export default function InitialStateEditor({
             onClick={() => setImportOpen(true)}
             className="rounded-md border border-border-2 px-2.5 py-1 text-[11px] font-semibold text-ink hover:bg-surface-2"
           >
-            Import CSV
+            Import from file
           </button>
         }
       >

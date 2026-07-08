@@ -8,6 +8,7 @@ import { baselineFromMeta, buildOverrides, type BuilderState } from "@/lib/scena
 import type { CourseRecord, PlanRecord } from "@/types/simulation";
 import CurriculumTable from "@/components/settings/CurriculumTable";
 import AdmissionsTab from "@/components/scenario-builder/AdmissionsTab";
+import InitialStateEditor from "@/components/scenario-builder/InitialStateEditor";
 import PassRatesDropoutTab from "@/components/scenario-builder/PassRatesDropoutTab";
 import RegistrationPolicyTab from "@/components/scenario-builder/RegistrationPolicyTab";
 
@@ -143,6 +144,27 @@ export default function SettingsPage() {
         )}
       </header>
 
+      <section className="border-b border-border py-6">
+        <h2 className="mb-1 text-[15px] font-bold">Initial state</h2>
+        <p className="mb-3 max-w-2xl text-[12.5px] text-muted">
+          The existing student body the first simulated cohort walks into: per-course occupied seats and how
+          many students are already at each year-standing. Use{" "}
+          <b className="font-semibold text-ink">Import from file</b> to bulk-load from a CSV or Excel sheet
+          instead of typing each row. Saved with &ldquo;Save as new baseline&rdquo; below.
+        </p>
+        <InitialStateEditor
+          courses={courses ?? []}
+          occupancy={state.initialOccupancy}
+          standing={state.standing}
+          baselineOccupancy={baseline.initialOccupancy}
+          baselineStanding={baseline.standing}
+          onOccupancyChange={(code, v) => setRecordField("initialOccupancy", code, v)}
+          onOccupancyBulkChange={(patch) => setField("initialOccupancy", { ...state.initialOccupancy, ...patch })}
+          onStandingChange={(node, v) => setRecordField("standing", node, v)}
+          onStandingBulkChange={(patch) => setField("standing", { ...state.standing, ...patch })}
+        />
+      </section>
+
       <section className="py-6">
         <h2 className="mb-3 text-[15px] font-bold">Curriculum</h2>
         {courses === null ? (
@@ -166,7 +188,7 @@ export default function SettingsPage() {
             <br />
             <span className="text-muted">
               Off by default: the university runs a 2-season Fall/Spring calendar only. Turning this on
-              adds optional Winter/Summer terms (small bonus sections for a handful of CS courses,
+              adds optional Winter/Summer terms (small bonus sections for a handful of courses,
               configured in <code>simulation_config.json</code>) that students can use to retake or get
               ahead without it costing a mandatory semester. Admission stays Fall-only either way.
             </span>
@@ -220,9 +242,10 @@ export default function SettingsPage() {
             courses={courses ?? []}
             setField={setField}
             setRecordField={setRecordField}
+            showInitialState={false}
           />
           <PassRatesDropoutTab mode="advanced" meta={meta} state={state} baseline={baseline} setField={setField} setRecordField={setRecordField} />
-          <RegistrationPolicyTab mode="advanced" state={state} baseline={baseline} setField={setField} />
+          <RegistrationPolicyTab mode="advanced" state={state} baseline={baseline} courses={courses ?? []} setField={setField} />
         </div>
 
         <div className="mt-4 flex items-center gap-3 border-t border-border pt-4">

@@ -13,7 +13,7 @@ const BLANK_COURSE: CourseRecord = {
   prerequisites: [],
   pass_rate: 0.85,
   offering: ["Fall", "Spring"],
-  category: "cs_elective",
+  category: "",
   capacity: 30,
   rule_expr: null,
   study_plan_order: 99,
@@ -23,11 +23,12 @@ const BLANK_COURSE: CourseRecord = {
 interface RowProps {
   course: CourseRecord;
   allCourseCodes: string[];
+  knownCategories: string[];
   onSaved: (updated: CourseRecord) => void;
   onDeleted: (code: string) => void;
 }
 
-function CurriculumRow({ course, allCourseCodes, onSaved, onDeleted }: RowProps) {
+function CurriculumRow({ course, allCourseCodes, knownCategories, onSaved, onDeleted }: RowProps) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState<CourseRecord>(course);
   const [error, setError] = useState<string | null>(null);
@@ -103,7 +104,7 @@ function CurriculumRow({ course, allCourseCodes, onSaved, onDeleted }: RowProps)
   return (
     <tr>
       <td colSpan={6} className="border-b border-border bg-surface-2 px-3 py-3">
-        <CourseFormFields value={draft} allCourseCodes={allCourseCodes} onChange={setDraft} />
+        <CourseFormFields value={draft} allCourseCodes={allCourseCodes} knownCategories={knownCategories} onChange={setDraft} />
 
         {error && <p className="mt-2 text-bad">{error}</p>}
 
@@ -129,7 +130,15 @@ function CurriculumRow({ course, allCourseCodes, onSaved, onDeleted }: RowProps)
   );
 }
 
-function AddCourseRow({ allCourseCodes, onAdded }: { allCourseCodes: string[]; onAdded: (created: CourseRecord) => void }) {
+function AddCourseRow({
+  allCourseCodes,
+  knownCategories,
+  onAdded,
+}: {
+  allCourseCodes: string[];
+  knownCategories: string[];
+  onAdded: (created: CourseRecord) => void;
+}) {
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState<CourseRecord>(BLANK_COURSE);
   const [error, setError] = useState<string | null>(null);
@@ -170,7 +179,7 @@ function AddCourseRow({ allCourseCodes, onAdded }: { allCourseCodes: string[]; o
   return (
     <tr>
       <td colSpan={6} className="border-b border-border bg-surface-2 px-3 py-3">
-        <CourseFormFields value={draft} allCourseCodes={allCourseCodes} onChange={setDraft} editableCode />
+        <CourseFormFields value={draft} allCourseCodes={allCourseCodes} knownCategories={knownCategories} onChange={setDraft} editableCode />
 
         {error && <p className="mt-2 text-bad">{error}</p>}
 
@@ -201,6 +210,8 @@ function AddCourseRow({ allCourseCodes, onAdded }: { allCourseCodes: string[]; o
 }
 
 export default function CurriculumTable({ courses, onChange }: { courses: CourseRecord[]; onChange: (next: CourseRecord[]) => void }) {
+  const knownCategories = Array.from(new Set(courses.map((c) => c.category))).filter(Boolean).sort();
+
   const handleSaved = (updated: CourseRecord) => {
     onChange(courses.map((c) => (c.code === updated.code ? updated : c)));
   };
@@ -234,11 +245,12 @@ export default function CurriculumTable({ courses, onChange }: { courses: Course
               key={course.code}
               course={course}
               allCourseCodes={courses.map((c) => c.code).filter((c) => c !== course.code)}
+              knownCategories={knownCategories}
               onSaved={handleSaved}
               onDeleted={handleDeleted}
             />
           ))}
-          <AddCourseRow allCourseCodes={courses.map((c) => c.code)} onAdded={handleAdded} />
+          <AddCourseRow allCourseCodes={courses.map((c) => c.code)} knownCategories={knownCategories} onAdded={handleAdded} />
         </tbody>
       </table>
     </div>

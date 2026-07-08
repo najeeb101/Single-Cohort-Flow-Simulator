@@ -141,7 +141,7 @@ export default function PlanBuilderWizard() {
                 onChange={() => setSeedChoice("clone")}
                 className="accent-[var(--accent)]"
               />
-              Clone the default plan (recommended) — start from the QU CS curriculum + config and edit from there
+              Clone the default plan (recommended) — start from the default curriculum + config and edit from there
             </label>
             <label className="flex items-center gap-2">
               <input

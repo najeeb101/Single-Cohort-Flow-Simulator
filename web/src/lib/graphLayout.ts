@@ -1,4 +1,4 @@
-import type { Graph } from "@/types/simulation";
+import type { Graph, GraphNode } from "@/types/simulation";
 
 // Faithful port of frontend/app.js::buildGraph()'s layering math + utilColor(). Pure,
 // no DOM — called from a useMemo keyed on the (frozen, see page.tsx) `graph` reference,
@@ -73,14 +73,17 @@ export function computeLayout(graph: Graph): GraphLayout {
 // ── Roadmap layout (university program-roadmap style) ─────────────────────────
 // Columns = recommended semester (GraphNode.study_plan_term, 1..N): term 1 = Year 1 Fall,
 // term 2 = Year 1 Spring, term 3 = Year 2 Fall, … so columns group two-per-year under a
-// "Year N" band with Fall/Spring + credit-hour sub-labels, exactly like Qatar University's
-// printed CS Program Roadmap. study_plan_term === 0 (unassigned) collects into a trailing
+// "Year N" band with Fall/Spring + credit-hour sub-labels, in a standard university
+// program-roadmap layout. study_plan_term === 0 (unassigned) collects into a trailing
 // "Unscheduled" column. If a plan has NO assigned terms at all, we fall back to prerequisite
 // depth so the chart still spreads into columns instead of collapsing into one.
 
-// Requirement-type styling for course boxes + the legend, mapping our Course.category values
-// onto the buckets QU's roadmap colours (Major Core / Major Elective / Core Curriculum /
-// College Requirements / Major Supporting). Light fills with dark text, roadmap-style.
+// Requirement-type styling for course boxes + the legend, keyed by Course.category. Different
+// plans (different departments) use different category taxonomies, so this isn't a closed
+// enum: the default QU CS plan's categories get their familiar named colours below, and any
+// other category string gets a distinct colour deterministically generated from its name (via
+// GENERATED_STYLES) rather than collapsing into one generic "Other" bucket. Light fills with
+// dark text, roadmap-style.
 export interface CategoryStyle {
   label: string;
   fill: string;
@@ -98,18 +101,47 @@ export const CATEGORY_STYLE: Record<string, CategoryStyle> = {
   gen_ed: { label: "Core Curriculum", fill: "var(--english-fill)", border: "var(--english-border)", text: "var(--english-text)" },
 };
 
+// Extra palette for categories outside the known set above, so an unrecognized category still
+// gets a distinct, readable colour instead of a flat gray "Other". Reuses the same CSS custom
+// properties the known categories use (defined per-theme in globals.css) rather than introducing
+// new hardcoded hex values.
+const GENERATED_STYLES: Omit<CategoryStyle, "label">[] = [
+  { fill: "var(--cs-core-fill)", border: "var(--cs-core-border)", text: "var(--cs-core-text)" },
+  { fill: "var(--cs-elective-fill)", border: "var(--cs-elective-border)", text: "var(--cs-elective-text)" },
+  { fill: "var(--math-fill)", border: "var(--math-border)", text: "var(--math-text)" },
+  { fill: "var(--science-fill)", border: "var(--science-border)", text: "var(--science-text)" },
+  { fill: "var(--english-fill)", border: "var(--english-border)", text: "var(--english-text)" },
+];
+
 const FALLBACK_STYLE: CategoryStyle = { label: "Other", fill: "var(--border-2)", border: "var(--border)", text: "var(--ink)" };
 
-export function categoryStyle(category: string): CategoryStyle {
-  return CATEGORY_STYLE[category] ?? FALLBACK_STYLE;
+function prettifyCategory(category: string): string {
+  return category
+    .replace(/[_-]+/g, " ")
+    .trim()
+    .replace(/\w\S*/g, (w) => w[0].toUpperCase() + w.slice(1).toLowerCase());
 }
 
-// Legend entries in display order, de-duplicated by label (math+science share one).
-export function categoryLegend(): CategoryStyle[] {
+function hashString(s: string): number {
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0;
+  return Math.abs(h);
+}
+
+export function categoryStyle(category: string): CategoryStyle {
+  if (CATEGORY_STYLE[category]) return CATEGORY_STYLE[category];
+  if (!category) return FALLBACK_STYLE;
+  const picked = GENERATED_STYLES[hashString(category) % GENERATED_STYLES.length];
+  return { ...picked, label: prettifyCategory(category) };
+}
+
+// Legend entries for every distinct category present in `nodes`, in first-seen order,
+// de-duplicated by label (so e.g. math+science sharing a label collapse to one entry).
+export function categoryLegend(nodes: GraphNode[]): CategoryStyle[] {
   const seen = new Set<string>();
   const out: CategoryStyle[] = [];
-  for (const code of ["cs_core", "cs_elective", "math", "science", "english"]) {
-    const s = CATEGORY_STYLE[code];
+  for (const node of nodes) {
+    const s = categoryStyle(node.category);
     if (!seen.has(s.label)) {
       seen.add(s.label);
       out.push(s);

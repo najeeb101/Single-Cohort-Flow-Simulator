@@ -1,12 +1,12 @@
-import type { EnrollmentPriorityTier } from "@/types/simulation";
+import type { CourseRecord, EnrollmentPriorityTier } from "@/types/simulation";
 import type { BuilderState } from "@/lib/scenarioBuilder";
-import { CATEGORIES } from "@/lib/scenarioBuilder";
 import { FieldRow, NumberBox, SectionCard } from "./fields";
 
 interface Props {
   mode: "simple" | "advanced";
   state: BuilderState;
   baseline: BuilderState;
+  courses?: CourseRecord[]; // used to derive the tier category checkboxes for this plan
   setField: <K extends keyof BuilderState>(key: K, value: BuilderState[K]) => void;
 }
 
@@ -14,7 +14,8 @@ function tiersDiffer(a: EnrollmentPriorityTier[], b: EnrollmentPriorityTier[]): 
   return JSON.stringify(a) !== JSON.stringify(b);
 }
 
-export default function RegistrationPolicyTab({ mode, state, baseline, setField }: Props) {
+export default function RegistrationPolicyTab({ mode, state, baseline, courses, setField }: Props) {
+  const categories = Array.from(new Set((courses ?? []).map((c) => c.category))).filter(Boolean).sort();
   const setThreshold = (idx: number, value: number) => {
     const next = [...state.registrationTierThresholds];
     next[idx] = value;
@@ -74,7 +75,7 @@ export default function RegistrationPolicyTab({ mode, state, baseline, setField 
                   </button>
                 </div>
                 <div className="mb-2 flex flex-wrap gap-3">
-                  {CATEGORIES.map((cat) => (
+                  {categories.map((cat) => (
                     <label key={cat} className="flex items-center gap-1.5 text-[12.5px] text-ink">
                       <input
                         type="checkbox"

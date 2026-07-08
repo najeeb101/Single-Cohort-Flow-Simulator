@@ -1,16 +1,5 @@
 import type { EnrollmentPriorityTier, MetaResponse, ScenarioRequest } from "@/types/simulation";
 
-// The 7 known course categories (src/models/course.py::Course.category).
-export const CATEGORIES = [
-  "cs_core",
-  "cs_elective",
-  "college_req",
-  "math",
-  "science",
-  "english",
-  "gen_ed",
-] as const;
-
 export interface BuilderState {
   cohortSize: number;
   passRates: Record<string, number>;

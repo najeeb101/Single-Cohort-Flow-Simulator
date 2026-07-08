@@ -10,9 +10,13 @@ interface Props {
   courses: CourseRecord[];
   setField: <K extends keyof BuilderState>(key: K, value: BuilderState[K]) => void;
   setRecordField: (key: "standing" | "initialOccupancy", code: string, value: number) => void;
+  // Settings renders the initial-state editor as its own prominent top section, so it opts out
+  // of the inline copy here to avoid two editors of the same state on one page. Defaults on for
+  // every other caller (Scenario Builder, Plan Builder).
+  showInitialState?: boolean;
 }
 
-export default function AdmissionsTab({ mode, state, baseline, courses, setField, setRecordField }: Props) {
+export default function AdmissionsTab({ mode, state, baseline, courses, setField, setRecordField, showInitialState = true }: Props) {
   const dirty = (key: keyof BuilderState) => state[key] !== baseline[key];
 
   return (
@@ -42,7 +46,7 @@ export default function AdmissionsTab({ mode, state, baseline, courses, setField
         </div>
       </SectionCard>
 
-      {mode === "advanced" && (
+      {mode === "advanced" && showInitialState && (
         <InitialStateEditor
           courses={courses}
           occupancy={state.initialOccupancy}

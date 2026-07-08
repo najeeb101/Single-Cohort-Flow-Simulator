@@ -27,7 +27,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "QU CS — Flow Simulator Dashboard",
+  title: "Cohort Analyzer — Flow Simulator Dashboard",
   description: "Cohort analytics, bottlenecks, and live what-if scenarios for the multi-cohort curriculum flow simulator.",
 };
 

@@ -107,7 +107,7 @@ export default function AnimationSection({ graph, stageNodes, cohorts, frames }:
           </div>
           <CurriculumGraph graph={graph} courses={frame.courses} />
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 border-t border-border px-4 py-2.5 text-xs text-muted">
-            {categoryLegend().map((c) => (
+            {categoryLegend(graph.nodes).map((c) => (
               <span key={c.label}>
                 <i
                   className="mr-1 inline-block h-3 w-3 rounded-sm border align-[-2px]"
