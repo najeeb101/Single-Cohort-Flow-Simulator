@@ -105,7 +105,8 @@ class _TimeVaryingCohortDataSource(DataSource):
         # there's no meaningfully "more correct" alternative seeding here.
         base = (spec.cohort_id + self._base.num_incumbent_cohorts) * self._base.cohort_size
         return [
-            Student(base + i, self._base.seed, cohort_id=spec.cohort_id, entry_term=spec.entry_term)
+            Student(base + i, self._base.seed, cohort_id=spec.cohort_id, entry_term=spec.entry_term,
+                    ability_sd=self._base.ability_sd, ability_clip=self._base.ability_clip)
             for i in range(spec.size)
         ]
 

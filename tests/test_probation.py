@@ -37,7 +37,7 @@ def test_probation_not_triggered_below_threshold_ch():
     # Record 24 CH worth of D grades (1.0 pts each) -> GPA = 1.0 but < 25 CH
     for i in range(6):
         c = _fake_course(f"FAKE{i}", 4)
-        s.record_grade(c, "D")  # 6 × 4 = 24 CH
+        s.record_grade(c, "D", CONFIG)  # 6 × 4 = 24 CH
     assert s.completed_ch == 24
     assert s.gpa < 2.0
     assert not s.on_probation
@@ -49,7 +49,7 @@ def test_probation_triggered_at_threshold():
     # 7 × 4 CH = 28 CH, all D grades (1.0 GPA)
     for i in range(7):
         c = _fake_course(f"FAKE{i}", 4)
-        s.record_grade(c, "D")
+        s.record_grade(c, "D", CONFIG)
     assert s.completed_ch >= 25
     assert s.gpa < 2.0
     assert s.on_probation
@@ -60,7 +60,7 @@ def test_probation_reduces_load_cap():
     s = _make_student()
     for i in range(7):
         c = _fake_course(f"FAKE{i}", 4)
-        s.record_grade(c, "D")
+        s.record_grade(c, "D", CONFIG)
     assert s.on_probation
     assert s.get_load_cap(CONFIG) == CONFIG["probation_load_ch"]
 
@@ -77,13 +77,13 @@ def test_probation_clears_when_gpa_recovers():
     # Put student on probation
     for i in range(7):
         c = _fake_course(f"FAKE{i}", 4)
-        s.record_grade(c, "D")
+        s.record_grade(c, "D", CONFIG)
     assert s.on_probation
 
     # Now give several A grades to lift GPA above 2.0
     for i in range(20):
         c = _fake_course(f"GOOD{i}", 4)
-        s.record_grade(c, "A")
+        s.record_grade(c, "A", CONFIG)
 
     assert s.gpa >= 2.0
     assert not s.on_probation
@@ -94,12 +94,12 @@ def test_ever_probation_persists_after_recovery():
     s = _make_student()
     for i in range(7):
         c = _fake_course(f"FAKE{i}", 4)
-        s.record_grade(c, "D")
+        s.record_grade(c, "D", CONFIG)
     assert s.ever_probation
 
     for i in range(20):
         c = _fake_course(f"GOOD{i}", 4)
-        s.record_grade(c, "A")
+        s.record_grade(c, "A", CONFIG)
 
     assert not s.on_probation
     assert s.ever_probation  # must remain True
@@ -110,8 +110,8 @@ def test_ever_probation_persists_after_recovery():
 def test_gpa_includes_failed_courses_in_denominator():
     """Standard GPA: F = 0 pts contributes to denominator, diluting GPA."""
     s = _make_student()
-    s.record_grade(_fake_course("PASS", 3), "A")   # 4.0 × 3 = 12 pts, 3 CH attempted
-    s.record_grade(_fake_course("FAIL", 3), "F")   # 0.0 × 3 = 0 pts,  3 CH attempted
+    s.record_grade(_fake_course("PASS", 3), "A", CONFIG)   # 4.0 × 3 = 12 pts, 3 CH attempted
+    s.record_grade(_fake_course("FAIL", 3), "F", CONFIG)   # 0.0 × 3 = 0 pts,  3 CH attempted
     # GPA = 12 / 6 = 2.0
     assert s.gpa == pytest.approx(2.0, rel=1e-6)
     assert s.completed_ch == 3  # only passed credits

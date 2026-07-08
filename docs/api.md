@@ -49,6 +49,7 @@ Returns everything the dashboard needs before running a simulation, resolved fro
   "dropout_early_sem_cutoff": ...,
   "dropout_fails_threshold": ...,
   "dropout_prob_on_repeated_fail": ...,
+  "dropout_delay_hazard_scale": 0.0,
   "registration_tier_thresholds": [...],
   "enrollment_priority_tiers": [...],
   "admission_targets": { "target_grad_rate": 0.70, ... }

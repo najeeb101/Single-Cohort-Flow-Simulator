@@ -66,11 +66,15 @@ class Student:
         seed: int,
         cohort_id: int = 0,
         entry_term: int = 0,
+        ability_sd: float = 0.15,
+        ability_clip: float = 0.30,
     ) -> None:
         self.student_id = student_id
         self._seed = seed
         self.cohort_id = cohort_id
         self.entry_term = entry_term
+        self.ability_sd = ability_sd
+        self.ability_clip = ability_clip
         # Previous flow-chart stage, used to derive term-over-term flows for the timeline.
         self.prev_stage: str | None = None
         # Stable tiebreak for seat allocation — never consumes the course RNG stream
@@ -83,8 +87,8 @@ class Student:
 
     def _reset_rng_and_state(self) -> None:
         self.rng = random.Random(self._seed + self.student_id)
-        raw = self.rng.gauss(0.0, 0.15)
-        self.ability_score: float = max(-0.30, min(0.30, raw))
+        raw = self.rng.gauss(0.0, self.ability_sd)
+        self.ability_score: float = max(-self.ability_clip, min(self.ability_clip, raw))
 
         self.completed_courses: dict[str, str] = {}
         self.failed_attempts: dict[str, int] = {}
@@ -195,7 +199,7 @@ class Student:
     # Grade recording                                                     #
     # ------------------------------------------------------------------ #
 
-    def record_grade(self, course: Course, grade: str) -> None:
+    def record_grade(self, course: Course, grade: str, config: dict) -> None:
         # Grade replacement: passing a retake removes all prior F attempts from the denominator.
         # F = 0.0 pts so numerator was already unaffected by those fails.
         if grade in PASSING_GRADES:
@@ -215,8 +219,10 @@ class Student:
         if self._gpa_denominator > 0:
             self.gpa = self._gpa_numerator / self._gpa_denominator
 
-        if self.completed_ch >= 25 and self.gpa < 2.0:
+        probation_min_ch = config["probation_min_ch"]
+        probation_gpa_threshold = config.get("probation_gpa_threshold", 2.0)
+        if self.completed_ch >= probation_min_ch and self.gpa < probation_gpa_threshold:
             self.on_probation = True
             self.ever_probation = True
-        elif self.gpa >= 2.0:
+        elif self.gpa >= probation_gpa_threshold:
             self.on_probation = False

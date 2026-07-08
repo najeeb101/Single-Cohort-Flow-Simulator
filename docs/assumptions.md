@@ -22,6 +22,7 @@ Assumptions are documented here and were fixed before the final baseline run; ca
 | `dropout_early_sem_cutoff` | 4 | Number of personal semesters the early multiplier applies to |
 | `dropout_fails_threshold` | 3 | SECONDARY cause: same course failed 3× triggers probabilistic dropout |
 | `dropout_prob_on_repeated_fail` | 0.15 | 15% chance of dropping after 3rd failure of same course (reduced from 0.25 now that low GPA is the primary driver) |
+| `dropout_delay_hazard_scale` | 0.0 (off) | TERTIARY cause, opt-in: per-term hazard `= scale × (credit-hour deficit vs. on_time_terms pace) / total program CH`, independent of GPA — models students who withdraw once far enough behind schedule rather than riding it out to CENSORED. Left off for the calibrated QU baseline; untested against real QU data, unlike the two hazards above. |
 | `ability_sd` | 0.15 | Assumed; calibrated so ~2.5% of students have ability > ±0.30 |
 | `ability_clip` | 0.30 | Hard clip to keep effective pass rates in [0.05, 0.98] |
 

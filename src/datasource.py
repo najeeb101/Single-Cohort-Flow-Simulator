@@ -98,6 +98,8 @@ class SyntheticDataSource(DataSource):
         self.cohort_size: int = config["cohort_size"]
         self.num_cohorts: int = config.get("num_cohorts", 1)
         self.num_incumbent_cohorts: int = config.get("num_incumbent_cohorts", 0)
+        self.ability_sd: float = config.get("ability_sd", 0.15)
+        self.ability_clip: float = config.get("ability_clip", 0.30)
         # Rescales automatically if optional_terms_enabled is off but admit_interval_terms
         # was set to "one full (4-season) year" — see effective_admit_interval_terms's docstring.
         self.admit_interval: int = effective_admit_interval_terms(config)
@@ -118,6 +120,7 @@ class SyntheticDataSource(DataSource):
         # Globally-unique, evenly-spaced ids keep each student's CRN stream (seed + id) stable.
         base = (spec.cohort_id + self.num_incumbent_cohorts) * self.cohort_size
         return [
-            Student(base + i, self.seed, cohort_id=spec.cohort_id, entry_term=spec.entry_term)
+            Student(base + i, self.seed, cohort_id=spec.cohort_id, entry_term=spec.entry_term,
+                    ability_sd=self.ability_sd, ability_clip=self.ability_clip)
             for i in range(spec.size)
         ]

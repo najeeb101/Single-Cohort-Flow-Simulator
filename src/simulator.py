@@ -117,6 +117,10 @@ class Simulator:
         overlay_provider: OverlayProvider | None = None,
     ) -> None:
         self.curriculum = curriculum
+        # Total program credit hours, for the cumulative-delay dropout hazard's "expected
+        # completed_ch by now" calculation (see _run_term) — computed once since curriculum
+        # doesn't change per term (only config/scenario overlays do).
+        self._total_program_ch: int = sum(c.credits for c in curriculum.values())
         # `config`/`scenario` are mutated in place, per term, when `overlay_provider` is set
         # (see `_apply_overlay`) — `_base_config`/`_base_scenario` keep the untouched
         # originals so every term's overlay is computed from the same starting point rather
@@ -297,7 +301,7 @@ class Simulator:
                     credits=course.credits,
                     attempt_no=attempt_no,
                 ))
-                student.record_grade(course, grade)
+                student.record_grade(course, grade, self.config)
                 if grade == "F":
                     self.history.fail_counts[course.code] += 1
                     self.history.fail_by_cohort[student.cohort_id][course.code] += 1
@@ -315,6 +319,12 @@ class Simulator:
         #   (2) SECONDARY — stuck on a single gateway course: failing the same
         #       course `dropout_fails_threshold` times can still push a student
         #       out even if their overall GPA is survivable.
+        #   (3) TERTIARY, opt-in (default off) — cumulative delay: a student who
+        #       is simply falling behind a normal completion pace, independent of
+        #       GPA, faces rising withdrawal risk the further behind they get.
+        #       Distinct from passively hitting the horizon (CENSORED, below) —
+        #       real students in this position often leave well before their
+        #       time budget is actually exhausted. See CLAUDE.md's dropout notes.
         gpa_floor   = self.config.get("dropout_gpa_floor", 2.0)
         base_hazard = self.config.get("dropout_base_hazard", 0.0)
         early_mult  = self.config.get("dropout_early_multiplier", 1.0)
@@ -322,6 +332,8 @@ class Simulator:
         min_ch      = self.config["probation_min_ch"]
         threshold   = self.config["dropout_fails_threshold"]
         drop_prob   = self.config["dropout_prob_on_repeated_fail"]
+        delay_scale = self.config.get("dropout_delay_hazard_scale", 0.0)
+        on_time_terms = self.config.get("on_time_terms", 8)
         for student in active:
             if not student.is_active():
                 continue
@@ -341,6 +353,17 @@ class Simulator:
                     if student.rng.random() < drop_prob:
                         self._record_outcome(student, "DROPPED", term_idx)
                         break
+            if not student.is_active():
+                continue
+            # (3) Cumulative delay (opt-in, see note above). Off by default
+            # (delay_scale == 0.0), so existing behavior is untouched unless an
+            # admin deliberately sets dropout_delay_hazard_scale.
+            if delay_scale > 0 and student.personal_semester > 0:
+                expected_ch = (student.personal_semester / on_time_terms) * self._total_program_ch
+                deficit_fraction = max(0.0, expected_ch - student.completed_ch) / self._total_program_ch
+                if deficit_fraction > 0 and student.rng.random() < delay_scale * deficit_fraction:
+                    self._record_outcome(student, "DROPPED", term_idx)
+                    continue
 
         # ── Graduation, delayed & censoring (personal-time horizons) ── #
         for student in self.students:
