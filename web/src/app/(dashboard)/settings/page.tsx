@@ -30,6 +30,31 @@ export default function SettingsPage() {
   const setAdmissionTarget = (key: keyof typeof admissionTargets, value: number) =>
     setAdmissionTargets((prev) => ({ ...prev, [key]: value }));
 
+  // Everything on this page except Curriculum (which saves per-row, instantly) is deferred:
+  // it sits in local state until "Save as new baseline" is clicked. isDirty is the single
+  // source of truth for whether that button actually has anything to do — covers Initial
+  // state/Baseline configuration (via buildOverrides), Term calendar, and Admissions targets.
+  const isDirty =
+    Object.keys(buildOverrides(state, baseline)).length > 0 ||
+    optionalTermsEnabled !== meta.optional_terms_enabled ||
+    JSON.stringify(admissionTargets) !== JSON.stringify(meta.admission_targets);
+
+  const discardChanges = () => {
+    setState(baseline);
+    setOptionalTermsEnabled(meta.optional_terms_enabled);
+    setAdmissionTargets({ ...meta.admission_targets });
+    setStatus("idle");
+    setError(null);
+  };
+
+  // The sticky bar's "Saved" confirmation is transient — auto-dismiss so it doesn't linger
+  // once there's nothing left to act on. Errors stay until the user retries or discards.
+  useEffect(() => {
+    if (status !== "saved") return;
+    const t = setTimeout(() => setStatus("idle"), 3000);
+    return () => clearTimeout(t);
+  }, [status]);
+
   useEffect(() => {
     listCurriculum().then(setCourses).catch(() => setCourses([]));
     listPlans()
@@ -144,7 +169,21 @@ export default function SettingsPage() {
         )}
       </header>
 
-      <section className="border-b border-border py-6">
+      <nav className="sticky top-0 z-10 -mx-7 flex flex-wrap gap-x-5 gap-y-1 border-b border-border bg-bg/90 px-7 py-2.5 text-[12px] backdrop-blur-sm">
+        {[
+          { href: "#initial-state", label: "Initial state" },
+          { href: "#curriculum", label: "Curriculum" },
+          { href: "#term-calendar", label: "Term calendar" },
+          { href: "#admissions-targets", label: "Admissions targets" },
+          { href: "#baseline-configuration", label: "Baseline configuration" },
+        ].map((l) => (
+          <a key={l.href} href={l.href} className="text-muted hover:text-ink">
+            {l.label}
+          </a>
+        ))}
+      </nav>
+
+      <section id="initial-state" className="border-b border-border py-6">
         <h2 className="mb-1 text-[15px] font-bold">Initial state</h2>
         <p className="mb-3 max-w-2xl text-[12.5px] text-muted">
           The existing student body the first simulated cohort walks into: per-course occupied seats and how
@@ -165,8 +204,10 @@ export default function SettingsPage() {
         />
       </section>
 
-      <section className="py-6">
-        <h2 className="mb-3 text-[15px] font-bold">Curriculum</h2>
+      <section id="curriculum" className="py-6">
+        <h2 className="mb-3 text-[15px] font-bold">
+          Curriculum <span className="text-[11px] font-normal text-muted">— saves instantly, no baseline step</span>
+        </h2>
         {courses === null ? (
           <p className="text-[12.5px] text-muted">Loading…</p>
         ) : (
@@ -174,7 +215,7 @@ export default function SettingsPage() {
         )}
       </section>
 
-      <section className="py-6">
+      <section id="term-calendar" className="py-6">
         <h2 className="mb-3 text-[15px] font-bold">Term calendar</h2>
         <div className="rounded-2xl border border-border bg-surface p-5">
           <label className="flex items-start gap-3 text-[12.5px]">
@@ -198,7 +239,7 @@ export default function SettingsPage() {
         </div>
       </section>
 
-      <section className="py-6">
+      <section id="admissions-targets" className="py-6">
         <h2 className="mb-3 text-[15px] font-bold">Admissions health targets</h2>
         <p className="mb-4 max-w-2xl text-[12.5px] text-muted">
           The four pass/fail thresholds used by the Admissions recommendation on the Capacity Planning
@@ -236,7 +277,7 @@ export default function SettingsPage() {
         </div>
       </section>
 
-      <section className="py-6">
+      <section id="baseline-configuration" className="py-6 pb-24">
         <h2 className="mb-3 text-[15px] font-bold">Baseline configuration</h2>
         <div className="flex flex-col gap-4">
           <AdmissionsTab
@@ -251,31 +292,42 @@ export default function SettingsPage() {
           <PassRatesDropoutTab mode="advanced" meta={meta} state={state} baseline={baseline} setField={setField} setRecordField={setRecordField} />
           <RegistrationPolicyTab mode="advanced" state={state} baseline={baseline} courses={courses ?? []} setField={setField} />
         </div>
-
-        <div className="mt-4 flex items-center gap-3 border-t border-border pt-4">
-          <button
-            type="button"
-            onClick={saveConfig}
-            disabled={status === "saving"}
-            className="rounded-[9px] bg-accent px-4 py-1.5 text-[13px] font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {status === "saving" ? "Saving…" : "Save as new baseline"}
-          </button>
-          <span
-            className={
-              status === "saving"
-                ? "text-xs text-accent"
-                : status === "saved"
-                  ? "text-xs text-good"
-                  : status === "error"
-                    ? "text-xs text-bad"
-                    : "text-xs text-muted"
-            }
-          >
-            {status === "saving" ? "Saving…" : status === "saved" ? "Saved — new baseline in effect" : status === "error" ? error : "Idle"}
-          </span>
-        </div>
       </section>
+
+      {(isDirty || status === "saved" || status === "error") && (
+        <div className="fixed bottom-5 left-1/2 z-20 flex w-[min(680px,calc(100%-2rem))] -translate-x-1/2 items-center justify-between gap-3 rounded-2xl border border-border-2 bg-surface px-5 py-3 shadow-accent">
+          <span className="text-[13px]">
+            {status === "saving" ? (
+              <span className="text-accent">Saving…</span>
+            ) : status === "saved" ? (
+              <span className="text-good">Saved — new baseline in effect</span>
+            ) : status === "error" ? (
+              <span className="text-bad">{error}</span>
+            ) : (
+              <span className="font-semibold text-ink">Unsaved baseline changes</span>
+            )}
+          </span>
+          <div className="flex items-center gap-2">
+            {isDirty && status !== "saving" && (
+              <button
+                type="button"
+                onClick={discardChanges}
+                className="rounded-[9px] border border-border-2 px-3.5 py-1.5 text-[13px] font-semibold text-muted hover:text-ink"
+              >
+                Discard
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={saveConfig}
+              disabled={status === "saving" || !isDirty}
+              className="rounded-[9px] bg-accent px-4 py-1.5 text-[13px] font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {status === "saving" ? "Saving…" : "Save as new baseline"}
+            </button>
+          </div>
+        </div>
+      )}
     </main>
   );
 }
