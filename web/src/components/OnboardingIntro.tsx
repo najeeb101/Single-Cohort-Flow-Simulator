@@ -111,10 +111,14 @@ export default function OnboardingIntro({ onComplete, showSkip = true }: Props) 
         </div>
       </div>
 
-      <div className="py-8">
-        {step === "how" && <CardGrid items={HOW_IT_WORKS} />}
-        {step === "pages" && <CardGrid items={PAGE_GUIDE} />}
-      </div>
+      {step === "welcome" ? (
+        <div className="h-8" />
+      ) : (
+        <div className="py-8">
+          {step === "how" && <CardGrid items={HOW_IT_WORKS} />}
+          {step === "pages" && <CardGrid items={PAGE_GUIDE} />}
+        </div>
+      )}
 
       <div className="flex flex-col items-center gap-2 border-t border-border pt-6 text-center">
         <div className="flex items-center gap-3">
