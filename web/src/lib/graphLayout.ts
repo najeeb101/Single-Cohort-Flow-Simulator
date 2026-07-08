@@ -135,13 +135,37 @@ export function categoryStyle(category: string): CategoryStyle {
   return { ...picked, label: prettifyCategory(category) };
 }
 
+// Per-plan style assignment for every distinct category actually present in `nodes`. Unlike
+// categoryStyle()'s standalone hash (which can collide once you look at only one category at a
+// time), this hands out GENERATED_STYLES slots in first-seen order — so up to 5 distinct
+// unrecognized categories in the same plan are guaranteed visually distinct instead of a couple
+// of them coincidentally landing on the same hash bucket. Only wraps (and can collide) past 5.
+export function categoryStyleMap(nodes: GraphNode[]): Map<string, CategoryStyle> {
+  const map = new Map<string, CategoryStyle>();
+  let genIdx = 0;
+  for (const node of nodes) {
+    const category = node.category;
+    if (map.has(category)) continue;
+    if (CATEGORY_STYLE[category]) {
+      map.set(category, CATEGORY_STYLE[category]);
+    } else if (!category) {
+      map.set(category, FALLBACK_STYLE);
+    } else {
+      map.set(category, { ...GENERATED_STYLES[genIdx % GENERATED_STYLES.length], label: prettifyCategory(category) });
+      genIdx++;
+    }
+  }
+  return map;
+}
+
 // Legend entries for every distinct category present in `nodes`, in first-seen order,
 // de-duplicated by label (so e.g. math+science sharing a label collapse to one entry).
 export function categoryLegend(nodes: GraphNode[]): CategoryStyle[] {
+  const map = categoryStyleMap(nodes);
   const seen = new Set<string>();
   const out: CategoryStyle[] = [];
   for (const node of nodes) {
-    const s = categoryStyle(node.category);
+    const s = map.get(node.category)!;
     if (!seen.has(s.label)) {
       seen.add(s.label);
       out.push(s);

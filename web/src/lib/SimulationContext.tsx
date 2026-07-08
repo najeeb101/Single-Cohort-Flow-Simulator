@@ -195,7 +195,7 @@ function StartingScreen({
             CA
           </div>
           <h1 className="mt-3 text-[24px] font-extrabold tracking-tight text-ink">
-            Cohort Flow Simulator
+            Cohort Analyzer
           </h1>
           {error ? (
             <>

@@ -16,12 +16,22 @@ export const BLANK_CONFIG: Record<string, unknown> = {
   enrollment_priority_tiers: [],
   year_standing_thresholds: [30, 60, 90],
   on_time_terms: 8,
+  normal_load_ch: 18,
+  probation_load_ch: 12,
+  probation_min_ch: 25,
   dropout_gpa_floor: 2.0,
   dropout_base_hazard: 0.1,
   dropout_early_multiplier: 1.5,
   dropout_early_sem_cutoff: 2,
   dropout_fails_threshold: 3,
   dropout_prob_on_repeated_fail: 0.2,
+  grade_tiers: {
+    hard_max: 0.72,
+    medium_max: 0.82,
+    hard: { A: 0.08, "B+": 0.15, B: 0.32, "C+": 0.22, C: 0.18, D: 0.05 },
+    medium: { A: 0.12, "B+": 0.18, B: 0.33, "C+": 0.22, C: 0.13, D: 0.02 },
+    easy: { A: 0.25, "B+": 0.25, B: 0.25, "C+": 0.12, C: 0.1, D: 0.03 },
+  },
   scenarios: [{ name: "baseline" }],
 };
 

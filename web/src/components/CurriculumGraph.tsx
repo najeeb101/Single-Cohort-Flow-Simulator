@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import type { CourseFrameStat, Graph } from "@/types/simulation";
-import { categoryStyle, computeSemesterLayout, utilColor } from "@/lib/graphLayout";
+import { categoryStyle, categoryStyleMap, computeSemesterLayout, utilColor } from "@/lib/graphLayout";
 
 interface Props {
   graph: Graph; // frozen at initial load — see page.tsx; never changes across live updates
@@ -28,6 +28,7 @@ export default function CurriculumGraph({ graph, courses }: Props) {
     () => computeSemesterLayout(graph),
     [graph],
   );
+  const catStyles = useMemo(() => categoryStyleMap(graph.nodes), [graph.nodes]);
   const [selected, setSelected] = useState<string | null>(null);
 
   const { activePrereqs, activeUnlocks } = useMemo(() => {
@@ -169,7 +170,7 @@ export default function CurriculumGraph({ graph, courses }: Props) {
         {graph.nodes.map((n) => {
           const p = positions[n.code];
           if (!p) return null;
-          const cat = categoryStyle(n.category);
+          const cat = catStyles.get(n.category)!;
           const st = courses[n.code];
           const offered = st?.offered ?? false;
           const util = offered && st.capacity ? st.granted / st.capacity : 0;
