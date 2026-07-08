@@ -19,6 +19,12 @@ PASSING_GRADES = frozenset({"A", "B+", "B", "C+", "C", "D"})
 # isolation) — QU's actual bands, mirrored from registration_tier_thresholds below.
 DEFAULT_REGISTRATION_TIER_THRESHOLDS: tuple[int, ...] = (90, 75, 60, 45, 30)
 
+# Ascending completed-CH cutoffs for Year1->Year2->Year3->Year4 standing, mirrored from
+# year_standing_thresholds below — QU's actual 4-year/120-CH bands (30 CH/year). Tenant-scoped
+# data, not hardcoded to one program's length: a plan with a different total credit-hour count
+# sets its own `year_standing_thresholds` in simulation_config.json.
+DEFAULT_YEAR_STANDING_THRESHOLDS: tuple[int, ...] = (30, 60, 90)
+
 
 def registration_tier(completed_ch: int, config: dict | None = None) -> int:
     """Seat-priority tier from completed credit hours — lower tier registers first.
@@ -33,10 +39,11 @@ def registration_tier(completed_ch: int, config: dict | None = None) -> int:
     return len(thresholds)
 
 
-def curriculum_stage(student: "Student") -> str:
+def curriculum_stage(student: "Student", config: dict | None = None) -> str:
     """Flow-chart node for a student: terminal status wins, else CH band.
 
-    Band cutoffs match History.record_snapshot in simulator.py.
+    Band cutoffs are `year_standing_thresholds` (3 ascending CH values -> Year1..Year4),
+    defaulting to QU's 30/60/90 bands so every existing caller/config is unaffected.
     """
     if student.status == "GRADUATED":
         return "Graduated"
@@ -44,14 +51,12 @@ def curriculum_stage(student: "Student") -> str:
         return "Dropped"
     if student.status == "CENSORED":
         return "Censored"
+    thresholds = (config or {}).get("year_standing_thresholds", DEFAULT_YEAR_STANDING_THRESHOLDS)
     ch = student.completed_ch
-    if ch < 30:
-        return "Year1"
-    if ch < 60:
-        return "Year2"
-    if ch < 90:
-        return "Year3"
-    return "Year4"
+    for i, threshold in enumerate(thresholds):
+        if ch < threshold:
+            return f"Year{i + 1}"
+    return f"Year{len(thresholds) + 1}"
 
 
 class Student:

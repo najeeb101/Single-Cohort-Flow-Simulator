@@ -2,7 +2,7 @@ import type { Headline } from "@/types/simulation";
 import { pct } from "@/lib/format";
 
 // Faithful port of frontend/app.js::renderHeadline().
-export default function HeadlineKpis({ headline }: { headline: Headline }) {
+export default function HeadlineKpis({ headline, onTimeTerms }: { headline: Headline; onTimeTerms: number }) {
   const ci = headline.confidence_intervals ?? {};
 
   // Graduation rate is the headline's headline — the one number the whole simulation
@@ -11,7 +11,7 @@ export default function HeadlineKpis({ headline }: { headline: Headline }) {
   const featured = { label: "Graduation rate", value: pct(headline.graduation_rate || 0), ciKey: "graduation_rate", isPct: true };
   const kpis: { label: string; value: string; ciKey: string; isPct: boolean }[] = [
     { label: "Avg time to degree", value: `${(headline.avg_graduation_time || 0).toFixed(1)} sem`, ciKey: "avg_graduation_time", isPct: false },
-    { label: "On-time (≤8 sem)", value: pct(headline.on_time_rate || 0), ciKey: "on_time_rate", isPct: true },
+    { label: `On-time (≤${onTimeTerms} sem)`, value: pct(headline.on_time_rate || 0), ciKey: "on_time_rate", isPct: true },
     { label: "Academic dropout", value: pct(headline.academic_dropout_rate || 0), ciKey: "academic_dropout_rate", isPct: true },
     { label: "Censored", value: pct(headline.censored_rate || 0), ciKey: "censored_rate", isPct: true },
     { label: "Probation (ever)", value: pct(headline.probation_rate || 0), ciKey: "probation_rate", isPct: true },

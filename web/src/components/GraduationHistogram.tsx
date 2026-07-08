@@ -5,7 +5,7 @@ const H = 180;
 
 // Faithful port of src/visualize.py::plot_graduation_histogram for the single scenario
 // this dashboard runs (the static figure overlays multiple scenarios; here there's one).
-export default function GraduationHistogram({ distribution }: { distribution: Histogram }) {
+export default function GraduationHistogram({ distribution, onTimeTerms }: { distribution: Histogram; onTimeTerms: number }) {
   if (!distribution.length) {
     return (
       <div className="rounded-2xl border border-border bg-surface p-4 text-xs text-muted">
@@ -19,7 +19,7 @@ export default function GraduationHistogram({ distribution }: { distribution: Hi
   const span = Math.max(1, maxSem - minSem + 1);
   const maxCount = Math.max(...distribution.map(([, c]) => c));
   const barW = W / span;
-  const cutoffX = (8.5 - minSem) * barW;
+  const cutoffX = (onTimeTerms + 0.5 - minSem) * barW;
 
   return (
     <div className="rounded-2xl border border-border bg-surface p-4">
@@ -28,7 +28,7 @@ export default function GraduationHistogram({ distribution }: { distribution: Hi
         <span className="text-xs font-normal text-muted">semesters to graduate</span>
       </div>
       <p className="mb-3 text-[12px] text-muted">
-        How many students graduated in each semester (counted from their own entry). The ideal shape is a tall bar at semester 8 (on-time for a 4-year programme) with a short tail after it. A spread-out or right-shifted distribution means students are being delayed — typically by failed prerequisites, seat shortages on gateway courses, or dropout before reaching graduation.
+        How many students graduated in each semester (counted from their own entry). The ideal shape is a tall bar at semester {onTimeTerms} (on-time for this programme) with a short tail after it. A spread-out or right-shifted distribution means students are being delayed — typically by failed prerequisites, seat shortages on gateway courses, or dropout before reaching graduation.
       </p>
       <svg viewBox={`0 0 ${W + 16} ${H + 24}`} className="w-full" style={{ maxHeight: 220 }}>
         <g transform="translate(8,4)">
@@ -51,7 +51,7 @@ export default function GraduationHistogram({ distribution }: { distribution: Hi
       </svg>
       <div className="mt-1 text-xs text-muted">
         <i className="mr-1 inline-block h-2.5 w-2.5 align-[-1px]" style={{ borderTop: "2px dashed #e3725b" }} />
-        on-time cutoff (≤8 sem)
+        on-time cutoff (≤{onTimeTerms} sem)
       </div>
     </div>
   );

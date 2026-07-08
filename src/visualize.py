@@ -149,6 +149,7 @@ def plot_graduation_histogram(
         return
 
     bins = range(min(all_times), max(all_times) + 2)
+    on_time_terms = next(iter(results.values())).config.get("on_time_terms", 8)
 
     for idx, (name, result) in enumerate(results.items()):
         times = result.history.graduation_times
@@ -156,7 +157,8 @@ def plot_graduation_histogram(
             ax.hist(times, bins=bins, alpha=0.55,
                     color=_color(name, idx), label=name, edgecolor="white")
 
-    ax.axvline(8.5, color="red", linestyle="--", linewidth=1.5, label="On-time cutoff (≤8 sem)")
+    ax.axvline(on_time_terms + 0.5, color="red", linestyle="--", linewidth=1.5,
+               label=f"On-time cutoff (≤{on_time_terms} sem)")
     ax.set_xlabel("Semesters to Graduate")
     ax.set_ylabel("Number of Students")
     ax.set_title("Time-to-Graduate Distribution")

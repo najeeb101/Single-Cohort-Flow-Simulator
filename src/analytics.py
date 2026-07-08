@@ -68,6 +68,7 @@ def compute_metrics(result: "SimulationResult") -> dict:
     history = result.history
     students = _study_students(result)
     total = len(students) or 1
+    on_time_terms = result.config.get("on_time_terms", 8)
 
     graduated = [s for s in students if s.status == "GRADUATED"]
     dropped   = [s for s in students if s.status == "DROPPED"]
@@ -75,7 +76,7 @@ def compute_metrics(result: "SimulationResult") -> dict:
 
     times = [s.grad_semester for s in graduated if s.grad_semester is not None]
     avg_time = sum(times) / len(times) if times else 0.0
-    on_time_count = sum(1 for t in times if t <= 8)
+    on_time_count = sum(1 for t in times if t <= on_time_terms)
 
     prob_count = sum(1 for s in students if s.ever_probation)
     gpas = [s.gpa for s in graduated]
@@ -103,6 +104,7 @@ def compute_metrics(result: "SimulationResult") -> dict:
 
 def compute_cohort_metrics(result: "SimulationResult") -> dict[int, dict]:
     history = result.history
+    on_time_terms = result.config.get("on_time_terms", 8)
     by_cohort: dict[int, list] = {}
     for s in result.students:
         by_cohort.setdefault(s.cohort_id, []).append(s)
@@ -123,7 +125,7 @@ def compute_cohort_metrics(result: "SimulationResult") -> dict[int, dict]:
             "graduation_rate":       len(graduated) / n,
             "academic_dropout_rate": len(dropped) / n,
             "censored_rate":         len(censored) / n,
-            "on_time_rate":          sum(1 for t in times if t <= 8) / n,
+            "on_time_rate":          sum(1 for t in times if t <= on_time_terms) / n,
             "avg_time_to_degree":    (sum(times) / len(times)) if times else 0.0,
             "probation_rate":        sum(1 for s in members if s.ever_probation) / n,
             "top_fail":           _top1_code(history.fail_by_cohort.get(cid, {})),

@@ -259,6 +259,8 @@ export interface MetaResponse {
   dropout_prob_on_repeated_fail: number;
   registration_tier_thresholds: number[];
   enrollment_priority_tiers: EnrollmentPriorityTier[];
+  year_standing_thresholds: number[];
+  on_time_terms: number;
   admission_targets: {
     target_grad_rate: number;
     max_avg_time_to_degree: number;

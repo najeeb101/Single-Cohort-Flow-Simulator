@@ -399,7 +399,7 @@ class Simulator:
             nodes = {n: 0 for n in STAGE_NODES}
             flows: dict[tuple[str, str], int] = defaultdict(int)
             for s in members[cid]:
-                stage = curriculum_stage(s)
+                stage = curriculum_stage(s, self.config)
                 src = s.prev_stage if s.prev_stage is not None else "Admitted"
                 nodes[stage] += 1
                 if src != stage:

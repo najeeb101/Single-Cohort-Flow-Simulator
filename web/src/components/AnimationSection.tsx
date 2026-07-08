@@ -14,13 +14,14 @@ interface Props {
   stageNodes: string[]; // frozen
   cohorts: CohortInfo[]; // frozen
   frames: Frame[]; // live — replaced on every what-if update
+  maxTerms: number;
 }
 
 // Owns all playback state, mirroring frontend/app.js's module-level idx/playing/timer.
 // The one subtlety ported deliberately (see plan): a fresh boot seeks to term 0 and
 // autoplays; a later `frames` swap from a live what-if update only clamps idx and pauses
 // — it must NOT re-seek or re-autoplay, exactly like applyLiveResult() vs. boot().
-export default function AnimationSection({ graph, stageNodes, cohorts, frames }: Props) {
+export default function AnimationSection({ graph, stageNodes, cohorts, frames, maxTerms }: Props) {
   const [idx, setIdx] = useState(0);
   const [playing, setPlaying] = useState(false);
   const [speed, setSpeed] = useState(700);
@@ -89,7 +90,7 @@ export default function AnimationSection({ graph, stageNodes, cohorts, frames }:
         onCohortChange={setCohortSel}
       />
 
-      <NarrativePanel frame={frame} nextFrame={frames[idx + 1]} />
+      <NarrativePanel frame={frame} nextFrame={frames[idx + 1]} maxTerms={maxTerms} />
 
       {/* Asymmetric bento: the curriculum graph is the dominant cell (spans both rows);
           Stage overview and Flows sit beside it as two smaller, independent cards rather

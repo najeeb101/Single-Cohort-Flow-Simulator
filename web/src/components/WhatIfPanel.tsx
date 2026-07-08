@@ -248,7 +248,7 @@ export default function WhatIfPanel({
                 <tbody>
                   {[
                     { label: "Graduation rate", base: pct(baseline.graduation_rate), after: pct(result.metrics.graduation_rate), delta: <Delta after={result.metrics.graduation_rate} before={baseline.graduation_rate} isPct /> },
-                    { label: "On-time (≤8 sem)", base: pct(baseline.on_time_rate), after: pct(result.metrics.on_time_rate), delta: <Delta after={result.metrics.on_time_rate} before={baseline.on_time_rate} isPct /> },
+                    { label: `On-time (≤${meta.on_time_terms} sem)`, base: pct(baseline.on_time_rate), after: pct(result.metrics.on_time_rate), delta: <Delta after={result.metrics.on_time_rate} before={baseline.on_time_rate} isPct /> },
                     { label: "Avg time to degree", base: `${baseline.avg_graduation_time.toFixed(1)} sem`, after: `${result.metrics.avg_graduation_time.toFixed(1)} sem`, delta: <Delta after={result.metrics.avg_graduation_time} before={baseline.avg_graduation_time} lowerIsBetter /> },
                     { label: "Academic dropout", base: pct(baseline.academic_dropout_rate), after: pct(result.metrics.academic_dropout_rate), delta: <Delta after={result.metrics.academic_dropout_rate} before={baseline.academic_dropout_rate} isPct lowerIsBetter /> },
                     ...(baselineSeatsPerStud !== null && result.seatsPerStud !== null

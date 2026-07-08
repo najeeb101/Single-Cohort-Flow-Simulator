@@ -5,8 +5,8 @@ import pytest
 
 from src.analytics import compute_metrics
 from src.models.course import load_curriculum
-from src.models.student import Student, PASSING_GRADES
-from src.simulator import Simulator
+from src.models.student import Student, PASSING_GRADES, curriculum_stage
+from src.simulator import History, Simulator, SimulationResult
 from src.utils import load_json
 
 SEED = 42
@@ -47,6 +47,32 @@ def test_student_not_graduated_with_one_missing():
         student.completed_ch += course.credits
 
     assert not sim._has_graduated(student)
+
+
+def test_curriculum_stage_uses_year_standing_thresholds_config():
+    """A plan with a different total credit-hour count sets its own year-standing bands
+    instead of QU's hardcoded 30/60/90 — see CLAUDE.md / src.models.student.curriculum_stage."""
+    student = Student(student_id=0, seed=SEED)
+    student.completed_ch = 40
+
+    assert curriculum_stage(student) == "Year2"  # default bands: 30/60/90
+    assert curriculum_stage(student, {"year_standing_thresholds": [50, 100, 150]}) == "Year1"
+
+
+def test_on_time_rate_uses_on_time_terms_config():
+    """A plan with a different standard program length sets its own on-time cutoff
+    instead of QU's hardcoded 8 semesters — see src.analytics.compute_metrics."""
+    student = Student(student_id=0, seed=SEED, entry_term=0)
+    student.status = "GRADUATED"
+    student.grad_semester = 10
+
+    default_result = SimulationResult(history=History(), students=[student], scenario={}, config={})
+    assert compute_metrics(default_result)["on_time_rate"] == 0.0
+
+    extended_result = SimulationResult(
+        history=History(), students=[student], scenario={}, config={"on_time_terms": 10}
+    )
+    assert compute_metrics(extended_result)["on_time_rate"] == 1.0
 
 
 def test_graduation_time_recorded_in_history():

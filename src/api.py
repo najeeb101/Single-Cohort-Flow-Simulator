@@ -277,6 +277,12 @@ def meta(db: Session = Depends(get_db)) -> dict:
         "dropout_prob_on_repeated_fail": config.get("dropout_prob_on_repeated_fail"),
         "registration_tier_thresholds": config.get("registration_tier_thresholds", []),
         "enrollment_priority_tiers": config.get("enrollment_priority_tiers", []),
+        # Year-standing CH bands + the on-time-graduation cutoff — see student.py::curriculum_stage
+        # and analytics.py's on_time_rate. Defaults mirror the engine's own fallback (QU's
+        # 30/60/90 CH bands, 8-semester on-time cutoff) so a plan that predates these keys
+        # reports its actual computed behavior.
+        "year_standing_thresholds": config.get("year_standing_thresholds", [30, 60, 90]),
+        "on_time_terms": config.get("on_time_terms", 8),
         "admission_targets": config.get("admission_targets", {
             "target_grad_rate": 0.70,
             "max_avg_time_to_degree": 10.0,

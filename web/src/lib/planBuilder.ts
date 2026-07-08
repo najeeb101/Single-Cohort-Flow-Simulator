@@ -14,6 +14,8 @@ export const BLANK_CONFIG: Record<string, unknown> = {
   admit_interval_terms: 2,
   registration_tier_thresholds: [0, 30, 60, 90, 120],
   enrollment_priority_tiers: [],
+  year_standing_thresholds: [30, 60, 90],
+  on_time_terms: 8,
   dropout_gpa_floor: 2.0,
   dropout_base_hazard: 0.1,
   dropout_early_multiplier: 1.5,
@@ -86,6 +88,8 @@ export function metaFromPlanExport(curriculum: CourseRecord[], config: Record<st
     dropout_prob_on_repeated_fail: (config.dropout_prob_on_repeated_fail as number) ?? 0.2,
     registration_tier_thresholds: (config.registration_tier_thresholds as number[]) ?? [0, 30, 60, 90, 120],
     enrollment_priority_tiers: (config.enrollment_priority_tiers as EnrollmentPriorityTier[]) ?? [],
+    year_standing_thresholds: (config.year_standing_thresholds as number[]) ?? [30, 60, 90],
+    on_time_terms: (config.on_time_terms as number) ?? 8,
     admission_targets: (config.admission_targets as MetaResponse["admission_targets"]) ?? {
       target_grad_rate: 0.70,
       max_avg_time_to_degree: 10.0,

@@ -42,6 +42,7 @@ def test_meta_shape():
         "dropout_base_hazard", "dropout_early_multiplier", "dropout_early_sem_cutoff",
         "dropout_fails_threshold", "dropout_prob_on_repeated_fail",
         "registration_tier_thresholds", "enrollment_priority_tiers",
+        "year_standing_thresholds", "on_time_terms",
         "admission_targets",
     }
     assert len(body["graph"]["nodes"]) == len(CURRICULUM)

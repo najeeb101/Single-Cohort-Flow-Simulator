@@ -4,6 +4,7 @@ import { aggFlows } from "@/lib/flows";
 interface Props {
   frame: Frame;
   nextFrame: Frame | undefined;
+  maxTerms: number;
 }
 
 type Entry = { text: string; emphasis?: "em" | "good" | "bad" };
@@ -12,7 +13,7 @@ const EMPHASIS_CLASS: Record<string, string> = { em: "text-warn font-semibold", 
 // Faithful port of frontend/app.js::renderNarrative() — always uses the global aggFlows()
 // regardless of the cohort selector (that's the vanilla behavior; only the stage/flow
 // side panels are cohort-scoped).
-export default function NarrativePanel({ frame, nextFrame }: Props) {
+export default function NarrativePanel({ frame, nextFrame, maxTerms }: Props) {
   const flows = aggFlows(frame);
   const get = (k: string) => flows[k] || 0;
 
@@ -39,7 +40,7 @@ export default function NarrativePanel({ frame, nextFrame }: Props) {
   if (dropped > 0) now.push({ text: `${dropped} dropped out (academic).`, emphasis: "bad" });
 
   const cens = Object.keys(flows).filter((k) => k.endsWith("→Censored")).reduce((s, k) => s + flows[k], 0);
-  if (cens > 0) now.push({ text: `${cens} ran out of time (hit the 12-semester limit).`, emphasis: "bad" });
+  if (cens > 0) now.push({ text: `${cens} ran out of time (hit the ${maxTerms}-semester limit).`, emphasis: "bad" });
 
   const totPass = Object.values(frame.courses).reduce((s, c) => s + (c.passed || 0), 0);
   const totFail = Object.values(frame.courses).reduce((s, c) => s + (c.failed || 0), 0);

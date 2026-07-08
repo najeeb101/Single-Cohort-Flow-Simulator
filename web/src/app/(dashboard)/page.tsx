@@ -80,11 +80,12 @@ export default function Home() {
         stageNodes={chartMeta.stageNodes}
         cohorts={chartMeta.cohorts}
         frames={data.flow_timeline.frames}
+        maxTerms={meta.max_terms}
       />
 
       <AdvisorPanel summary={summary} />
       <AdmissionsRecommendation rec={summary.admissions_recommendation} />
-      <HeadlineKpis headline={summary.headline} />
+      <HeadlineKpis headline={summary.headline} onTimeTerms={meta.on_time_terms} />
     </main>
   );
 }

@@ -7,7 +7,7 @@ import GraduationHistogram from "@/components/GraduationHistogram";
 import UtilizationHeatmap from "@/components/UtilizationHeatmap";
 
 export default function FiguresPage() {
-  const { data, chartMeta } = useSimulation();
+  const { meta, data, chartMeta } = useSimulation();
   const frames = data.flow_timeline.frames;
 
   return (
@@ -22,7 +22,7 @@ export default function FiguresPage() {
         <div className="flex flex-col gap-4">
           <UniversityEnrollmentChart frames={frames} />
           <CohortFlowChart frames={frames} cohorts={chartMeta.cohorts} />
-          <GraduationHistogram distribution={data.flow_timeline.summary.headline.graduation_time_distribution} />
+          <GraduationHistogram distribution={data.flow_timeline.summary.headline.graduation_time_distribution} onTimeTerms={meta.on_time_terms} />
           <UtilizationHeatmap frames={frames} />
         </div>
       </section>
