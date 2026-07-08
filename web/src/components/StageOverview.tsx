@@ -2,8 +2,8 @@ import type { CohortFlow, Frame } from "@/types/simulation";
 import { aggFlows } from "@/lib/flows";
 
 const STAGE_COLORS: Record<string, string> = {
-  Admitted: "#6b7488", Year1: "#4878d0", Year2: "#5aa9e6", Year3: "#6acc65",
-  Year4: "#e8b84b", Graduated: "#3ec46d", Dropped: "#d65f5f", Censored: "#b47cc7",
+  Admitted: "var(--faint)", Year1: "var(--series-1)", Year2: "var(--series-2)", Year3: "var(--series-3)",
+  Year4: "var(--series-4)", Graduated: "var(--good)", Dropped: "var(--bad)", Censored: "var(--censored)",
 };
 
 // Graduated/Dropped/Censored are all reachable from any "Year" stage, not just the one

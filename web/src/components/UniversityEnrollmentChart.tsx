@@ -7,10 +7,10 @@ import { aggregateEnrollment, makeScales } from "@/lib/figures";
 type BandKey = "enrolled" | "graduated" | "dropped" | "censored";
 
 const BANDS: { key: BandKey; label: string; color: string }[] = [
-  { key: "enrolled", label: "Still enrolled", color: "#4878d0" },
-  { key: "graduated", label: "Graduated", color: "#6acc65" },
-  { key: "dropped", label: "Academic dropout", color: "#d65f5f" },
-  { key: "censored", label: "Censored (hit horizon)", color: "#b47cc7" },
+  { key: "enrolled", label: "Still enrolled", color: "var(--info)" },
+  { key: "graduated", label: "Graduated", color: "var(--good)" },
+  { key: "dropped", label: "Academic dropout", color: "var(--bad)" },
+  { key: "censored", label: "Censored (hit horizon)", color: "var(--censored)" },
 ];
 
 const W = 760;

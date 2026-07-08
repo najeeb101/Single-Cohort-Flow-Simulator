@@ -49,6 +49,17 @@
   --english-text: #d4ebf1;
 
   --node-offered-muted: #5d6878;
+
+  /* Unified categorical/semantic palette for data charts (StageOverview, CohortFlowChart,
+     UniversityEnrollmentChart) — aliased to the same hues already coloring course-category
+     boxes on the roadmap, instead of each chart hardcoding its own ad hoc port of
+     matplotlib/seaborn defaults. --censored formalizes the soft plum already used for the
+     "hit the term horizon" outcome. */
+  --series-1: var(--cs-core-border);
+  --series-2: var(--english-border);
+  --series-3: var(--math-border);
+  --series-4: var(--cs-elective-border);
+  --censored: #b47cc7;
 }
 
 /* Light theme — warm monochrome + a single restrained accent (minimalist-ui skill):
@@ -97,6 +108,12 @@
   --english-text: #162f36;
 
   --node-offered-muted: #7c8694;
+
+  --series-1: var(--cs-core-border);
+  --series-2: var(--english-border);
+  --series-3: var(--math-border);
+  --series-4: var(--cs-elective-border);
+  --censored: #8b5fa3;
 }
 
 @theme inline {
@@ -114,6 +131,11 @@
   --color-good: var(--good);
   --color-warn: var(--warn);
   --color-bad: var(--bad);
+  --color-series-1: var(--series-1);
+  --color-series-2: var(--series-2);
+  --color-series-3: var(--series-3);
+  --color-series-4: var(--series-4);
+  --color-censored: var(--censored);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }

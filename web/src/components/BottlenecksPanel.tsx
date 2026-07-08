@@ -2,12 +2,23 @@ import type { TopBottlenecks } from "@/types/simulation";
 
 // Faithful port of frontend/app.js::renderBottlenecks().
 export default function BottlenecksPanel({ bottlenecks }: { bottlenecks: TopBottlenecks }) {
-  const cards: { title: string; list: TopBottlenecks[keyof TopBottlenecks] }[] = [
-    { title: "Failures", list: bottlenecks.fail },
-    { title: "Capacity blocks", list: bottlenecks.capacity },
-    { title: "Offering blocks", list: bottlenecks.offering },
-    { title: "Prerequisite blocks", list: bottlenecks.prereq },
+  // Each of the four block signals gets its own color instead of one flat accent, so they read
+  // as four distinct signals at a glance (a real attempt-and-fail vs. a scheduling fact vs. a
+  // structural prerequisite gap are different kinds of problem, not variations on one).
+  const cards: { title: string; list: TopBottlenecks[keyof TopBottlenecks]; color: string }[] = [
+    { title: "Failures", list: bottlenecks.fail, color: "bad" },
+    { title: "Capacity blocks", list: bottlenecks.capacity, color: "warn" },
+    { title: "Offering blocks", list: bottlenecks.offering, color: "info" },
+    { title: "Prerequisite blocks", list: bottlenecks.prereq, color: "accent" },
   ];
+
+  // Static class strings (not template-built) so Tailwind's build-time scanner picks them up.
+  const COLOR_CLASSES: Record<string, { text: string; border: string }> = {
+    bad: { text: "text-bad", border: "border-l-bad" },
+    warn: { text: "text-warn", border: "border-l-warn" },
+    info: { text: "text-info", border: "border-l-info" },
+    accent: { text: "text-accent", border: "border-l-accent" },
+  };
 
   return (
     <section className="py-6">
@@ -23,9 +34,10 @@ export default function BottlenecksPanel({ bottlenecks }: { bottlenecks: TopBott
             "Offering blocks": "Times an eligible student couldn't enrol because the course wasn't running that term.",
             "Prerequisite blocks": "Times a student was ready to take the course but still missing a prerequisite.",
           };
+          const colors = COLOR_CLASSES[c.color];
           return (
-            <div key={c.title} className="rounded-2xl border border-border bg-surface p-4">
-              <h4 className="mb-0.5 text-xs uppercase tracking-wide text-accent">{c.title}</h4>
+            <div key={c.title} className={`rounded-2xl border border-border border-l-[3px] bg-surface p-4 ${colors.border}`}>
+              <h4 className={`mb-0.5 text-xs uppercase tracking-wide ${colors.text}`}>{c.title}</h4>
               <p className="mb-2.5 text-[11px] text-muted">{desc[c.title]}</p>
               {c.list.length ? (
                 <ol className="list-decimal space-y-1.5 pl-5 text-[13px] marker:text-faint">

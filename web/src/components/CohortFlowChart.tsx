@@ -4,7 +4,7 @@ import { useMemo } from "react";
 import type { CohortInfo, Frame } from "@/types/simulation";
 import { cohortActiveSeries, makeScales } from "@/lib/figures";
 
-const COLORS = ["#1f77b4", "#ff7f0e", "#2ca02c", "#9467bd", "#8c564b"];
+const COLORS = ["var(--series-1)", "var(--series-2)", "var(--series-3)", "var(--series-4)"];
 const W = 760;
 const H = 200;
 

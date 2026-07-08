@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { ApiError, autofill, updateConfig, updateCourse } from "@/lib/api";
 import { useSimulation } from "@/lib/SimulationContext";
-import { pct } from "@/lib/format";
+import { formatCriterionValue, pct } from "@/lib/format";
 import type { AutofillResult } from "@/types/simulation";
 
 // Auto-fill to targets: one click runs the backend solver (POST /autofill), which searches the
@@ -18,11 +18,6 @@ const CRITERION_LABEL: Record<string, string> = {
   seats_denied_per_stud: "Seats denied / student",
   throughput_stability: "Throughput stability",
 };
-
-function fmtObserved(name: string, v: number): string {
-  if (name === "graduation_rate" || name === "throughput_stability") return v.toFixed(2);
-  return v.toFixed(2);
-}
 
 export default function AutofillPanel() {
   const { refreshBaseline } = useSimulation();
@@ -133,7 +128,7 @@ export default function AutofillPanel() {
               >
                 <span className="font-semibold">{CRITERION_LABEL[c.name] ?? c.name}</span>{" "}
                 <span className="text-muted">
-                  {fmtObserved(c.name, c.observed)} / {c.target} {c.met ? "✓" : "✗"}
+                  {formatCriterionValue(c.name, c.observed)} / {formatCriterionValue(c.name, c.target)} {c.met ? "✓" : "✗"}
                 </span>
               </div>
             ))}

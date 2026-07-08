@@ -89,7 +89,11 @@ export default function NavBar() {
   return (
     <nav className="border-b border-border bg-surface/85 backdrop-blur-md sticky top-0 z-50">
       <div className="mx-auto grid max-w-[1600px] grid-cols-[1fr_auto_1fr] items-center px-7">
-        <div />
+        <Link href="/" className="flex items-center gap-2" aria-label="Cohort Analyzer home">
+          <span className="grid h-7 w-7 place-items-center rounded-[7px] bg-maroon text-[11px] font-extrabold text-white">
+            CA
+          </span>
+        </Link>
         <div className="flex items-center justify-center gap-1">
           {PRIMARY_LINKS.map((link) => {
             const active = pathname === link.href;

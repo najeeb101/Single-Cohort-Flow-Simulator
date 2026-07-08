@@ -1,4 +1,5 @@
 import type { AdmissionsRecommendation as Rec } from "@/types/simulation";
+import { formatCriterionValue } from "@/lib/format";
 
 // Faithful port of frontend/app.js::renderRecommendation().
 export default function AdmissionsRecommendation({ rec }: { rec: Rec }) {
@@ -33,8 +34,8 @@ export default function AdmissionsRecommendation({ rec }: { rec: Rec }) {
                 {(rec.criteria ?? []).map((c) => (
                   <tr key={c.name} className="border-b border-border">
                     <td className="px-3 py-1.5">{c.name}</td>
-                    <td className="px-3 py-1.5">{c.observed}</td>
-                    <td className="px-3 py-1.5">{c.target}</td>
+                    <td className="px-3 py-1.5">{formatCriterionValue(c.name, c.observed)}</td>
+                    <td className="px-3 py-1.5">{formatCriterionValue(c.name, c.target)}</td>
                     <td className="px-3 py-1.5">{typeof c.slack === "number" ? c.slack.toFixed(2) : c.slack}</td>
                   </tr>
                 ))}

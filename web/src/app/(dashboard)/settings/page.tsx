@@ -176,24 +176,26 @@ export default function SettingsPage() {
 
       <section className="py-6">
         <h2 className="mb-3 text-[15px] font-bold">Term calendar</h2>
-        <label className="flex items-start gap-3 text-[12.5px]">
-          <input
-            type="checkbox"
-            checked={optionalTermsEnabled}
-            onChange={(e) => setOptionalTermsEnabled(e.target.checked)}
-            className="mt-0.5"
-          />
-          <span>
-            <span className="font-semibold text-ink">Enable optional Winter/Summer intersessions</span>
-            <br />
-            <span className="text-muted">
-              Off by default: the university runs a 2-season Fall/Spring calendar only. Turning this on
-              adds optional Winter/Summer terms (small bonus sections for a handful of courses,
-              configured in <code>simulation_config.json</code>) that students can use to retake or get
-              ahead without it costing a mandatory semester. Admission stays Fall-only either way.
+        <div className="rounded-2xl border border-border bg-surface p-5">
+          <label className="flex items-start gap-3 text-[12.5px]">
+            <input
+              type="checkbox"
+              checked={optionalTermsEnabled}
+              onChange={(e) => setOptionalTermsEnabled(e.target.checked)}
+              className="mt-0.5"
+            />
+            <span>
+              <span className="font-semibold text-ink">Enable optional Winter/Summer intersessions</span>
+              <br />
+              <span className="text-muted">
+                Off by default: the university runs a 2-season Fall/Spring calendar only. Turning this on
+                adds optional Winter/Summer terms (small bonus sections for a handful of courses,
+                configured in <code>simulation_config.json</code>) that students can use to retake or get
+                ahead without it costing a mandatory semester. Admission stays Fall-only either way.
+              </span>
             </span>
-          </span>
-        </label>
+          </label>
+        </div>
       </section>
 
       <section className="py-6">
@@ -202,33 +204,35 @@ export default function SettingsPage() {
           The four pass/fail thresholds used by the Admissions recommendation on the Capacity Planning
           page. Slack ≥ 1 means the criterion is met; the worst slack determines the recommended intake.
         </p>
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-          {(
-            [
-              { key: "target_grad_rate", label: "Min graduation rate", min: 0, max: 1, step: 0.01 },
-              { key: "max_avg_time_to_degree", label: "Max avg time (terms)", min: 1, max: 24, step: 0.5 },
-              { key: "max_seats_denied_per_student", label: "Max seats denied / student", min: 0, max: 20, step: 0.1 },
-              { key: "min_throughput_stability", label: "Min throughput stability", min: 0, max: 1, step: 0.01 },
-            ] as const
-          ).map(({ key, label, min, max, step }) => {
-            const dirty = admissionTargets[key] !== meta.admission_targets[key];
-            return (
-              <label key={key} className="flex flex-col gap-1">
-                <span className={`text-[11.5px] font-semibold ${dirty ? "text-accent" : "text-muted"}`}>
-                  {label}{dirty ? " *" : ""}
-                </span>
-                <input
-                  type="number"
-                  value={admissionTargets[key]}
-                  min={min}
-                  max={max}
-                  step={step}
-                  onChange={(e) => setAdmissionTarget(key, Number(e.target.value))}
-                  className="w-full rounded-[8px] border border-border bg-surface-2 px-3 py-1.5 text-[13px] text-ink focus:outline-none focus:ring-1 focus:ring-accent"
-                />
-              </label>
-            );
-          })}
+        <div className="rounded-2xl border border-border bg-surface p-5">
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+            {(
+              [
+                { key: "target_grad_rate", label: "Min graduation rate", min: 0, max: 1, step: 0.01 },
+                { key: "max_avg_time_to_degree", label: "Max avg time (terms)", min: 1, max: 24, step: 0.5 },
+                { key: "max_seats_denied_per_student", label: "Max seats denied / student", min: 0, max: 20, step: 0.1 },
+                { key: "min_throughput_stability", label: "Min throughput stability", min: 0, max: 1, step: 0.01 },
+              ] as const
+            ).map(({ key, label, min, max, step }) => {
+              const dirty = admissionTargets[key] !== meta.admission_targets[key];
+              return (
+                <label key={key} className="flex flex-col gap-1">
+                  <span className={`text-[11.5px] font-semibold ${dirty ? "text-accent" : "text-muted"}`}>
+                    {label}{dirty ? " *" : ""}
+                  </span>
+                  <input
+                    type="number"
+                    value={admissionTargets[key]}
+                    min={min}
+                    max={max}
+                    step={step}
+                    onChange={(e) => setAdmissionTarget(key, Number(e.target.value))}
+                    className="w-full rounded-[8px] border border-border bg-surface-2 px-3 py-1.5 text-[13px] text-ink focus:outline-none focus:ring-1 focus:ring-accent"
+                  />
+                </label>
+              );
+            })}
+          </div>
         </div>
       </section>
 
