@@ -15,6 +15,9 @@ import type {
   RunRecord,
   ScenarioRequest,
   SimulateResponse,
+  StudentProfileFilter,
+  StudentSearchResult,
+  StudentTrace,
   TermSnapshot,
 } from "@/types/simulation";
 
@@ -52,6 +55,31 @@ export function simulate(overrides: ScenarioRequest): Promise<SimulateResponse> 
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(overrides),
   }).then((res) => asJson<SimulateResponse>(res));
+}
+
+// Per-student trace: both endpoints re-run the deterministic engine from the given overrides
+// (default {} = the dashboard baseline). Search is a cheap run; the trace run records the
+// per-student block/state detail. See src/api.py's /simulate/students/* routes.
+export function searchStudents(
+  filter: StudentProfileFilter,
+  overrides: ScenarioRequest = {}
+): Promise<StudentSearchResult> {
+  return fetch(`${API_BASE}/simulate/students/search`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ...overrides, ...filter }),
+  }).then((res) => asJson<StudentSearchResult>(res));
+}
+
+export function getStudentTrace(
+  studentId: number,
+  overrides: ScenarioRequest = {}
+): Promise<StudentTrace> {
+  return fetch(`${API_BASE}/simulate/students/${studentId}/trace`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(overrides),
+  }).then((res) => asJson<StudentTrace>(res));
 }
 
 export function autofill(runBudget?: number): Promise<AutofillResult> {

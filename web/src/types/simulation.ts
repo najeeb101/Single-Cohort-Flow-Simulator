@@ -418,3 +418,73 @@ export interface LiveSimDetail {
   };
   snapshots: TermSnapshot[]; // in term order
 }
+
+// Per-student trace: "watch one synthetic student's term-by-term journey."
+// Mirrors src/api.py's /simulate/students/search + /simulate/students/{id}/trace and
+// src/analytics.py::find_students_matching / compute_student_trace.
+export interface StudentProfileFilter {
+  filter_cohort_id?: number;
+  filter_final_status?: "graduated" | "dropped" | "censored";
+  filter_ever_probation?: boolean;
+  limit?: number;
+}
+
+export interface StudentCandidate {
+  student_id: number;
+  cohort_id: number;
+  entry_term: number;
+  final_status: "GRADUATED" | "DROPPED" | "CENSORED";
+  gpa: number;
+  completed_ch: number;
+  grad_semester: number | null;
+  ever_probation: boolean;
+  total_fails: number;
+}
+
+export interface StudentSearchResult {
+  candidates: StudentCandidate[];
+  total_matched: number;
+}
+
+export type BlockSignal = "capacity" | "offering" | "prereq";
+
+export interface TraceCourse {
+  code: string;
+  title: string;
+  grade: string;
+  passed: boolean;
+  attempt_no: number;
+}
+
+export interface TraceBlocked {
+  code: string;
+  title: string;
+  signal: BlockSignal;
+}
+
+export interface StudentTraceTerm {
+  term: number;
+  season: string;
+  label: string;
+  personal_semester: number;
+  status: "ACTIVE" | "DELAYED" | "GRADUATED" | "DROPPED" | "CENSORED";
+  gpa: number;
+  completed_ch: number;
+  on_probation: boolean;
+  courses: TraceCourse[];
+  blocked: TraceBlocked[];
+}
+
+export interface StudentTrace {
+  student_id: number;
+  cohort_id: number;
+  entry_term: number;
+  ability_score: number;
+  final_status: "GRADUATED" | "DROPPED" | "CENSORED";
+  final_reason: string;
+  grad_semester: number | null;
+  gpa: number;
+  completed_ch: number;
+  total_program_ch: number;
+  terms: StudentTraceTerm[];
+}

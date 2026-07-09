@@ -8,7 +8,15 @@ from typing import Callable
 from src.models.course import Course
 from src.models.semester import get_mandatory_seasons, mandatory_horizon_end_term, term_season, term_label
 from src.models.student import Student, registration_tier, curriculum_stage
-from src.datasource import DataSource, SyntheticDataSource, CohortSpec, EnrollmentRecord, OutcomeRecord
+from src.datasource import (
+    BlockEvent,
+    CohortSpec,
+    DataSource,
+    EnrollmentRecord,
+    OutcomeRecord,
+    StudentTermState,
+    SyntheticDataSource,
+)
 from src.utils import grade_tier
 
 # A per-term overlay hook: given the calendar term index, returns (config_patch,
@@ -53,6 +61,14 @@ class History:
     # export calibration/validation will consume.
     transcript: list[EnrollmentRecord] = field(default_factory=list)
     outcomes: list[OutcomeRecord] = field(default_factory=list)
+
+    # Per-student trace detail — populated only when Simulator is run with
+    # record_traces=True (the trace feature; never on the hot /simulate path). block_events
+    # is the per-student counterpart to the aggregate capacity/offering/prereq counters above;
+    # student_term_states is the per-term GPA/probation/status trajectory. Both stay out of
+    # the flow_timeline JSON contract, exactly like transcript/outcomes.
+    block_events: list[BlockEvent] = field(default_factory=list)
+    student_term_states: list[StudentTermState] = field(default_factory=list)
 
     def record_snapshot(self, term_num: int, students: list[Student]) -> None:
         bands: dict[str, int] = {"0-29": 0, "30-59": 0, "60-89": 0, "90-119": 0}
@@ -115,8 +131,13 @@ class Simulator:
         scenario: dict,
         data_source: DataSource | None = None,
         overlay_provider: OverlayProvider | None = None,
+        record_traces: bool = False,
     ) -> None:
         self.curriculum = curriculum
+        # Opt-in per-student trace capture (block events + per-term state snapshots). Default
+        # off, so every existing caller/test and the hot /simulate baseline run byte-identical
+        # and pay nothing; only the student-trace endpoints flip this on.
+        self.record_traces = record_traces
         # Total program credit hours, for the cumulative-delay dropout hazard's "expected
         # completed_ch by now" calculation (see _run_term) — computed once since curriculum
         # doesn't change per term (only config/scenario overlays do).
@@ -287,6 +308,9 @@ class Simulator:
                 self.history.capacity_block_counts[code] += 1
                 self.history.capacity_block_by_cohort[s.cohort_id][code] += 1
                 seats_denied[s.cohort_id] += 1
+                if self.record_traces:
+                    self.history.block_events.append(
+                        BlockEvent(s.student_id, term_idx, code, "capacity"))
 
         # ── Phase 3: Take courses ─────────────────────────────────── #
         for student in active:
@@ -390,7 +414,21 @@ class Simulator:
         # who drops/graduates/is censored THIS term still experienced this term's scheduling
         # constraints and should be counted. (Graduates are unaffected either way — they've
         # already passed every course, so _record_blocks skips them via has_passed().)
-        self._record_blocks(season, active, course_stats, courses_to_check)
+        self._record_blocks(term_idx, season, active, course_stats, courses_to_check)
+
+        # Per-student trace snapshot (opt-in). Uses the pre-outcome `active` snapshot so a
+        # student's terminal-transition term is captured with its post-transition status.
+        if self.record_traces:
+            for s in active:
+                self.history.student_term_states.append(StudentTermState(
+                    student_id=s.student_id,
+                    term=term_idx,
+                    personal_semester=s.personal_semester,
+                    gpa=round(s.gpa, 4),
+                    completed_ch=s.completed_ch,
+                    on_probation=s.on_probation,
+                    status=s.status,
+                ))
 
         # ── Cohort snapshot + timeline frame ──────────────────────── #
         self._record_term_outputs(term_idx, season, course_stats, seats_requested, seats_denied)
@@ -575,6 +613,7 @@ class Simulator:
 
     def _record_blocks(
         self,
+        term_idx: int,
         season: str,
         active_students: list[Student],
         course_stats: dict[str, dict],
@@ -592,8 +631,14 @@ class Simulator:
                         self.history.offering_block_by_cohort[student.cohort_id][code] += 1
                         if code in course_stats:
                             course_stats[code]["offering_blocked"] += 1
+                        if self.record_traces:
+                            self.history.block_events.append(
+                                BlockEvent(student.student_id, term_idx, code, "offering"))
                 else:
                     self.history.prereq_block_counts[code] += 1
                     self.history.prereq_block_by_cohort[student.cohort_id][code] += 1
                     if code in course_stats:
                         course_stats[code]["prereq_waiting"] += 1
+                    if self.record_traces:
+                        self.history.block_events.append(
+                            BlockEvent(student.student_id, term_idx, code, "prereq"))

@@ -185,9 +185,9 @@ def test_record_blocks_includes_students_who_drop_the_same_term(monkeypatch):
             dropped_by_term[term_idx].add(student.student_id)
         return orig_record_outcome(self, student, status, term_idx)
 
-    def spy_record_blocks(self, season, active_students, course_stats, courses_to_check):
+    def spy_record_blocks(self, term_idx, season, active_students, course_stats, courses_to_check):
         blocked_ids_by_call.append({s.student_id for s in active_students})
-        return orig_record_blocks(self, season, active_students, course_stats, courses_to_check)
+        return orig_record_blocks(self, term_idx, season, active_students, course_stats, courses_to_check)
 
     monkeypatch.setattr(Simulator, "_record_outcome", spy_record_outcome)
     monkeypatch.setattr(Simulator, "_record_blocks", spy_record_blocks)

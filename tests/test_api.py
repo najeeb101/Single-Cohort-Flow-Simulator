@@ -135,3 +135,53 @@ def test_simulate_enrollment_priority_tiers_override_accepted():
     )
     assert resp.status_code == 200
     assert resp.json()["flow_timeline"]["meta"]["graph"]["nodes"]
+
+
+# ── Per-student trace endpoints ──────────────────────────────────── #
+
+def test_search_students_returns_capped_candidates():
+    resp = client.post("/simulate/students/search", json={"limit": 5})
+    assert resp.status_code == 200
+    body = resp.json()
+    assert set(body) == {"candidates", "total_matched"}
+    assert len(body["candidates"]) <= 5
+    for c in body["candidates"]:
+        assert c["cohort_id"] >= 0  # study cohorts only
+        assert c["final_status"] in {"GRADUATED", "DROPPED", "CENSORED"}
+
+
+def test_search_students_status_filter():
+    resp = client.post(
+        "/simulate/students/search", json={"filter_final_status": "graduated", "limit": 50}
+    )
+    assert resp.status_code == 200
+    assert all(c["final_status"] == "GRADUATED" for c in resp.json()["candidates"])
+
+
+def test_search_students_rejects_bad_status():
+    resp = client.post("/simulate/students/search", json={"filter_final_status": "nonsense"})
+    assert resp.status_code == 422
+
+
+def test_student_trace_full_journey():
+    # Grab a real student id from a search, then trace it with the same (baseline) overrides.
+    found = client.post("/simulate/students/search", json={"limit": 1}).json()
+    sid = found["candidates"][0]["student_id"]
+
+    resp = client.post(f"/simulate/students/{sid}/trace", json={})
+    assert resp.status_code == 200
+    trace = resp.json()
+    assert trace["student_id"] == sid
+    assert trace["final_status"] in {"GRADUATED", "DROPPED", "CENSORED"}
+    assert trace["terms"], "a traced student should have at least one term"
+    terms = [t["term"] for t in trace["terms"]]
+    assert terms == sorted(terms)
+    # Block events are captured on the trace path, so at least some term should show a signal
+    # (early terms almost always have prereq-blocked courses).
+    signals = {b["signal"] for t in trace["terms"] for b in t["blocked"]}
+    assert signals <= {"capacity", "offering", "prereq"}
+
+
+def test_student_trace_unknown_id_404():
+    resp = client.post("/simulate/students/99999999/trace", json={})
+    assert resp.status_code == 404

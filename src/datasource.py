@@ -73,6 +73,38 @@ class OutcomeRecord:
     exit_reason: str  # "graduated" | "dropped" | "censored"
 
 
+@dataclass(frozen=True)
+class BlockEvent:
+    """One "why couldn't this student take this course this term" event. The per-student
+    counterpart to the aggregate block counters (capacity/offering/prereq) the engine already
+    keeps — those discard student identity at increment time, so this is captured separately
+    and only when a run opts in (``Simulator(record_traces=True)``), never on the hot
+    ``/simulate`` path. ``fail`` is deliberately absent: a failed attempt is already an
+    ``EnrollmentRecord`` with ``grade == "F"`` in the transcript.
+    """
+    student_id: int
+    term: int
+    course_code: str
+    signal: str  # "capacity" | "offering" | "prereq"
+
+
+@dataclass(frozen=True)
+class StudentTermState:
+    """A snapshot of one student's academic state at the end of one term they were active in.
+    Recorded only when ``Simulator(record_traces=True)`` — it's what lets the per-student trace
+    show an accurate GPA / probation / status trajectory without replaying the GPA math (grade
+    replacement included) out of the transcript. ``status`` is post-transition for the term
+    (so a graduation/dropout/censor/DELAYED flip shows up on the term it happened).
+    """
+    student_id: int
+    term: int
+    personal_semester: int
+    gpa: float
+    completed_ch: int
+    on_probation: bool
+    status: str
+
+
 class DataSource(ABC):
     """Seam between the population and the flow engine."""
 

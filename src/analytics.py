@@ -22,7 +22,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from src.datasource import StudentRecord
-from src.models.semester import mandatory_horizon_end_term
+from src.models.semester import mandatory_horizon_end_term, term_label, term_season
 from src.rules import gate_edges
 
 if TYPE_CHECKING:
@@ -172,6 +172,162 @@ def compute_historical_transcripts(result: "SimulationResult", incumbents_only: 
         "outcomes": [
             asdict(r) for r in result.history.outcomes if r.student_id in keep_ids
         ],
+    }
+
+
+# ------------------------------------------------------------------ #
+# Per-student trace (the "watch one synthetic student" feature)       #
+# ------------------------------------------------------------------ #
+
+_OUTCOME_REASON = {
+    "graduated": "Completed all program requirements.",
+    "dropped":   "Left the program (academic dropout).",
+    "censored":  "Ran out of their semester budget without finishing.",
+}
+
+
+def _fail_counts_by_student(result: "SimulationResult") -> dict[int, int]:
+    """Total failed attempts per student, read straight off the transcript (grade == 'F').
+    One pass, so the search endpoint can annotate every candidate cheaply."""
+    counts: dict[int, int] = {}
+    for r in result.history.transcript:
+        if r.grade == "F":
+            counts[r.student_id] = counts.get(r.student_id, 0) + 1
+    return counts
+
+
+def find_students_matching(
+    result: "SimulationResult",
+    *,
+    cohort_id: int | None = None,
+    final_status: str | None = None,
+    ever_probation: bool | None = None,
+    limit: int = 8,
+) -> dict:
+    """Lightweight candidate summaries for the trace picker, filtered by attributes already on
+    the finished ``Student`` (no block-event recording needed, so the search run stays cheap).
+
+    Scoped to study cohorts (the ones headline metrics report on). Returns
+    ``{"candidates": [...], "total_matched": n}``; candidates are capped at ``limit`` and
+    ordered so the most instructive cases surface first (longest-delayed / most-failed).
+    """
+    fails = _fail_counts_by_student(result)
+    want_status = final_status.upper() if final_status else None
+
+    matched = []
+    for s in _study_students(result):
+        if cohort_id is not None and s.cohort_id != cohort_id:
+            continue
+        if want_status is not None and s.status != want_status:
+            continue
+        if ever_probation is not None and s.ever_probation != ever_probation:
+            continue
+        matched.append(s)
+
+    # Most instructive first: unfinished/slow students, then most failures, then id (stable).
+    def sort_key(s):
+        finished_semester = s.grad_semester if s.grad_semester is not None else 99
+        return (-finished_semester if s.status != "GRADUATED" else finished_semester,
+                -fails.get(s.student_id, 0), s.student_id)
+
+    matched.sort(key=sort_key)
+
+    candidates = [
+        {
+            "student_id": s.student_id,
+            "cohort_id": s.cohort_id,
+            "entry_term": s.entry_term,
+            "final_status": s.status,
+            "gpa": round(s.gpa, 3),
+            "completed_ch": s.completed_ch,
+            "grad_semester": s.grad_semester,
+            "ever_probation": s.ever_probation,
+            "total_fails": fails.get(s.student_id, 0),
+        }
+        for s in matched[:limit]
+    ]
+    return {"candidates": candidates, "total_matched": len(matched)}
+
+
+def compute_student_trace(
+    result: "SimulationResult",
+    curriculum: dict[str, "Course"],
+    student_id: int,
+) -> dict | None:
+    """One student's full term-by-term journey, or ``None`` if the id isn't in the run.
+
+    Assembles, per term the student was active: the courses they attempted (from the
+    transcript) with pass/fail, the courses they were blocked from and why (from
+    ``history.block_events`` — populated only when the run used ``record_traces=True``; absent
+    it degrades to empty ``blocked`` lists), and their GPA / completed-CH / probation / status
+    at term's end (from ``history.student_term_states``). ``final_status`` /``final_reason``
+    come from the single ``OutcomeRecord``.
+    """
+    by_id = {s.student_id: s for s in result.students}
+    student = by_id.get(student_id)
+    if student is None:
+        return None
+    config = result.config
+
+    # Group the per-student detail by term in one pass each.
+    courses_by_term: dict[int, list[dict]] = {}
+    for r in result.history.transcript:
+        if r.student_id != student_id:
+            continue
+        course = curriculum.get(r.course_code)
+        courses_by_term.setdefault(r.term, []).append({
+            "code": r.course_code,
+            "title": course.title if course else r.course_code,
+            "grade": r.grade,
+            "passed": r.grade != "F",
+            "attempt_no": r.attempt_no,
+        })
+
+    blocked_by_term: dict[int, list[dict]] = {}
+    for e in result.history.block_events:
+        if e.student_id != student_id:
+            continue
+        course = curriculum.get(e.course_code)
+        blocked_by_term.setdefault(e.term, []).append({
+            "code": e.course_code,
+            "title": course.title if course else e.course_code,
+            "signal": e.signal,
+        })
+
+    states = [st for st in result.history.student_term_states if st.student_id == student_id]
+    states.sort(key=lambda st: st.term)
+
+    terms = [
+        {
+            "term": st.term,
+            "season": term_season(st.term, config),
+            "label": term_label(st.term, config),
+            "personal_semester": st.personal_semester,
+            "status": st.status,
+            "gpa": st.gpa,
+            "completed_ch": st.completed_ch,
+            "on_probation": st.on_probation,
+            "courses": courses_by_term.get(st.term, []),
+            "blocked": blocked_by_term.get(st.term, []),
+        }
+        for st in states
+    ]
+
+    outcome = next((o for o in result.history.outcomes if o.student_id == student_id), None)
+    reason = _OUTCOME_REASON.get(outcome.exit_reason, "") if outcome else ""
+
+    return {
+        "student_id": student_id,
+        "cohort_id": student.cohort_id,
+        "entry_term": student.entry_term,
+        "ability_score": round(student.ability_score, 4),
+        "final_status": student.status,
+        "final_reason": reason,
+        "grad_semester": student.grad_semester,
+        "gpa": round(student.gpa, 3),
+        "completed_ch": student.completed_ch,
+        "total_program_ch": sum(c.credits for c in curriculum.values()),
+        "terms": terms,
     }
 
 
