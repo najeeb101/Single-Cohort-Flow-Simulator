@@ -37,19 +37,49 @@ export default function InitialStateEditor({
   const [importOpen, setImportOpen] = useState(false);
   const nodes = standingNodes && standingNodes.length ? standingNodes : [...STANDING_NODES];
 
+  // Fill the editor (not the DB) with a small, plausible existing-student-body so an admin can
+  // preview the flow chart non-empty before entering real numbers. Plan-agnostic: occupancy goes
+  // on this plan's earliest courses, standing decreases with year band. Persisted only when the
+  // caller (gate / Settings) saves.
+  const populateDemo = () => {
+    const early = [...courses].sort((a, b) => a.study_plan_term - b.study_plan_term);
+    const seatsByRank = [12, 8, 6, 5];
+    const occ: Record<string, number> = {};
+    early.slice(0, seatsByRank.length).forEach((c, i) => {
+      occ[c.code] = seatsByRank[i];
+    });
+    if (Object.keys(occ).length > 0) onOccupancyBulkChange(occ);
+
+    const countByRank = [30, 20, 12, 8];
+    const standingPatch: Record<string, number> = {};
+    nodes.forEach((n, i) => {
+      standingPatch[n] = countByRank[i] ?? 6;
+    });
+    onStandingBulkChange(standingPatch);
+  };
+
   return (
     <div className="flex flex-col gap-4">
       <SectionCard
         title="Initial state — existing student body"
         hint="the university the first cohort walks into (replaces the old incumbent cohorts)"
         actions={
-          <button
-            type="button"
-            onClick={() => setImportOpen(true)}
-            className="rounded-md border border-border-2 px-2.5 py-1 text-[11px] font-semibold text-ink hover:bg-surface-2"
-          >
-            Import from file
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={populateDemo}
+              className="rounded-md border border-border-2 px-2.5 py-1 text-[11px] font-semibold text-ink hover:bg-surface-2"
+            >
+              Populate demo data
+            </button>
+            <button
+              type="button"
+              onClick={() => setImportOpen(true)}
+              className="rounded-md border border-border-2 px-2.5 py-1 text-[11px] font-semibold text-ink hover:bg-surface-2"
+            >
+              Import from file
+            </button>
+          </div>
         }
       >
         <p className="mb-2.5 text-xs text-muted">
