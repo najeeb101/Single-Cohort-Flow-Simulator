@@ -1,8 +1,13 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { CourseFrameStat, Graph } from "@/types/simulation";
 import { categoryStyle, categoryStyleMap, computeSemesterLayout, utilColor } from "@/lib/graphLayout";
+import CourseTooltip from "@/components/CourseTooltip";
+
+const ZOOM_MIN = 0.5;
+const ZOOM_MAX = 3;
+const clampZoom = (z: number) => Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, z));
 
 interface Props {
   graph: Graph; // frozen at initial load — see page.tsx; never changes across live updates
@@ -30,6 +35,39 @@ export default function CurriculumGraph({ graph, courses }: Props) {
   );
   const catStyles = useMemo(() => categoryStyleMap(graph.nodes), [graph.nodes]);
   const [selected, setSelected] = useState<string | null>(null);
+  const [focused, setFocused] = useState<string | null>(null);
+  const [zoom, setZoom] = useState(1);
+  const [tip, setTip] = useState<{ code: string; x: number; y: number; flip: boolean } | null>(null);
+
+  const outerRef = useRef<HTMLDivElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  // Ctrl/⌘ + wheel zooms (a plain wheel still scrolls, so we never hijack normal scrolling).
+  // Registered natively with { passive: false } because preventDefault is needed and React's
+  // synthetic wheel handler can't guarantee a non-passive listener.
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const onWheel = (e: WheelEvent) => {
+      if (!(e.ctrlKey || e.metaKey)) return;
+      e.preventDefault();
+      setZoom((z) => clampZoom(z * (e.deltaY < 0 ? 1.1 : 1 / 1.1)));
+    };
+    el.addEventListener("wheel", onWheel, { passive: false });
+    return () => el.removeEventListener("wheel", onWheel);
+  }, []);
+
+  const showTip = (code: string, el: SVGGElement) => {
+    const outer = outerRef.current?.getBoundingClientRect();
+    if (!outer) return;
+    const r = el.getBoundingClientRect();
+    // Flip the tooltip above the node when there isn't room below (bottom-row nodes), so the
+    // container's overflow-hidden never clips it.
+    const flip = outer.bottom - r.bottom < 110;
+    setTip({ code, x: r.left - outer.left, y: flip ? r.top - outer.top - 6 : r.bottom - outer.top + 6, flip });
+  };
+  const hideTip = (code: string) => setTip((t) => (t?.code === code ? null : t));
+  const toggleSelect = (code: string) => setSelected((cur) => (cur === code ? null : code));
 
   const { activePrereqs, activeUnlocks } = useMemo(() => {
     if (!selected) return { activePrereqs: new Set<string>(), activeUnlocks: new Set<string>() };
@@ -68,15 +106,33 @@ export default function CurriculumGraph({ graph, courses }: Props) {
   }, [graph]);
   const selectedNode = selected ? nodeByCode[selected] : null;
   const selectedStat = selected ? courses[selected] : undefined;
+  const tipNode = tip ? nodeByCode[tip.code] : null;
   const prereqsOf = (code: string) => graph.edges.filter((e) => e.to === code);
   const unlocksOf = (code: string) => graph.edges.filter((e) => e.from === code);
 
   return (
     <div
+      ref={outerRef}
       data-testid="curriculum-graph-viewport"
-      className="relative min-h-[300px] flex-1 overflow-auto p-4 bg-surface-2/40 backdrop-blur-md rounded-2xl border border-border shadow-inner"
+      className="relative min-h-[300px] flex-1 overflow-hidden rounded-2xl border border-border bg-surface-2/40 shadow-inner"
     >
-      <svg width="100%" viewBox={`0 0 ${width} ${height}`} style={{ display: "block", minWidth: 600 }}>
+      {/* Zoom controls */}
+      <div className="absolute right-3 top-3 z-20 flex items-center gap-0.5 rounded-lg border border-border-2 bg-surface-2/90 p-1 backdrop-blur">
+        <button type="button" onClick={() => setZoom((z) => clampZoom(z / 1.25))} aria-label="Zoom out" className="grid h-6 w-6 place-items-center rounded text-[15px] font-bold leading-none text-ink hover:bg-surface">−</button>
+        <span className="w-10 text-center text-[11px] tabular-nums text-muted">{Math.round(zoom * 100)}%</span>
+        <button type="button" onClick={() => setZoom((z) => clampZoom(z * 1.25))} aria-label="Zoom in" className="grid h-6 w-6 place-items-center rounded text-[15px] font-bold leading-none text-ink hover:bg-surface">+</button>
+        <button type="button" onClick={() => setZoom(1)} aria-label="Fit to width" className="ml-0.5 rounded px-2 py-1 text-[11px] font-semibold text-ink hover:bg-surface">Fit</button>
+      </div>
+
+      <div ref={scrollRef} className="absolute inset-0 overflow-auto rounded-2xl p-4 backdrop-blur-md">
+        <div style={{ width: `${zoom * 100}%`, minWidth: 600 }}>
+          <svg
+            width="100%"
+            viewBox={`0 0 ${width} ${height}`}
+            style={{ display: "block" }}
+            role="group"
+            aria-label="Curriculum roadmap. Tab to a course, Enter to open its details."
+          >
         <defs>
           <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
             <path d="M0,0 L10,5 L0,10 z" fill="#d1453b" />
@@ -210,12 +266,33 @@ export default function CurriculumGraph({ graph, courses }: Props) {
           return (
             <g
               key={n.code}
+              tabIndex={0}
+              role="button"
+              aria-label={`${n.code} ${n.title}, ${n.credits} credit hours, ${cat.label}${
+                offered ? `, ${st?.granted ?? 0} of ${st?.capacity ?? 0} seats taken` : ", not offered this term"
+              }`}
               transform={`translate(${p.x},${p.y})`}
               onClick={(e) => {
                 e.stopPropagation();
-                setSelected((cur) => (cur === n.code ? null : n.code));
+                toggleSelect(n.code);
               }}
-              className="cursor-pointer transition-opacity duration-200"
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  toggleSelect(n.code);
+                }
+              }}
+              onMouseEnter={(e) => showTip(n.code, e.currentTarget)}
+              onMouseLeave={() => hideTip(n.code)}
+              onFocus={(e) => {
+                setFocused(n.code);
+                showTip(n.code, e.currentTarget);
+              }}
+              onBlur={() => {
+                setFocused((f) => (f === n.code ? null : f));
+                hideTip(n.code);
+              }}
+              className="cursor-pointer outline-none transition-opacity duration-200"
               style={{ opacity: hasHighlight && !isHighlighted ? 0.15 : 1 }}
             >
               <rect
@@ -228,6 +305,20 @@ export default function CurriculumGraph({ graph, courses }: Props) {
                 strokeWidth={strokeWidth}
                 style={{ transition: "stroke 200ms, stroke-width 200ms" }}
               />
+              {focused === n.code && (
+                <rect
+                  x={-2.5}
+                  y={-2.5}
+                  width={p.w + 5}
+                  height={p.h + 5}
+                  rx={9}
+                  fill="none"
+                  stroke="var(--accent)"
+                  strokeWidth={2}
+                  strokeDasharray="3 2"
+                  className="pointer-events-none"
+                />
+              )}
               <text x={8} y={16} fontSize={11} fontWeight={800} fill={cat.text}>{n.code}</text>
               <text x={8} y={29} fontSize={8.5} fontWeight={600} fill={cat.text} fillOpacity={0.8}>{truncate(n.title, 26)}</text>
               <text x={8} y={43} fontSize={8.5} fontWeight={700} fill={offered ? cat.text : "var(--node-offered-muted)"}>
@@ -238,14 +329,27 @@ export default function CurriculumGraph({ graph, courses }: Props) {
               {offered && (
                 <rect x={6} y={p.h - 6} width={Math.max(0, (p.w - 12) * Math.min(1, util))} height={3} rx={1.5} fill={utilColor(util)} />
               )}
-              <title>{`${n.code} — ${n.title}\n${n.credits} CH · ${cat.label} · ${n.offering.join("+")}`}</title>
             </g>
           );
         })}
-      </svg>
+          </svg>
+        </div>
+      </div>
+
+      {tip && tipNode && (
+        <CourseTooltip
+          node={tipNode}
+          stat={courses[tip.code]}
+          catLabel={catStyles.get(tipNode.category)?.label ?? tipNode.category}
+          x={tip.x}
+          y={tip.y}
+          flip={tip.flip}
+          maxX={outerRef.current?.clientWidth ?? width}
+        />
+      )}
 
       {selectedNode && (
-        <div className="absolute bottom-3 left-3 z-10 w-72 rounded-xl border border-border-2 bg-surface-2 p-3 text-xs shadow-lg">
+        <div className="absolute bottom-3 left-3 z-20 w-72 rounded-xl border border-border-2 bg-surface-2 p-3 text-xs shadow-lg">
           <div className="mb-1.5 flex items-start justify-between gap-2">
             <div>
               <div className="text-[13px] font-bold text-ink">{selectedNode.code}</div>

@@ -21,7 +21,14 @@ Progress
   agree. Verified end-to-end (11/11 UI checks; Trace re-verified 9/9). Scope note: the
   "filter timeline frames" idea was scoped to filtering the Bottlenecks cards (the actionable
   part); a global frame filter would cross-cut other components.
-- ⏳ #3, #4, #6 — not started.
+- ✅ **#4 CurriculumGraph usability** — shipped. New `web/src/components/CourseTooltip.tsx`
+  (rich hover/focus tooltip that flips above near the bottom edge, replacing the native
+  `<title>`), keyboard-focusable nodes (`role="button"` + aria-labels, Enter/Space opens the
+  detail panel, visible focus ring, `role="group"` on the svg), and zoom controls (+/−/Fit +
+  ctrl-wheel). The graph node has no `pass_rate` in the contract, so the tooltip shows live
+  seat use instead. The "lazy-render >120 nodes" sub-item was deferred as YAGNI (curriculum is
+  41 courses; it was explicitly a defensive idea). Verified end-to-end (10/10 UI checks).
+- ⏳ #3, #6 — not started.
 
 Purpose
 - Collect the prioritized UI improvements discussed from the codebase docs and repository audit.
