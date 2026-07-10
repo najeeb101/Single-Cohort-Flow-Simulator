@@ -23,6 +23,7 @@ from typing import TYPE_CHECKING
 
 from src.datasource import StudentRecord
 from src.models.semester import mandatory_horizon_end_term, term_label, term_season
+from src.models.student import stage_node_names
 from src.rules import gate_edges
 
 if TYPE_CHECKING:
@@ -604,8 +605,7 @@ def flow_timeline_payload(
     return {
         "meta": {
             "scenario": result.scenario.get("name"),
-            "stage_nodes": ["Admitted", "Year1", "Year2", "Year3", "Year4",
-                            "Graduated", "Dropped", "Censored"],
+            "stage_nodes": stage_node_names(result.config),
             "cohorts": cohorts_meta,
             "graph": build_curriculum_graph(curriculum),
             "seed": result.config.get("seed"),

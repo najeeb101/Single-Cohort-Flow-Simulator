@@ -59,6 +59,33 @@ def curriculum_stage(student: "Student", config: dict | None = None) -> str:
     return f"Year{len(thresholds) + 1}"
 
 
+# The three terminal flow-chart nodes, in the order the dashboard renders them. Kept separate
+# from the year bands because they're reachable from any Year stage, not a single-file sequence.
+TERMINAL_STAGES: tuple[str, ...] = ("Graduated", "Dropped", "Censored")
+
+
+def stage_node_names(config: dict | None = None) -> list[str]:
+    """The ordered flow-chart stage nodes for a plan: ``Admitted`` -> one ``Year`` band per
+    ``year_standing_thresholds`` entry (+1) -> the three terminal statuses. A K-threshold plan
+    (default K=3 -> 4 years) yields ``Year1..Year(K+1)``, so a program that isn't 4 years long
+    gets stage nodes that actually match what ``curriculum_stage`` returns for its students —
+    the list is derived from the same thresholds, never hardcoded to Year1..Year4.
+    """
+    thresholds = (config or {}).get("year_standing_thresholds", DEFAULT_YEAR_STANDING_THRESHOLDS)
+    years = [f"Year{i}" for i in range(1, len(thresholds) + 2)]
+    return ["Admitted", *years, *TERMINAL_STAGES]
+
+
+def standing_levels(config: dict | None = None) -> list[str]:
+    """Valid ``initial_state.standing`` keys for a plan: every year band above Year1
+    (``Year2..Year(K+1)``). Year1 is the incoming simulated cohort, so the pre-existing
+    warm-start student body is counted from Year2 up. Derived from the same
+    ``year_standing_thresholds`` as ``stage_node_names``, so a non-4-year plan works.
+    """
+    thresholds = (config or {}).get("year_standing_thresholds", DEFAULT_YEAR_STANDING_THRESHOLDS)
+    return [f"Year{i}" for i in range(2, len(thresholds) + 2)]
+
+
 class Student:
     def __init__(
         self,

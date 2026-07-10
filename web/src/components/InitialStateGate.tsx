@@ -4,19 +4,21 @@ import { useEffect, useState } from "react";
 import type { CourseRecord, MetaResponse } from "@/types/simulation";
 import { ApiError, listCurriculum, updateConfig } from "@/lib/api";
 import InitialStateEditor from "@/components/scenario-builder/InitialStateEditor";
+import { standingLevelsFromThresholds } from "@/components/scenario-builder/InitialStateImportModal";
 
 interface Props {
   meta: MetaResponse;
   onComplete: () => Promise<void>;
 }
 
-const STANDING_DEFAULTS = { Year2: 0, Year3: 0, Year4: 0 };
-
 export default function InitialStateGate({ meta, onComplete }: Props) {
+  // The plan's own year bands above Year1 (Year2..Year(K+1)), so the standing editor shows the
+  // right number of levels for a program that isn't 4 years long.
+  const standingNodes = standingLevelsFromThresholds(meta.year_standing_thresholds);
   const [courses, setCourses] = useState<CourseRecord[] | null>(null);
   const [occupancy, setOccupancy] = useState<Record<string, number>>({ ...(meta.initial_state?.occupancy ?? {}) });
   const [standing, setStanding] = useState<Record<string, number>>({
-    ...STANDING_DEFAULTS,
+    ...Object.fromEntries(standingNodes.map((n) => [n, 0])),
     ...(meta.initial_state?.standing ?? {}),
   });
   const [saving, setSaving] = useState(false);
@@ -75,6 +77,7 @@ export default function InitialStateGate({ meta, onComplete }: Props) {
             courses={courses}
             occupancy={occupancy}
             standing={standing}
+            standingNodes={standingNodes}
             onOccupancyChange={(code, v) => setOccupancy((prev) => ({ ...prev, [code]: v }))}
             onOccupancyBulkChange={(patch) => setOccupancy((prev) => ({ ...prev, ...patch }))}
             onStandingChange={(node, v) => setStanding((prev) => ({ ...prev, [node]: v }))}

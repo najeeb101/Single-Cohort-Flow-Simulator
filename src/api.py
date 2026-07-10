@@ -42,6 +42,7 @@ from src.db_models import Run, User
 from src.livesim import LiveRunner
 from src.models.course import Course
 from src.models.semester import DEFAULT_TERMS, effective_admit_interval_terms
+from src.models.student import TERMINAL_STAGES, stage_node_names, standing_levels
 from src.montecarlo import run_monte_carlo
 from src.optimizer import DEFAULT_RUN_BUDGET, MAX_RUN_BUDGET, solve_for_targets
 from src.rules import gate_edges
@@ -130,12 +131,11 @@ def _check_category(value: str) -> str:
     return value
 
 
-VALID_STANDING = {"Year2", "Year3", "Year4"}
-
-
-def _validate_initial_state(value: object) -> None:
+def _validate_initial_state(value: object, config: dict) -> None:
     """Shape-check the initial-state warm start: {occupancy: {code: int>=0}, standing:
-    {Year2|Year3|Year4: int>=0}}. Both keys optional; raises HTTP 422 on a bad shape."""
+    {<year-band>: int>=0}}. Both keys optional; raises HTTP 422 on a bad shape. The valid
+    standing keys are the plan's own year bands above Year1 (`standing_levels(config)`), not a
+    hardcoded Year2/3/4 set, so a program that isn't 4 years long validates correctly."""
     if not isinstance(value, dict):
         raise HTTPException(status_code=422, detail="initial_state must be an object")
     occupancy = value.get("occupancy", {})
@@ -143,13 +143,14 @@ def _validate_initial_state(value: object) -> None:
         isinstance(v, int) and not isinstance(v, bool) and v >= 0 for v in occupancy.values()
     ):
         raise HTTPException(status_code=422, detail="initial_state.occupancy must map course codes to non-negative integers")
+    valid_standing = set(standing_levels(config))
     standing = value.get("standing", {})
-    if not isinstance(standing, dict) or not set(standing) <= VALID_STANDING or not all(
+    if not isinstance(standing, dict) or not set(standing) <= valid_standing or not all(
         isinstance(v, int) and not isinstance(v, bool) and v >= 0 for v in standing.values()
     ):
         raise HTTPException(
             status_code=422,
-            detail=f"initial_state.standing keys must be a subset of {sorted(VALID_STANDING)} with non-negative integer values",
+            detail=f"initial_state.standing keys must be a subset of {sorted(valid_standing)} with non-negative integer values",
         )
 
 
@@ -629,11 +630,14 @@ def update_config(
     if "optional_terms_enabled" in patch and not isinstance(patch["optional_terms_enabled"], bool):
         raise HTTPException(status_code=422, detail="optional_terms_enabled must be a boolean")
 
-    if "initial_state" in patch:
-        _validate_initial_state(patch["initial_state"])
-
     plan_id = resolve_active_plan_id(db, get_current_user(db))
     row = db.query(AppConfigRow).filter_by(plan_id=plan_id).first()
+
+    if "initial_state" in patch:
+        # Validate standing against the POST-patch config, so a request that changes
+        # year_standing_thresholds and standing together is judged against the new year bands.
+        _validate_initial_state(patch["initial_state"], {**row.data, **patch})
+
     row.data = {**row.data, **patch}
     db.commit()
 
@@ -769,7 +773,9 @@ def _cheap_running_summary(frame: dict) -> dict:
     Graduated/Dropped/Censored/active-band counts here are the same headline numbers the
     dashboard's flow chart is already showing for this term."""
     nodes = frame.get("stages", {}).get("totals", {}).get("nodes", {})
-    active = sum(nodes.get(n, 0) for n in ("Admitted", "Year1", "Year2", "Year3", "Year4"))
+    # "Active" = everyone not in a terminal stage — summed over whatever year bands this plan
+    # has, so it doesn't assume a 4-year Year1..Year4 structure.
+    active = sum(v for n, v in nodes.items() if n not in TERMINAL_STAGES)
     return {
         "active": active,
         "graduated": nodes.get("Graduated", 0),
@@ -794,7 +800,7 @@ def create_live_sim(
     plan_id = resolve_active_plan_id(db, current_user)
     config = load_config_from_db(db, plan_id)  # already a deep copy (load_config_from_db)
     if req.initial_state is not None:
-        _validate_initial_state(req.initial_state)
+        _validate_initial_state(req.initial_state, config)
         config["initial_state"] = req.initial_state
     scenario = copy.deepcopy(config["scenarios"][0])
 
@@ -880,8 +886,7 @@ def get_live_sim(
         "live_sim": _livesim_to_dict(sim, end_term),
         "meta": {
             "graph": build_curriculum_graph(curriculum),
-            "stage_nodes": ["Admitted", "Year1", "Year2", "Year3", "Year4",
-                            "Graduated", "Dropped", "Censored"],
+            "stage_nodes": stage_node_names(sim.base_config),
             "cohorts": cohorts_meta,
             "initial_state": sim.base_config.get("initial_state", {"occupancy": {}, "standing": {}}),
             "baseline_trajectory": baseline_trajectory,

@@ -10,6 +10,7 @@ interface Props {
   courses: CourseRecord[];
   occupancy: Record<string, number>;
   standing: Record<string, number>;
+  standingNodes?: string[]; // the plan's year bands above Year1; defaults to Year2/3/4
   onOccupancyChange: (code: string, value: number) => void;
   onOccupancyBulkChange: (patch: Record<string, number>) => void;
   onStandingChange: (node: string, value: number) => void;
@@ -25,6 +26,7 @@ export default function InitialStateEditor({
   courses,
   occupancy,
   standing,
+  standingNodes,
   onOccupancyChange,
   onOccupancyBulkChange,
   onStandingChange,
@@ -33,6 +35,7 @@ export default function InitialStateEditor({
   baselineStanding,
 }: Props) {
   const [importOpen, setImportOpen] = useState(false);
+  const nodes = standingNodes && standingNodes.length ? standingNodes : [...STANDING_NODES];
 
   return (
     <div className="flex flex-col gap-4">
@@ -55,7 +58,7 @@ export default function InitialStateEditor({
           Per-course occupied seats are entered in the table below.
         </p>
         <div className="flex flex-wrap gap-2">
-          {STANDING_NODES.map((node) => {
+          {nodes.map((node) => {
             const value = standing[node] ?? 0;
             const dirty = baselineStanding !== undefined && value !== (baselineStanding[node] ?? 0);
             return (
@@ -78,6 +81,7 @@ export default function InitialStateEditor({
         open={importOpen}
         onClose={() => setImportOpen(false)}
         courses={courses}
+        standingNodes={nodes}
         onApply={(result) => {
           if (Object.keys(result.occupancy).length > 0) onOccupancyBulkChange(result.occupancy);
           if (Object.keys(result.standing).length > 0) onStandingBulkChange(result.standing);

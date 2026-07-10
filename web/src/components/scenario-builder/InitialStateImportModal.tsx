@@ -4,7 +4,18 @@ import { useMemo, useRef, useState } from "react";
 import type { CourseRecord } from "@/types/simulation";
 import Modal from "@/components/Modal";
 
+// Default year-standing keys (a 4-year program). Callers with a plan's real
+// `year_standing_thresholds` pass its own bands via `standingLevelsFromThresholds`, so a
+// program that isn't 4 years long recognizes the right standing keys (Year2..Year(K+1)).
 export const STANDING_NODES = ["Year2", "Year3", "Year4"] as const;
+
+// Valid standing keys for a plan = every year band above Year1 (Year1 is the incoming cohort,
+// not warm-start standing). K thresholds -> K+1 year bands -> Year2..Year(K+1). Falls back to
+// the default when thresholds are missing/empty.
+export function standingLevelsFromThresholds(thresholds: number[] | undefined): string[] {
+  if (!thresholds || thresholds.length === 0) return [...STANDING_NODES];
+  return Array.from({ length: thresholds.length }, (_, i) => `Year${i + 2}`);
+}
 
 export interface InitialStateImportResult {
   occupancy: Record<string, number>;
@@ -22,11 +33,15 @@ function stripQuotes(cell: string): string {
 // both case-insensitively — so one file can set occupancy and standing head-counts at once. A
 // header row is auto-detected. Never aborts on a bad row; each row is applied or skipped with a
 // reason.
-export function mapRowsToInitialState(rows: string[][], courses: CourseRecord[]): InitialStateImportResult {
+export function mapRowsToInitialState(
+  rows: string[][],
+  courses: CourseRecord[],
+  standingNodes: readonly string[] = STANDING_NODES,
+): InitialStateImportResult {
   const result: InitialStateImportResult = { occupancy: {}, standing: {}, skipped: [] };
   if (rows.length === 0) return result;
 
-  const standingByUpper = new Map(STANDING_NODES.map((n) => [n.toUpperCase(), n]));
+  const standingByUpper = new Map(standingNodes.map((n) => [n.toUpperCase(), n]));
   const courseByUpper = new Map(courses.map((c) => [c.code.toUpperCase(), c.code]));
 
   // Treat the first row as a header (labels) when its second cell isn't a number.
@@ -66,25 +81,30 @@ export function mapRowsToInitialState(rows: string[][], courses: CourseRecord[])
 
 // CSV adapter: split text into rows of cells, then hand off to the shared mapper. Public
 // signature/behavior unchanged, so the reactive textarea preview keeps working as before.
-export function parseInitialStateCsv(raw: string, courses: CourseRecord[]): InitialStateImportResult {
+export function parseInitialStateCsv(
+  raw: string,
+  courses: CourseRecord[],
+  standingNodes: readonly string[] = STANDING_NODES,
+): InitialStateImportResult {
   const rows = raw
     .split(/\r\n|\r|\n/)
     .map((l) => l.trim())
     .filter((l) => l.length > 0)
     .map((line) => line.split(",").map(stripQuotes));
-  return mapRowsToInitialState(rows, courses);
+  return mapRowsToInitialState(rows, courses, standingNodes);
 }
 
 interface Props {
   open: boolean;
   onClose: () => void;
   courses: CourseRecord[];
+  standingNodes?: readonly string[]; // the plan's year bands above Year1; defaults to Year2/3/4
   onApply: (result: { occupancy: Record<string, number>; standing: Record<string, number> }) => void;
 }
 
 const SKIPPED_PREVIEW_LIMIT = 10;
 
-export default function InitialStateImportModal({ open, onClose, courses, onApply }: Props) {
+export default function InitialStateImportModal({ open, onClose, courses, standingNodes = STANDING_NODES, onApply }: Props) {
   const [text, setText] = useState("");
   // A binary spreadsheet can't live in the textarea, so its parsed result is held separately
   // and takes precedence over the pasted/CSV text. The two sources are kept mutually exclusive:
@@ -94,7 +114,7 @@ export default function InitialStateImportModal({ open, onClose, courses, onAppl
   const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const textResult = useMemo(() => parseInitialStateCsv(text, courses), [text, courses]);
+  const textResult = useMemo(() => parseInitialStateCsv(text, courses, standingNodes), [text, courses, standingNodes]);
   const result = fileResult ?? textResult;
   const occupancyCount = Object.keys(result.occupancy).length;
   const standingCount = Object.keys(result.standing).length;
@@ -145,7 +165,7 @@ export default function InitialStateImportModal({ open, onClose, courses, onAppl
       setText("");
       setError(null);
       setFileName(file.name);
-      setFileResult(mapRowsToInitialState(rows, courses));
+      setFileResult(mapRowsToInitialState(rows, courses, standingNodes));
     } catch {
       clearFile();
       setError("Couldn't read that spreadsheet. Make sure it's a valid .xlsx or .xls file.");
@@ -168,8 +188,9 @@ export default function InitialStateImportModal({ open, onClose, courses, onAppl
     <Modal open={open} onClose={handleClose} title="Import initial state from a file">
       <p className="mb-2.5 text-xs text-muted">
         Two columns: <code className="rounded bg-black/20 px-1 py-0.5">code,value</code>. A header row is
-        auto-detected. Rows use either a course code (occupancy) or <code className="rounded bg-black/20 px-1 py-0.5">Year2</code>/
-        <code className="rounded bg-black/20 px-1 py-0.5">Year3</code>/<code className="rounded bg-black/20 px-1 py-0.5">Year4</code> (standing).
+        auto-detected. Rows use either a course code (occupancy) or a year-standing key ({standingNodes.map((n, i) => (
+          <span key={n}>{i > 0 ? "/" : ""}<code className="rounded bg-black/20 px-1 py-0.5">{n}</code></span>
+        ))}) for standing.
         Paste below, or upload a <code className="rounded bg-black/20 px-1 py-0.5">.csv</code> or Excel{" "}
         <code className="rounded bg-black/20 px-1 py-0.5">.xlsx</code>/<code className="rounded bg-black/20 px-1 py-0.5">.xls</code> file.
         Its first sheet&apos;s first two columns are read the same way.

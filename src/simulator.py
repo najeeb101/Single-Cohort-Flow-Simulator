@@ -7,7 +7,7 @@ from typing import Callable
 
 from src.models.course import Course
 from src.models.semester import get_mandatory_seasons, mandatory_horizon_end_term, term_season, term_label
-from src.models.student import Student, registration_tier, curriculum_stage
+from src.models.student import Student, registration_tier, curriculum_stage, stage_node_names
 from src.datasource import (
     BlockEvent,
     CohortSpec,
@@ -24,8 +24,6 @@ from src.utils import grade_tier
 # that term only (see src/livesim.py::LiveRunner, which is the only real caller). Returning
 # `({}, {})` for every term is equivalent to passing `overlay_provider=None`.
 OverlayProvider = Callable[[int], tuple[dict, dict]]
-
-STAGE_NODES = ["Admitted", "Year1", "Year2", "Year3", "Year4", "Graduated", "Dropped", "Censored"]
 
 
 # ------------------------------------------------------------------ #
@@ -142,6 +140,10 @@ class Simulator:
         # completed_ch by now" calculation (see _run_term) — computed once since curriculum
         # doesn't change per term (only config/scenario overlays do).
         self._total_program_ch: int = sum(c.credits for c in curriculum.values())
+        # Flow-chart stage nodes for THIS plan, derived from year_standing_thresholds (not a
+        # hardcoded Year1..Year4), so a program that isn't 4 years long gets matching nodes.
+        # year_standing_thresholds isn't an overlay-able knob, so this is computed once here.
+        self.stage_nodes: list[str] = stage_node_names(config)
         # `config`/`scenario` are mutated in place, per term, when `overlay_provider` is set
         # (see `_apply_overlay`) — `_base_config`/`_base_scenario` keep the untouched
         # originals so every term's overlay is computed from the same starting point rather
@@ -457,7 +459,7 @@ class Simulator:
         per_cohort_nodes: dict[int, dict[str, int]] = {}
         per_cohort_flows: dict[int, list[dict]] = {}
         for cid in entered:
-            nodes = {n: 0 for n in STAGE_NODES}
+            nodes = {n: 0 for n in self.stage_nodes}
             flows: dict[tuple[str, str], int] = defaultdict(int)
             for s in members[cid]:
                 stage = curriculum_stage(s, self.config)
@@ -491,7 +493,7 @@ class Simulator:
             })
 
         # Timeline frame (frontend contract).
-        total_nodes = {n: 0 for n in STAGE_NODES}
+        total_nodes = {n: 0 for n in self.stage_nodes}
         for cid in entered:
             for n, v in per_cohort_nodes[cid].items():
                 total_nodes[n] += v
@@ -502,7 +504,7 @@ class Simulator:
         # filling in only as the simulated cohorts age. Steady-state (same every term), and
         # only on totals — per-cohort node counts stay exactly the simulated population.
         standing: dict[str, int] = self.config.get("initial_state", {}).get("standing", {})
-        background = {n: int(standing.get(n, 0)) for n in STAGE_NODES if standing.get(n)}
+        background = {n: int(standing.get(n, 0)) for n in self.stage_nodes if standing.get(n)}
         for n, v in background.items():
             total_nodes[n] += v
 

@@ -14,9 +14,11 @@ interface Props {
   // of the inline copy here to avoid two editors of the same state on one page. Defaults on for
   // every other caller (Scenario Builder, Plan Builder).
   showInitialState?: boolean;
+  // The plan's year bands above Year1 for the standing editor; defaults to Year2/3/4.
+  standingNodes?: string[];
 }
 
-export default function AdmissionsTab({ mode, state, baseline, courses, setField, setRecordField, showInitialState = true }: Props) {
+export default function AdmissionsTab({ mode, state, baseline, courses, setField, setRecordField, showInitialState = true, standingNodes }: Props) {
   const dirty = (key: keyof BuilderState) => state[key] !== baseline[key];
 
   return (
@@ -51,6 +53,7 @@ export default function AdmissionsTab({ mode, state, baseline, courses, setField
           courses={courses}
           occupancy={state.initialOccupancy}
           standing={state.standing}
+          standingNodes={standingNodes}
           baselineOccupancy={baseline.initialOccupancy}
           baselineStanding={baseline.standing}
           onOccupancyChange={(code, v) => setRecordField("initialOccupancy", code, v)}

@@ -9,6 +9,7 @@ import type { CourseRecord, PlanRecord } from "@/types/simulation";
 import CurriculumTable from "@/components/settings/CurriculumTable";
 import AdmissionsTab from "@/components/scenario-builder/AdmissionsTab";
 import InitialStateEditor from "@/components/scenario-builder/InitialStateEditor";
+import { standingLevelsFromThresholds } from "@/components/scenario-builder/InitialStateImportModal";
 import PassRatesDropoutTab from "@/components/scenario-builder/PassRatesDropoutTab";
 import RegistrationPolicyTab from "@/components/scenario-builder/RegistrationPolicyTab";
 
@@ -195,6 +196,7 @@ export default function SettingsPage() {
           courses={courses ?? []}
           occupancy={state.initialOccupancy}
           standing={state.standing}
+          standingNodes={standingLevelsFromThresholds(meta.year_standing_thresholds)}
           baselineOccupancy={baseline.initialOccupancy}
           baselineStanding={baseline.standing}
           onOccupancyChange={(code, v) => setRecordField("initialOccupancy", code, v)}

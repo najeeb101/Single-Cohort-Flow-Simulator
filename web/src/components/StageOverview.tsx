@@ -1,10 +1,19 @@
 import type { CohortFlow, Frame } from "@/types/simulation";
 import { aggFlows } from "@/lib/flows";
 
-const STAGE_COLORS: Record<string, string> = {
-  Admitted: "var(--faint)", Year1: "var(--series-1)", Year2: "var(--series-2)", Year3: "var(--series-3)",
-  Year4: "var(--series-4)", Graduated: "var(--good)", Dropped: "var(--bad)", Censored: "var(--censored)",
-};
+// A stage node's colour. Year bands are coloured by their index cycling the 4 series colours,
+// so a program that isn't 4 years long still colours every band (Year5 reuses series-1, etc.)
+// instead of a hardcoded Year1..Year4 map that would leave extra bands uncoloured.
+const SERIES_COUNT = 4;
+function stageColor(node: string): string {
+  if (node === "Admitted") return "var(--faint)";
+  if (node === "Graduated") return "var(--good)";
+  if (node === "Dropped") return "var(--bad)";
+  if (node === "Censored") return "var(--censored)";
+  const m = /^Year(\d+)$/.exec(node);
+  if (m) return `var(--series-${((Number(m[1]) - 1) % SERIES_COUNT) + 1})`;
+  return "#8b97ab";
+}
 
 // Graduated/Dropped/Censored are all reachable from any "Year" stage, not just the one
 // before them — so unlike Admitted→Year1→Year2..., they aren't a single-file column
@@ -117,7 +126,7 @@ export default function StageOverview({ frame, stageNodes, cohortSel }: Props) {
                 <path
                   d={`M ${x1} ${y1} C ${mx} ${y1}, ${mx} ${y2}, ${x2} ${y2}`}
                   fill="none"
-                  stroke={STAGE_COLORS[f.to] || "#8b97ab"}
+                  stroke={stageColor(f.to)}
                   strokeOpacity={0.4}
                   strokeWidth={strokeWidth}
                   strokeLinecap="round"
@@ -131,7 +140,7 @@ export default function StageOverview({ frame, stageNodes, cohortSel }: Props) {
             if (!r) return null;
             return (
               <g key={n}>
-                <rect x={r.x} y={r.y} width={r.w} height={r.h} rx={2.5} fill={STAGE_COLORS[n]} />
+                <rect x={r.x} y={r.y} width={r.w} height={r.h} rx={2.5} fill={stageColor(n)} />
                 <title>{`${n}: ${nodes[n] || 0}`}</title>
               </g>
             );
@@ -141,7 +150,7 @@ export default function StageOverview({ frame, stageNodes, cohortSel }: Props) {
       <div className="flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-muted">
         {stageNodes.map((n) => (
           <span key={n}>
-            <i className="mr-1 inline-block h-2 w-2 rounded-sm align-[-1px]" style={{ background: STAGE_COLORS[n] }} />
+            <i className="mr-1 inline-block h-2 w-2 rounded-sm align-[-1px]" style={{ background: stageColor(n) }} />
             {n} <b className="text-ink">{nodes[n] || 0}</b>
           </span>
         ))}
