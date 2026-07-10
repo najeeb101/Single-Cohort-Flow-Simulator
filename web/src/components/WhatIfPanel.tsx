@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { simulate } from "@/lib/api";
+import { ApiError, simulate, updateConfig, updateCourse } from "@/lib/api";
+import { useSimulation } from "@/lib/SimulationContext";
 import { pct } from "@/lib/format";
 import type { Headline, MetaResponse, TopBottlenecks } from "@/types/simulation";
 
@@ -32,8 +33,12 @@ export default function WhatIfPanel({
   topCapacity: TopBottlenecks["capacity"];
   baselineSeatsPerStud: number | null;
 }) {
+  const { refreshBaseline } = useSimulation();
   const [open, setOpen] = useState(false);
   const [cohortSize, setCohortSize] = useState(meta.cohort_size);
+  const [confirmApply, setConfirmApply] = useState(false);
+  const [applying, setApplying] = useState(false);
+  const [applied, setApplied] = useState(false);
   // Courses being tested: map of code → extra seats to add
   const [courseSeats, setCourseSeats] = useState<Record<string, number>>(
     () => Object.fromEntries(topCapacity.slice(0, 3).map(([code]) => [code, 0]))
@@ -69,6 +74,8 @@ export default function WhatIfPanel({
   const run = async () => {
     setRunning(true);
     setError(null);
+    setApplied(false);
+    setConfirmApply(false);
     try {
       const overrides: Record<string, number> = {};
       for (const [code, extra] of Object.entries(courseSeats)) {
@@ -91,12 +98,38 @@ export default function WhatIfPanel({
     }
   };
 
+  // Persist the tested change to the active plan (same path as Auto-fill / Settings): write each
+  // course's new capacity, the cohort size if it changed, then refreshBaseline() so the whole app
+  // picks it up. Guarded behind an explicit confirmation checkbox.
+  const apply = async () => {
+    setApplying(true);
+    setError(null);
+    try {
+      await Promise.all(
+        Object.entries(courseSeats)
+          .filter(([code, extra]) => extra > 0 && (capacityByCode[code] ?? 0) > 0)
+          .map(([code, extra]) => updateCourse(code, { capacity: (capacityByCode[code] ?? 0) + extra })),
+      );
+      if (cohortSize !== meta.cohort_size) await updateConfig({ cohort_size: cohortSize });
+      await refreshBaseline();
+      setApplied(true);
+      // The extras are now baked into the baseline — zero them so the editor never double-counts.
+      setCourseSeats((prev) => Object.fromEntries(Object.keys(prev).map((c) => [c, 0])));
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "Could not apply the changes");
+    } finally {
+      setApplying(false);
+    }
+  };
+
   const reset = () => {
     setCohortSize(meta.cohort_size);
     setCourseSeats(Object.fromEntries(topCapacity.slice(0, 3).map(([code]) => [code, 0])));
     setResult(null);
     setError(null);
     setSearch("");
+    setApplied(false);
+    setConfirmApply(false);
   };
 
   return (
@@ -264,9 +297,40 @@ export default function WhatIfPanel({
                   ))}
                 </tbody>
               </table>
-              <p className="px-4 py-2.5 text-[11px] text-muted">
-                What-if only — not saved. Go to Settings to make any change permanent.
-              </p>
+              <div className="border-t border-border px-4 py-3">
+                {applied ? (
+                  <span className="text-[12.5px] font-semibold text-good">
+                    Applied — this is the new baseline. Adjust further any time in Settings.
+                  </span>
+                ) : (
+                  <div className="flex flex-col gap-2">
+                    <label className="flex items-start gap-2 text-[12px]">
+                      <input
+                        type="checkbox"
+                        checked={confirmApply}
+                        onChange={(e) => setConfirmApply(e.target.checked)}
+                        className="mt-0.5"
+                      />
+                      <span className="text-muted">
+                        I understand this permanently changes the active plan — it writes{" "}
+                        {Object.values(courseSeats).some((v) => v > 0) ? "these course capacities" : "the change"}
+                        {cohortSize !== meta.cohort_size ? " and the cohort size" : ""} into the baseline.
+                      </span>
+                    </label>
+                    <div className="flex items-center gap-3">
+                      <button
+                        type="button"
+                        onClick={apply}
+                        disabled={!confirmApply || applying}
+                        className="rounded-[9px] bg-accent px-4 py-1.5 text-[12.5px] font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        {applying ? "Applying…" : "Apply to active plan"}
+                      </button>
+                      <span className="text-[11px] text-muted">or leave it — it stays a what-if until you apply.</span>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           )}
         </div>

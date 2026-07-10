@@ -28,7 +28,17 @@ Progress
   ctrl-wheel). The graph node has no `pass_rate` in the contract, so the tooltip shows live
   seat use instead. The "lazy-render >120 nodes" sub-item was deferred as YAGNI (curriculum is
   41 courses; it was explicitly a defensive idea). Verified end-to-end (10/10 UI checks).
-- ⏳ #3, #6 — not started.
+- ✅ **#3 What-If diff + guarded apply** — shipped. The baseline/what-if/delta diff table
+  already existed inline in `WhatIfPanel` (the plan overstated this), so the net-new work was
+  the **guarded Apply path**: a confirmation checkbox ("I understand this permanently changes
+  the active plan") gates an "Apply to active plan" button that persists the tested capacities
+  (+ cohort size if changed) via the same `updateCourse`/`updateConfig` + `refreshBaseline()`
+  path Auto-fill uses. Verified end-to-end with a **self-reverting** test (applied a +10
+  capacity, confirmed it persisted via the API, then restored the original — DB left untouched;
+  7/7 checks). Kept the diff inline rather than building a separate `ScenarioDiffModal` (same
+  information, one less click); did not auto-save applied changes as a `Scenario` (secondary,
+  and scenarios have their own save flow).
+- ⏳ #6 — not started.
 
 Purpose
 - Collect the prioritized UI improvements discussed from the codebase docs and repository audit.
