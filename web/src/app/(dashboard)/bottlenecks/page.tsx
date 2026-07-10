@@ -22,7 +22,7 @@ export default function BottlenecksPage() {
           The top courses blocking student progress — split by the four block types. Use this to identify which courses need more seats, earlier offerings, or relaxed prerequisites.
         </p>
       </header>
-      <BottlenecksPanel bottlenecks={summary.top_bottlenecks} />
+      <BottlenecksPanel bottlenecks={summary.top_bottlenecks} frames={data.flow_timeline.frames} />
       <CapacityRecommendations
         frames={data.flow_timeline.frames}
         meta={meta}

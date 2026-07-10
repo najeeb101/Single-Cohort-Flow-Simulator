@@ -12,7 +12,16 @@ Progress
   of truth #2 should reuse), labeled block pills with unit tooltips, explicit retake numbers,
   and JSON + printable-HTML export. Verified end-to-end (9/9 UI checks). Note: there is no
   `StudentTracePicker.tsx` — the picker is inline in `StudentTracePanel.tsx`.
-- ⏳ #2, #3, #4, #6 — not started.
+- ✅ **#2 SignalLegend + per-signal toggles + Details in Bottlenecks** — shipped. New
+  `web/src/components/SignalLegend.tsx` (pills double as filter toggles) + a per-course Details
+  modal with a per-term mini bar chart and a signal-specific suggested fix (capacity reuses the
+  peak-shortfall calc). Unified the whole app on the shared `signalMeta` colour scheme
+  (red/amber/blue/green — offering moved from accent to `--info` to match the plan's cyan
+  intent), so the legend, the four cards, the Details charts, and the Student Trace pills all
+  agree. Verified end-to-end (11/11 UI checks; Trace re-verified 9/9). Scope note: the
+  "filter timeline frames" idea was scoped to filtering the Bottlenecks cards (the actionable
+  part); a global frame filter would cross-cut other components.
+- ⏳ #3, #4, #6 — not started.
 
 Purpose
 - Collect the prioritized UI improvements discussed from the codebase docs and repository audit.
