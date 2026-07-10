@@ -3,12 +3,16 @@
 import type { CourseRecord, RuleExpr } from "@/types/simulation";
 import RuleExprEditor from "./settings/RuleExprEditor";
 
-const OFFERINGS = ["Fall", "Spring", "Summer"] as const;
+// The seasons a course may be offered in default to the legacy Fall/Spring cycle; callers that
+// know the plan's real calendar pass its `terms_per_year` (Settings/Live via `/meta`, Plan
+// Builder via the plan being composed) so this list is never hardcoded to one season set.
+const DEFAULT_SEASONS = ["Fall", "Spring"];
 
 interface Props {
   value: CourseRecord;
   allCourseCodes: string[]; // should exclude value.code
   knownCategories?: string[]; // categories already used elsewhere in this plan, for autocomplete
+  seasons?: string[]; // the plan's season cycle (terms_per_year); defaults to Fall/Spring
   onChange: (next: CourseRecord) => void;
   editableCode?: boolean; // true when creating a new course (code not yet fixed)
 }
@@ -16,7 +20,8 @@ interface Props {
 // Controlled course-field form shared by the Settings curriculum editor (editing/adding a
 // row in the active plan) and the Plan Builder wizard (composing a brand-new plan client-side
 // before anything is saved) — no server calls here, just `value`/`onChange`.
-export default function CourseFormFields({ value, allCourseCodes, knownCategories, onChange, editableCode }: Props) {
+export default function CourseFormFields({ value, allCourseCodes, knownCategories, seasons, onChange, editableCode }: Props) {
+  const offerings = seasons && seasons.length ? seasons : DEFAULT_SEASONS;
   const toggleOffering = (season: string) => {
     const has = value.offering.includes(season);
     onChange({ ...value, offering: has ? value.offering.filter((o) => o !== season) : [...value.offering, season] });
@@ -119,7 +124,7 @@ export default function CourseFormFields({ value, allCourseCodes, knownCategorie
         <div className="flex flex-col gap-1">
           <span className="text-muted">Offered</span>
           <div className="flex gap-3">
-            {OFFERINGS.map((season) => (
+            {offerings.map((season) => (
               <label key={season} className="flex items-center gap-1.5 text-ink">
                 <input
                   type="checkbox"

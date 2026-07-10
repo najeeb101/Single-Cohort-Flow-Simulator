@@ -41,7 +41,7 @@ from src.db_models import Plan as PlanRow
 from src.db_models import Run, User
 from src.livesim import LiveRunner
 from src.models.course import Course
-from src.models.semester import effective_admit_interval_terms
+from src.models.semester import DEFAULT_TERMS, effective_admit_interval_terms
 from src.montecarlo import run_monte_carlo
 from src.optimizer import DEFAULT_RUN_BUDGET, MAX_RUN_BUDGET, solve_for_targets
 from src.rules import gate_edges
@@ -105,13 +105,23 @@ class ScenarioRequest(BaseModel):
                                            # this run came from; doesn't affect simulation
 
 
-# The offering seasons are a conceptual enum tied to the engine's season cycle, stored as
-# plain strings — validate against the known set here so a typo'd season fails fast with a
-# clear 422 instead of silently producing a course the engine's offering logic never matches
-# against. Course.category (src/models/course.py) is free text — different plans (different
-# departments) use different category taxonomies, so only presence is checked, matching how
-# bulk plan-import already treats it.
-VALID_OFFERINGS = {"Fall", "Spring", "Summer"}
+# The valid offering seasons are per-plan, not a global enum — they are exactly the plan's own
+# `terms_per_year` cycle. This is checked in the create/update-course handlers (which have the
+# active plan's config), not in a pydantic validator (which doesn't), so a typo'd or out-of-cycle
+# season fails fast with a clear 422 without hardcoding a season list. Course.category
+# (src/models/course.py) is free text — different plans use different taxonomies, so only
+# presence is checked, matching how bulk plan-import already treats it.
+def _valid_seasons(config: dict) -> list[str]:
+    return list(config.get("terms_per_year") or DEFAULT_TERMS)
+
+
+def _validate_offering_seasons(offering: list[str], config: dict) -> None:
+    valid = set(_valid_seasons(config))
+    if not set(offering) <= valid:
+        raise HTTPException(
+            status_code=422,
+            detail=f"offering entries must be among the plan's seasons {sorted(valid)}, got {sorted(set(offering))}",
+        )
 
 
 def _check_category(value: str) -> str:
@@ -144,10 +154,12 @@ def _validate_initial_state(value: object) -> None:
 
 
 def _check_offering(value: list[str]) -> list[str]:
+    # Plan-independent shape check only (a course must run in at least one season). Which
+    # seasons are *valid* depends on the active plan's cycle and is enforced per-request in the
+    # create/update handlers via _validate_offering_seasons — a pydantic validator can't see the
+    # plan.
     if not value:
         raise ValueError("offering must list at least one season")
-    if not set(value) <= VALID_OFFERINGS:
-        raise ValueError(f"offering entries must be one of {sorted(VALID_OFFERINGS)}, got {value!r}")
     return value
 
 
@@ -268,6 +280,11 @@ def meta(db: Session = Depends(get_db)) -> dict:
         # mirrored here so a plan seeded before this flag existed reports its *actual* behavior
         # rather than a hardcoded value that could disagree with what the engine just ran.
         "optional_terms_enabled": config.get("optional_terms_enabled", True),
+        # The plan's full season cycle — the set of seasons a course may be offered in. The
+        # frontend season pickers and offering validation both read this instead of a hardcoded
+        # list, so changing a plan's calendar (add/remove a season) needs no code change.
+        # Defaults to the engine's DEFAULT_TERMS when a plan predates the key.
+        "terms_per_year": list(config.get("terms_per_year") or DEFAULT_TERMS),
         "max_terms": config.get("max_terms"),
         "seed": config.get("seed"),
         "dropout_gpa_floor": config.get("dropout_gpa_floor"),
@@ -484,6 +501,8 @@ def create_course(
     if req.code in curriculum:
         raise HTTPException(status_code=409, detail=f"Course {req.code!r} already exists in this plan")
 
+    _validate_offering_seasons(req.offering, load_config_from_db(db, plan_id))
+
     new_course = Course(
         code=req.code,
         title=req.title,
@@ -573,6 +592,7 @@ def update_curriculum(
     if "prerequisites" in patch_fields:
         patch_fields["prerequisites"] = tuple(patch_fields["prerequisites"])
     if "offering" in patch_fields:
+        _validate_offering_seasons(patch_fields["offering"], load_config_from_db(db, plan_id))
         patch_fields["offering"] = tuple(patch_fields["offering"])
     updated_course = dataclasses.replace(current, **patch_fields)
 

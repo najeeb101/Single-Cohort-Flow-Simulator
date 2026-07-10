@@ -24,11 +24,12 @@ interface RowProps {
   course: CourseRecord;
   allCourseCodes: string[];
   knownCategories: string[];
+  seasons: string[];
   onSaved: (updated: CourseRecord) => void;
   onDeleted: (code: string) => void;
 }
 
-function CurriculumRow({ course, allCourseCodes, knownCategories, onSaved, onDeleted }: RowProps) {
+function CurriculumRow({ course, allCourseCodes, knownCategories, seasons, onSaved, onDeleted }: RowProps) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState<CourseRecord>(course);
   const [error, setError] = useState<string | null>(null);
@@ -104,7 +105,7 @@ function CurriculumRow({ course, allCourseCodes, knownCategories, onSaved, onDel
   return (
     <tr>
       <td colSpan={6} className="border-b border-border bg-surface-2 px-3 py-3">
-        <CourseFormFields value={draft} allCourseCodes={allCourseCodes} knownCategories={knownCategories} onChange={setDraft} />
+        <CourseFormFields value={draft} allCourseCodes={allCourseCodes} knownCategories={knownCategories} seasons={seasons} onChange={setDraft} />
 
         {error && <p className="mt-2 text-bad">{error}</p>}
 
@@ -133,10 +134,12 @@ function CurriculumRow({ course, allCourseCodes, knownCategories, onSaved, onDel
 function AddCourseRow({
   allCourseCodes,
   knownCategories,
+  seasons,
   onAdded,
 }: {
   allCourseCodes: string[];
   knownCategories: string[];
+  seasons: string[];
   onAdded: (created: CourseRecord) => void;
 }) {
   const [open, setOpen] = useState(false);
@@ -157,7 +160,7 @@ function AddCourseRow({
   }
 
   const add = async () => {
-    const validationError = validateCourseDraft(draft, allCourseCodes);
+    const validationError = validateCourseDraft(draft, allCourseCodes, seasons);
     if (validationError) {
       setError(validationError);
       return;
@@ -179,7 +182,7 @@ function AddCourseRow({
   return (
     <tr>
       <td colSpan={6} className="border-b border-border bg-surface-2 px-3 py-3">
-        <CourseFormFields value={draft} allCourseCodes={allCourseCodes} knownCategories={knownCategories} onChange={setDraft} editableCode />
+        <CourseFormFields value={draft} allCourseCodes={allCourseCodes} knownCategories={knownCategories} seasons={seasons} onChange={setDraft} editableCode />
 
         {error && <p className="mt-2 text-bad">{error}</p>}
 
@@ -209,7 +212,15 @@ function AddCourseRow({
   );
 }
 
-export default function CurriculumTable({ courses, onChange }: { courses: CourseRecord[]; onChange: (next: CourseRecord[]) => void }) {
+export default function CurriculumTable({
+  courses,
+  onChange,
+  seasons,
+}: {
+  courses: CourseRecord[];
+  onChange: (next: CourseRecord[]) => void;
+  seasons: string[]; // the active plan's season cycle (meta.terms_per_year)
+}) {
   const knownCategories = Array.from(new Set(courses.map((c) => c.category))).filter(Boolean).sort();
 
   const handleSaved = (updated: CourseRecord) => {
@@ -246,11 +257,12 @@ export default function CurriculumTable({ courses, onChange }: { courses: Course
               course={course}
               allCourseCodes={courses.map((c) => c.code).filter((c) => c !== course.code)}
               knownCategories={knownCategories}
+              seasons={seasons}
               onSaved={handleSaved}
               onDeleted={handleDeleted}
             />
           ))}
-          <AddCourseRow allCourseCodes={courses.map((c) => c.code)} knownCategories={knownCategories} onAdded={handleAdded} />
+          <AddCourseRow allCourseCodes={courses.map((c) => c.code)} knownCategories={knownCategories} seasons={seasons} onAdded={handleAdded} />
         </tbody>
       </table>
     </div>

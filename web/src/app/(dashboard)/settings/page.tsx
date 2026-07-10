@@ -211,7 +211,7 @@ export default function SettingsPage() {
         {courses === null ? (
           <p className="text-[12.5px] text-muted">Loading…</p>
         ) : (
-          <CurriculumTable courses={courses} onChange={handleCoursesChange} />
+          <CurriculumTable courses={courses} onChange={handleCoursesChange} seasons={meta.terms_per_year} />
         )}
       </section>
 

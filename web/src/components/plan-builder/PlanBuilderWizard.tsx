@@ -170,7 +170,15 @@ export default function PlanBuilderWizard() {
 
       {step === "courses" && (
         <section className="flex flex-col gap-4">
-          <CourseListStep courses={courses} onChange={setCourses} />
+          <CourseListStep
+            courses={courses}
+            onChange={setCourses}
+            seasons={
+              (Array.isArray(baseConfig.terms_per_year) && (baseConfig.terms_per_year as string[]).length
+                ? (baseConfig.terms_per_year as string[])
+                : ["Fall", "Spring"])
+            }
+          />
           <div className="flex gap-2 border-t border-border pt-4">
             <button
               type="button"

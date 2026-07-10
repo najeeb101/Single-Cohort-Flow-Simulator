@@ -39,10 +39,17 @@ export const BLANK_CONFIG: Record<string, unknown> = {
 // non-blank code/title/category) so a bad course gets a clear inline message before the
 // round trip, not a generic "API returned 422" after submitting. Category is free text
 // (different plans/departments use different taxonomies) — only presence is checked, same
-// as the backend.
-const VALID_OFFERINGS = ["Fall", "Spring", "Summer"];
+// as the backend. `validSeasons` is the plan's own `terms_per_year` cycle (defaults to the
+// legacy Fall/Spring), so this mirrors the backend's per-plan offering check rather than a
+// hardcoded season list.
+const DEFAULT_SEASONS = ["Fall", "Spring"];
 
-export function validateCourseDraft(draft: CourseRecord, existingCodes: string[]): string | null {
+export function validateCourseDraft(
+  draft: CourseRecord,
+  existingCodes: string[],
+  validSeasons: string[] = DEFAULT_SEASONS,
+): string | null {
+  const seasons = validSeasons.length ? validSeasons : DEFAULT_SEASONS;
   const code = draft.code.trim();
   if (!code) return "Code is required";
   if (!draft.title.trim()) return "Title is required";
@@ -50,7 +57,7 @@ export function validateCourseDraft(draft: CourseRecord, existingCodes: string[]
   if (draft.credits < 0 || draft.credits > 6) return "Credits must be between 0 and 6";
   if (draft.capacity < 1) return "Capacity must be at least 1";
   if (draft.offering.length === 0) return "Select at least one offering season";
-  if (!draft.offering.every((s) => VALID_OFFERINGS.includes(s))) return `Offering must be one of ${VALID_OFFERINGS.join(", ")}`;
+  if (!draft.offering.every((s) => seasons.includes(s))) return `Offering must be one of ${seasons.join(", ")}`;
   if (!draft.category.trim()) return "Category is required";
   return null;
 }
@@ -88,6 +95,7 @@ export function metaFromPlanExport(curriculum: CourseRecord[], config: Record<st
     initial_state: (config.initial_state as MetaResponse["initial_state"]) ?? { occupancy: {}, standing: {} },
     admit_interval_terms: (config.admit_interval_terms as number) ?? 2,
     optional_terms_enabled: (config.optional_terms_enabled as boolean) ?? false,
+    terms_per_year: (config.terms_per_year as string[] | undefined) ?? ["Fall", "Spring"],
     max_terms: (config.max_terms as number) ?? 12,
     seed: (config.seed as number) ?? 42,
     dropout_gpa_floor: (config.dropout_gpa_floor as number) ?? 2.0,

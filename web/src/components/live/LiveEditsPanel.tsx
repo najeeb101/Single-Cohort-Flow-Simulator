@@ -4,8 +4,6 @@ import { useState } from "react";
 import type { LiveEdits, MetaResponse } from "@/types/simulation";
 import { FieldRow, NumberBox, SectionCard } from "@/components/scenario-builder/fields";
 
-const SEASONS = ["Fall", "Spring", "Summer"] as const;
-
 interface PendingState {
   capacity: Record<string, number>; // desired new per-term capacity per course
   passRates: Record<string, number>;
@@ -51,6 +49,8 @@ interface Props {
 // primitives for visual consistency.
 export default function LiveEditsPanel({ meta, pending, setPending }: Props) {
   const [open, setOpen] = useState(false);
+  // The offering toggles show the active plan's own season cycle, not a hardcoded list.
+  const seasons = meta.terms_per_year?.length ? meta.terms_per_year : ["Fall", "Spring"];
   const capacityByCode: Record<string, number> = {};
   for (const node of meta.graph.nodes) capacityByCode[node.code] = node.capacity;
   const courses = Object.keys(capacityByCode).sort();
@@ -168,7 +168,7 @@ export default function LiveEditsPanel({ meta, pending, setPending }: Props) {
                         </td>
                         <td className="whitespace-nowrap border-b border-border px-3 py-1.5">
                           <div className="flex gap-1">
-                            {SEASONS.map((season) => {
+                            {seasons.map((season) => {
                               const active = currentOffering(code).includes(season);
                               return (
                                 <button

@@ -249,6 +249,7 @@ export interface MetaResponse {
   initial_state: InitialState;
   admit_interval_terms: number;
   optional_terms_enabled: boolean;
+  terms_per_year: string[]; // the plan's season cycle — the valid set for a course's offering
   max_terms: number;
   seed: number;
   dropout_gpa_floor: number;

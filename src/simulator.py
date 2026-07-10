@@ -398,8 +398,8 @@ class Simulator:
                 self._record_outcome(student, "GRADUATED", term_idx)
             elif personal_semester >= self.max_terms:
                 self._record_outcome(student, "CENSORED", term_idx)  # ran out of their 12 semesters
-            elif personal_semester > 8:
-                student.status = "DELAYED"
+            elif personal_semester > self.config.get("on_time_terms", 8):
+                student.status = "DELAYED"  # past the nominal on-time plan, still progressing
 
         # ── Record blocking signals + per-term per-course waiting ── #
         # On a mandatory term, sweep the whole curriculum (legacy behavior). On an optional
