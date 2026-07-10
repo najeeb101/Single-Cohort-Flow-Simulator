@@ -3,6 +3,8 @@
 import { useMemo, useState } from "react";
 import { ApiError, getStudentTrace, searchStudents } from "@/lib/api";
 import { useSimulation } from "@/lib/SimulationContext";
+import { SIGNAL_META } from "@/lib/signalMeta";
+import { exportTraceJson, exportTracePrintable } from "@/lib/traceExport";
 import type {
   StudentCandidate,
   StudentProfileFilter,
@@ -161,7 +163,7 @@ function TermRow({ t }: { t: StudentTraceTerm }) {
                 }`}
               >
                 {c.code} <b className={c.passed ? "text-good" : "text-bad"}>{c.grade}</b>
-                {c.attempt_no > 1 && <span className="text-muted"> ·retake</span>}
+                {c.attempt_no > 1 && <span className="text-muted"> · retake #{c.attempt_no}</span>}
               </span>
             ))}
           </div>
@@ -172,16 +174,16 @@ function TermRow({ t }: { t: StudentTraceTerm }) {
             {notable.map((b) => (
               <span
                 key={b.code}
-                title={b.title}
-                className={`rounded-[7px] border px-2 py-0.5 ${
-                  b.signal === "capacity" ? "border-bad/40 text-bad" : "border-accent/40 text-accent"
-                }`}
+                title={`${b.title} — ${SIGNAL_META[b.signal].unit}`}
+                className={`rounded-[7px] border px-2 py-0.5 ${SIGNAL_META[b.signal].pill}`}
               >
-                {b.code} — {b.signal === "capacity" ? "no seat" : "not offered"}
+                {b.code} · {SIGNAL_META[b.signal].label}
               </span>
             ))}
             {prereqCount > 0 && (
-              <span className="text-muted">waiting on prerequisites for {prereqCount} course{prereqCount > 1 ? "s" : ""}</span>
+              <span className="text-muted" title={SIGNAL_META.prereq.unit}>
+                waiting on prerequisites for {prereqCount} course{prereqCount > 1 ? "s" : ""}
+              </span>
             )}
           </div>
         )}
@@ -346,6 +348,24 @@ function TraceView({ trace }: { trace: StudentTrace }) {
           <p className="mt-0.5 text-[12px] text-muted">
             Cohort {trace.cohort_id} · {abilityLabel} · {trace.final_reason}
           </p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => exportTracePrintable(trace)}
+              title="Download a print-ready HTML page (open it and Ctrl+P → Save as PDF)"
+              className="rounded-md border border-border-2 px-2.5 py-1 text-[11px] font-semibold text-ink hover:bg-surface-2"
+            >
+              Export printable
+            </button>
+            <button
+              type="button"
+              onClick={() => exportTraceJson(trace)}
+              title="Download this trace as JSON (matches the API payload)"
+              className="rounded-md border border-border-2 px-2.5 py-1 text-[11px] font-semibold text-ink hover:bg-surface-2"
+            >
+              Export JSON
+            </button>
+          </div>
         </div>
         <div className="ml-auto flex items-center gap-5">
           <div className="text-right">
