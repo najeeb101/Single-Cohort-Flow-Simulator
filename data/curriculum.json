@@ -10,7 +10,7 @@
       "Spring"
     ],
     "category": "cs_core",
-    "capacity": 70,
+    "capacity": 105,
     "study_plan_order": 1,
     "study_plan_term": 1
   },
@@ -27,7 +27,7 @@
       "Spring"
     ],
     "category": "cs_core",
-    "capacity": 70,
+    "capacity": 105,
     "study_plan_order": 2,
     "study_plan_term": 2
   },
@@ -44,7 +44,7 @@
       "Spring"
     ],
     "category": "cs_core",
-    "capacity": 70,
+    "capacity": 105,
     "study_plan_order": 3,
     "study_plan_term": 3
   },
@@ -55,11 +55,10 @@
     "prerequisites": [],
     "pass_rate": 0.92,
     "offering": [
-      "Fall",
-      "Spring"
+      "Fall"
     ],
     "category": "cs_core",
-    "capacity": 105,
+    "capacity": 140,
     "study_plan_order": 4,
     "study_plan_term": 3
   },
@@ -76,7 +75,7 @@
       "Spring"
     ],
     "category": "cs_core",
-    "capacity": 70,
+    "capacity": 105,
     "study_plan_order": 5,
     "study_plan_term": 3
   },
@@ -89,11 +88,10 @@
     ],
     "pass_rate": 0.78,
     "offering": [
-      "Fall",
       "Spring"
     ],
     "category": "cs_core",
-    "capacity": 70,
+    "capacity": 105,
     "study_plan_order": 6,
     "study_plan_term": 4
   },
@@ -107,11 +105,10 @@
     ],
     "pass_rate": 0.76,
     "offering": [
-      "Fall",
       "Spring"
     ],
     "category": "cs_core",
-    "capacity": 70,
+    "capacity": 105,
     "study_plan_order": 7,
     "study_plan_term": 4
   },
@@ -124,11 +121,10 @@
     ],
     "pass_rate": 0.8,
     "offering": [
-      "Fall",
       "Spring"
     ],
     "category": "cs_core",
-    "capacity": 70,
+    "capacity": 105,
     "study_plan_order": 8,
     "study_plan_term": 4
   },
@@ -141,11 +137,10 @@
     ],
     "pass_rate": 0.82,
     "offering": [
-      "Fall",
-      "Spring"
+      "Fall"
     ],
     "category": "cs_core",
-    "capacity": 35,
+    "capacity": 105,
     "study_plan_order": 9,
     "study_plan_term": 5
   },
@@ -159,11 +154,10 @@
     ],
     "pass_rate": 0.76,
     "offering": [
-      "Fall",
       "Spring"
     ],
     "category": "cs_core",
-    "capacity": 70,
+    "capacity": 105,
     "study_plan_order": 10,
     "study_plan_term": 6
   },
@@ -176,11 +170,10 @@
     ],
     "pass_rate": 0.78,
     "offering": [
-      "Fall",
-      "Spring"
+      "Fall"
     ],
     "category": "cs_core",
-    "capacity": 70,
+    "capacity": 105,
     "study_plan_order": 11,
     "study_plan_term": 5
   },
@@ -197,7 +190,7 @@
       "Spring"
     ],
     "category": "cs_core",
-    "capacity": 70,
+    "capacity": 105,
     "study_plan_order": 12,
     "study_plan_term": 6
   },
@@ -210,11 +203,10 @@
     ],
     "pass_rate": 0.82,
     "offering": [
-      "Fall",
-      "Spring"
+      "Fall"
     ],
     "category": "cs_core",
-    "capacity": 70,
+    "capacity": 105,
     "study_plan_order": 13,
     "study_plan_term": 5
   },
@@ -229,7 +221,7 @@
       "Spring"
     ],
     "category": "cs_core",
-    "capacity": 35,
+    "capacity": 70,
     "rule_expr": {
       "all": [
         "CMPS310",
@@ -260,7 +252,7 @@
       "Spring"
     ],
     "category": "cs_core",
-    "capacity": 35,
+    "capacity": 70,
     "study_plan_order": 15,
     "study_plan_term": 8
   },
@@ -275,7 +267,7 @@
       "Spring"
     ],
     "category": "cs_elective",
-    "capacity": 35,
+    "capacity": 70,
     "study_plan_order": 20,
     "study_plan_term": 5
   },
@@ -290,7 +282,7 @@
       "Spring"
     ],
     "category": "cs_elective",
-    "capacity": 70,
+    "capacity": 35,
     "study_plan_order": 21,
     "study_plan_term": 6
   },
@@ -320,7 +312,7 @@
       "Spring"
     ],
     "category": "cs_elective",
-    "capacity": 35,
+    "capacity": 70,
     "study_plan_order": 23,
     "study_plan_term": 8
   },
@@ -332,7 +324,8 @@
     "pass_rate": 0.78,
     "offering": [
       "Fall",
-      "Spring"
+      "Spring",
+      "Summer"
     ],
     "category": "math",
     "capacity": 105,
@@ -349,7 +342,8 @@
     "pass_rate": 0.76,
     "offering": [
       "Fall",
-      "Spring"
+      "Spring",
+      "Summer"
     ],
     "category": "math",
     "capacity": 105,
@@ -366,10 +360,11 @@
     "pass_rate": 0.78,
     "offering": [
       "Fall",
-      "Spring"
+      "Spring",
+      "Summer"
     ],
     "category": "math",
-    "capacity": 70,
+    "capacity": 105,
     "study_plan_order": 32,
     "study_plan_term": 2
   },
@@ -383,7 +378,8 @@
     "pass_rate": 0.8,
     "offering": [
       "Fall",
-      "Spring"
+      "Spring",
+      "Summer"
     ],
     "category": "math",
     "capacity": 70,
@@ -400,7 +396,8 @@
     "pass_rate": 0.8,
     "offering": [
       "Fall",
-      "Spring"
+      "Spring",
+      "Summer"
     ],
     "category": "math",
     "capacity": 70,
@@ -415,7 +412,8 @@
     "pass_rate": 0.82,
     "offering": [
       "Fall",
-      "Spring"
+      "Spring",
+      "Summer"
     ],
     "category": "science",
     "capacity": 105,
@@ -430,7 +428,8 @@
     "pass_rate": 0.92,
     "offering": [
       "Fall",
-      "Spring"
+      "Spring",
+      "Summer"
     ],
     "category": "science",
     "capacity": 105,
@@ -445,7 +444,8 @@
     "pass_rate": 0.8,
     "offering": [
       "Fall",
-      "Spring"
+      "Spring",
+      "Summer"
     ],
     "category": "science",
     "capacity": 105,
@@ -460,7 +460,8 @@
     "pass_rate": 0.92,
     "offering": [
       "Fall",
-      "Spring"
+      "Spring",
+      "Summer"
     ],
     "category": "science",
     "capacity": 105,
@@ -477,7 +478,8 @@
     "pass_rate": 0.8,
     "offering": [
       "Fall",
-      "Spring"
+      "Spring",
+      "Summer"
     ],
     "category": "science",
     "capacity": 105,
@@ -494,7 +496,8 @@
     "pass_rate": 0.92,
     "offering": [
       "Fall",
-      "Spring"
+      "Spring",
+      "Summer"
     ],
     "category": "science",
     "capacity": 105,
@@ -509,7 +512,8 @@
     "pass_rate": 0.88,
     "offering": [
       "Fall",
-      "Spring"
+      "Spring",
+      "Summer"
     ],
     "category": "english",
     "capacity": 105,
@@ -526,10 +530,11 @@
     "pass_rate": 0.88,
     "offering": [
       "Fall",
-      "Spring"
+      "Spring",
+      "Summer"
     ],
     "category": "english",
-    "capacity": 105,
+    "capacity": 70,
     "study_plan_order": 51,
     "study_plan_term": 2
   },
@@ -541,10 +546,11 @@
     "pass_rate": 0.92,
     "offering": [
       "Fall",
-      "Spring"
+      "Spring",
+      "Summer"
     ],
     "category": "gen_ed",
-    "capacity": 105,
+    "capacity": 70,
     "study_plan_order": 60,
     "study_plan_term": 1
   },
@@ -556,7 +562,8 @@
     "pass_rate": 0.92,
     "offering": [
       "Fall",
-      "Spring"
+      "Spring",
+      "Summer"
     ],
     "category": "gen_ed",
     "capacity": 70,
@@ -571,7 +578,8 @@
     "pass_rate": 0.9,
     "offering": [
       "Fall",
-      "Spring"
+      "Spring",
+      "Summer"
     ],
     "category": "gen_ed",
     "capacity": 70,
@@ -586,7 +594,8 @@
     "pass_rate": 0.9,
     "offering": [
       "Fall",
-      "Spring"
+      "Spring",
+      "Summer"
     ],
     "category": "gen_ed",
     "capacity": 70,
@@ -601,7 +610,8 @@
     "pass_rate": 0.92,
     "offering": [
       "Fall",
-      "Spring"
+      "Spring",
+      "Summer"
     ],
     "category": "gen_ed",
     "capacity": 70,
@@ -616,10 +626,11 @@
     "pass_rate": 0.9,
     "offering": [
       "Fall",
-      "Spring"
+      "Spring",
+      "Summer"
     ],
     "category": "gen_ed",
-    "capacity": 70,
+    "capacity": 105,
     "study_plan_order": 65,
     "study_plan_term": 7
   },
@@ -631,7 +642,8 @@
     "pass_rate": 0.9,
     "offering": [
       "Fall",
-      "Spring"
+      "Spring",
+      "Summer"
     ],
     "category": "gen_ed",
     "capacity": 70,
@@ -646,7 +658,8 @@
     "pass_rate": 0.9,
     "offering": [
       "Fall",
-      "Spring"
+      "Spring",
+      "Summer"
     ],
     "category": "gen_ed",
     "capacity": 70,
@@ -661,7 +674,8 @@
     "pass_rate": 0.9,
     "offering": [
       "Fall",
-      "Spring"
+      "Spring",
+      "Summer"
     ],
     "category": "gen_ed",
     "capacity": 70,

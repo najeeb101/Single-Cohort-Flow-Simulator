@@ -7,15 +7,19 @@ mirrors that: it sizes each course to a **demand percentile** (`DEMAND_PERCENTIL
 result directly into `data/curriculum.json` as that course's `capacity`.
 
 Sizing to a percentile below 1.0 deliberately leaves capacity binding during the bulge terms
-when several cohorts collide on a gateway (e.g. CMPS303), so the `capacity_block` signal
-becomes a real bottleneck. Because the study horizon is long (12 semesters), a blocked
-student usually just takes the course a term later, so this mostly adds *delay* rather than
-non-completion — graduation stays near the QU 72.3% benchmark.
+when several cohorts collide, so the `capacity_block` signal becomes a real bottleneck. This
+is only safe where a blocked student can just retake next term (half a year of delay).
 
-Only **CS courses** (`cs_core`, `cs_elective`) are sized to the percentile; non-CS courses
-(math/science/english/gen-ed) are sized to their full peak so they never bind. That focuses
-all seat scarcity on the CS major's own specialist-taught courses — which are the genuinely
-capacity-limited ones in reality — instead of on university-wide gen-ed offerings.
+**Only electives (`cs_elective`) are squeezed to the percentile; everything else — the whole
+cs_core critical path and all non-CS courses — is sized to peak demand.** Electives are the one
+genuinely flexible group (4 interchangeable slots, no prerequisites), so scarcity there only
+redistributes across them. The required cs_core sequence is different: because several upper
+courses are offered only once a year (Fall-only / Spring-only), a missed seat in an *early*
+gateway (CMPS251/CMPS303/CMPE263/...) knocks a student off the annual rhythm, so they reach a
+once-a-year upper course off-cycle and lose a *full* year — which compounds into
+non-completion (CENSORED), not just delay. Under-provisioning the required sequence and running
+half its upper courses once a year are jointly incompatible, so the sequence is sized to
+actually seat its cohort and the deliberate scarcity lives on electives.
 
 After running once you have concrete, hand-tunable integers per course — bump CMPS303's
 capacity to open more seats, etc. Re-run whenever the curriculum or cohort plan changes.
@@ -44,14 +48,14 @@ DEMAND_PERCENTILE = 0.75
 
 # A real registrar doesn't open exactly N seats — they open whole class sections and each
 # course's capacity lands on a multiple of its typical section size. Rounding each course's
-# demand up to the nearest SEAT_INCREMENT reproduces that realistic slack (this is also the
-# buffer the model's other calibrated constants, e.g. dropout_base_hazard, were tuned
-# against — see docs/assumptions.md — so dropping it silently would shift graduation rate
-# away from its QU-benchmarked target even though nothing else changed).
+# demand up to the nearest SEAT_INCREMENT reproduces that realistic slack (it's also the
+# buffer the model's other calibrated constants, e.g. dropout_base_hazard, were tuned against
+# — see docs/assumptions.md — so changing it shifts the graduation rate even though nothing
+# else did).
 SEAT_INCREMENT = 35
 
-# Only these categories are squeezed to the demand percentile; everything else is sized
-# to its full peak so non-CS courses never become the capacity bottleneck.
+# Display-only: which categories get the "CS" tag in the printed summary below. (The squeeze
+# itself now keys on `cs_elective` alone — see target() in main().)
 CS_CATEGORIES = frozenset({"cs_core", "cs_elective"})
 
 
@@ -110,9 +114,17 @@ def main() -> None:
     curriculum = load_curriculum(CURRIC_PATH)
 
     sized, peak = demand_per_course(curriculum, config)
-    # CS courses are squeezed to the percentile; non-CS courses keep their full peak.
+    # Only **electives** are squeezed to the percentile; everything else (cs_core + all non-CS)
+    # is sized to peak demand. The squeeze's whole premise is that missing a seat "mostly adds
+    # delay" — a blocked student retries next term (half a year). That holds for interchangeable
+    # electives (4 slots, no prerequisites: scarcity just redistributes across them), but it
+    # breaks for the cs_core critical path once upper courses are offered only once a year:
+    # a missed seat in an early gateway (CMPS251/CMPS303/...) knocks a student off the annual
+    # rhythm, so they reach a Fall-only or Spring-only upper course off-cycle and lose a *full*
+    # year, which cascades into non-completion (CENSORED), not just delay. So the required
+    # sequence must be sized to actually seat its cohort; deliberate scarcity lives on electives.
     def target(code: str) -> float:
-        return sized[code] if curriculum[code].category in CS_CATEGORIES else peak[code]
+        return sized[code] if curriculum[code].category == "cs_elective" else peak[code]
     capacities = {
         code: max(SEAT_INCREMENT, math.ceil(target(code) / SEAT_INCREMENT) * SEAT_INCREMENT)
         for code in curriculum

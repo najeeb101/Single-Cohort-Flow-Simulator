@@ -194,8 +194,8 @@ def test_create_course_rejects_empty_offering():
 def test_create_course_rejects_unknown_offering_season():
     _activate_private_plan("Bad-offering plan")
 
-    # "Summer"/"Winter" are valid optional-term seasons (Term/Season Model); use a season
-    # that's never valid to exercise the rejection path.
+    # "Summer" is a valid optional-term season (Term/Season Model); use a season that's never
+    # valid to exercise the rejection path.
     resp = client.post("/curriculum", json={**_NEW_COURSE, "offering": ["Autumn"]})
     assert resp.status_code == 422
 

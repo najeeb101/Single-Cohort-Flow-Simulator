@@ -4,7 +4,7 @@ import { useState } from "react";
 import type { LiveEdits, MetaResponse } from "@/types/simulation";
 import { FieldRow, NumberBox, SectionCard } from "@/components/scenario-builder/fields";
 
-const SEASONS = ["Fall", "Spring", "Winter", "Summer"] as const;
+const SEASONS = ["Fall", "Spring", "Summer"] as const;
 
 interface PendingState {
   capacity: Record<string, number>; // desired new per-term capacity per course

@@ -111,7 +111,7 @@ class ScenarioRequest(BaseModel):
 # against. Course.category (src/models/course.py) is free text — different plans (different
 # departments) use different category taxonomies, so only presence is checked, matching how
 # bulk plan-import already treats it.
-VALID_OFFERINGS = {"Fall", "Spring", "Summer", "Winter"}
+VALID_OFFERINGS = {"Fall", "Spring", "Summer"}
 
 
 def _check_category(value: str) -> str:

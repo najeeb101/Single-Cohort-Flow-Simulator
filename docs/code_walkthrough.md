@@ -20,9 +20,11 @@ every edit) — search for the quoted signature instead.
 | `src/simulator.py` | `Simulator` (the engine loop) + `History` + `SimulationResult` |
 | `src/analytics.py` | Every derived metric/report/JSON payload, no simulation logic |
 | `src/service.py` | `run_simulation()` — the in-memory, zero-file-I/O API boundary |
+| `src/optimizer.py` | `solve_for_targets()` — Auto-fill's bounded greedy capacity search |
 | `src/livesim.py` | `LiveRunner` — deterministic term-by-term replay for Live Simulation |
 | `src/montecarlo.py` | `run_monte_carlo()` — re-run across seeds for CIs |
 | `src/curriculum_validation.py` | `check_no_cycle()` — prerequisite-cycle guard |
+| `src/scenarios.py` | Persistent `/scenarios` + `/runs` endpoints, scoped to the demo user |
 | `src/db.py` / `src/db_models.py` | SQLAlchemy engine/session + ORM tables (multi-plan) |
 | `src/auth.py` | `get_current_user` — a stub shared-demo-user dependency, not real auth |
 | `src/api.py` | FastAPI routes; resolves `(curriculum, config)` per-request from the active `Plan` |
@@ -297,7 +299,10 @@ in the codebase, proving the interface works for more than the one synthetic cas
 
 Also defined here: the canonical `StudentRecord`/`EnrollmentRecord`/`OutcomeRecord` dataclasses —
 a portable schema deliberately leaner than the internal `Student` (no RNG stream, no ability
-score), consumed by `analytics.compute_historical_transcripts()`.
+score), consumed by `analytics.compute_historical_transcripts()`. Alongside them, `BlockEvent`
+(`student_id, term, course_code, signal`) and `StudentTermState` (`student_id, term,
+personal_semester, gpa, completed_ch, on_probation, status`) power the per-student trace
+(§15) — recorded only when `Simulator(record_traces=True)`.
 
 ---
 
@@ -491,6 +496,8 @@ mutable state or race each other.
 | `GET/PUT /config` | active plan's baseline `AppConfig` |
 | `GET /plans`, `POST /plans/import`, `POST /plans/{id}/activate`, `DELETE /plans/{id}`, `GET /plans/{id}/export` | multi-plan management |
 | `POST /livesim`, `GET /livesim[/{id}]`, `POST /livesim/{id}/advance`, `DELETE /livesim/{id}` | Live Simulation |
+| `POST /autofill` | Auto-fill solver (read-only; see §14) |
+| `POST /simulate/students/search`, `POST /simulate/students/{id}/trace` | per-student trace (§15) |
 
 `get_current_user` (`src/auth.py`) is a dependency on every route except `/health` — today it's a
 stub that gets-or-creates one shared `demo@local` user rather than checking a real
@@ -511,9 +518,12 @@ No simulation logic lives here — every function is a pure derivation over a fi
 | `compute_cohort_metrics(result)` | the same, per `cohort_id` |
 | `compute_historical_transcripts(result, incumbents_only=True)` | canonical `StudentRecord`/`EnrollmentRecord`/`OutcomeRecord` export |
 | `compute_admissions_recommendation(result)` | binding-constraint intake-scaling heuristic |
+| `evaluate_health_criteria(result)` | the four admission-health criteria + slack, shared by the admissions recommendation, Advisor, and Auto-fill (§14) |
 | `build_course_utilization(result)` | per-course seat utilization for the heatmap |
 | `build_curriculum_graph(curriculum)` | node/edge graph for the prerequisite network + roadmap |
 | `flow_timeline_payload(result, curriculum)` | the full frontend contract (`meta`/`frames`/`summary`) |
+| `find_students_matching(result, ...)` | candidate summaries for the per-student trace picker (§15) |
+| `compute_student_trace(result, curriculum, student_id)` | one student's full term-by-term journey (§15) |
 | `build_summary_csv` / `build_cohort_flow_csv` / `build_cohort_summary_csv` / `build_course_utilization_csv` / `build_monte_carlo_csv` | the offline `outputs/reports/*.csv` writers |
 
 ---
@@ -540,3 +550,69 @@ data/app.db (SQLite)  ── per-plan Course/AppConfig rows
 There is exactly **one** simulation engine (`Simulator`); everything above and below it is
 either population supply (`DataSource`), replay orchestration (`LiveRunner`), or reporting
 (`analytics.py`/`visualize.py`/`api.py`).
+
+---
+
+## 14. Advisor + Auto-fill (`src/optimizer.py`)
+
+Both read the same admission-health slack, `evaluate_health_criteria` (`src/analytics.py`,
+§12) computed against `config['admission_targets']` — the same four criteria the admissions
+recommendation scores.
+
+**Advisor** is frontend-only: `web/src/components/AdvisorPanel.tsx` derives its prioritized
+recommendations straight from a `/simulate` response already in hand — no extra request, no LLM.
+
+**Auto-fill** (`solve_for_targets`) is a bounded greedy loop, roughly:
+
+```python
+for iteration in range(run_budget):
+    run = run_simulation(curriculum, config, scenario)
+    if seats_denied_target_met(run):
+        break
+    worst_course, shortfall = _worst_capacity_shortfall(run)  # peak single-term shortfall
+    curriculum[worst_course].capacity += shortfall
+```
+
+(Illustrative — see the real function for the exact loop and bookkeeping.) It targets only
+`seats_denied_per_stud` — the one criterion capacity actually fixes — and reports any other
+breach (grad rate, time-to-degree, throughput stability) as non-capacity rather than papering
+over it with more seats. `POST /autofill` (§11) is read-only; the frontend panel applies the
+winning capacities itself via the existing `PUT /curriculum/{code}` + `PUT /config` writes.
+
+---
+
+## 15. Per-student trace (`src/analytics.py`, `src/api.py`)
+
+Inverts every other section in this document: instead of a population aggregate, one student's
+exact term-by-term path.
+
+The transcript/outcome data already existed (§5's `EnrollmentRecord`/`OutcomeRecord`). The one
+gap was the four block signals (§3's block-classification snippet) discarding student identity
+at increment time. `Simulator(record_traces=True)` — opt-in, default `False`, so every existing
+caller and the hot `/simulate` baseline are byte-identical — additionally appends to two new
+`History` lists at the same call sites:
+
+```python
+# Phase 2, seat allocation losers:
+if self.record_traces:
+    self.history.block_events.append(BlockEvent(s.student_id, term_idx, code, "capacity"))
+
+# _record_blocks, offering/prereq branches: same pattern with "offering"/"prereq"
+
+# once per term, per active student:
+if self.record_traces:
+    self.history.student_term_states.append(StudentTermState(
+        student_id=s.student_id, term=term_idx, personal_semester=s.personal_semester,
+        gpa=round(s.gpa, 4), completed_ch=s.completed_ch, on_probation=s.on_probation,
+        status=s.status,
+    ))
+```
+
+`find_students_matching(result, ...)` filters the finished population by profile (cohort, final
+status, ever-probation) — no trace recording needed, so it's an ordinary cheap run.
+`compute_student_trace(result, curriculum, student_id)` re-runs with `record_traces=True` and
+zips `transcript`/`block_events`/`student_term_states` together by `term`, keyed off one
+`student_id`. Both endpoints (§11) re-run the deterministic engine from the request's overrides
+rather than reading anything persisted — CRN (§4) makes the reproduction exact, and a run is
+cheap enough (~0.4s at the shipped cohort sizes) that this costs less than keeping a per-run
+cache correct would.

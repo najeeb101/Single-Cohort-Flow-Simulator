@@ -197,8 +197,6 @@ def plot_survival_curve(result: SimulationResult, output_path: Path) -> None:
     fig, ax = plt.subplots(figsize=(9, 5))
     ax.plot(semesters, survival, color="#1f77b4", linewidth=2.5, marker="o",
             markersize=4, label="Study-cohort survival")
-    ax.axhline(0.723, color="#d62728", linestyle="--", linewidth=1.2,
-               label="QU 72.3% benchmark")
     ax.axvline(8.5, color="black", linestyle=":", linewidth=1.0,
                label="On-time cutoff (sem 8)")
 

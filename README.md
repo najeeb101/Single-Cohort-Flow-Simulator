@@ -21,25 +21,26 @@ and ends in a dashboard with per-cohort outcomes and a next-year admissions reco
 
 ---
 
-## Key results (baseline, seed 42 · 4 study cohorts of 100, no incumbent-cohort warm start)
+## Key results (baseline, seed 42 · 8 study cohorts of 100 admitted yearly, initial-state warm start)
 
 | Metric | Value |
 |---|---|
-| Graduation rate (study cohorts, within 12 semesters) | **71.0%** (QU benchmark: 72.3%) |
-| Average graduation time | 9.4 semesters |
-| On-time rate (≤ 8 semesters) | 22.8% |
-| Academic dropout (3 fails of a course → 25% per extra fail) | 13.2% |
-| Censored (hit 12-semester horizon) | 15.8% |
-| Monte Carlo (30 seeds) | graduation **73.4%**, 95% CI 72.8–74.1% |
-| Admissions recommendation | ~21 students/year |
+| Graduation rate (study cohorts, within 12 semesters) | **63.1%** |
+| Average graduation time | 9.3 semesters |
+| On-time rate (≤ 8 semesters) | 23.4% |
+| Academic dropout | 14.9% |
+| Censored (hit 12-semester horizon) | 22.0% |
+| Monte Carlo (30 seeds) | graduation **65.5%**, 95% CI 65.0–66.0% |
+| Admissions recommendation | ~6 students/year (at current capacity) |
 
-Course capacity is a single per-course `capacity` field, auto-calibrated to each course's peak
-demand — so the baseline is an *adequately-resourced* university and the residual delay comes
-from **prerequisite chains** (the **CMPS 303** gateway, which blocks three downstream courses)
-and **once-a-year scheduling** (six Fall-only/Spring-only courses) rather than raw seat
-shortage. Lower a course's `capacity` in `curriculum.json` (or Settings) to study a capacity
-bottleneck. Re-run `py run.py` any time the config changes — these numbers are a snapshot of
-today's default plan, not a fixed constant.
+The residual delay/non-completion comes from **once-a-year scheduling**: 8 core courses are
+single-term (Fall-only {CMPS200, CMPS310, CMPE355, CMPS380}, Spring-only {CMPE263, CMPS323,
+CMPS351, CMPS405}), matching QU's real schedule. A student who falls behind on the shared seat
+pool reaches one of these off-cycle and loses a **full year**, which is what censors the tail —
+so the required sequence is sized to peak demand (adequately seated) and the 22 non-CS service
+courses run in **Summer** as a catch-up path. Lower a course's `capacity` in `curriculum.json`
+(or Settings) to study a capacity bottleneck. Re-run `py run.py` any time the config changes —
+these numbers are a snapshot of today's default plan, not a fixed constant.
 
 ---
 
@@ -48,7 +49,6 @@ today's default plan, not a fixed constant.
 - **Python 3.11+**
 - `matplotlib`, `networkx` (plotting), `pytest` (tests)
 - `fastapi`, `uvicorn`, `sqlalchemy` (HTTP API + SQLite persistence, both optional)
-- `pandas` *(optional — only for the external QU-data validation script)*
 
 ## Installation
 
@@ -97,7 +97,7 @@ To view the animated flow chart + dashboard, see "Run the Next.js dashboard" bel
 py -m pytest tests/ -v
 ```
 
-143 tests cover determinism, the 120-credit-hour reconciliation, graduation detection,
+169 tests cover determinism, the 120-credit-hour reconciliation, graduation detection,
 prerequisite logic, capacity allocation, probation, the multi-cohort layer (staggered
 admissions, the initial-state warm start, shared-seat priority, per-cohort metrics, the
 admissions recommendation, the timeline-JSON contract, and Monte Carlo), the generic
@@ -142,16 +142,6 @@ at once (`code,value` rows; `Year2`/`Year3`/`Year4` set standing, a course code 
 occupancy) instead of hand-typing all ~41 rows. The same editor is reachable again any time
 afterward from **Settings**.
 
-### (Optional) Recompute the real-world QU benchmark
-
-```bash
-py -m pip install pandas
-py scripts/analyze_qu_data.py
-```
-
-Computes QU's actual CS graduation rate from open enrollment data in `data/qu_raw/`.
-Used only to validate the simulation — never as a model input.
-
 ---
 
 ## Configuration
@@ -171,10 +161,10 @@ Key multi-cohort knobs in `simulation_config.json`:
 
 | Key | Meaning |
 |---|---|
-| `num_cohorts` | study cohorts admitted (default 4) |
+| `num_cohorts` | study cohorts admitted, one per year (default 8, for a steady state) |
 | `num_incumbent_cohorts` | prior cohorts seeded before term 0 as a warm start (default **0** — the default plan warm-starts via `initial_state` instead, see below) |
 | `initial_state` | `{occupancy: {code: seats}, standing: {Year2/3/4: count}}` — the admin-entered pre-existing student body (see `docs/technical_design.md`) |
-| `admit_interval_terms` | terms between admissions (4 = yearly under the 4-season cycle) |
+| `admit_interval_terms` | terms between admissions (3 = yearly under the Fall/Spring/Summer cycle) |
 | `admission_targets` | health thresholds driving the intake recommendation |
 | `monte_carlo` | `{enabled, n_runs, base_seed}` for confidence intervals |
 
@@ -212,10 +202,10 @@ src/
 
 web/         Next.js/TypeScript dashboard — animated flow chart + dashboard, Settings, Plans,
              Plan Builder, Live Simulation; talks to src/api.py; static figures ported as React/SVG
-data/        curriculum.json, simulation_config.json, qu_raw/ (validation data)
+data/        curriculum.json, simulation_config.json
 outputs/     figures/ and reports/ (generated by run.py)
-scripts/     size_capacity.py, migrate_json_to_db.py, analyze_qu_data.py
-tests/       pytest suite (143 tests)
+scripts/     size_capacity.py, migrate_json_to_db.py
+tests/       pytest suite (169 tests)
 docs/        project_overview.md, technical_design.md, assumptions.md, code_walkthrough.md,
              api.md, database.md, progress_report.md
 run.py       entry point

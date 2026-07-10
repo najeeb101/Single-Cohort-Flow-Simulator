@@ -17,12 +17,12 @@ Assumptions are documented here and were fixed before the final baseline run; ca
 | `probation_min_ch` | 25 | QU policy: probation evaluated after first year (~25 CH) |
 | `probation_gpa_threshold` | 2.0 | QU minimum cumulative GPA requirement |
 | `dropout_gpa_floor` | 2.0 | PRIMARY dropout cause: a per-term hazard applies while cumulative GPA sits below this floor (= probation line) |
-| `dropout_base_hazard` | 0.18 | Per-term dropout prob at the floor; scales up as `×(1 + (floor − gpa))` the deeper a student is below it. Calibrated to QU's 72.3% 12-sem grad rate |
+| `dropout_base_hazard` | 0.18 | Per-term dropout prob at the floor; scales up as `×(1 + (floor − gpa))` the deeper a student is below it. Calibrated so aggregate 12-semester graduation lands near the middle of a plausible 50–70% range (an internally-chosen target, not fit to external data — see §J) |
 | `dropout_early_multiplier` | 2.0 | Hazard doubled in a student's first few semesters (attrition is front-loaded in years 1–2) |
 | `dropout_early_sem_cutoff` | 4 | Number of personal semesters the early multiplier applies to |
 | `dropout_fails_threshold` | 3 | SECONDARY cause: same course failed 3× triggers probabilistic dropout |
 | `dropout_prob_on_repeated_fail` | 0.15 | 15% chance of dropping after 3rd failure of same course (reduced from 0.25 now that low GPA is the primary driver) |
-| `dropout_delay_hazard_scale` | 0.0 (off) | TERTIARY cause, opt-in: per-term hazard `= scale × (credit-hour deficit vs. on_time_terms pace) / total program CH`, independent of GPA — models students who withdraw once far enough behind schedule rather than riding it out to CENSORED. Left off for the calibrated QU baseline; untested against real QU data, unlike the two hazards above. |
+| `dropout_delay_hazard_scale` | 0.0 (off) | TERTIARY cause, opt-in: per-term hazard `= scale × (credit-hour deficit vs. on_time_terms pace) / total program CH`, independent of GPA — models students who withdraw once far enough behind schedule rather than riding it out to CENSORED. Left off by default in the baseline plan. |
 | `ability_sd` | 0.15 | Assumed; calibrated so ~2.5% of students have ability > ±0.30 |
 | `ability_clip` | 0.30 | Hard clip to keep effective pass rates in [0.05, 0.98] |
 
@@ -40,7 +40,7 @@ Assumptions are documented here and were fixed before the final baseline run; ca
 ## C. Per-Course Pass Rates
 
 Pass rates are **assumed**; no public per-course failure data exists for QU CS programs.
-They were set by curricular role and expected difficulty, then checked against the face-validity targets in §K. Lower rates are assigned to courses that introduce a new level of abstraction, combine mathematical reasoning with programming, or sit on high-pressure prerequisite paths. Higher rates are assigned to low-credit, capstone, and broad general-education requirements where students are expected to receive more structured completion support.
+They were set by curricular role and expected difficulty, then checked against the face-validity targets in §J. Lower rates are assigned to courses that introduce a new level of abstraction, combine mathematical reasoning with programming, or sit on high-pressure prerequisite paths. Higher rates are assigned to low-credit, capstone, and broad general-education requirements where students are expected to receive more structured completion support.
 
 | Course | Base Rate | Difficulty Rationale |
 |---|---|---|
@@ -69,25 +69,22 @@ per-term seats is a single `capacity` field on the course (`data/curriculum.json
 auto-calibrated by [scripts/size_capacity.py](../scripts/size_capacity.py), then hand-tunable
 per course (in the JSON file or Settings) with no derived arithmetic in between.
 
-**Sizing policy — CS courses are deliberately under-provisioned.** A real department staffs
-for typical load, not its single worst term, so popular gateway courses fill up during
-enrolment bulges. To reproduce this, CS courses (`cs_core`, `cs_elective`) are sized to the
-**75th percentile** of their unconstrained per-term demand, while non-CS courses
-(math/science/english/gen-ed) are sized to their full **peak** so they never bottleneck. This
-concentrates all seat scarcity on the CS major's own specialist courses, which is where it
-occurs in reality.
+**Sizing policy — the required sequence is seated to peak; only electives are squeezed.** The
+whole required path (`cs_core`) and all non-CS courses are sized to their **peak** unconstrained
+per-term demand; only interchangeable electives (`cs_elective`) are squeezed to the **75th
+percentile** to keep a deliberate bottleneck. This policy changed when the real single-term
+offering schedule was restored: an all-Fall+Spring curriculum let a percentile squeeze on
+required courses be harmless (a missed seat just meant retaking next term, half a year), but with
+several once-a-year upper courses (§4.11 of technical_design.md) a missed seat in an *early*
+gateway knocks a student off the annual rhythm, so they reach a single-term upper course
+off-cycle and lose a full year — cascading into non-completion (CENSORED), not just delay.
+Deliberate scarcity therefore lives on electives (4 interchangeable slots, no prerequisites,
+where scarcity only redistributes), not on the critical path.
 
-The binding set that results (top capacity-blocked courses, all CS):
-
-| Course | Capacity | Why binding |
-|---|---|---|
-| CMPS303 | 42 | Gateway (unlocks CMPS323/380/405); cohorts collide here — **#1 capacity bottleneck** |
-| CMPS350 | 31 | CMPS493 compound-rule option; spiky demand |
-| CMPS151 | 63 | Early course the whole cohort funnels through |
-| CMPS493/499 | 30 / 29 | Senior-project gate, naturally small |
-| CSEL1–4 | 29–38 | CS electives concentrate into few terms |
-
-Non-CS pseudo-courses are sized to peak and are effectively non-binding.
+The residual bottleneck is now **timing, not seats**: with the required sequence seated to peak,
+what still binds is the once-a-year scheduling of the single-term upper cluster (CMPE355,
+CMPS405, CMPS323) and the CMPS303 gateway feeding several of them. Re-run and read
+`outputs/reports/simulation_summary.csv` for the current per-signal top course.
 
 ---
 
@@ -159,49 +156,44 @@ scenario. Scenario differences reflect structural interventions, not RNG noise.
 
 ---
 
-## J. External Validation (Downstream Only)
+## J. Face-Validity Results (baseline, seed=42, 30-seed Monte Carlo)
 
-Qatar Open Data (QU registered/graduated students per semester) is used **only** for
-downstream validation and scenario-range calibration; it is **never an input** to the
-simulation. The simulation parameters are set before observing QU outcomes.
+> These are a **snapshot** of the current default plan (8 yearly cohorts, the real single-term
+> offering schedule, cs_core sized to peak). They move whenever the config changes — the ranges
+> are the sanity check, not the exact numbers. Re-run `py run.py` for today's actual values.
 
----
-
-## K. Face-Validity Results (Scenario A_baseline, seed=42)
-
-| Metric | Expected Range | Actual | Status |
+| Metric | Expected Range | Actual (MC mean) | Status |
 |---|---|---|---|
-| Graduation rate | 50–70% | 71% | ✓ PASS (≈ benchmark) |
-| On-time rate (≤ 8 sem) | 30–50% | 33% | ✓ PASS |
-| Probation rate | 15–25% | 18.5% | ✓ PASS |
-| Top failure bottleneck | CMPS303 or CMPS323 | CMPS251 / CMPS405 (294 failures) | ✓ PASS |
-| Top capacity bottleneck | a CS gateway | CMPS303 (60 blocks) | ✓ PASS |
-| Academic dropout rate | 15–30% | 27% | ✓ PASS |
-| Censored rate (hit horizon) | — | 2.8% | — |
+| Graduation rate | 50–70% | 65.5% (95% CI 65.0–66.0%) | ✓ PASS |
+| On-time rate (≤ 8 sem) | 20–50% | 23.4% | ✓ PASS |
+| Probation rate | 15–25% | 17.9% | ✓ PASS |
+| Academic dropout rate | 15–30% | 14.9% | ✓ (just under) |
+| Censored rate (hit horizon) | — | 22.0% | — |
 
-**Graduation rate (71%)**: Within the 50–70% plausible range and within 1.3 pp of the QU 6-year benchmark (72.3%). Reflects the full once-a-year offering set (CMPS323/405/351 Spring; CMPS310/380/355 Fall), gateway pass rates (CMPS251: 0.72, CMPS303: 0.71), grade replacement, and CS section sizing at the 75th demand percentile.
+**Graduation rate (~65%)**: Within the plausible range for a 12-semester program. The residual
+non-completion is dominated by **once-a-year scheduling**: 8 core courses are single-term, so a
+student who falls behind on the shared seat pool reaches one off-cycle and loses a full year,
+which pushes the tail past the 12-semester horizon (→ CENSORED). `dropout_base_hazard` (0.18)
+is calibrated so graduation lands mid-range — an internally-chosen target, not fit to external
+data.
 
-**On-time rate (33%)**: Within the 30–50% target. The GPA-driven dropout model removes chronically-failing students earlier (front-loaded hazard), so the pool that survives to graduate skews stronger and finishes sooner than under the old single-course rule.
+**Censored dominates dropout here** (22% vs. 15%): the binding constraint is *timing* (the
+once-a-year sequence), not academic failure. This is why raising capacity on the **early**
+gateways — which keeps students on the annual rhythm so they hit the single-term upper courses
+on schedule — is what moves graduation, and why the required sequence (cs_core) is sized to
+peak demand rather than squeezed. See `scripts/size_capacity.py`.
 
-**Probation rate (18.5%)**: Within the 15–25% target after implementing grade replacement: when a student retakes and passes a course, prior F attempts are removed from the GPA denominator. Previously >30% without grade replacement.
+**Probation rate (~18%)**: Within the 15–25% target, driven by grade replacement (passing a
+retake removes prior F attempts from the GPA denominator; without it, probation exceeds 30%).
 
-**Dropout rate (27%)**: Within the 15–30% target. Dropout is now driven primarily by chronic low GPA (a per-term hazard while cumulative GPA < 2.0, growing the deeper a student is below the line and doubled in years 1–2), with a secondary trigger for students stuck repeatedly failing one gateway course. `dropout_base_hazard` (0.18) was calibrated by sweeping against the QU 12-semester benchmark so that graduation lands at ~71% (mean over 30 seeds). This replaces the earlier single-course-only rule, which let a student with a failing GPA spread across many courses never drop.
-
-**External validation**: Qatar Open Data (data.gov.qa) gives a 6-year graduation rate of 72.3% for QU CS undergrads (Fall 2015–2016 cohorts). This table's snapshot (71%) was checked with optional Winter/Summer intersessions implemented and switched on; with them later made an admin-controlled toggle that defaults off (see CLAUDE.md's "Term/Season Model"), the gap to this benchmark depends on which side of that toggle the active configuration is on, and isn't a single fixed number anymore. Re-run the simulation against whichever configuration is current to get today's actual gap — see `docs/project_overview.md` for how the simulator works and why this number isn't pinned in writing here.
-
-**Top bottleneck signals (current run):**
-- Failures: CMPS251 (294), CMPS405 (294), CMPS323 (269), CMPS303 (253), CMPS310 (249)
-- Capacity blocks: CMPS303 (60), CMPS350 (47), CMPS151 (18) — all CS, gateway-led by design
-- Offering blocks: CMPS310 (888), CMPS405 (871), CMPE355 (868) — driven by once-a-year courses
-- Prereq blocks: CMPS499 (4437), CMPS493 (3802), then the CMPS303 cluster: CMPS405 (2206), CMPS323 (2164), CMPS380 (2163)
-
-**Capacity (sections × 35 seats)**, CS courses sized to 75th-percentile demand:
-- CMPS303: 2×35=70 | CMPS350: 2×35=70 | CMPS151: 3×35=105 | CMPS310: 4×35=140 | CMPS493: 2×35=70
-- CMPS351: 40 | CMPS380: 40 | CMPS323: 40 | CMPS405: 40 | CMPE355: 40 | CMPS493: 30 | CMPS499: 30
+**Which courses bind** (a snapshot — re-derive from a run): the capacity/offering/prereq
+pressure concentrates on the single-term cluster (CMPE355, CMPS405, CMPS323) and the CMPS303
+gateway that feeds several of them. Read `outputs/reports/simulation_summary.csv` after a run
+for the current top course per signal.
 
 ---
 
-## L. Key References (with assumption mapping)
+## K. Key References (with assumption mapping)
 
 Each reference below supports a specific design decision or calibration choice in the
 simulator. This is the "why did we do it this way?" audit trail for each modelling assumption —

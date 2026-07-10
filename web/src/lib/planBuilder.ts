@@ -40,7 +40,7 @@ export const BLANK_CONFIG: Record<string, unknown> = {
 // round trip, not a generic "API returned 422" after submitting. Category is free text
 // (different plans/departments use different taxonomies) — only presence is checked, same
 // as the backend.
-const VALID_OFFERINGS = ["Fall", "Spring", "Summer", "Winter"];
+const VALID_OFFERINGS = ["Fall", "Spring", "Summer"];
 
 export function validateCourseDraft(draft: CourseRecord, existingCodes: string[]): string | null {
   const code = draft.code.trim();

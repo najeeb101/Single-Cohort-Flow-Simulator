@@ -9,10 +9,12 @@
 > **Note (curriculum data model):** §2's course catalog below predates a later switch from
 > abstracted "pseudo-courses" (`MATH_1`, `PHYS_1`, `GED_1`, `ELEC_1`...) to the real official QU
 > course codes (`MATH101`, `PHYS191`-`194`, `CSEL1`-`4`, etc.) actually used by
-> `data/curriculum.json` today, and predates the later removal of Fall-only/Spring-only offering
-> restrictions (every course is now offered Fall + Spring; only `study_plan_term` still records
-> the recommended semester). §2 has been rewritten below to match; see `CLAUDE.md`'s "Key
-> Constraints" section for the canonical current summary.
+> `data/curriculum.json` today. Offerings went through two revisions: the pseudo-course era had
+> hand-picked Fall-only/Spring-only restrictions; those were dropped when the real codes came in
+> (briefly every course ran Fall+Spring); then the **real QU schedule** was restored — **8 core
+> courses are single-term** (Fall-only {CMPS200, CMPS310, CMPE355, CMPS380}, Spring-only {CMPE263,
+> CMPS323, CMPS351, CMPS405}) and the 22 non-CS service courses additionally run in Summer. See
+> `CLAUDE.md`'s "Key Constraints" section for the canonical current summary.
 
 ---
 
@@ -43,11 +45,13 @@ A student may only register for CMPS 493 after satisfying **all three** conditio
 ## 2. Extracted Course Catalog
 
 **As of this revision, `data/curriculum.json` uses the real official QU course codes directly**
-(no abstracted "pseudo-courses"), and **every course is offered Fall + Spring** — the earlier
-Fall-only/Spring-only restrictions described in older revisions of this document were dropped
-once the curriculum became the real 2024 study plan. `study_plan_term` (1-8) still records each
-course's *recommended* semester (used to lay out the roadmap UI), but it is not an offering
-restriction. All 41 courses, in `study_plan_term` order:
+(no abstracted "pseudo-courses"), and offerings mirror QU's **real schedule**: most courses run
+Fall+Spring, but **8 core courses are single-term** — Fall-only {CMPS200, CMPS310, CMPE355,
+CMPS380} and Spring-only {CMPE263, CMPS323, CMPS351, CMPS405} — and the 22 non-CS service
+courses (math/science/english/gen_ed) additionally run in **Summer** (CS courses never do).
+`study_plan_term` (1-8) records each course's *recommended* semester (used to lay out the roadmap
+UI); it is not the offering restriction — the `offering` array is. All 41 courses, in
+`study_plan_term` order:
 
 | Code | Title | CH | Prerequisites | Category | Term | Pass rate* |
 |---|---|---|---|---|---|---|
@@ -225,12 +229,14 @@ Do **not** lump these together. They have different causes and different fixes, 
 
 **Unit caveat:** these four are *not* comparable in magnitude. `fail_counts` counts per-attempt events; `offering_block` and `prereq_block` accumulate one event per active eligible student per term they remain blocked, so they run an order of magnitude larger. Compare *within* a signal (across courses), never *across* signals.
 
-**Historical note:** an earlier revision of the curriculum had CMPS310 as Fall-only and several
-other courses Spring-only, which made `offering_block` (a once-a-year scheduling gap) one of the
-model's headline findings alongside the CMPS303 gateway. Once the curriculum switched to the real
-QU data (§2), that restriction was dropped: every mandatory-term course is now offered Fall +
-Spring, so `offering_block` is structurally near-zero unless optional Winter/Summer terms are
-enabled and a course isn't on that smaller offering list (see CLAUDE.md's "Term/Season Model").
+**Once-a-year scheduling is back as a headline finding.** Offerings now mirror QU's real
+schedule (§2): 8 core courses are single-term (Fall-only {CMPS200, CMPS310, CMPE355, CMPS380},
+Spring-only {CMPE263, CMPS323, CMPS351, CMPS405}). This makes `offering_block` a real, large
+signal again — and, more importantly, makes *capacity* on the required sequence matter for
+completion, not just delay: a student who misses an early gateway seat falls off the annual
+rhythm, reaches a single-term upper course off-cycle, and loses a full year, which pushes the
+tail past the horizon into CENSORED (see §11.4). The 22 non-CS service courses additionally run
+in Summer (an optional term) as a partial catch-up path; CS courses never do.
 
 **What still holds as the headline structural finding**: **the CMPS303 gateway**. CMPS303 (Data
 Structures) gates CMPS380, CMPS323, and CMPS405 simultaneously, so a delay or failure at CMPS303
@@ -352,35 +358,47 @@ src/
 │
 ├── datasource.py        # DataSource seam: CohortSpec + SyntheticDataSource (population
 │                         # creation, decoupled from the engine so a future real-data source
-│                         # can plug in without touching Simulator)
+│                         # can plug in without touching Simulator); also the canonical
+│                         # EnrollmentRecord/OutcomeRecord/BlockEvent/StudentTermState record
+│                         # types (the last two power the per-student trace, §11.11)
 ├── rules.py             # evaluate_rule()/gate_edges() — generic compound prerequisite
 │                         # expressions (how CMPS493's rule is expressed, not hardcoded)
 ├── simulator.py         # Simulator (staggered admission + 3-phase per-term loop) + History
-│                         # (the four block signals + snapshots) + SimulationResult
+│                         # (the four block signals + snapshots) + SimulationResult; an
+│                         # opt-in, default-off record_traces flag additionally captures
+│                         # per-student block events + per-term state (§11.11)
 ├── analytics.py         # compute_metrics(), per-cohort metrics, admissions recommendation,
-│                         # curriculum graph, flow_timeline JSON, CSV writers
+│                         # curriculum graph, flow_timeline JSON, CSV writers,
+│                         # find_students_matching()/compute_student_trace() (§11.11)
 ├── service.py           # run_simulation(curriculum, config, scenario, data_source=None)
 │                         # -> dict — the engine-as-a-service boundary: Simulator + every
 │                         # analytics.py derivation, in memory, zero file I/O
+├── optimizer.py          # solve_for_targets() — Auto-fill's bounded greedy capacity search
+│                         # (§11.10)
 ├── livesim.py            # LiveRunner — deterministic term-by-term replay for Live Simulation
 │                         # (§11 does not cover this; see CLAUDE.md's "Live Simulation Model")
 ├── db.py / db_models.py  # SQLAlchemy engine/session + User/Plan/Course/AppConfig/
-│                         # Scenario/Run tables (per-plan, multi-plan support)
+│                         # Scenario/Run/LiveSimulation/LiveTermSnapshot tables (per-plan,
+│                         # multi-plan support) — see docs/database.md for the full schema
 ├── auth.py               # get_current_user — a stub shared demo user today, not real
 │                         # login/JWT (that was built, then removed in a later simplification
 │                         # pass; the DB/route plumbing for it is gone from api.py)
 ├── curriculum_validation.py  # check_no_cycle() — prerequisite-cycle guard for Settings
 │                         # edits and Plan imports
-├── api.py                # FastAPI wrapper: /health, /meta, /simulate, /curriculum, /config,
-│                         # /plans, /livesim — every route resolves the requester's active Plan
-│                         # fresh, no cached globals
+├── scenarios.py          # persistent /scenarios + /runs endpoints (saved scenario-builder
+│                         # presets), scoped to the demo user
+├── api.py                # FastAPI wrapper: /health, /meta, /simulate,
+│                         # /simulate/students/search + /{id}/trace, /autofill, /curriculum,
+│                         # /config, /plans, /livesim — every route resolves the requester's
+│                         # active Plan fresh, no cached globals; see docs/api.md
 ├── montecarlo.py         # run_monte_carlo() — mean ± 95% CI over many seeds
 ├── visualize.py          # save_all_figures() + per-figure functions (offline `py run.py` path)
 └── utils.py              # load_json(), grade_tier()
 
-web/         Next.js/TypeScript dashboard — Dashboard, Bottlenecks (what-if panel + capacity
-             recommendations), Cohorts, Figures, Prerequisites, Settings (curriculum + config
-             editing), Plans/Plan Builder, Run History, Live Simulation
+web/         Next.js/TypeScript dashboard — Dashboard, Advisor, Bottlenecks (what-if panel +
+             capacity recommendations + Auto-fill solver), Student Trace, Cohorts, Figures,
+             Prerequisites, Settings (curriculum + config editing), Plans/Plan Builder,
+             Run History, Live Simulation
 run.py       # entry point: load -> run_simulation() per scenario -> save figures + CSV
 ```
 
@@ -410,20 +428,21 @@ Single-Cohort-Flow-Simulator/
 ├── data/
 │   ├── curriculum.json      # 41 courses, 120 CH, source of truth (one-time DB seed)
 │   ├── simulation_config.json
-│   ├── app.db                # gitignored SQLite DB; authoritative after first API boot
-│   └── qu_raw/               # downloaded QU open data CSVs (validation only)
+│   └── app.db                # gitignored SQLite DB; authoritative after first API boot
 ├── outputs/
 │   ├── figures/              # university_enrollment, cohort_flow, bottlenecks_<scenario>,
 │   │                        # curriculum_network, survival_curve, etc.
 │   └── reports/              # simulation_summary.csv, flow_timeline.json, etc.
 ├── scripts/
 │   ├── size_capacity.py      # recalibrates each course's capacity to peak demand
-│   ├── migrate_json_to_db.py # (re)seeds data/app.db from the JSON files
-│   └── analyze_qu_data.py    # real QU graduation rate from open data
+│   └── migrate_json_to_db.py # (re)seeds data/app.db from the JSON files
 ├── tests/                    # pytest suite
 ├── docs/
 │   ├── project_overview.md
 │   ├── technical_design.md   # this file
+│   ├── code_walkthrough.md   # code-level companion (real signatures, module by module)
+│   ├── database.md           # DB schema reference
+│   ├── api.md                # HTTP API reference
 │   └── assumptions.md
 ├── run.py
 ├── render.yaml                # Render deployment blueprint
@@ -444,16 +463,15 @@ Single-Cohort-Flow-Simulator/
 
 Targets to sanity-check any run against:
 
-| Check | Expected range | Snapshot value (stale, see above) | Status (at the time) |
+| Check | Expected range | Current snapshot (MC mean) | Status |
 |---|---|---|---|
-| Graduation rate | 50-70% within 12 semesters | 71% (against a 72.3% QU benchmark) | checked out |
-| On-time graduation (≤ 8 sem) | 30-50% | 21% | missed (structural; see assumptions §K) |
-| Probation rate | 15-25% hit it at least once | 17% | checked out |
-| Top failure bottleneck | CMPS303 or CMPS323 | CMPS323 (49 failures) | checked out |
-| Academic dropout rate | 15-30% | 20% | checked out |
-| Censored rate (hit horizon) | — | 9% | — |
+| Graduation rate | 50-70% within 12 semesters | 65.5% | checked out |
+| On-time graduation (≤ 8 sem) | 20-50% | 23% | checked out |
+| Probation rate | 15-25% hit it at least once | 18% | checked out |
+| Academic dropout rate | 15-30% | 15% | checked out (just under) |
+| Censored rate (hit horizon) | — | 22% (once-a-year timing tail) | — |
 
-See `docs/assumptions.md §K` for the full discussion. The probation rate falls in range because
+See `docs/assumptions.md §J` for the full discussion. The probation rate falls in range because
 of grade replacement (passing a retake removes prior F attempts from the GPA denominator);
 without it, probation exceeded 30%.
 
@@ -481,7 +499,7 @@ without it, probation exceeded 30%.
 The model layers a **steady-state university** on top of the single-student mechanics in §§1–10.
 
 ### 11.1 Admissions & the global clock
-- `num_cohorts` study cohorts of `cohort_size` are admitted every `admit_interval_terms` (default: 4 cohorts, yearly Fall, entry terms 0, 4, 8, 12 under the current 4-season config; terms 0/2/4/6 under the legacy 2-season one).
+- `num_cohorts` study cohorts of `cohort_size` are admitted every `admit_interval_terms` (default: **8 cohorts**, one per year, entry terms 0, 4, 8, … under the current 4-season config; terms 0/2/4/… under the legacy 2-season one). Eight is chosen for steady state: a ~6-year program with yearly admission has ~6 cohorts enrolled simultaneously, so fewer cohorts would under-represent the shared-pool competition that is the whole point of §11.3.
 - **Warm start, current default: initial state, not simulated incumbents.** Rather than admitting
   `num_incumbent_cohorts` prior cohorts at negative terms, the shipped config instead defines
   `initial_state.occupancy` (seats already taken per course by the existing, un-simulated student
@@ -495,24 +513,34 @@ The model layers a **steady-state university** on top of the single-student mech
   2-season cycle), so the incumbent-cohort option still works if an admin re-enables it.
 
 ### 11.2 Personal vs. global time
-Each horizon rule uses `personal_semester = global_term − entry_term + 1`, so every student gets exactly `max_terms` semesters measured from their own admission. GRADUATED/DELAYED/CENSORED and `graduation_times` are all personal-time based. Headline metrics are scoped to **study cohorts** (`entry_term ≥ 0`); incumbents appear only in the per-cohort ledger.
+
+> **Update**: this section predates the generalized term/season model. `personal_semester` is no
+> longer recomputed as `global_term − entry_term + 1` — it's a stateful counter
+> (`Student.personal_semester`) incremented once per *mandatory* term only (never during an
+> optional Winter/Summer term), so taking courses in an optional term doesn't cost a semester.
+> See CLAUDE.md's "Term/Season Model" for the current mechanics; the rest of this section still
+> holds.
+
+Each horizon rule uses the student's own `personal_semester`, so every student gets exactly `max_terms` (mandatory) semesters measured from their own admission. GRADUATED/DELAYED/CENSORED and `graduation_times` are all personal-time based. Headline metrics are scoped to **study cohorts** (`entry_term ≥ 0`); incumbents appear only in the per-cohort ledger.
 
 ### 11.3 Shared seat pool (the core dynamic)
 All active students from all cohorts enter the same Phase-2 allocation. Because requesters are already sorted by `registration_tier(completed_ch)`, seniors from older cohorts outrank freshmen automatically — a delayed senior class starves incoming freshmen of gateway seats, and congestion compounds cohort over cohort. This is the phenomenon the model exists to study.
 
 ### 11.4 Capacity model
 Per-term seats for a course = its own `capacity` field (`data/curriculum.json`), minus any
-`initial_state.occupancy` for that course (§11.1). `scripts/size_capacity.py` auto-calibrates
-each course's `capacity` to its **peak per-term demand** under unconstrained seats and writes
-the integer directly into `curriculum.json`; it is then hand-tunable per course (the realistic
-lever an administrator pulls — raise or lower one course's capacity, no derived arithmetic).
-Capacity varies by course (gateway/intro courses get more seats than niche ones); since every
-course is now offered Fall + Spring (§2), demand concentrates on whichever courses sit
-downstream of the CMPS303 gateway rather than on a hardcoded seasonal subset. Demand-matched
-sizing yields a well-resourced baseline with little capacity blocking; lowering a course's
-capacity re-introduces scarcity to study a specific bottleneck. Scenario `capacity_overrides`
-still apply as a per-course multiplier for what-if experiments, and on an optional (Summer/
-Winter) term capacity is scaled down further by `optional_term_capacity_scale`.
+`initial_state.occupancy` for that course (§11.1). `scripts/size_capacity.py` auto-calibrates it
+and writes the integer directly into `curriculum.json`; it is then hand-tunable per course (the
+realistic lever an administrator pulls). **Sizing policy: the whole required sequence (cs_core)
+and all non-CS courses are sized to peak per-term demand; only interchangeable electives
+(cs_elective) are squeezed to the 75th demand percentile.** This is a direct consequence of the
+single-term offerings (§4.11): under an all-Fall+Spring curriculum, under-provisioning a required
+course only added *delay* (retake next term), so a percentile squeeze was safe. With several
+once-a-year upper courses, a missed seat in an *early* gateway knocks a student off the annual
+rhythm and into a full-year wait that cascades into non-completion (CENSORED) — so the critical
+path must be seated to peak, and the deliberate scarcity lives on electives (4 interchangeable
+slots, no prerequisites, where scarcity only redistributes). Scenario `capacity_overrides` still
+apply as a per-course multiplier for what-if experiments, and on the optional Summer term
+capacity is scaled down further by `optional_term_capacity_scale`.
 
 ### 11.5 Identity, RNG, determinism
 Study cohorts get `cohort_id` `0..n−1`; incumbents `−1, −2, −3`. Globally-unique `student_id = (cohort_id + num_incumbent_cohorts) × cohort_size + i`; RNG seed remains `seed + student_id`, so CRN and full determinism are preserved.
@@ -541,3 +569,45 @@ scenario → hand the returned `SimulationResult` to `analytics.py`'s CSV/JSON w
 `visualize.py`'s figure writers, which remain the only file-I/O layer. Monte Carlo stays a
 separate, opt-in call (§11.8) rather than folded into `run_simulation`, since re-running a
 scenario dozens of times isn't something every caller wants paid for by default.
+
+### 11.10 Advisor + Auto-fill
+
+Two decision-support layers on top of a completed run, both reading `evaluate_health_criteria`'s
+per-criterion slack against `config['admission_targets']` — the same four criteria §11.6's
+admissions recommendation scores (graduation rate, time-to-degree, seats-denied-per-student,
+throughput stability).
+
+- **Advisor** is a rules-based (no LLM) frontend read of a run's existing `flow_timeline.summary`
+  into prioritized plain-language recommendations — a pure derivation from data the `/simulate`
+  response already contains, no extra backend call.
+- **Auto-fill** (`src/optimizer.py::solve_for_targets`) is a bounded greedy solver: each iteration
+  runs one simulation, finds the course with the worst single-term seat shortfall, and bumps its
+  capacity by that shortfall, until the seats-denied target is met or `run_budget` (default 20,
+  max 40) is exhausted. It only drives the one target capacity actually fixes (seats denied),
+  reporting grad-rate/time-to-degree/throughput-stability breaches as non-capacity so it never
+  overstates the seats needed. `POST /autofill` is read-only; the frontend panel applies the
+  winning capacities itself via the existing `PUT /curriculum/{code}` + `PUT /config` writes.
+
+### 11.11 Per-Student Trace
+
+Everything above (and everywhere else in this document) reports population aggregates. The
+per-student trace inverts that: pick one student and see their exact term-by-term path.
+
+Most of the needed data already existed — `History.transcript` is a full per-student-per-term
+course log and `History.outcomes` one terminal record per student (§9's
+`compute_historical_transcripts` already extracts these). The one real gap was the four block
+signals (§4.11/§5.5), which the aggregate `*_block_counts` discard per-student identity at
+increment time. `Simulator(record_traces=True)` (opt-in, default off — every existing caller and
+the hot `/simulate` baseline are unaffected) additionally records `History.block_events`
+(`BlockEvent{student_id, term, course_code, signal}`) and `History.student_term_states`
+(`StudentTermState{student_id, term, personal_semester, gpa, completed_ch, on_probation,
+status}`). Neither is part of the `flow_timeline.json` contract (§11.7).
+
+`src/analytics.py::find_students_matching` filters the finished population by profile (cohort,
+final outcome, ever-probation) into a few representative candidates — no block recording needed,
+so it's a cheap ordinary run. `compute_student_trace` re-runs with `record_traces=True` and
+assembles one student's full journey. Both endpoints (`POST /simulate/students/search`,
+`POST /simulate/students/{id}/trace`) re-run the deterministic engine from the same overrides
+`/simulate` takes rather than persisting anything — CRN (§4.2/§11.5) makes that reproduction
+exact and cheap (~0.4s per run at the shipped cohort sizes). See `docs/api.md` and CLAUDE.md's
+"Per-Student Trace Model".

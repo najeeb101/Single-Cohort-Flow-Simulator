@@ -189,11 +189,11 @@ immediately, no server restart needed. See [Multi-Plan Model](#multi-plan-model)
 
 ## Multi-Cohort Model
 
-- **Admissions**: `num_cohorts` study cohorts of `cohort_size` enter every `admit_interval_terms` (default: 4 cohorts, yearly). `num_incumbent_cohorts` prior cohorts enter at **negative** terms as a warm start, so gateway courses are already partly occupied when study cohort 0 arrives.
+- **Admissions**: `num_cohorts` study cohorts of `cohort_size` enter every `admit_interval_terms` (default: **8 cohorts, one per year** — enough overlapping cohorts to reach a real steady state, since a ~6-year program with yearly admission has ~6 cohorts enrolled at once; fewer than that under-represents shared-pool competition). `num_incumbent_cohorts` prior cohorts enter at **negative** terms as a warm start, so gateway courses are already partly occupied when study cohort 0 arrives.
 - **Global clock** runs `start_term = -num_incumbent_cohorts*admit_interval` .. `end_term`, where `end_term` is `mandatory_horizon_end_term(...)` (not a linear formula — see "Term/Season Model"). `term_season` handles negative indices (`-6 % 2 == 0` → Fall, under the legacy 2-season cycle; config-driven under any other cycle).
 - **Personal time**: graduation/DELAYED/CENSORED use the stateful `Student.personal_semester` counter (mandatory terms only — see "Term/Season Model"), not a recomputed `global_term - entry_term + 1`. A student gets exactly `max_terms` *mandatory* semesters from their own entry.
 - **Cohort ids**: study cohorts `0..n-1`. `num_incumbent_cohorts` still exists as an engine knob (defaults to **0** — incumbents `-1,-2,-3` at negative terms) but is no longer part of the default plan, which warm-starts via the [Initial-State Model](#initial-state-model) instead. The historical-transcript calibration stand-in (`analytics.compute_historical_transcripts`) is the one consumer that still opts incumbents back in. Globally-unique `student_id = (cohort_id + num_incumbent_cohorts)*cohort_size + i`; RNG seed `seed + student_id` (CRN preserved).
-- **Capacity model**: per-term seats for a course = its own `capacity` field (`data/curriculum.json` / `Course.capacity`), **minus any `initial_state.occupancy[code]`** (see [Initial-State Model](#initial-state-model)). `capacity` is auto-calibrated to peak demand by `scripts/size_capacity.py` (writes directly into `curriculum.json`) and then hand-tunable per course in Settings — raise a course's capacity to relieve it, and the change takes effect on the next run. On an optional term, a separate, smaller model applies instead — see "Term/Season Model".
+- **Capacity model**: per-term seats for a course = its own `capacity` field (`data/curriculum.json` / `Course.capacity`), **minus any `initial_state.occupancy[code]`** (see [Initial-State Model](#initial-state-model)). `scripts/size_capacity.py` auto-calibrates it (writes directly into `curriculum.json`), then hand-tunable per course in Settings. **Sizing policy: the whole required sequence (cs_core) and all non-CS courses are sized to *peak* demand; only interchangeable electives (cs_elective) are squeezed to the 75th demand percentile to keep a deliberate bottleneck.** This is *because* of the single-term offerings above: with several once-a-year upper courses, under-provisioning an early required gateway pushes students off the annual rhythm into a full-year wait that cascades into non-completion (CENSORED), so scarcity on the critical path is no longer "just delay." Electives are the only safe place to squeeze (4 interchangeable slots, no prerequisites). On an optional term, a separate, smaller model applies instead — see "Term/Season Model".
 - **Headline metrics are scoped to study cohorts** (`entry_term >= 0`); incumbents (when enabled) are a warm-start device and appear only in the per-cohort ledger.
 
 ## Initial-State Model
@@ -362,9 +362,15 @@ recommendation already uses.
   (cs_core=Major Core, cs_elective=Major Elective, math=College Requirement, science=Major
   Supporting, english/gen_ed=Core Curriculum). See [Initial-State Model] / the dashboard
   roadmap note above.
-- **All courses are offered Fall + Spring** (the recommended-term column comes from
-  `study_plan_term`, not an offering restriction). The earlier artificial Spring-only/Fall-only
-  constraints were dropped when the curriculum became the real plan.
+- **Offerings mirror QU's real schedule, not a blanket Fall+Spring.** Most courses run
+  Fall+Spring, but **8 core courses are single-term**: Fall-only {CMPS200, CMPS310, CMPE355,
+  CMPS380} and Spring-only {CMPE263, CMPS323, CMPS351, CMPS405}. The 22 non-CS **service courses
+  (math/science/english/gen_ed) additionally run in Summer** (an optional term — see "Term/Season
+  Model"), matching how QU offers high-demand service courses year-round; CS courses are **never**
+  offered in Summer. This single-term realism interacts with capacity: because a missed seat in an
+  *early* gateway pushes a student off the annual rhythm and into a once-a-year upper course
+  off-cycle (a full year lost), the required cs_core sequence is sized to **peak** demand rather
+  than squeezed (see "Capacity model" below and `scripts/size_capacity.py`).
 - CMPS303 (Data Structures) is the central gateway: prerequisite for CMPS323, CMPS380, CMPS405.
 - CMPS493 (Senior Project I) compound rule: requires CMPS310 + (CMPS350 OR CMPS405) +
   completed_ch ≥ 84 — exactly the roadmap's stated Senior-Project entry requirement.

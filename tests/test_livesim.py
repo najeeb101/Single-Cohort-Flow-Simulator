@@ -95,6 +95,11 @@ def _small_plan_payload(name: str) -> dict:
     ]
     config = deepcopy(load_json("data/simulation_config.json"))
     config["cohort_size"] = 10
+    # These tests exercise LiveRunner's replay/edit mechanics, not the optional-term season
+    # cycle — decouple from whatever the live default plan's config currently has that flag
+    # set to, so consecutive advance() calls stay on the legacy mandatory-only Fall/Spring
+    # alternation these tests assume.
+    config["optional_terms_enabled"] = False
     return {"name": name, "curriculum": curriculum, "config": config}
 
 

@@ -3,7 +3,7 @@
 import type { CourseRecord, RuleExpr } from "@/types/simulation";
 import RuleExprEditor from "./settings/RuleExprEditor";
 
-const OFFERINGS = ["Fall", "Spring", "Summer", "Winter"] as const;
+const OFFERINGS = ["Fall", "Spring", "Summer"] as const;
 
 interface Props {
   value: CourseRecord;
