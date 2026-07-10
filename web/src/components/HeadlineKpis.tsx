@@ -31,8 +31,8 @@ export default function HeadlineKpis({ headline, onTimeTerms }: { headline: Head
         Headline results
         {mcNote && <span className="ml-2 text-xs font-normal text-muted">{mcNote}</span>}
       </h2>
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <div className="col-span-2 row-span-2 flex flex-col justify-between rounded-2xl border border-l-[3px] border-border border-l-accent bg-surface p-5 transition-all duration-300 hover:scale-[1.01] hover:shadow-[0_0_25px_-5px_rgba(91,140,255,0.15)]">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-4">
+        <div className="flex flex-col justify-between rounded-2xl border border-l-[3px] border-border border-l-accent bg-surface p-5 transition-all duration-300 hover:scale-[1.01] hover:shadow-[0_0_25px_-5px_rgba(91,140,255,0.15)] sm:col-span-2 sm:row-span-2">
           <div className="text-[11px] uppercase tracking-wide text-muted">{featured.label}</div>
           <div className="mt-2 text-[48px] font-extrabold leading-none tracking-tight text-accent">{featured.value}</div>
           <div className="mt-2 min-h-[14px] text-[11px] text-faint">{ciText(featured)}</div>

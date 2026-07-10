@@ -235,6 +235,7 @@ export default function WhatIfPanel({
                         type="button"
                         onClick={() => { removeCourse(code); setResult(null); }}
                         className="ml-0.5 text-[11px] text-muted hover:text-bad"
+                        aria-label={`Remove ${code} from the what-if`}
                         title="Remove"
                       >
                         ×

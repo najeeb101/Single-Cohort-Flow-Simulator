@@ -38,7 +38,16 @@ Progress
   7/7 checks). Kept the diff inline rather than building a separate `ScenarioDiffModal` (same
   information, one less click); did not auto-save applied changes as a `Scenario` (secondary,
   and scenarios have their own save flow).
-- ⏳ #6 — not started.
+- ✅ **#6 Accessibility / responsive / contrast** — shipped. A global `:focus-visible` outline
+  already existed (globals.css) and the Bottlenecks cards were already responsive (`auto-fit`
+  grid), so the net-new work was: the Headline KPI bar now stacks to a single column below the
+  `sm` breakpoint (`grid-cols-1 sm:grid-cols-2 md:grid-cols-4`), and aria-labels were added to
+  the icon-only Close/Remove buttons and the Bottlenecks Details buttons. Contrast was left as
+  the existing calibrated palette (a full WCAG audit is out of scope for this pass). Verified
+  end-to-end (single-column KPIs at 600px, keyboard focus outline, aria-labels; 4/4 checks).
+
+**All six planned improvements are shipped and verified.** Remaining ideas beyond this plan:
+save an applied what-if as a named Scenario (#3 secondary), and a WCAG contrast audit (#6).
 
 Purpose
 - Collect the prioritized UI improvements discussed from the codebase docs and repository audit.

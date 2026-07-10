@@ -71,6 +71,7 @@ export default function BottlenecksPanel({ bottlenecks, frames }: { bottlenecks:
                       <button
                         type="button"
                         onClick={() => setDetail({ signal: k, code })}
+                        aria-label={`Open ${code} ${card.title.toLowerCase()} details`}
                         className="font-medium text-ink underline decoration-dotted decoration-border-2 underline-offset-2 hover:decoration-accent"
                         title="See this course's signal over time"
                       >

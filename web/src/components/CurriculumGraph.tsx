@@ -359,6 +359,7 @@ export default function CurriculumGraph({ graph, courses }: Props) {
               type="button"
               onClick={() => setSelected(null)}
               className="grid h-5 w-5 shrink-0 place-items-center rounded-md text-muted hover:bg-surface hover:text-ink"
+              aria-label="Close course details"
               title="Close"
             >
               ×
