@@ -1,4 +1,6 @@
 import type {
+  AdvisorChatMessage,
+  AdvisorChatResponse,
   AutofillResult,
   CourseCreate,
   CourseRecord,
@@ -81,6 +83,19 @@ export function getStudentTrace(
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(overrides),
   }).then((res) => asJson<StudentTrace>(res));
+}
+
+// Phase B advisor chat (POST /advisor/chat). `context` is the grounding facts blob built from the
+// run summary. Returns configured:false (not an error) when the backend has no LLM_API_KEY set.
+export function advisorChat(
+  messages: AdvisorChatMessage[],
+  context: Record<string, unknown>,
+): Promise<AdvisorChatResponse> {
+  return fetch(`${API_BASE}/advisor/chat`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ messages, context }),
+  }).then((res) => asJson<AdvisorChatResponse>(res));
 }
 
 export function autofill(runBudget?: number): Promise<AutofillResult> {

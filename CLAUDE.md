@@ -300,9 +300,20 @@ recommendation already uses.
   (no-LLM, no-API-key) reading of the run's existing `flow_timeline.summary` (headline metrics,
   the four health criteria, top bottlenecks) into a prioritized list of plain-language
   recommendations. Pure frontend: it computes from data already in the `/simulate` payload, no
-  extra request. This is **Phase A of a planned hybrid advisor**; **Phase B** (an optional
-  Claude-powered chat box, `POST /advisor/chat`) is designed but **not built — deferred until an
-  Anthropic API key is available**. Build Phase B with the `claude-api` skill.
+  extra request. This is **Phase A of the hybrid advisor**.
+- **Advisor chat (Phase B)** (`src/advisor.py`, `POST /advisor/chat`,
+  `web/src/components/AdvisorChat.tsx` on the `/advisor` page) — an **optional LLM chat box**
+  grounded in the run's numbers. **Provider-agnostic**: it POSTs to any OpenAI-compatible
+  `/chat/completions` endpoint selected purely by env vars (`LLM_API_KEY`, `LLM_BASE_URL`
+  [default Groq `https://api.groq.com/openai/v1`], `LLM_MODEL` [default
+  `llama-3.3-70b-versatile`]) — so Groq/Gemini/OpenRouter/Claude are a config swap, not a code
+  change. The frontend builds a compact facts blob (headline/criteria/bottlenecks) from the
+  `/simulate` summary; `build_system_prompt` grounds the model in exactly those numbers and
+  forbids inventing figures. **Graceful degradation**: with no `LLM_API_KEY`, `chat_enabled()` is
+  `False`, `/meta.llm_chat_enabled` reports it, and the chat box shows a "how to enable" note —
+  Phase A is untouched and needs no key. Covered by `tests/test_advisor.py` (enabled path mocks
+  `httpx.post`, so no network). Uses `httpx` (already a dep) — no new package, no `claude-api`
+  skill needed since it's not Anthropic-specific.
 - **Auto-fill** (`src/optimizer.py::solve_for_targets`, `POST /autofill`, panel
   `web/src/components/AutofillPanel.tsx` on the Bottlenecks page) — a bounded **greedy** solver:
   each iteration runs one simulation, finds the course with the worst single-(mandatory-)term

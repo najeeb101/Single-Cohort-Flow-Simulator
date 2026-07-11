@@ -268,6 +268,18 @@ export interface MetaResponse {
     max_seats_denied_per_student: number;
     min_throughput_stability: number;
   };
+  // Phase B: whether the optional LLM advisor chat is configured on the backend (LLM_API_KEY set).
+  llm_chat_enabled?: boolean;
+}
+
+export interface AdvisorChatMessage {
+  role: "user" | "assistant";
+  content: string;
+}
+
+export interface AdvisorChatResponse {
+  configured: boolean;
+  reply: string | null;
 }
 
 export interface ScenarioRequest {

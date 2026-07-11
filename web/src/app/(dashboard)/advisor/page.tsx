@@ -2,10 +2,12 @@
 
 import { useSimulation } from "@/lib/SimulationContext";
 import AdvisorPanel from "@/components/AdvisorPanel";
+import AdvisorChat from "@/components/AdvisorChat";
 
 export default function AdvisorPage() {
-  const { data } = useSimulation();
+  const { data, meta } = useSimulation();
   const summary = data.flow_timeline.summary;
+  const scenario = data.flow_timeline.meta?.scenario ?? "baseline";
 
   return (
     <main className="mx-auto w-full max-w-[1600px] px-7 pb-16">
@@ -17,6 +19,7 @@ export default function AdvisorPage() {
         </p>
       </header>
       <AdvisorPanel summary={summary} showHeading={false} />
+      <AdvisorChat summary={summary} scenario={scenario} enabled={!!meta.llm_chat_enabled} />
     </main>
   );
 }

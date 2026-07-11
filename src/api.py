@@ -19,6 +19,7 @@ from pydantic import BaseModel, Field, field_validator
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from src.advisor import AdvisorChatError, chat_enabled, run_chat
 from src.analytics import build_curriculum_graph, compute_student_trace, find_students_matching
 from src.auth import get_current_user
 from src.curriculum_validation import CycleError, PlanImportError, check_no_cycle
@@ -263,6 +264,35 @@ def health() -> dict:
     return {"status": "ok"}
 
 
+class AdvisorChatMessage(BaseModel):
+    role: str
+    content: str
+
+
+class AdvisorChatRequest(BaseModel):
+    messages: list[AdvisorChatMessage]
+    # Compact run-facts blob the frontend builds from its /simulate summary (headline/criteria/
+    # bottlenecks/scenario). The LLM is grounded in this — see src/advisor.py::build_system_prompt.
+    context: dict = Field(default_factory=dict)
+
+
+@app.post("/advisor/chat")
+def advisor_chat(req: AdvisorChatRequest) -> dict:
+    """Phase B: LLM chat grounded in one run's numbers. Dormant (200, configured=False) when no
+    LLM_API_KEY is set, so the frontend can hide the box without a failed request."""
+    if not chat_enabled():
+        return {"configured": False, "reply": None}
+    # Only forward real turns, cap history so prompts stay small, and require a trailing user turn.
+    msgs = [{"role": m.role, "content": m.content} for m in req.messages if m.role in ("user", "assistant")][-12:]
+    if not msgs or msgs[-1]["role"] != "user":
+        raise HTTPException(status_code=400, detail="The last message must be from the user.")
+    try:
+        reply = run_chat(msgs, req.context)
+    except AdvisorChatError as e:
+        raise HTTPException(status_code=502, detail=str(e))
+    return {"configured": True, "reply": reply}
+
+
 @app.get("/meta")
 def meta(db: Session = Depends(get_db)) -> dict:
     curriculum, config, scenario = _load_plan_data(db)
@@ -296,6 +326,9 @@ def meta(db: Session = Depends(get_db)) -> dict:
         "dropout_prob_on_repeated_fail": config.get("dropout_prob_on_repeated_fail"),
         "registration_tier_thresholds": config.get("registration_tier_thresholds", []),
         "enrollment_priority_tiers": config.get("enrollment_priority_tiers", []),
+        # Phase B advisor: whether the optional LLM chat is configured (LLM_API_KEY set). The
+        # frontend uses this to show the chat box or a "not configured" note — see src/advisor.py.
+        "llm_chat_enabled": chat_enabled(),
         # Year-standing CH bands + the on-time-graduation cutoff — see student.py::curriculum_stage
         # and analytics.py's on_time_rate. Defaults mirror the engine's own fallback (QU's
         # 30/60/90 CH bands, 8-semester on-time cutoff) so a plan that predates these keys
