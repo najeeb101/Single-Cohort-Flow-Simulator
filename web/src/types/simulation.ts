@@ -294,6 +294,15 @@ export interface ScenarioRequest {
   scenario_id?: number;
 }
 
+// A saved, named override set (POST /scenarios). `overrides` is a ScenarioRequest payload.
+export interface ScenarioRecord {
+  id: number;
+  name: string;
+  overrides: ScenarioRequest;
+  created_at: string;
+  updated_at: string;
+}
+
 export type RuleExpr = string | { all: RuleExpr[] } | { any: RuleExpr[] } | { min_ch: number };
 
 export interface CourseRecord {

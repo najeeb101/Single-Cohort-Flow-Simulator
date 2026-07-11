@@ -13,6 +13,7 @@ import type {
   PlanImportPayload,
   PlanRecord,
   RunRecord,
+  ScenarioRecord,
   ScenarioRequest,
   SimulateResponse,
   StudentProfileFilter,
@@ -96,6 +97,26 @@ export function listRuns(): Promise<RunRecord[]> {
 
 export function getRun(id: number): Promise<RunRecord> {
   return fetch(`${API_BASE}/runs/${id}`).then((res) => asJson<RunRecord>(res));
+}
+
+// Saved scenarios: a named override set persisted for later (POST /scenarios). Scoped to the
+// shared demo user, like runs. See src/scenarios.py.
+export function listScenarios(): Promise<ScenarioRecord[]> {
+  return fetch(`${API_BASE}/scenarios`).then((res) => asJson<ScenarioRecord[]>(res));
+}
+
+export function createScenario(name: string, overrides: ScenarioRequest): Promise<ScenarioRecord> {
+  return fetch(`${API_BASE}/scenarios`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name, overrides }),
+  }).then((res) => asJson<ScenarioRecord>(res));
+}
+
+export function deleteScenario(id: number): Promise<void> {
+  return fetch(`${API_BASE}/scenarios/${id}`, { method: "DELETE" }).then((res) => {
+    if (!res.ok) throw new ApiError(`API returned ${res.status}`);
+  });
 }
 
 export function listCurriculum(): Promise<CourseRecord[]> {

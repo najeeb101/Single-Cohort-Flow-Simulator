@@ -46,8 +46,14 @@ Progress
   the existing calibrated palette (a full WCAG audit is out of scope for this pass). Verified
   end-to-end (single-column KPIs at 600px, keyboard focus outline, aria-labels; 4/4 checks).
 
-**All six planned improvements are shipped and verified.** Remaining ideas beyond this plan:
-save an applied what-if as a named Scenario (#3 secondary), and a WCAG contrast audit (#6).
+**All six planned improvements are shipped and verified.**
+
+Follow-ups beyond the original plan:
+- ✅ **Save what-if as a named Scenario** — shipped. The `/scenarios` backend existed but had no
+  frontend, so this added `api.ts` helpers, a "Save as scenario" control in the What-If panel,
+  and a new **Scenarios** list page (name · override summary · saved date · expand-to-JSON ·
+  delete) under the Plans nav group. Verified end-to-end, self-reverting (7/7 checks).
+- ⏳ A WCAG contrast audit — still open (low priority; palette is already calibrated).
 
 Purpose
 - Collect the prioritized UI improvements discussed from the codebase docs and repository audit.

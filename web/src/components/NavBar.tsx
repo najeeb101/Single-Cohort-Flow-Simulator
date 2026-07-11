@@ -33,6 +33,7 @@ const GROUPS: { label: string; links: NavLink[] }[] = [
     links: [
       { href: "/plans", label: "Plans" },
       { href: "/plan-builder", label: "Plan Builder" },
+      { href: "/scenarios", label: "Scenarios" },
       { href: "/runs", label: "Run History" },
     ],
   },

@@ -1,10 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { ApiError, simulate, updateConfig, updateCourse } from "@/lib/api";
+import { ApiError, createScenario, simulate, updateConfig, updateCourse } from "@/lib/api";
 import { useSimulation } from "@/lib/SimulationContext";
 import { pct } from "@/lib/format";
-import type { Headline, MetaResponse, TopBottlenecks } from "@/types/simulation";
+import type { Headline, MetaResponse, ScenarioRequest, TopBottlenecks } from "@/types/simulation";
 
 interface WhatIfResult {
   metrics: Headline;
@@ -39,6 +39,9 @@ export default function WhatIfPanel({
   const [confirmApply, setConfirmApply] = useState(false);
   const [applying, setApplying] = useState(false);
   const [applied, setApplied] = useState(false);
+  const [scenarioName, setScenarioName] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [savedMsg, setSavedMsg] = useState<string | null>(null);
   // Courses being tested: map of code → extra seats to add
   const [courseSeats, setCourseSeats] = useState<Record<string, number>>(
     () => Object.fromEntries(topCapacity.slice(0, 3).map(([code]) => [code, 0]))
@@ -71,21 +74,28 @@ export default function WhatIfPanel({
     cohortSize !== meta.cohort_size ||
     Object.values(courseSeats).some((v) => v > 0);
 
+  // The ScenarioRequest for the current editor state — the seat edits become per-course capacity
+  // multipliers. Shared by Run (simulate), Apply's math, and Save-as-scenario.
+  const currentOverrides = (): ScenarioRequest => {
+    const capacity_overrides: Record<string, number> = {};
+    for (const [code, extra] of Object.entries(courseSeats)) {
+      const cur = capacityByCode[code] ?? 0;
+      if (extra > 0 && cur > 0) capacity_overrides[code] = (cur + extra) / cur;
+    }
+    return {
+      ...(cohortSize !== meta.cohort_size ? { cohort_size: cohortSize } : {}),
+      ...(Object.keys(capacity_overrides).length ? { capacity_overrides } : {}),
+    };
+  };
+
   const run = async () => {
     setRunning(true);
     setError(null);
     setApplied(false);
     setConfirmApply(false);
+    setSavedMsg(null);
     try {
-      const overrides: Record<string, number> = {};
-      for (const [code, extra] of Object.entries(courseSeats)) {
-        const cur = capacityByCode[code] ?? 0;
-        if (extra > 0 && cur > 0) overrides[code] = (cur + extra) / cur;
-      }
-      const res = await simulate({
-        ...(cohortSize !== meta.cohort_size ? { cohort_size: cohortSize } : {}),
-        ...(Object.keys(overrides).length ? { capacity_overrides: overrides } : {}),
-      });
+      const res = await simulate(currentOverrides());
       const seatsPerStud =
         res.admissions_recommendation?.criteria?.find(
           (c) => c.name === "seats_denied_per_stud"
@@ -122,6 +132,23 @@ export default function WhatIfPanel({
     }
   };
 
+  // Persist the current what-if as a named scenario (POST /scenarios) — a saved override set the
+  // Scenarios page lists, distinct from Apply (which writes into the plan baseline).
+  const saveScenario = async () => {
+    setSaving(true);
+    setError(null);
+    setSavedMsg(null);
+    try {
+      const s = await createScenario(scenarioName.trim(), currentOverrides());
+      setSavedMsg(`Saved “${s.name}” — see the Scenarios page.`);
+      setScenarioName("");
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "Could not save the scenario");
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const reset = () => {
     setCohortSize(meta.cohort_size);
     setCourseSeats(Object.fromEntries(topCapacity.slice(0, 3).map(([code]) => [code, 0])));
@@ -130,6 +157,8 @@ export default function WhatIfPanel({
     setSearch("");
     setApplied(false);
     setConfirmApply(false);
+    setScenarioName("");
+    setSavedMsg(null);
   };
 
   return (
@@ -265,6 +294,28 @@ export default function WhatIfPanel({
               </button>
             )}
             {error && <span className="text-[12.5px] text-bad">{error}</span>}
+
+            {hasChanges && (
+              <div className="ml-auto flex items-center gap-2">
+                <input
+                  type="text"
+                  value={scenarioName}
+                  onChange={(e) => { setScenarioName(e.target.value); setSavedMsg(null); }}
+                  placeholder="Scenario name"
+                  aria-label="Scenario name"
+                  className="w-40 rounded-[7px] border border-border-2 bg-surface-2 px-2.5 py-1 text-[12px] text-ink placeholder:text-faint focus:outline-none focus:ring-1 focus:ring-accent"
+                />
+                <button
+                  type="button"
+                  onClick={saveScenario}
+                  disabled={saving || !scenarioName.trim()}
+                  className="rounded-[9px] border border-border-2 px-3 py-1.5 text-[12.5px] font-semibold text-ink hover:bg-surface-2 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {saving ? "Saving…" : "Save as scenario"}
+                </button>
+                {savedMsg && <span className="text-[11.5px] font-semibold text-good">{savedMsg}</span>}
+              </div>
+            )}
           </div>
 
           {result && (
