@@ -2,7 +2,13 @@
 
 import { useMemo, useRef, useState } from "react";
 import { advisorChat, ApiError } from "@/lib/api";
-import type { AdvisorChatMessage, FlowTimelineSummary, Frame } from "@/types/simulation";
+import { useSimulation } from "@/lib/SimulationContext";
+import AdvisorProposalCard from "@/components/AdvisorProposalCard";
+import type { AdvisorProposal, FlowTimelineSummary, Frame } from "@/types/simulation";
+
+// A chat turn as this component tracks it: the wire shape (role/content) plus any actionable
+// proposals the backend attached to an assistant reply (rendered as one-click Apply cards).
+type ChatTurn = { role: "user" | "assistant"; content: string; proposals?: AdvisorProposal[] };
 
 // Phase B of the hybrid advisor: an optional LLM chat box, grounded in this run's numbers AND the
 // active plan's full curriculum + settings (the backend injects those on every /advisor/chat call
@@ -13,7 +19,7 @@ import type { AdvisorChatMessage, FlowTimelineSummary, Frame } from "@/types/sim
 
 const SUGGESTIONS = [
   "Why aren't we hitting the graduation target?",
-  "Which course should I add seats to first?",
+  "Propose the seat changes to fix the worst bottleneck.",
   "What unlocks after the biggest bottleneck course, and how many seats does it have?",
 ];
 
@@ -65,7 +71,8 @@ export default function AdvisorChat({
   frames: Frame[];
   enabled: boolean;
 }) {
-  const [messages, setMessages] = useState<AdvisorChatMessage[]>([]);
+  const { refreshBaseline } = useSimulation();
+  const [messages, setMessages] = useState<ChatTurn[]>([]);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -92,7 +99,7 @@ export default function AdvisorChat({
   const send = async (text: string) => {
     const q = text.trim();
     if (!q || sending) return;
-    const next: AdvisorChatMessage[] = [...messages, { role: "user", content: q }];
+    const next: ChatTurn[] = [...messages, { role: "user", content: q }];
     setMessages(next);
     setInput("");
     setSending(true);
@@ -100,12 +107,13 @@ export default function AdvisorChat({
     // Let the just-added user bubble paint before scrolling.
     requestAnimationFrame(() => listRef.current?.scrollTo({ top: listRef.current.scrollHeight }));
     try {
-      const res = await advisorChat(next, context);
+      // Only role/content go on the wire; proposals are display-only state, not conversation.
+      const res = await advisorChat(next.map(({ role, content }) => ({ role, content })), context);
       if (!res.configured) {
         setError("Chat isn't configured on the server (no LLM key).");
         return;
       }
-      setMessages([...next, { role: "assistant", content: res.reply ?? "" }]);
+      setMessages([...next, { role: "assistant", content: res.reply ?? "", proposals: res.proposals }]);
       requestAnimationFrame(() => listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: "smooth" }));
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "The advisor couldn't respond — try again.");
@@ -158,7 +166,7 @@ export default function AdvisorChat({
           ) : (
             <div className="flex flex-col gap-2.5">
               {messages.map((m, i) => (
-                <div key={i} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
+                <div key={i} className={`flex flex-col gap-2 ${m.role === "user" ? "items-end" : "items-start"}`}>
                   <div
                     className={`max-w-[85%] whitespace-pre-wrap rounded-2xl px-3 py-2 text-[12.5px] leading-relaxed ${
                       m.role === "user"
@@ -168,6 +176,16 @@ export default function AdvisorChat({
                   >
                     {m.content}
                   </div>
+                  {m.role === "assistant" && m.proposals && m.proposals.length > 0 && (
+                    <div className="flex w-full max-w-[85%] flex-col gap-1.5">
+                      <p className="text-[11px] font-semibold uppercase tracking-wide text-muted">
+                        Suggested changes — you apply
+                      </p>
+                      {m.proposals.map((p, j) => (
+                        <AdvisorProposalCard key={j} proposal={p} onApplied={refreshBaseline} />
+                      ))}
+                    </div>
+                  )}
                 </div>
               ))}
               {sending && (
@@ -209,8 +227,8 @@ export default function AdvisorChat({
       </div>
       <p className="mt-1.5 text-[11px] text-muted">
         Answers come from an LLM reading this run&apos;s numbers and your full curriculum + settings. It can
-        explain and suggest, but can&apos;t change anything — apply changes yourself in Settings, Bottlenecks, or
-        What-if. Treat replies as a starting point, not ground truth.
+        suggest concrete changes, but it never edits anything itself — you review and click Apply, which
+        updates your plan and re-runs the baseline. Treat replies as a starting point, not ground truth.
       </p>
     </section>
   );

@@ -314,15 +314,23 @@ recommendation already uses.
   + settings* (`src/advisor.py::summarize_plan`: every course's seats/pass-rate/offering/
   prerequisites/study-plan-term, plus intake knobs and admission targets), loaded authoritatively
   from the DB so it's always fresh and can't be spoofed by the client. `build_system_prompt` renders
-  all of it, forbids inventing figures/courses, and states the assistant is **read-only** (it can
-  explain and suggest but can't change anything — the admin applies changes via Settings/
-  Bottlenecks/What-if). So it answers detailed per-course questions ("what unlocks X?", "how many
-  seats does Y have?") from the real plan, not a guess. **Graceful degradation**: with no
-  `LLM_API_KEY`, `chat_enabled()` is
+  all of it and forbids inventing figures/courses. So it answers detailed per-course questions
+  ("what unlocks X?", "how many seats does Y have?") from the real plan, not a guess.
+  **Actionable proposals (propose → admin applies)**: the model is instructed to append a fenced
+  ```json {"proposals":[…]}``` block *only* when it recommends a concrete numeric change (types:
+  `capacity`/`offering`/`pass_rate`/`cohort_size`). The endpoint runs `extract_proposals` (pulls the
+  block out so the user sees prose, never raw JSON — fully defensive, a plain reply is untouched)
+  then `validate_proposals` (whitelists the type, checks the course code exists / value is in range /
+  offering seasons are in the plan, normalizes each into a `{type,code?,value,current,reason,label}`
+  card, caps at 3). The frontend (`AdvisorProposalCard.tsx`) renders each as a card with a **guarded
+  Apply** (Apply → confirm "edits your live plan and re-runs the baseline" → routes through the
+  *existing* `PUT /curriculum`/`PUT /config` + `refreshBaseline()`). **The LLM never writes anything
+  itself** — it only suggests; the human confirms, and the write path is the same one Settings uses.
+  **Graceful degradation**: with no `LLM_API_KEY`, `chat_enabled()` is
   `False`, `/meta.llm_chat_enabled` reports it, and the chat box shows a "how to enable" note —
   Phase A is untouched and needs no key. Covered by `tests/test_advisor.py` (enabled path mocks
-  `httpx.post`, so no network). Uses `httpx` (already a dep) — no new package, no `claude-api`
-  skill needed since it's not Anthropic-specific.
+  `httpx.post`, so no network; proposal extraction/validation covered offline). Uses `httpx`
+  (already a dep) — no new package, no `claude-api` skill needed since it's not Anthropic-specific.
 - **Auto-fill** (`src/optimizer.py::solve_for_targets`, `POST /autofill`, panel
   `web/src/components/AutofillPanel.tsx` on the Bottlenecks page) — a bounded **greedy** solver:
   each iteration runs one simulation, finds the course with the worst single-(mandatory-)term

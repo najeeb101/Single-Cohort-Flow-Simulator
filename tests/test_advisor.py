@@ -42,6 +42,19 @@ def _fake_ok(*_args, **_kwargs):
     return _FakeResp(200, {"choices": [{"message": {"content": "  Grounded reply.  "}}]})
 
 
+_REPLY_WITH_PROPOSALS = (
+    "CMPS323 has the most seat denials, so add seats there and ease intake.\n"
+    '```json\n{"proposals": ['
+    '{"type": "capacity", "code": "CMPS323", "value": 150, "reason": "worst seat shortfall"},'
+    '{"type": "cohort_size", "value": 90, "reason": "relieve shared-pool pressure"}'
+    "]}\n```"
+)
+
+
+def _fake_ok_with_proposals(*_args, **_kwargs):
+    return _FakeResp(200, {"choices": [{"message": {"content": _REPLY_WITH_PROPOSALS}}]})
+
+
 # --- prompt grounding -------------------------------------------------------------------
 
 def test_prompt_includes_the_run_numbers_and_rules():
@@ -170,3 +183,79 @@ def test_meta_reports_chat_flag(monkeypatch):
     assert client.get("/meta").json()["llm_chat_enabled"] is False
     monkeypatch.setenv("LLM_API_KEY", "test-key")
     assert client.get("/meta").json()["llm_chat_enabled"] is True
+
+
+# --- actionable proposals (step 2: propose-and-apply) -----------------------------------
+
+def test_extract_proposals_pulls_and_strips_fenced_block():
+    clean, raw = advisor.extract_proposals(_REPLY_WITH_PROPOSALS)
+    assert "```" not in clean and clean.startswith("CMPS323 has the most")  # prose kept, JSON gone
+    assert [p["type"] for p in raw] == ["capacity", "cohort_size"]
+
+
+def test_extract_proposals_plain_reply_is_untouched():
+    text = "Just some advice, no changes."
+    assert advisor.extract_proposals(text) == (text, [])
+
+
+def test_extract_proposals_bare_object_fallback():
+    text = 'Do this.\n{"proposals": [{"type": "cohort_size", "value": 80, "reason": "x"}]}'
+    clean, raw = advisor.extract_proposals(text)
+    assert clean == "Do this." and raw[0]["value"] == 80
+
+
+def test_validate_proposals_normalizes_and_drops_bad():
+    from src.models.course import Course
+
+    curriculum = {
+        "CMPS303": Course(
+            code="CMPS303", title="Data Structures", credits=3, prerequisites=("CMPS151",),
+            pass_rate=0.75, offering=("Fall",), category="cs_core", capacity=90, study_plan_term=3,
+        ),
+    }
+    config = {"cohort_size": 100, "terms_per_year": ["Fall", "Winter", "Spring", "Summer"]}
+    raw = [
+        {"type": "capacity", "code": "CMPS303", "value": 130, "reason": "too full"},
+        {"type": "offering", "code": "CMPS303", "value": ["Fall", "Spring"], "reason": "add spring"},
+        {"type": "pass_rate", "code": "CMPS303", "value": 0.85, "reason": "tutoring"},
+        {"type": "cohort_size", "value": 90, "reason": "less pressure"},
+        {"type": "capacity", "code": "NOPE999", "value": 50, "reason": "bad code"},      # dropped: unknown code
+        {"type": "pass_rate", "code": "CMPS303", "value": 5, "reason": "out of range"},   # dropped: >1
+        {"type": "teleport", "value": 1, "reason": "unknown type"},                        # dropped: bad type
+    ]
+    out = advisor.validate_proposals(raw, curriculum, config)
+    # Capped at 3, most-impactful-first order preserved, only valid ones survive.
+    assert len(out) == 3
+    assert out[0] == {
+        "type": "capacity", "code": "CMPS303", "value": 130, "current": 90,
+        "reason": "too full", "label": "Set CMPS303 capacity to 130 seats (from 90)",
+    }
+    assert out[1]["type"] == "offering" and out[1]["value"] == ["Fall", "Spring"]
+    assert out[2]["type"] == "pass_rate" and out[2]["value"] == 0.85
+
+
+def test_validate_proposals_drops_offering_seasons_not_in_plan():
+    from src.models.course import Course
+
+    curriculum = {"C": Course(code="C", title="", credits=3, prerequisites=(), pass_rate=0.8,
+                              offering=("Fall",), category="cs_core", capacity=10, study_plan_term=1)}
+    config = {"cohort_size": 10, "terms_per_year": ["Fall", "Spring"]}
+    # "Summer" isn't a season in this plan -> filtered out; nothing valid left -> proposal dropped.
+    out = advisor.validate_proposals([{"type": "offering", "code": "C", "value": ["Summer"]}], curriculum, config)
+    assert out == []
+
+
+def test_endpoint_returns_validated_proposals(monkeypatch):
+    monkeypatch.setenv("LLM_API_KEY", "test-key")
+    monkeypatch.setattr(advisor.httpx, "post", _fake_ok_with_proposals)
+    resp = client.post(
+        "/advisor/chat",
+        json={"messages": [{"role": "user", "content": "what should I change?"}], "context": {}},
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["configured"] is True
+    assert "```" not in body["reply"]  # raw JSON stripped from the shown prose
+    props = body["proposals"]
+    assert [p["type"] for p in props] == ["capacity", "cohort_size"]
+    assert props[0]["code"] == "CMPS323" and props[0]["value"] == 150  # validated against the real seeded plan

@@ -14,7 +14,9 @@ When ``LLM_API_KEY`` is unset the whole feature is dormant: :func:`chat_enabled`
 """
 from __future__ import annotations
 
+import json
 import os
+import re
 
 import httpx
 
@@ -162,6 +164,24 @@ def build_system_prompt(context: dict) -> str:
         "upstream); a failure = sat the course and didn't pass. ADDING SEATS DOES NOT FIX FAILURES "
         "— those are a pass-rate/support problem.",
         "",
+        "PROPOSING CHANGES:",
+        "- You can't edit anything yourself, but you CAN propose concrete changes the admin applies "
+        "with one click. ONLY when you recommend a specific, numeric change, end your reply with a "
+        "fenced json block (nothing after it) of exactly this shape:",
+        '```json',
+        '{"proposals": [',
+        '  {"type": "capacity", "code": "<existing course code>", "value": <int seats>, "reason": "<short why>"},',
+        '  {"type": "offering", "code": "<existing course code>", "value": ["Fall","Spring"], "reason": "<short why>"},',
+        '  {"type": "pass_rate", "code": "<existing course code>", "value": <0..1>, "reason": "<short why>"},',
+        '  {"type": "cohort_size", "value": <int>, "reason": "<short why>"}',
+        "]}",
+        '```',
+        "- capacity fixes seat/capacity blocks; offering fixes offering blocks; pass_rate models a "
+        "tutoring/support intervention for a high-failure course; LOWERING cohort_size relieves "
+        "shared-pool pressure everywhere. Only use course codes that appear below. At most 3 "
+        "proposals, most impactful first. If you are NOT proposing a concrete change, omit the block "
+        "entirely. Always give your prose reasoning ABOVE the block.",
+        "",
         f"RUN FACTS (scenario: {scenario}):",
         f"- Graduation rate {_fmt_pct(h.get('graduation_rate'))}, on-time {_fmt_pct(h.get('on_time_rate'))}, "
         f"academic dropout {_fmt_pct(h.get('academic_dropout_rate'))}, censored (ran out of time) "
@@ -238,3 +258,116 @@ def run_chat(messages: list[dict], context: dict, *, timeout: float = 30.0) -> s
         return resp.json()["choices"][0]["message"]["content"].strip()
     except (KeyError, IndexError, TypeError) as e:
         raise AdvisorChatError("Unexpected response shape from the LLM provider.") from e
+
+
+# --- Actionable proposals (step 2: propose a change the admin applies with one click) -----------
+#
+# The model is asked to append a fenced ```json {"proposals":[...]} ``` block ONLY when it
+# recommends a concrete, numeric change. extract_proposals() pulls that block out (so the user
+# never sees raw JSON) and validate_proposals() checks each entry against the real active plan,
+# normalizing it into a card the frontend applies via the existing PUT /curriculum / PUT /config
+# endpoints. Every stage is defensive: a malformed block or a bad entry is dropped, never fatal.
+# The LLM never writes anything — it only suggests; the human clicks Apply.
+
+_FENCE_RE = re.compile(r"```(?:json)?\s*(.*?)\s*```", re.DOTALL)
+_PROPOSAL_TYPES = ("capacity", "offering", "pass_rate", "cohort_size")
+
+
+def extract_proposals(text: str) -> tuple[str, list]:
+    """Split an assistant reply into (prose, raw proposals). Returns ``(text, [])`` unchanged if
+    there is no parseable ``{"proposals": [...]}`` block, so a plain answer is never mangled."""
+    if not text:
+        return text, []
+    for m in _FENCE_RE.finditer(text):
+        try:
+            data = json.loads(m.group(1).strip())
+        except (ValueError, TypeError):
+            continue
+        if isinstance(data, dict) and isinstance(data.get("proposals"), list):
+            clean = (text[: m.start()] + text[m.end():]).strip()
+            return clean, data["proposals"]
+    # Fallback: a bare (un-fenced) {"proposals": ...} object, assumed to run to the end of the text.
+    idx = text.find('{"proposals"')
+    if idx != -1:
+        try:
+            data = json.loads(text[idx:])
+            if isinstance(data, dict) and isinstance(data.get("proposals"), list):
+                return text[:idx].strip(), data["proposals"]
+        except (ValueError, TypeError):
+            pass
+    return text, []
+
+
+def _as_int(v: object) -> int | None:
+    try:
+        return int(v)  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        return None
+
+
+def _as_float(v: object) -> float | None:
+    try:
+        return float(v)  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        return None
+
+
+def validate_proposals(raw: list, curriculum: dict, config: dict) -> list[dict]:
+    """Whitelist + normalize the model's raw proposals against the real active plan.
+
+    Each surviving proposal becomes a card the frontend can apply directly:
+    ``{type, code?, value, current, reason, label}``. Anything with an unknown type, a course code
+    that doesn't exist, or an out-of-range value is dropped (never raised) — the endpoint that
+    actually applies the change is the final gate. Capped at 3.
+    """
+    seasons = set(config.get("terms_per_year") or []) or {"Fall", "Spring"}
+    out: list[dict] = []
+    for p in (raw or [])[:6]:
+        if not isinstance(p, dict) or p.get("type") not in _PROPOSAL_TYPES:
+            continue
+        t = p["type"]
+        reason = str(p.get("reason") or "").strip()[:220]
+
+        if t == "cohort_size":
+            v = _as_int(p.get("value"))
+            if v is None or v < 1:
+                continue
+            cur = config.get("cohort_size")
+            out.append({"type": t, "value": v, "current": cur, "reason": reason,
+                        "label": f"Set cohort size to {v}" + (f" (from {cur})" if cur is not None else "")})
+            continue
+
+        code = p.get("code")
+        course = curriculum.get(code) if isinstance(code, str) else None
+        if course is None:
+            continue
+
+        if t == "capacity":
+            v = _as_int(p.get("value"))
+            if v is None or v < 1:
+                continue
+            cur = getattr(course, "capacity", None)
+            out.append({"type": t, "code": code, "value": v, "current": cur, "reason": reason,
+                        "label": f"Set {code} capacity to {v} seats" + (f" (from {cur})" if cur is not None else "")})
+        elif t == "pass_rate":
+            v = _as_float(p.get("value"))
+            if v is None or not (0.0 <= v <= 1.0):
+                continue
+            cur = getattr(course, "pass_rate", None)
+            cur_txt = f" (from {cur:.0%})" if isinstance(cur, (int, float)) else ""
+            out.append({"type": t, "code": code, "value": v, "current": cur, "reason": reason,
+                        "label": f"Set {code} pass rate to {v:.0%}" + cur_txt})
+        elif t == "offering":
+            val = p.get("value")
+            if not isinstance(val, list):
+                continue
+            val = [s for s in val if s in seasons]
+            if not val:
+                continue
+            cur = list(getattr(course, "offering", ()) or ())
+            out.append({"type": t, "code": code, "value": val, "current": cur, "reason": reason,
+                        "label": f"Offer {code} in {', '.join(val)}" + (f" (was {', '.join(cur)})" if cur else "")})
+
+        if len(out) >= 3:
+            break
+    return out[:3]

@@ -277,9 +277,22 @@ export interface AdvisorChatMessage {
   content: string;
 }
 
+// A concrete, one-click-applicable change the LLM proposed, already validated by the backend
+// against the real active plan. Applied via the existing PUT /curriculum / PUT /config endpoints —
+// the model never writes anything itself.
+export interface AdvisorProposal {
+  type: "capacity" | "offering" | "pass_rate" | "cohort_size";
+  code?: string;
+  value: number | string[];
+  current?: number | string[] | null;
+  reason: string;
+  label: string;
+}
+
 export interface AdvisorChatResponse {
   configured: boolean;
   reply: string | null;
+  proposals?: AdvisorProposal[];
 }
 
 export interface ScenarioRequest {

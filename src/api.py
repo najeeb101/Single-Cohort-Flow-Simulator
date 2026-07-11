@@ -26,7 +26,14 @@ from pydantic import BaseModel, Field, field_validator
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from src.advisor import AdvisorChatError, chat_enabled, run_chat, summarize_plan
+from src.advisor import (
+    AdvisorChatError,
+    chat_enabled,
+    extract_proposals,
+    run_chat,
+    summarize_plan,
+    validate_proposals,
+)
 from src.analytics import build_curriculum_graph, compute_student_trace, find_students_matching
 from src.auth import get_current_user
 from src.curriculum_validation import CycleError, PlanImportError, check_no_cycle
@@ -302,7 +309,12 @@ def advisor_chat(req: AdvisorChatRequest, db: Session = Depends(get_db)) -> dict
         reply = run_chat(msgs, context)
     except AdvisorChatError as e:
         raise HTTPException(status_code=502, detail=str(e))
-    return {"configured": True, "reply": reply}
+    # Pull any concrete-change proposals out of the reply (so the user sees prose, not raw JSON) and
+    # validate them against the real plan. The frontend renders these as one-click "Apply" cards
+    # routed through PUT /curriculum / PUT /config — the model never writes anything itself.
+    clean, raw_proposals = extract_proposals(reply)
+    proposals = validate_proposals(raw_proposals, curriculum, config)
+    return {"configured": True, "reply": clean, "proposals": proposals}
 
 
 @app.get("/meta")
