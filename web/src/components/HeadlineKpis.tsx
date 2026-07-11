@@ -35,13 +35,13 @@ export default function HeadlineKpis({ headline, onTimeTerms }: { headline: Head
         <div className="flex flex-col justify-between rounded-2xl border border-l-[3px] border-border border-l-accent bg-surface p-5 transition-all duration-300 hover:scale-[1.01] hover:shadow-[0_0_25px_-5px_rgba(91,140,255,0.15)] sm:col-span-2 sm:row-span-2">
           <div className="text-[11px] uppercase tracking-wide text-muted">{featured.label}</div>
           <div className="mt-2 text-[48px] font-extrabold leading-none tracking-tight text-accent">{featured.value}</div>
-          <div className="mt-2 min-h-[14px] text-[11px] text-faint">{ciText(featured)}</div>
+          <div className="mt-2 min-h-[14px] text-[11px] text-muted">{ciText(featured)}</div>
         </div>
         {kpis.map((k) => (
           <div key={k.label} className="rounded-2xl border border-border bg-surface p-4 transition-all duration-300 hover:scale-[1.02] hover:border-accent/30 hover:shadow-md">
             <div className="text-[10.5px] uppercase tracking-wide text-muted">{k.label}</div>
             <div className="mt-1 text-[26px] font-extrabold tracking-tight">{k.value}</div>
-            <div className="mt-1 min-h-[14px] text-[11px] text-faint">{ciText(k)}</div>
+            <div className="mt-1 min-h-[14px] text-[11px] text-muted">{ciText(k)}</div>
           </div>
         ))}
       </div>

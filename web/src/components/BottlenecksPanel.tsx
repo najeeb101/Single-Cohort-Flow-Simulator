@@ -67,7 +67,7 @@ export default function BottlenecksPanel({ bottlenecks, frames }: { bottlenecks:
                 <ol className="space-y-1 text-[13px]">
                   {list.map(([code, n], i) => (
                     <li key={code} className="flex items-center gap-2">
-                      <span className="w-4 text-right text-[11px] text-faint tabular-nums">{i + 1}</span>
+                      <span className="w-4 text-right text-[11px] text-muted tabular-nums">{i + 1}</span>
                       <button
                         type="button"
                         onClick={() => setDetail({ signal: k, code })}

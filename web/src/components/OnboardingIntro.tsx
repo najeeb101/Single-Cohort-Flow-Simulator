@@ -103,7 +103,7 @@ export default function OnboardingIntro({ onComplete, showSkip = true }: Props) 
 
           <div className="mt-4 flex gap-4 text-[12px]">
             {STEP_ORDER.map((s) => (
-              <span key={s} className={s === step ? "font-semibold text-accent" : "text-faint"}>
+              <span key={s} className={s === step ? "font-semibold text-accent" : "text-muted"}>
                 {STEP_LABELS[s]}
               </span>
             ))}

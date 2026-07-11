@@ -34,7 +34,7 @@ export default function UtilizationHeatmap({ frames }: { frames: Frame[] }) {
         >
           <div className="sticky left-0 top-0 z-20 bg-surface" />
           {terms.map((t, i) => (
-            <div key={`h-${t}`} className="sticky top-0 z-10 bg-surface text-center text-[7px] leading-[13px] text-faint">
+            <div key={`h-${t}`} className="sticky top-0 z-10 bg-surface text-center text-[7px] leading-[13px] text-muted">
               {i % tickEvery === 0 ? t : ""}
             </div>
           ))}

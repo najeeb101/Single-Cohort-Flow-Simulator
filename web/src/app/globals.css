@@ -73,8 +73,8 @@
   --border: rgba(0, 0, 0, 0.08);
   --border-2: rgba(0, 0, 0, 0.14);
   --ink: #2f3437;
-  --muted: #787774;
-  --faint: #9b9a97;
+  --muted: #706f6c; /* AA: 4.67:1 on surface-2 (was #787774 = 4.14, below 4.5) */
+  --faint: #9b9a97; /* placeholder-only; informational text uses --muted */
   /* On the off-white canvas the brand maroon carries full strength as the accent. */
   --accent: #a51c45;
   --info: #3b66d6;

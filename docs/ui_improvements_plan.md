@@ -53,7 +53,15 @@ Follow-ups beyond the original plan:
   frontend, so this added `api.ts` helpers, a "Save as scenario" control in the What-If panel,
   and a new **Scenarios** list page (name · override summary · saved date · expand-to-JSON ·
   delete) under the Plans nav group. Verified end-to-end, self-reverting (7/7 checks).
-- ⏳ A WCAG contrast audit — still open (low priority; palette is already calibrated).
+- ✅ **WCAG AA contrast audit** — done. Computed contrast ratios for every text/background
+  token pair (both themes). Found two real failures: `--faint` (both themes, ~2.8–3.1) and
+  light `--muted` (4.14–4.48, just under 4.5). Fixed by nudging light `--muted` to `#706f6c`
+  (4.65:1) and moving the five *informational* `text-faint` uses (KPI CI text, list ordinals,
+  onboarding step labels, heatmap headers) to `text-muted`; `--faint` now colours only
+  placeholders, which WCAG 1.4.3 exempts. All informational text clears 4.5:1 in both themes
+  (verified by computation + a light-theme visual check).
+
+**Every item in this plan and both follow-ups are now shipped and verified.**
 
 Purpose
 - Collect the prioritized UI improvements discussed from the codebase docs and repository audit.
