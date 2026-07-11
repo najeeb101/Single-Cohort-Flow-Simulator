@@ -57,6 +57,56 @@ def test_prompt_survives_empty_context():
     assert "RUN FACTS" in advisor.build_system_prompt({})
 
 
+# --- plan grounding (see-more / step 1) -------------------------------------------------
+
+def test_summarize_plan_flattens_curriculum_and_settings():
+    from src.models.course import Course
+
+    curriculum = {
+        "CMPS151": Course(
+            code="CMPS151", title="Programming Concepts", credits=3, prerequisites=(),
+            pass_rate=0.85, offering=("Fall", "Spring"), category="cs_core", capacity=120,
+            study_plan_term=1,
+        ),
+        "CMPS303": Course(
+            code="CMPS303", title="Data Structures", credits=3, prerequisites=("CMPS151",),
+            pass_rate=0.75, offering=("Fall",), category="cs_core", capacity=90, study_plan_term=3,
+        ),
+    }
+    config = {"cohort_size": 100, "num_cohorts": 8, "admit_interval_terms": 3, "max_terms": 12,
+              "optional_terms_enabled": True, "admission_targets": {"target_grad_rate": 0.7}}
+    plan = advisor.summarize_plan(curriculum, config)
+    assert plan["cohort_size"] == 100 and plan["max_terms"] == 12
+    assert plan["targets"]["target_grad_rate"] == 0.7
+    # Courses come back in study-plan order, each carrying its definition.
+    codes = [c["code"] for c in plan["courses"]]
+    assert codes == ["CMPS151", "CMPS303"]
+    ds = next(c for c in plan["courses"] if c["code"] == "CMPS303")
+    assert ds["prerequisites"] == ["CMPS151"] and ds["capacity"] == 90 and ds["offering"] == ["Fall"]
+
+
+def test_prompt_includes_curriculum_and_per_course_run_behavior():
+    context = {
+        **SAMPLE_CONTEXT,
+        "plan": {
+            "cohort_size": 100, "num_cohorts": 8, "admit_interval_terms": 3, "max_terms": 12,
+            "optional_terms_enabled": True, "targets": {"target_grad_rate": 0.7},
+            "courses": [
+                {"code": "CMPS303", "title": "Data Structures", "credits": 3, "category": "cs_core",
+                 "capacity": 90, "pass_rate": 0.75, "offering": ["Fall"], "prerequisites": ["CMPS151"],
+                 "has_rule": False, "study_plan_term": 3},
+            ],
+        },
+        "course_stats": {"CMPS303": {"denied_peak": 42, "full_terms": 5, "passed": 300, "failed": 80}},
+    }
+    p = advisor.build_system_prompt(context)
+    assert "CURRENT PLAN & SETTINGS" in p
+    assert "100 students/cohort" in p           # intake settings surfaced
+    assert "target_grad_rate=0.7" in p          # admission target surfaced
+    assert "seats=90" in p and "prereqs=CMPS151" in p  # the course definition
+    assert "peak seat-denied 42" in p and "passed 300/failed 80" in p  # merged run behavior
+
+
 # --- enable/disable gating --------------------------------------------------------------
 
 def test_chat_disabled_without_key(monkeypatch):

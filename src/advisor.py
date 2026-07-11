@@ -46,11 +46,89 @@ def _fmt_pct(x: object) -> str:
         return "n/a"
 
 
+def summarize_plan(curriculum: dict, config: dict) -> dict:
+    """Compact, LLM-groundable snapshot of the ACTIVE plan: intake knobs, admission targets, and
+    every course's definition (seats, pass rate, offering seasons, prerequisites, study-plan term).
+
+    Injected by the ``/advisor/chat`` endpoint from the requesting user's active plan, so the model
+    can answer detailed per-course questions ("what's the prerequisite for X?", "how many seats
+    does Y have?", "when is Z offered?") from the real curriculum instead of guessing. ``curriculum``
+    is the engine-shape ``{code: Course}`` mapping; ``config`` the plan's config dict.
+    """
+    courses = []
+    for code, c in curriculum.items():
+        courses.append(
+            {
+                "code": code,
+                "title": getattr(c, "title", ""),
+                "credits": getattr(c, "credits", None),
+                "category": getattr(c, "category", ""),
+                "capacity": getattr(c, "capacity", None),
+                "pass_rate": getattr(c, "pass_rate", None),
+                "offering": list(getattr(c, "offering", ()) or ()),
+                "prerequisites": list(getattr(c, "prerequisites", ()) or ()),
+                "has_rule": getattr(c, "rule_expr", None) is not None,
+                "study_plan_term": getattr(c, "study_plan_term", 0),
+            }
+        )
+    # Present in study-plan order so the model reads the curriculum the way the roadmap flows.
+    courses.sort(key=lambda x: (x["study_plan_term"] or 99, x["code"]))
+    return {
+        "cohort_size": config.get("cohort_size"),
+        "num_cohorts": config.get("num_cohorts"),
+        "admit_interval_terms": config.get("admit_interval_terms"),
+        "max_terms": config.get("max_terms"),
+        "optional_terms_enabled": config.get("optional_terms_enabled", False),
+        "targets": config.get("admission_targets") or {},
+        "courses": courses,
+    }
+
+
+def _course_run_stat(stat: dict | None) -> str:
+    """One-clause summary of how a course actually behaved this run (peaks + pass/fail totals)."""
+    if not stat:
+        return ""
+    bits = []
+    if stat.get("denied_peak"):
+        bits.append(f"peak seat-denied {stat['denied_peak']}")
+    if stat.get("full_terms"):
+        bits.append(f"full {stat['full_terms']} terms")
+    if stat.get("offering_blocked_peak"):
+        bits.append(f"peak offering-blocked {stat['offering_blocked_peak']}")
+    if stat.get("prereq_waiting_peak"):
+        bits.append(f"peak prereq-waiting {stat['prereq_waiting_peak']}")
+    passed, failed = stat.get("passed", 0), stat.get("failed", 0)
+    if passed or failed:
+        bits.append(f"passed {passed}/failed {failed}")
+    return ", ".join(bits) if bits else "no pressure"
+
+
+def _course_line(c: dict, stat: dict | None) -> str:
+    """Render one curriculum course as a single dense line: definition + (optional) run behavior."""
+    if c.get("has_rule"):
+        extra = c.get("prerequisites") or []
+        prereqs = "compound-rule" + (f" (+{','.join(extra)})" if extra else "")
+    else:
+        prereqs = ",".join(c.get("prerequisites") or []) or "none"
+    offered = ",".join(c.get("offering") or []) or "?"
+    line = (
+        f"{c.get('code')} {c.get('title', '')} [{c.get('credits')} cr, {c.get('category')}]; "
+        f"seats={c.get('capacity')}; pass≈{_fmt_pct(c.get('pass_rate'))}; offered={offered}; "
+        f"prereqs={prereqs}; term={c.get('study_plan_term') or '-'}"
+    )
+    run = _course_run_stat(stat)
+    if run:
+        line += f" | run: {run}"
+    return line
+
+
 def build_system_prompt(context: dict) -> str:
     """Ground the model in exactly this run's numbers, so it can't invent figures or courses.
 
-    ``context`` is the compact facts blob the frontend builds from the ``/simulate`` summary
-    (``headline`` / ``criteria`` / ``bottlenecks`` / ``scenario``) — every field is optional and
+    ``context`` is the facts blob assembled for one run. The ``/advisor/chat`` endpoint injects
+    ``plan`` (the active plan's full curriculum + settings, via :func:`summarize_plan`); the
+    frontend supplies the ``/simulate`` summary (``headline`` / ``criteria`` / ``bottlenecks`` /
+    ``scenario``) plus per-course run aggregates (``course_stats``). Every field is optional and
     defended, so a partial or empty context still yields a valid prompt.
     """
     ctx = context or {}
@@ -58,6 +136,8 @@ def build_system_prompt(context: dict) -> str:
     criteria = ctx.get("criteria") or []
     bn = ctx.get("bottlenecks") or {}
     scenario = ctx.get("scenario") or "baseline"
+    plan = ctx.get("plan") or {}
+    course_stats = ctx.get("course_stats") or {}
 
     lines = [
         "You are the built-in assistant of a university course-flow SIMULATOR. A discrete-term, "
@@ -66,10 +146,15 @@ def build_system_prompt(context: dict) -> str:
         "out, or run out of time (CENSORED). An administrator is exploring the results of ONE run.",
         "",
         "RULES:",
-        "- Answer ONLY from the run facts below. Never invent numbers, courses, or outcomes.",
-        "- If a question can't be answered from these facts, say so plainly and point them at the "
-        "right tool: Settings (edit the plan), Bottlenecks + Auto-fill (fix seat shortfalls), the "
-        "What-if panel (test a change safely), or Live (step term by term).",
+        "- Answer ONLY from the facts below: this run's numbers PLUS the full curriculum and current "
+        "settings of the active plan (listed under CURRENT PLAN & SETTINGS). Never invent numbers, "
+        "courses, prerequisites, or outcomes — if a course or figure isn't below, say you don't have it.",
+        "- You DO have every course's seats, pass rate, offering seasons, prerequisites, and study-plan "
+        "term, so answer specific per-course questions (\"what unlocks X?\", \"how many seats does Y "
+        "have?\", \"when is Z taught?\") directly from that list.",
+        "- You are read-only: you can't change anything yourself. To act, point them at the right tool: "
+        "Settings (edit the plan), Bottlenecks + Auto-fill (fix seat shortfalls), the What-if panel "
+        "(test a change safely), or Live (step term by term).",
         "- Be concise and concrete — usually 2-5 sentences — and cite the real numbers.",
         "- Mechanics you must respect: a capacity block = wanted a seat but the course was full "
         "(fixed by more seats); an offering block = eligible but the course wasn't taught that term "
@@ -101,6 +186,28 @@ def build_system_prompt(context: dict) -> str:
     _top("fail", "failure courses")
     _top("offering", "offering blocks")
     _top("prereq", "prerequisite blocks")
+
+    if plan:
+        lines.append("")
+        lines.append("CURRENT PLAN & SETTINGS:")
+        lines.append(
+            f"- Intake: {plan.get('cohort_size')} students/cohort, {plan.get('num_cohorts')} cohorts, "
+            f"admit every {plan.get('admit_interval_terms')} terms; up to {plan.get('max_terms')} "
+            "semesters to graduate. Optional (Summer/Winter) terms: "
+            f"{'on' if plan.get('optional_terms_enabled') else 'off'}."
+        )
+        targets = plan.get("targets") or {}
+        if targets:
+            lines.append("- Admission targets: " + ", ".join(f"{k}={v}" for k, v in targets.items()))
+        courses = plan.get("courses") or []
+        if courses:
+            lines.append(
+                f"- Curriculum ({len(courses)} courses, in study-plan order). Each line: "
+                "CODE title [credits, category]; seats; pass rate; offered seasons; prereqs; "
+                "study-plan term | run: how it behaved this run."
+            )
+            for c in courses:
+                lines.append("    " + _course_line(c, course_stats.get(c.get("code"))))
 
     return "\n".join(lines)
 

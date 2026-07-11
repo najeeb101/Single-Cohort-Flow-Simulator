@@ -307,9 +307,18 @@ recommendation already uses.
   `/chat/completions` endpoint selected purely by env vars (`LLM_API_KEY`, `LLM_BASE_URL`
   [default Groq `https://api.groq.com/openai/v1`], `LLM_MODEL` [default
   `llama-3.3-70b-versatile`]) — so Groq/Gemini/OpenRouter/Claude are a config swap, not a code
-  change. The frontend builds a compact facts blob (headline/criteria/bottlenecks) from the
-  `/simulate` summary; `build_system_prompt` grounds the model in exactly those numbers and
-  forbids inventing figures. **Graceful degradation**: with no `LLM_API_KEY`, `chat_enabled()` is
+  change. **Grounding has two sources merged per call**: the frontend sends a facts blob from the
+  `/simulate` summary (headline/criteria/bottlenecks) **plus per-course run aggregates**
+  (`course_stats`: peak seat-denials, terms-full, pass/fail totals, from the frames it already
+  holds); and the **`/advisor/chat` endpoint injects `plan`** — the active plan's *full curriculum
+  + settings* (`src/advisor.py::summarize_plan`: every course's seats/pass-rate/offering/
+  prerequisites/study-plan-term, plus intake knobs and admission targets), loaded authoritatively
+  from the DB so it's always fresh and can't be spoofed by the client. `build_system_prompt` renders
+  all of it, forbids inventing figures/courses, and states the assistant is **read-only** (it can
+  explain and suggest but can't change anything — the admin applies changes via Settings/
+  Bottlenecks/What-if). So it answers detailed per-course questions ("what unlocks X?", "how many
+  seats does Y have?") from the real plan, not a guess. **Graceful degradation**: with no
+  `LLM_API_KEY`, `chat_enabled()` is
   `False`, `/meta.llm_chat_enabled` reports it, and the chat box shows a "how to enable" note —
   Phase A is untouched and needs no key. Covered by `tests/test_advisor.py` (enabled path mocks
   `httpx.post`, so no network). Uses `httpx` (already a dep) — no new package, no `claude-api`

@@ -26,7 +26,7 @@ from pydantic import BaseModel, Field, field_validator
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from src.advisor import AdvisorChatError, chat_enabled, run_chat
+from src.advisor import AdvisorChatError, chat_enabled, run_chat, summarize_plan
 from src.analytics import build_curriculum_graph, compute_student_trace, find_students_matching
 from src.auth import get_current_user
 from src.curriculum_validation import CycleError, PlanImportError, check_no_cycle
@@ -284,17 +284,22 @@ class AdvisorChatRequest(BaseModel):
 
 
 @app.post("/advisor/chat")
-def advisor_chat(req: AdvisorChatRequest) -> dict:
-    """Phase B: LLM chat grounded in one run's numbers. Dormant (200, configured=False) when no
-    LLM_API_KEY is set, so the frontend can hide the box without a failed request."""
+def advisor_chat(req: AdvisorChatRequest, db: Session = Depends(get_db)) -> dict:
+    """Phase B: LLM chat grounded in one run's numbers PLUS the active plan's full curriculum and
+    settings. Dormant (200, configured=False) when no LLM_API_KEY is set, so the frontend can hide
+    the box without a failed request."""
     if not chat_enabled():
         return {"configured": False, "reply": None}
     # Only forward real turns, cap history so prompts stay small, and require a trailing user turn.
     msgs = [{"role": m.role, "content": m.content} for m in req.messages if m.role in ("user", "assistant")][-12:]
     if not msgs or msgs[-1]["role"] != "user":
         raise HTTPException(status_code=400, detail="The last message must be from the user.")
+    # Ground the model in the real curriculum + settings (authoritative, from the active plan) on
+    # top of the run summary the frontend sent — so it can answer per-course questions, not guess.
+    curriculum, config, _scenario = _load_plan_data(db)
+    context = {**(req.context or {}), "plan": summarize_plan(curriculum, config)}
     try:
-        reply = run_chat(msgs, req.context)
+        reply = run_chat(msgs, context)
     except AdvisorChatError as e:
         raise HTTPException(status_code=502, detail=str(e))
     return {"configured": True, "reply": reply}

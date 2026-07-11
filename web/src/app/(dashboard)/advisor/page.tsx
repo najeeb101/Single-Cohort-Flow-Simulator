@@ -8,6 +8,7 @@ export default function AdvisorPage() {
   const { data, meta } = useSimulation();
   const summary = data.flow_timeline.summary;
   const scenario = data.flow_timeline.meta?.scenario ?? "baseline";
+  const frames = data.flow_timeline.frames;
 
   return (
     <main className="mx-auto w-full max-w-[1600px] px-7 pb-16">
@@ -19,7 +20,7 @@ export default function AdvisorPage() {
         </p>
       </header>
       <AdvisorPanel summary={summary} showHeading={false} />
-      <AdvisorChat summary={summary} scenario={scenario} enabled={!!meta.llm_chat_enabled} />
+      <AdvisorChat summary={summary} scenario={scenario} frames={frames} enabled={!!meta.llm_chat_enabled} />
     </main>
   );
 }

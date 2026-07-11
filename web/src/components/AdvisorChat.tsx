@@ -2,26 +2,67 @@
 
 import { useMemo, useRef, useState } from "react";
 import { advisorChat, ApiError } from "@/lib/api";
-import type { AdvisorChatMessage, FlowTimelineSummary } from "@/types/simulation";
+import type { AdvisorChatMessage, FlowTimelineSummary, Frame } from "@/types/simulation";
 
-// Phase B of the hybrid advisor: an optional LLM chat box, grounded in this run's numbers. It
-// only renders live when the backend has an LLM key (meta.llm_chat_enabled); otherwise it shows
-// a short "how to turn it on" note. The rules-based AdvisorPanel (Phase A) works with or without
-// it. The grounding facts are built from the summary the dashboard already has — no extra run.
+// Phase B of the hybrid advisor: an optional LLM chat box, grounded in this run's numbers AND the
+// active plan's full curriculum + settings (the backend injects those on every /advisor/chat call
+// from the DB — see src/api.py). It only renders live when the backend has an LLM key
+// (meta.llm_chat_enabled); otherwise it shows a short "how to turn it on" note. The rules-based
+// AdvisorPanel (Phase A) works with or without it. The run-summary + per-course aggregates below
+// are built from data the dashboard already has — no extra run.
 
 const SUGGESTIONS = [
   "Why aren't we hitting the graduation target?",
   "Which course should I add seats to first?",
-  "What's the difference between capacity and offering blocks here?",
+  "What unlocks after the biggest bottleneck course, and how many seats does it have?",
 ];
+
+// Per-course run behavior, aggregated from the frames the dashboard already holds. Merged into the
+// backend's curriculum list (by course code) so the model sees each course's definition next to how
+// it actually behaved this run — peak seat denials, terms it ran full, pass/fail totals.
+type CourseRunStat = {
+  denied_peak: number;
+  full_terms: number;
+  offering_blocked_peak: number;
+  prereq_waiting_peak: number;
+  passed: number;
+  failed: number;
+};
+
+function aggregateCourseStats(frames: Frame[]): Record<string, CourseRunStat> {
+  const out: Record<string, CourseRunStat> = {};
+  for (const f of frames) {
+    for (const [code, s] of Object.entries(f.courses)) {
+      const a =
+        out[code] ??
+        (out[code] = {
+          denied_peak: 0,
+          full_terms: 0,
+          offering_blocked_peak: 0,
+          prereq_waiting_peak: 0,
+          passed: 0,
+          failed: 0,
+        });
+      if (s.denied > a.denied_peak) a.denied_peak = s.denied;
+      if (s.offering_blocked > a.offering_blocked_peak) a.offering_blocked_peak = s.offering_blocked;
+      if (s.prereq_waiting > a.prereq_waiting_peak) a.prereq_waiting_peak = s.prereq_waiting;
+      if (s.full) a.full_terms += 1;
+      a.passed += s.passed;
+      a.failed += s.failed;
+    }
+  }
+  return out;
+}
 
 export default function AdvisorChat({
   summary,
   scenario,
+  frames,
   enabled,
 }: {
   summary: FlowTimelineSummary;
   scenario: string;
+  frames: Frame[];
   enabled: boolean;
 }) {
   const [messages, setMessages] = useState<AdvisorChatMessage[]>([]);
@@ -44,8 +85,9 @@ export default function AdvisorChat({
       },
       criteria: summary.admissions_recommendation.criteria ?? [],
       bottlenecks: summary.top_bottlenecks,
+      course_stats: aggregateCourseStats(frames),
     };
-  }, [summary, scenario]);
+  }, [summary, scenario, frames]);
 
   const send = async (text: string) => {
     const q = text.trim();
@@ -92,7 +134,7 @@ export default function AdvisorChat({
     <section className="py-6">
       <div className="mb-1 flex items-baseline gap-2">
         <h2 className="text-[15px] font-bold">Ask the advisor</h2>
-        <span className="text-xs font-normal text-muted">— grounded in this run&apos;s numbers</span>
+        <span className="text-xs font-normal text-muted">— grounded in this run&apos;s numbers and your curriculum</span>
       </div>
 
       <div className="rounded-2xl border border-border bg-surface">
@@ -166,7 +208,9 @@ export default function AdvisorChat({
         {error && <p className="px-4 pb-2.5 text-[12px] text-bad">{error}</p>}
       </div>
       <p className="mt-1.5 text-[11px] text-muted">
-        Answers come from an LLM reading this run&apos;s summary — treat them as a starting point, not ground truth.
+        Answers come from an LLM reading this run&apos;s numbers and your full curriculum + settings. It can
+        explain and suggest, but can&apos;t change anything — apply changes yourself in Settings, Bottlenecks, or
+        What-if. Treat replies as a starting point, not ground truth.
       </p>
     </section>
   );
