@@ -77,11 +77,12 @@ export default function AdvisorChat({
       <section className="py-6">
         <h2 className="mb-1 text-[15px] font-bold">Ask the advisor</h2>
         <div className="rounded-2xl border border-dashed border-border-2 bg-surface p-4 text-[12.5px] text-muted">
-          The conversational advisor is off. Set <code className="rounded bg-black/20 px-1 py-0.5">LLM_API_KEY</code> on
-          the backend (Groq&apos;s free tier works — any OpenAI-compatible endpoint via{" "}
-          <code className="rounded bg-black/20 px-1 py-0.5">LLM_BASE_URL</code> /{" "}
-          <code className="rounded bg-black/20 px-1 py-0.5">LLM_MODEL</code>) to chat with an assistant grounded in this
-          run&apos;s numbers. The prioritized advice above works without it.
+          The conversational advisor is off. Add <code className="rounded bg-black/20 px-1 py-0.5">LLM_API_KEY</code> to
+          your <code className="rounded bg-black/20 px-1 py-0.5">.env</code> (see{" "}
+          <code className="rounded bg-black/20 px-1 py-0.5">.env.example</code>) and restart the backend to chat with an
+          assistant grounded in this run&apos;s numbers. Groq&apos;s free tier works out of the box; any
+          OpenAI-compatible endpoint is a swap via <code className="rounded bg-black/20 px-1 py-0.5">LLM_BASE_URL</code> /{" "}
+          <code className="rounded bg-black/20 px-1 py-0.5">LLM_MODEL</code>. The prioritized advice above works without it.
         </div>
       </section>
     );

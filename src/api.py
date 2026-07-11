@@ -13,6 +13,13 @@ import copy
 import dataclasses
 import os
 
+from src.env import load_dotenv
+
+# Load a repo-root .env (if present) BEFORE anything below reads os.environ — so LLM_API_KEY,
+# DATABASE_URL, CORS_ORIGINS, etc. can live in .env instead of being exported on every launch.
+# Real environment variables still win (load_dotenv uses setdefault).
+load_dotenv()
+
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field, field_validator
