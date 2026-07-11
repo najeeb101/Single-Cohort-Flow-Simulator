@@ -41,9 +41,9 @@ export default function ScenariosPage() {
       <header className="border-b border-border py-5">
         <h1 className="text-[19px] font-bold tracking-tight">Scenarios</h1>
         <p className="mt-0.5 max-w-2xl text-[12.5px] text-muted">
-          Saved override sets — named what-ifs you can revisit. Create one from the{" "}
-          <span className="font-semibold text-ink">Try a what-if</span> panel on Bottlenecks
-          (<span className="font-semibold text-ink">Save as scenario</span>). Click a row to see its full override payload.
+          Saved override sets — named what-ifs you can revisit. Create one from a suggestion in the{" "}
+          <span className="font-semibold text-ink">Advisor</span> (each proposal has a{" "}
+          <span className="font-semibold text-ink">Save as scenario</span> option). Click a row to see its full override payload.
         </p>
       </header>
 

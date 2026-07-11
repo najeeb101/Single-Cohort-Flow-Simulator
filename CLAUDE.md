@@ -322,10 +322,17 @@ recommendation already uses.
   block out so the user sees prose, never raw JSON — fully defensive, a plain reply is untouched)
   then `validate_proposals` (whitelists the type, checks the course code exists / value is in range /
   offering seasons are in the plan, normalizes each into a `{type,code?,value,current,reason,label}`
-  card, caps at 3). The frontend (`AdvisorProposalCard.tsx`) renders each as a card with a **guarded
-  Apply** (Apply → confirm "edits your live plan and re-runs the baseline" → routes through the
-  *existing* `PUT /curriculum`/`PUT /config` + `refreshBaseline()`). **The LLM never writes anything
-  itself** — it only suggests; the human confirms, and the write path is the same one Settings uses.
+  card, caps at 3). The frontend (`AdvisorProposalCard.tsx`) renders each as a card with two guarded
+  actions: **Test** (runs one `/simulate` with the proposal as an ephemeral override and shows a
+  predicted before/after table — grad rate, on-time, avg time, dropout, seats-denied — *without
+  writing anything*) and **Apply** (Apply → confirm "edits your live plan and re-runs the baseline"
+  → routes through the *existing* `PUT /curriculum`/`PUT /config` + `refreshBaseline()`). **The LLM
+  never writes anything itself** — it only suggests; the human tests and confirms, and the write path
+  is the same one Settings uses. This Test-then-Apply flow is now the app's **only** what-if surface:
+  the prompt asks the model to emit a proposal for any "what if I…" request, so the advisor is the
+  single entry point. The old standalone **`WhatIfPanel` was removed** (Bottlenecks now links to the
+  advisor for what-if testing); the `capacity_overrides`/`offering_overrides`/`pass_rate_overrides`
+  engine hooks it used are exactly what Test drives.
   **Graceful degradation**: with no `LLM_API_KEY`, `chat_enabled()` is
   `False`, `/meta.llm_chat_enabled` reports it, and the chat box shows a "how to enable" note —
   Phase A is untouched and needs no key. Covered by `tests/test_advisor.py` (enabled path mocks

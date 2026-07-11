@@ -112,8 +112,7 @@ function buildAdvice(summary: FlowTimelineSummary): Advice[] {
       id: "cap",
       severity: "info",
       title: `${cap[0]} is the biggest seat bottleneck`,
-      body: `${cap[1].toLocaleString()} seat denials. Raising its capacity is the most direct relief — but check the what-if first, since some bottlenecks saturate quickly and stop helping.`,
-      action: { label: "Test in what-if →", href: "/bottlenecks" },
+      body: `${cap[1].toLocaleString()} seat denials. Raising its capacity is the most direct relief — but test it first, since some bottlenecks saturate quickly and stop helping. Ask the advisor below to test the exact effect before applying.`,
     });
   }
 
@@ -133,8 +132,7 @@ function buildAdvice(summary: FlowTimelineSummary): Advice[] {
       id: "verdict-good",
       severity: "good",
       title: "All admission targets are met",
-      body: "The current configuration satisfies every health target. You have room to push intake up or test tighter targets in the what-if.",
-      action: { label: "Try a what-if →", href: "/bottlenecks" },
+      body: "The current configuration satisfies every health target. You have room to push intake up — ask the advisor below to test a bigger cohort before committing.",
     });
   }
 

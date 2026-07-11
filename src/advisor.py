@@ -165,9 +165,11 @@ def build_system_prompt(context: dict) -> str:
         "— those are a pass-rate/support problem.",
         "",
         "PROPOSING CHANGES:",
-        "- You can't edit anything yourself, but you CAN propose concrete changes the admin applies "
-        "with one click. ONLY when you recommend a specific, numeric change, end your reply with a "
-        "fenced json block (nothing after it) of exactly this shape:",
+        "- You can't edit anything yourself, but you CAN propose concrete changes the admin can Test "
+        "(a what-if run that predicts the effect) and then Apply. Emit a proposal whenever you "
+        "recommend a specific numeric change, OR whenever the user asks you to test / try / model a "
+        "specific change (a \"what if I…\" question). In those cases end your reply with a fenced json "
+        "block (nothing after it) of exactly this shape:",
         '```json',
         '{"proposals": [',
         '  {"type": "capacity", "code": "<existing course code>", "value": <int seats>, "reason": "<short why>"},',

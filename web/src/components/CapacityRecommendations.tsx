@@ -77,9 +77,11 @@ export default function CapacityRecommendations({
       <p className="mb-4 max-w-3xl text-[12.5px] text-muted">
         Courses ranked by total seat denials. <span className="font-semibold text-ink">Recommended capacity</span>{" "}
         is current capacity plus the worst single term's shortfall — enough to clear every denial seen in
-        this run. Use the what-if panel below to test the actual impact of raising capacity. Go to{" "}
+        this run. To test the actual impact of raising capacity, ask the{" "}
+        <Link href="/advisor" className="font-semibold text-accent">Advisor</Link>{" "}
+        (it predicts the effect, then lets you apply it), or edit{" "}
         <Link href="/settings" className="font-semibold text-accent">Settings</Link>{" "}
-        to make any change permanent.
+        to make a change permanent.
       </p>
 
       <div className="overflow-auto rounded-2xl border border-border bg-surface">

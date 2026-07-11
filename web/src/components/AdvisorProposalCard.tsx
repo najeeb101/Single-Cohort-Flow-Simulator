@@ -1,15 +1,21 @@
 "use client";
 
 import { useState } from "react";
-import { ApiError, updateConfig, updateCourse } from "@/lib/api";
-import type { AdvisorProposal } from "@/types/simulation";
+import { ApiError, createScenario, simulate, updateConfig, updateCourse } from "@/lib/api";
+import { pct } from "@/lib/format";
+import type { AdvisorProposal, Headline, ScenarioRequest } from "@/types/simulation";
 
-// One actionable change the advisor proposed, validated server-side against the real plan. Applying
-// routes through the SAME endpoints Settings uses (PUT /curriculum / PUT /config) and then re-runs
-// the baseline via the parent's refreshBaseline — the LLM never writes anything itself, and the
-// admin has to click through a confirm step, so a bad suggestion can't mutate the plan on its own.
+// One actionable change the advisor proposed, validated server-side against the real plan. Two
+// guarded actions, both driven by the AI's suggestion — this is where the old manual What-if now
+// lives:
+//   • Test  — run one simulation with the proposed override and show the predicted before/after
+//             (no write; the plan is untouched).
+//   • Apply — write it into the active plan via the SAME endpoints Settings uses (PUT /curriculum /
+//             PUT /config) + refreshBaseline, behind an explicit confirm.
+// The LLM never writes anything itself; the human tests and confirms.
 
 type ApplyState = "idle" | "confirm" | "applying" | "applied" | "error";
+type TestResult = { metrics: Headline; seatsPerStud: number | null };
 
 const TYPE_LABEL: Record<AdvisorProposal["type"], string> = {
   capacity: "Seats",
@@ -18,15 +24,87 @@ const TYPE_LABEL: Record<AdvisorProposal["type"], string> = {
   cohort_size: "Intake",
 };
 
+// The proposal, expressed as the ephemeral /simulate override the Test run uses (never persisted).
+function buildOverride(p: AdvisorProposal): ScenarioRequest {
+  if (p.type === "cohort_size") return { cohort_size: p.value as number };
+  const code = p.code ?? "";
+  if (p.type === "capacity") {
+    const cur = typeof p.current === "number" ? p.current : 0;
+    const target = p.value as number;
+    // capacity_overrides is a multiplier on the course's base seats, so target/current lands on it.
+    return cur > 0 ? { capacity_overrides: { [code]: target / cur } } : {};
+  }
+  if (p.type === "pass_rate") return { pass_rate_overrides: { [code]: p.value as number } };
+  if (p.type === "offering") return { offering_overrides: { [code]: p.value as string[] } };
+  return {};
+}
+
+function Delta({ after, before, isPct = false, lowerIsBetter = false }: {
+  after: number; before: number; isPct?: boolean; lowerIsBetter?: boolean;
+}) {
+  const d = after - before;
+  if (Math.abs(d) < 1e-6) return <span className="text-muted">—</span>;
+  const improved = lowerIsBetter ? d < 0 : d > 0;
+  const sign = d > 0 ? "+" : "";
+  const text = isPct ? `${sign}${(d * 100).toFixed(1)}pp` : `${sign}${d.toFixed(2)}`;
+  return <span className={improved ? "font-semibold text-good" : "font-semibold text-bad"}>{text}</span>;
+}
+
 export default function AdvisorProposalCard({
   proposal,
+  baseline,
+  baselineSeatsPerStud,
   onApplied,
 }: {
   proposal: AdvisorProposal;
+  baseline: Headline;
+  baselineSeatsPerStud: number | null;
   onApplied: () => Promise<void> | void;
 }) {
   const [state, setState] = useState<ApplyState>("idle");
   const [err, setErr] = useState<string | null>(null);
+  const [testing, setTesting] = useState(false);
+  const [testErr, setTestErr] = useState<string | null>(null);
+  const [testResult, setTestResult] = useState<TestResult | null>(null);
+  const [showSave, setShowSave] = useState(false);
+  const [scenarioName, setScenarioName] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [saveMsg, setSaveMsg] = useState<string | null>(null);
+  const [saveErr, setSaveErr] = useState<string | null>(null);
+
+  const test = async () => {
+    setTesting(true);
+    setTestErr(null);
+    try {
+      const res = await simulate(buildOverride(proposal));
+      const seatsPerStud =
+        res.admissions_recommendation?.criteria?.find((c) => c.name === "seats_denied_per_stud")?.observed ?? null;
+      setTestResult({ metrics: res.metrics, seatsPerStud });
+    } catch (e) {
+      setTestErr(e instanceof ApiError ? e.message : "Test failed — is the API running?");
+    } finally {
+      setTesting(false);
+    }
+  };
+
+  // Persist this proposal as a named, revisitable Scenario (POST /scenarios) — distinct from Apply,
+  // which bakes it into the plan baseline. Same override the Test run uses.
+  const saveScenario = async () => {
+    const name = scenarioName.trim();
+    if (!name) return;
+    setSaving(true);
+    setSaveErr(null);
+    setSaveMsg(null);
+    try {
+      const s = await createScenario(name, buildOverride(proposal));
+      setSaveMsg(`Saved “${s.name}” — see the Scenarios page.`);
+      setScenarioName("");
+    } catch (e) {
+      setSaveErr(e instanceof ApiError ? e.message : "Couldn't save the scenario.");
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const apply = async () => {
     setState("applying");
@@ -49,6 +127,23 @@ export default function AdvisorProposalCard({
     }
   };
 
+  const rows = testResult
+    ? [
+        { label: "Graduation rate", now: pct(baseline.graduation_rate), next: pct(testResult.metrics.graduation_rate),
+          delta: <Delta after={testResult.metrics.graduation_rate} before={baseline.graduation_rate} isPct /> },
+        { label: "On-time rate", now: pct(baseline.on_time_rate), next: pct(testResult.metrics.on_time_rate),
+          delta: <Delta after={testResult.metrics.on_time_rate} before={baseline.on_time_rate} isPct /> },
+        { label: "Avg time to degree", now: `${baseline.avg_graduation_time.toFixed(1)} sem`, next: `${testResult.metrics.avg_graduation_time.toFixed(1)} sem`,
+          delta: <Delta after={testResult.metrics.avg_graduation_time} before={baseline.avg_graduation_time} lowerIsBetter /> },
+        { label: "Academic dropout", now: pct(baseline.academic_dropout_rate), next: pct(testResult.metrics.academic_dropout_rate),
+          delta: <Delta after={testResult.metrics.academic_dropout_rate} before={baseline.academic_dropout_rate} isPct lowerIsBetter /> },
+        ...(baselineSeatsPerStud !== null && testResult.seatsPerStud !== null
+          ? [{ label: "Seats denied / student", now: baselineSeatsPerStud.toFixed(2), next: testResult.seatsPerStud.toFixed(2),
+              delta: <Delta after={testResult.seatsPerStud} before={baselineSeatsPerStud} lowerIsBetter /> }]
+          : []),
+      ]
+    : [];
+
   return (
     <div className="rounded-xl border border-border-2 bg-surface px-3 py-2.5">
       <div className="flex items-start justify-between gap-3">
@@ -62,7 +157,15 @@ export default function AdvisorProposalCard({
           {proposal.reason && <p className="mt-1 text-[11.5px] leading-snug text-muted">{proposal.reason}</p>}
         </div>
 
-        <div className="shrink-0">
+        <div className="flex shrink-0 items-center gap-2">
+          <button
+            type="button"
+            onClick={test}
+            disabled={testing}
+            className="rounded-lg border border-border-2 px-3 py-1 text-[12px] font-semibold text-ink hover:bg-surface-2 disabled:opacity-50"
+          >
+            {testing ? "Testing…" : testResult ? "Re-test" : "Test"}
+          </button>
           {state === "idle" && (
             <button
               type="button"
@@ -72,14 +175,41 @@ export default function AdvisorProposalCard({
               Apply
             </button>
           )}
-          {state === "applying" && (
-            <span className="text-[12px] text-muted">Applying…</span>
-          )}
-          {state === "applied" && (
-            <span className="text-[12px] font-semibold text-good">✓ Applied</span>
-          )}
+          {state === "applying" && <span className="text-[12px] text-muted">Applying…</span>}
+          {state === "applied" && <span className="text-[12px] font-semibold text-good">✓ Applied</span>}
         </div>
       </div>
+
+      {testErr && <p className="mt-2 text-[11.5px] text-bad">{testErr}</p>}
+
+      {testResult && (
+        <div className="mt-2.5 overflow-x-auto rounded-lg border border-border bg-surface-2">
+          <table className="w-full border-collapse text-[11.5px]">
+            <thead>
+              <tr>
+                {["Predicted effect", "Now", "If applied", "Δ"].map((h) => (
+                  <th key={h} className="border-b border-border px-3 py-1.5 text-left text-[10px] font-semibold uppercase tracking-wide text-muted">
+                    {h}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((r) => (
+                <tr key={r.label} className="border-b border-border last:border-0">
+                  <td className="px-3 py-1.5 text-muted">{r.label}</td>
+                  <td className="px-3 py-1.5 tabular-nums">{r.now}</td>
+                  <td className="px-3 py-1.5 font-semibold tabular-nums">{r.next}</td>
+                  <td className="px-3 py-1.5">{r.delta}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <p className="px-3 py-1.5 text-[10.5px] text-muted">
+            Single-seed estimate on top of the current baseline — nothing was changed. Click Apply to commit it.
+          </p>
+        </div>
+      )}
 
       {state === "confirm" && (
         <div className="mt-2 flex items-center justify-between gap-2 rounded-lg bg-surface-2 px-2.5 py-2">
@@ -115,6 +245,39 @@ export default function AdvisorProposalCard({
           </button>
         </div>
       )}
+
+      <div className="mt-2 flex items-center gap-2">
+        {!showSave ? (
+          <button
+            type="button"
+            onClick={() => setShowSave(true)}
+            className="text-[11px] font-semibold text-muted hover:text-ink"
+          >
+            Save as scenario
+          </button>
+        ) : (
+          <>
+            <input
+              type="text"
+              value={scenarioName}
+              onChange={(e) => { setScenarioName(e.target.value); setSaveMsg(null); }}
+              placeholder="Scenario name"
+              aria-label="Scenario name"
+              className="w-40 rounded-md border border-border-2 bg-surface-2 px-2 py-1 text-[11.5px] text-ink placeholder:text-faint focus:outline-none focus:ring-1 focus:ring-accent"
+            />
+            <button
+              type="button"
+              onClick={saveScenario}
+              disabled={saving || !scenarioName.trim()}
+              className="rounded-md border border-border-2 px-2.5 py-1 text-[11.5px] font-semibold text-ink hover:bg-surface-2 disabled:opacity-50"
+            >
+              {saving ? "Saving…" : "Save"}
+            </button>
+          </>
+        )}
+        {saveMsg && <span className="text-[11px] font-semibold text-good">{saveMsg}</span>}
+        {saveErr && <span className="text-[11px] text-bad">{saveErr}</span>}
+      </div>
     </div>
   );
 }

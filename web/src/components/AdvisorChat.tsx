@@ -20,7 +20,7 @@ type ChatTurn = { role: "user" | "assistant"; content: string; proposals?: Advis
 const SUGGESTIONS = [
   "Why aren't we hitting the graduation target?",
   "Propose the seat changes to fix the worst bottleneck.",
-  "What unlocks after the biggest bottleneck course, and how many seats does it have?",
+  "What if I raise the worst bottleneck's capacity by 50 seats?",
 ];
 
 // Per-course run behavior, aggregated from the frames the dashboard already holds. Merged into the
@@ -72,6 +72,9 @@ export default function AdvisorChat({
   enabled: boolean;
 }) {
   const { refreshBaseline } = useSimulation();
+  const baseline = summary.headline;
+  const baselineSeatsPerStud =
+    summary.admissions_recommendation?.criteria?.find((c) => c.name === "seats_denied_per_stud")?.observed ?? null;
   const [messages, setMessages] = useState<ChatTurn[]>([]);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
@@ -179,10 +182,16 @@ export default function AdvisorChat({
                   {m.role === "assistant" && m.proposals && m.proposals.length > 0 && (
                     <div className="flex w-full max-w-[85%] flex-col gap-1.5">
                       <p className="text-[11px] font-semibold uppercase tracking-wide text-muted">
-                        Suggested changes — you apply
+                        Suggested changes — test, then apply
                       </p>
                       {m.proposals.map((p, j) => (
-                        <AdvisorProposalCard key={j} proposal={p} onApplied={refreshBaseline} />
+                        <AdvisorProposalCard
+                          key={j}
+                          proposal={p}
+                          baseline={baseline}
+                          baselineSeatsPerStud={baselineSeatsPerStud}
+                          onApplied={refreshBaseline}
+                        />
                       ))}
                     </div>
                   )}
@@ -226,9 +235,11 @@ export default function AdvisorChat({
         {error && <p className="px-4 pb-2.5 text-[12px] text-bad">{error}</p>}
       </div>
       <p className="mt-1.5 text-[11px] text-muted">
-        Answers come from an LLM reading this run&apos;s numbers and your full curriculum + settings. It can
-        suggest concrete changes, but it never edits anything itself — you review and click Apply, which
-        updates your plan and re-runs the baseline. Treat replies as a starting point, not ground truth.
+        Answers come from an LLM reading this run&apos;s numbers and your full curriculum + settings. When it
+        suggests a change you can <span className="font-semibold text-ink">Test</span> it (a what-if run that
+        predicts the effect without changing anything) and then <span className="font-semibold text-ink">Apply</span> it,
+        which updates your plan and re-runs the baseline. It never edits anything on its own. Treat replies as a
+        starting point, not ground truth.
       </p>
     </section>
   );
