@@ -29,7 +29,7 @@ function truncate(s: string, n: number): string {
 }
 
 export default function CurriculumGraph({ graph, courses }: Props) {
-  const { positions, width, height, columns, yearBands, headerH, colWidth } = useMemo(
+  const { positions, width, height, columns, yearBands, colWidth } = useMemo(
     () => computeSemesterLayout(graph),
     [graph],
   );
@@ -37,7 +37,9 @@ export default function CurriculumGraph({ graph, courses }: Props) {
   const [selected, setSelected] = useState<string | null>(null);
   const [focused, setFocused] = useState<string | null>(null);
   const [zoom, setZoom] = useState(1);
-  const [tip, setTip] = useState<{ code: string; x: number; y: number; flip: boolean } | null>(null);
+  // maxX (the container width) is captured here, in the hover handler, so render never has to read
+  // a ref — it clamps the tooltip to the container's right edge.
+  const [tip, setTip] = useState<{ code: string; x: number; y: number; flip: boolean; maxX: number } | null>(null);
 
   const outerRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -64,7 +66,7 @@ export default function CurriculumGraph({ graph, courses }: Props) {
     // Flip the tooltip above the node when there isn't room below (bottom-row nodes), so the
     // container's overflow-hidden never clips it.
     const flip = outer.bottom - r.bottom < 110;
-    setTip({ code, x: r.left - outer.left, y: flip ? r.top - outer.top - 6 : r.bottom - outer.top + 6, flip });
+    setTip({ code, x: r.left - outer.left, y: flip ? r.top - outer.top - 6 : r.bottom - outer.top + 6, flip, maxX: outer.width });
   };
   const hideTip = (code: string) => setTip((t) => (t?.code === code ? null : t));
   const toggleSelect = (code: string) => setSelected((cur) => (cur === code ? null : code));
@@ -344,7 +346,7 @@ export default function CurriculumGraph({ graph, courses }: Props) {
           x={tip.x}
           y={tip.y}
           flip={tip.flip}
-          maxX={outerRef.current?.clientWidth ?? width}
+          maxX={tip.maxX}
         />
       )}
 

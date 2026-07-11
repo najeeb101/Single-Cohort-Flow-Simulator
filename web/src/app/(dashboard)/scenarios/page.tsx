@@ -53,7 +53,7 @@ export default function ScenariosPage() {
           <p className="text-[12.5px] text-muted">Loading…</p>
         ) : scenarios.length === 0 ? (
           <p className="text-[12.5px] text-muted">
-            No saved scenarios yet — save one from the What-If panel on the Bottlenecks page.
+            No saved scenarios yet — ask the Advisor for a change, then use its <span className="font-semibold text-ink">Save as scenario</span> option.
           </p>
         ) : (
           <table className="w-full border-collapse text-[12.5px]">

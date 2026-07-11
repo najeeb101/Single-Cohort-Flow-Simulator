@@ -22,6 +22,9 @@ export default function PlansPage() {
   };
 
   useEffect(() => {
+    // Fetch-on-mount: setPlans runs after the awaited request resolves (or in .catch), never
+    // synchronously in the effect body, so the cascading-render concern the rule guards doesn't apply.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     refreshPlans().catch(() => setPlans([]));
   }, []);
 

@@ -52,13 +52,9 @@ function buildRecommendations(frames: Frame[], meta: MetaResponse): CourseRec[] 
 export default function CapacityRecommendations({
   frames,
   meta,
-  baselineGradRate: _baselineGradRate,
-  baselineSeatsPerStud: _baselineSeatsPerStud,
 }: {
   frames: Frame[];
   meta: MetaResponse;
-  baselineGradRate: number;
-  baselineSeatsPerStud: number | null;
 }) {
   const recs = useMemo(() => buildRecommendations(frames, meta), [frames, meta]);
 
@@ -76,7 +72,7 @@ export default function CapacityRecommendations({
       <h2 className="mb-1 text-[15px] font-bold">Capacity recommendations</h2>
       <p className="mb-4 max-w-3xl text-[12.5px] text-muted">
         Courses ranked by total seat denials. <span className="font-semibold text-ink">Recommended capacity</span>{" "}
-        is current capacity plus the worst single term's shortfall — enough to clear every denial seen in
+        is current capacity plus the worst single term&apos;s shortfall — enough to clear every denial seen in
         this run. To test the actual impact of raising capacity, ask the{" "}
         <Link href="/advisor" className="font-semibold text-accent">Advisor</Link>{" "}
         (it predicts the effect, then lets you apply it), or edit{" "}

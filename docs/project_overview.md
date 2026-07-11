@@ -190,8 +190,8 @@ seed and that student's own unique ID, re-created identically every time a given
 run. That means **the same simulated student draws the exact same sequence of "random" pass/fail
 outcomes in every scenario you compare them across** — so if you add five seats to a gateway course
 and graduation rate moves, you know that's because of the seats, not because the dice happened to
-land differently. This is what makes structural what-if comparisons (the Bottlenecks page's
-what-if panel, or a persisted config edit in Settings) causally meaningful instead of just noisy. A student's fixed ability score and their seat-allocation
+land differently. This is what makes structural what-if comparisons (the Advisor's
+what-if Test on a proposed change, or a persisted config edit in Settings) causally meaningful instead of just noisy. A student's fixed ability score and their seat-allocation
 tiebreak token are deliberately kept on separate draws so they don't perturb the pass/fail stream
 itself.
 
@@ -234,11 +234,11 @@ visualize.py                       service.py::run_simulation()
                                         FastAPI backend
                                               ▼
                                   Next.js dashboard: animated curriculum graph,
-                                  Advisor (rules-based recommendations),
-                                  Bottlenecks (what-if panel + section
-                                  recommendations + Auto-fill solver), Student
-                                  Trace, Settings (curriculum + config editing),
-                                  Live Simulation, Plans
+                                  Advisor (rules-based recommendations + grounded
+                                  LLM chat with what-if Test/Apply on proposed
+                                  changes), Bottlenecks (section recommendations +
+                                  Auto-fill solver), Student Trace, Settings
+                                  (curriculum + config editing), Live Simulation, Plans
 ```
 
 There is only **one** simulation engine. The offline batch run and the live web dashboard call the
@@ -265,7 +265,7 @@ Because the four signals (§3.4) are tracked separately rather than collapsed in
   courses is how the model points you at the real chokepoint instead of its symptoms.
 - *If we relieve one specific bottleneck (add a section, add a second offering season, raise a
   pass rate), does the overall graduation rate actually move, or was that never the binding
-  constraint?* This is what the Bottlenecks page's what-if panel is for. Common Random Numbers
+  constraint?* This is what the Advisor's what-if (Test a proposed change) is for. Common Random Numbers
   (§3.6) make the *difference* between two scenarios trustworthy even when neither scenario's
   absolute number is.
 - *How much does the shared seat pool's behavior vary year to year just from cohort-to-cohort
@@ -373,15 +373,17 @@ identical seeds per student so the *differences* between scenarios are real even
   knobs a one-off scenario would, but as a *persistent* change rather than a per-run override.
   This is where the optional-term toggle lives. Edits here persist immediately as the new
   baseline for every future run.
-- **Advisor** — a rules-based (no AI, no external API) reading of a run's own numbers into a
-  prioritized, plain-language list of what to look at first — the fastest way to get oriented in a
-  run before diving into Bottlenecks.
+- **Advisor** — two layers over a run's own numbers. A rules-based (no AI, no external API)
+  prioritized, plain-language list of what to look at first, plus an optional grounded LLM chat
+  (dormant without an API key) that reads the full curriculum + settings and can propose concrete
+  changes. Each proposal has **Test** (a one-off what-if run that predicts the effect without
+  saving), **Apply** (persist it to the plan), and **Save as scenario** — so the Advisor is the
+  app's single what-if surface.
 - **Bottlenecks** — the primary "what's actually wrong, and what would fix it" page: the
   four-signal breakdown by course, per-course section recommendations (estimated relief from
-  adding a section), an inline what-if panel that runs a one-off comparison (bump cohort size, add
-  sections to specific courses) against the current baseline without saving anything, and an
-  Auto-fill solver that searches for the smallest capacity additions that meet the committee's own
-  admission targets and applies them with one click.
+  adding a section), and an Auto-fill solver that searches for the smallest capacity additions that
+  meet the committee's own admission targets and applies them with one click. (What-if testing of a
+  specific change moved to the Advisor.)
 - **Student Trace** — pick one (synthetic) student by profile — a cohort, an outcome, whether they
   were ever on probation — and see their exact term-by-term path: courses taken and passed or
   failed, where they got stuck and by which of the four signals, and how their GPA moved. The

@@ -11,7 +11,7 @@ export default function PrerequisitesPage() {
       <header className="border-b border-border py-5">
         <h1 className="text-[19px] font-bold tracking-tight">Prerequisites</h1>
         <p className="mt-0.5 max-w-2xl text-[12.5px] text-muted">
-          The prerequisite dependency graph — each arrow means "must pass this before taking that." Courses with many outgoing arrows (high out-degree) are gateways: failing or being blocked on them delays every course downstream. Node colour reflects how often students were blocked on that course across the run.
+          The prerequisite dependency graph — each arrow means &quot;must pass this before taking that.&quot; Courses with many outgoing arrows (high out-degree) are gateways: failing or being blocked on them delays every course downstream. Node colour reflects how often students were blocked on that course across the run.
         </p>
       </header>
       <section className="py-6">

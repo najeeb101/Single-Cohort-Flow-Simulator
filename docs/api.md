@@ -52,7 +52,8 @@ Returns everything the dashboard needs before running a simulation, resolved fro
   "dropout_delay_hazard_scale": 0.0,
   "registration_tier_thresholds": [...],
   "enrollment_priority_tiers": [...],
-  "admission_targets": { "target_grad_rate": 0.70, ... }
+  "admission_targets": { "target_grad_rate": 0.70, ... },
+  "llm_chat_enabled": false            // true iff LLM_API_KEY is set (Advisor chat available)
 }
 ```
 
@@ -264,3 +265,43 @@ guarantee from when auth existed and worth keeping if it's ever reintroduced).
 | `DELETE` | `/scenarios/{id}` | |
 | `GET` | `/runs` | list, newest-first; each is a `POST /simulate` call's overrides + summary |
 | `GET` | `/runs/{id}` | `404` if not owned |
+
+---
+
+## Advisor chat (optional LLM)
+
+`src/advisor.py`. Provider-agnostic (any OpenAI-compatible `/chat/completions`), selected by env
+vars: `LLM_API_KEY` (enables the feature), `LLM_BASE_URL` (default Groq), `LLM_MODEL` (default
+`llama-3.3-70b-versatile`). See `.env.example`. With no key the feature is dormant and
+`GET /meta.llm_chat_enabled` is `false`.
+
+### `POST /advisor/chat`
+Grounded chat about the current run. The request carries the conversation plus a `context` blob
+the frontend built from its `/simulate` summary; the endpoint additionally injects the active
+plan's full curriculum + settings (`summarize_plan`) so the model can answer per-course questions
+from real data. Read-only: it can suggest changes but never writes.
+
+```jsonc
+// request
+{
+  "messages": [ {"role": "user", "content": "what should I change?"} ],  // last must be "user"
+  "context": { "headline": {...}, "criteria": [...], "bottlenecks": {...}, "course_stats": {...} }
+}
+// response — dormant (no key):
+{ "configured": false, "reply": null }
+// response — configured:
+{
+  "configured": true,
+  "reply": "MAGT101 has the most seat denials…",   // prose, with any JSON proposal block stripped
+  "proposals": [                                     // validated against the real plan; may be []
+    { "type": "capacity", "code": "MAGT101", "value": 120, "current": 70,
+      "reason": "worst seat bottleneck", "label": "Set MAGT101 capacity to 120 seats (from 70)" }
+  ]
+}
+```
+
+Proposal `type` ∈ `capacity` | `offering` | `pass_rate` | `cohort_size` (capped at 3). The frontend
+renders each as a card: **Test** runs `POST /simulate` with the proposal as an ephemeral override
+(predicts the effect, writes nothing), **Apply** persists it via `PUT /curriculum`/`PUT /config`,
+and **Save as scenario** calls `POST /scenarios`. `400` if the last message isn't from the user;
+`502` if the LLM provider is unreachable or returns an error.

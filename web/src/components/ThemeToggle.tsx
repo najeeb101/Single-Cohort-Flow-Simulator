@@ -9,6 +9,10 @@ export default function ThemeToggle() {
   const [light, setLight] = useState(false);
 
   useEffect(() => {
+    // One-time sync from the DOM class the pre-paint script (layout.tsx) already set. Done after
+    // mount rather than as a lazy initializer on purpose: reading `document` during render would
+    // cause an SSR/client hydration mismatch. The rule's "avoid setState in effect" doesn't fit here.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setLight(document.documentElement.classList.contains("theme-light"));
   }, []);
 

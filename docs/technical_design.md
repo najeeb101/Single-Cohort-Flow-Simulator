@@ -395,10 +395,10 @@ src/
 ├── visualize.py          # save_all_figures() + per-figure functions (offline `py run.py` path)
 └── utils.py              # load_json(), grade_tier()
 
-web/         Next.js/TypeScript dashboard — Dashboard, Advisor, Bottlenecks (what-if panel +
-             capacity recommendations + Auto-fill solver), Student Trace, Cohorts, Figures,
-             Prerequisites, Settings (curriculum + config editing), Plans/Plan Builder,
-             Run History, Live Simulation
+web/         Next.js/TypeScript dashboard — Dashboard, Advisor (grounded LLM chat + what-if
+             Test/Apply on proposed changes), Bottlenecks (capacity recommendations + Auto-fill
+             solver), Student Trace, Cohorts, Figures, Prerequisites, Settings (curriculum +
+             config editing), Plans/Plan Builder, Run History, Live Simulation
 run.py       # entry point: load -> run_simulation() per scenario -> save figures + CSV
 ```
 
@@ -414,8 +414,8 @@ A single `baseline` scenario ships in `simulation_config.json` (renamed from an 
 `A_baseline`, after a second calibrated scenario was tried and later dropped). The
 `capacity_multiplier` field allows a future scenario to scale all capacities uniformly.
 Per-course overrides are supported via `capacity_overrides`, `offering_overrides`, and
-`pass_rate_overrides` in a scenario/override dict — these are the hooks the Bottlenecks page's
-what-if panel and Live Simulation's edits both build on.
+`pass_rate_overrides` in a scenario/override dict — these are the hooks the Advisor's what-if
+(Test on a proposed change) and Live Simulation's edits both build on.
 
 ---
 

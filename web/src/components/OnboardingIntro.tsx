@@ -88,7 +88,7 @@ export default function OnboardingIntro({ onComplete, showSkip = true }: Props) 
             <>
               <h1 className="mt-3 text-[22px] font-extrabold tracking-tight text-ink">How it works</h1>
               <p className="mt-1 text-[13px] leading-relaxed text-muted">
-                Three things you can do with a plan, once it's simulated.
+                Three things you can do with a plan, once it&apos;s simulated.
               </p>
             </>
           )}
