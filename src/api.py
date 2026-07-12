@@ -754,11 +754,7 @@ def rename_plan(
     plan_id: int, body: dict, db: Session = Depends(get_db)
 ) -> dict:
     current_user = get_current_user(db)
-    plan = db.get(PlanRow, plan_id)
-    if plan is None or plan.owner_user_id != current_user.id:
-        raise HTTPException(status_code=404, detail="Plan not found")
-    if plan.is_default:
-        raise HTTPException(status_code=400, detail="Cannot rename the default plan")
+    plan = _get_visible_plan(db, plan_id, current_user)
     name = (body.get("name") or "").strip()
     if not name:
         raise HTTPException(status_code=422, detail="Name must not be empty")

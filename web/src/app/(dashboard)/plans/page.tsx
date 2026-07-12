@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { activatePlan, deletePlan, exportPlan, listPlans } from "@/lib/api";
+import { activatePlan, deletePlan, exportPlan, listPlans, renamePlan } from "@/lib/api";
 import { useSimulation } from "@/lib/SimulationContext";
 import type { PlanRecord } from "@/types/simulation";
 
@@ -10,6 +10,8 @@ export default function PlansPage() {
   const { refreshBaseline } = useSimulation();
   const [plans, setPlans] = useState<PlanRecord[] | null>(null);
   const [busy, setBusy] = useState<number | null>(null);
+  const [editing, setEditing] = useState<number | null>(null);
+  const [draftName, setDraftName] = useState("");
   const [error, setError] = useState<string | null>(null);
 
   const refreshPlans = async () => {
@@ -31,6 +33,41 @@ export default function PlansPage() {
       await Promise.all([refreshPlans(), refreshBaseline()]);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not activate plan");
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const startRename = (plan: PlanRecord) => {
+    setEditing(plan.id);
+    setDraftName(plan.name);
+    setError(null);
+  };
+
+  const cancelRename = () => {
+    setEditing(null);
+    setDraftName("");
+  };
+
+  const saveRename = async (plan: PlanRecord) => {
+    const name = draftName.trim();
+    if (!name) {
+      setError("Plan name must not be empty");
+      return;
+    }
+    if (name === plan.name) {
+      cancelRename();
+      return;
+    }
+
+    setBusy(plan.id);
+    setError(null);
+    try {
+      await renamePlan(plan.id, name);
+      await refreshPlans();
+      cancelRename();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not rename plan");
     } finally {
       setBusy(null);
     }
@@ -103,7 +140,45 @@ export default function PlansPage() {
               <tbody>
                 {plans.map((plan) => (
                   <tr key={plan.id} className="group transition-colors hover:bg-surface-2">
-                    <td className="border-b border-border px-3 py-2">{plan.name}</td>
+                    <td className="border-b border-border px-3 py-2">
+                      {editing === plan.id ? (
+                        <form
+                          className="flex max-w-md items-center gap-2"
+                          onSubmit={(e) => {
+                            e.preventDefault();
+                            saveRename(plan);
+                          }}
+                        >
+                          <input
+                            value={draftName}
+                            onChange={(e) => setDraftName(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === "Escape") cancelRename();
+                            }}
+                            autoFocus
+                            disabled={busy !== null}
+                            className="min-w-0 flex-1 rounded-lg border border-border-2 bg-surface px-3 py-1.5 text-sm font-semibold text-ink"
+                          />
+                          <button
+                            type="submit"
+                            disabled={busy !== null}
+                            className="font-semibold text-accent disabled:opacity-50"
+                          >
+                            Save
+                          </button>
+                          <button
+                            type="button"
+                            onClick={cancelRename}
+                            disabled={busy !== null}
+                            className="font-semibold text-muted hover:text-ink disabled:opacity-50"
+                          >
+                            Cancel
+                          </button>
+                        </form>
+                      ) : (
+                        plan.name
+                      )}
+                    </td>
                     <td className="border-b border-border px-3 py-2 text-muted">
                       {plan.is_default ? "Default" : "Private"}
                     </td>
@@ -116,6 +191,16 @@ export default function PlansPage() {
                     </td>
                     <td className="border-b border-border px-3 py-2">
                       <div className="flex justify-end gap-3">
+                        {editing !== plan.id && (
+                          <button
+                            type="button"
+                            onClick={() => startRename(plan)}
+                            disabled={busy !== null}
+                            className="font-semibold text-accent disabled:opacity-50"
+                          >
+                            Rename
+                          </button>
+                        )}
                         {!plan.is_active && (
                           <button
                             type="button"

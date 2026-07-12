@@ -74,6 +74,32 @@ def test_update_config_rejects_malformed_initial_state():
     assert resp.status_code == 422
 
 
+def test_plan_rename_updates_private_and_default_plans():
+    default_plan = next(p for p in client.get("/plans").json() if p["is_default"])
+    original_default_name = default_plan["name"]
+    export_payload = client.get(f"/plans/{default_plan['id']}/export").json()
+
+    created = client.post(
+        "/plans/import",
+        json={**export_payload, "name": "Rename API Fixture"},
+    )
+    assert created.status_code == 200
+    plan_id = created.json()["id"]
+
+    try:
+        renamed = client.patch(f"/plans/{plan_id}", json={"name": "Renamed API Fixture"})
+        assert renamed.status_code == 200
+        assert renamed.json()["name"] == "Renamed API Fixture"
+        assert any(p["id"] == plan_id and p["name"] == "Renamed API Fixture" for p in client.get("/plans").json())
+
+        default_rename = client.patch(f"/plans/{default_plan['id']}", json={"name": "Renamed Default Fixture"})
+        assert default_rename.status_code == 200
+        assert default_rename.json()["name"] == "Renamed Default Fixture"
+    finally:
+        client.patch(f"/plans/{default_plan['id']}", json={"name": original_default_name})
+        client.delete(f"/plans/{plan_id}")
+
+
 def test_simulate_default_matches_run_simulation():
     resp = client.post("/simulate", json={})
     assert resp.status_code == 200
