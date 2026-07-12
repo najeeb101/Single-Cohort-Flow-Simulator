@@ -2,10 +2,10 @@ import type { CohortMetric } from "@/types/simulation";
 import { pct } from "@/lib/format";
 
 // Faithful port of frontend/app.js::renderCohortsTable().
-export default function CohortsTable({ cohorts }: { cohorts: CohortMetric[] }) {
+export default function CohortsTable({ cohorts, showHeading = true }: { cohorts: CohortMetric[]; showHeading?: boolean }) {
   return (
-    <section className="py-6">
-      <h2 className="mb-1 text-[15px] font-bold">Per-cohort outcomes</h2>
+    <section className={showHeading ? "py-6" : ""}>
+      {showHeading && <h2 className="mb-1 text-[15px] font-bold">Per-cohort outcomes</h2>}
       <p className="mb-4 max-w-3xl text-[12.5px] text-muted">
         One row per cohort showing graduation rate, dropout rate, and average semesters to complete — plus the single course that blocked each cohort the most by seat denial, prerequisite, and failure. Cohorts that entered in busy years (when the university is already full) typically show lower graduation rates and higher seat-block counts than later cohorts.
       </p>

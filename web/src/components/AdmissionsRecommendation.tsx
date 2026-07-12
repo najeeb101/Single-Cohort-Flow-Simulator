@@ -2,12 +2,14 @@ import type { AdmissionsRecommendation as Rec } from "@/types/simulation";
 import { formatCriterionValue } from "@/lib/format";
 
 // Faithful port of frontend/app.js::renderRecommendation().
-export default function AdmissionsRecommendation({ rec }: { rec: Rec }) {
+export default function AdmissionsRecommendation({ rec, showHeading = true }: { rec: Rec; showHeading?: boolean }) {
   return (
-    <section className="py-6">
-      <h2 className="mb-4 text-[15px] font-bold">
-        Admissions recommendation <span className="text-xs font-normal text-muted">— heuristic, edit targets in Settings</span>
-      </h2>
+    <section className={showHeading ? "py-6" : ""}>
+      {showHeading && (
+        <h2 className="mb-4 text-[15px] font-bold">
+          Admissions recommendation <span className="text-xs font-normal text-muted">— heuristic, edit targets in Settings</span>
+        </h2>
+      )}
       <div className="rounded-2xl border border-border border-l-[3px] border-l-good bg-surface px-5.5 py-4.5">
         {!rec.recommended_intake ? (
           <span className="text-xs text-muted">No recommendation.</span>

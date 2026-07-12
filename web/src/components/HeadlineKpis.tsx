@@ -2,7 +2,7 @@ import type { Headline } from "@/types/simulation";
 import { pct } from "@/lib/format";
 
 // Faithful port of frontend/app.js::renderHeadline().
-export default function HeadlineKpis({ headline, onTimeTerms }: { headline: Headline; onTimeTerms: number }) {
+export default function HeadlineKpis({ headline, onTimeTerms, showHeading = true }: { headline: Headline; onTimeTerms: number; showHeading?: boolean }) {
   const ci = headline.confidence_intervals ?? {};
 
   // Graduation rate is the headline's headline — the one number the whole simulation
@@ -26,11 +26,13 @@ export default function HeadlineKpis({ headline, onTimeTerms }: { headline: Head
   const mcNote = ci.graduation_rate ? `(Monte Carlo, ${ci.graduation_rate.n_runs} seeds — 95% CI shown)` : null;
 
   return (
-    <section className="py-6">
-      <h2 className="mb-4 text-[15px] font-bold">
-        Headline results
-        {mcNote && <span className="ml-2 text-xs font-normal text-muted">{mcNote}</span>}
-      </h2>
+    <section className={showHeading ? "py-6" : ""}>
+      {showHeading && (
+        <h2 className="mb-4 text-[15px] font-bold">
+          Headline results
+          {mcNote && <span className="ml-2 text-xs font-normal text-muted">{mcNote}</span>}
+        </h2>
+      )}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-4">
         <div className="flex flex-col justify-between rounded-2xl border border-l-[3px] border-border border-l-accent bg-surface p-5 transition-all duration-300 hover:scale-[1.01] hover:shadow-[0_0_25px_-5px_rgba(91,140,255,0.15)] sm:col-span-2 sm:row-span-2">
           <div className="text-[11px] uppercase tracking-wide text-muted">{featured.label}</div>

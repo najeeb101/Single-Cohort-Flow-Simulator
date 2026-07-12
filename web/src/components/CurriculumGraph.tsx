@@ -1,13 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import type { CourseFrameStat, Graph } from "@/types/simulation";
 import { categoryStyle, categoryStyleMap, computeSemesterLayout, utilColor } from "@/lib/graphLayout";
 import CourseTooltip from "@/components/CourseTooltip";
-
-const ZOOM_MIN = 0.5;
-const ZOOM_MAX = 3;
-const clampZoom = (z: number) => Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, z));
 
 interface Props {
   graph: Graph; // frozen at initial load — see page.tsx; never changes across live updates
@@ -21,9 +17,9 @@ interface Props {
 // state (the seat-use bar, stat text, full border) is plain props so React only touches what
 // changes between frames.
 //
-// Static, not pannable/zoomable: width/height attrs scale to fit the container (viewBox keeps
-// the internal coordinate system fixed) so the whole roadmap is always visible. A ResizeObserver
-// keeps that fit correct on later container resizes.
+// Static, not pannable/zoomable: the SVG renders at width:100% + height:auto over a fixed viewBox,
+// so the whole roadmap (every course) always fits the container's width and scales with it — no
+// zoom controls or scrolling. Boxes get smaller on narrow screens but everything stays visible.
 function truncate(s: string, n: number): string {
   return s.length > n ? s.slice(0, n - 1) + "…" : s;
 }
@@ -36,28 +32,11 @@ export default function CurriculumGraph({ graph, courses }: Props) {
   const catStyles = useMemo(() => categoryStyleMap(graph.nodes), [graph.nodes]);
   const [selected, setSelected] = useState<string | null>(null);
   const [focused, setFocused] = useState<string | null>(null);
-  const [zoom, setZoom] = useState(1);
   // maxX (the container width) is captured here, in the hover handler, so render never has to read
   // a ref — it clamps the tooltip to the container's right edge.
   const [tip, setTip] = useState<{ code: string; x: number; y: number; flip: boolean; maxX: number } | null>(null);
 
   const outerRef = useRef<HTMLDivElement>(null);
-  const scrollRef = useRef<HTMLDivElement>(null);
-
-  // Ctrl/⌘ + wheel zooms (a plain wheel still scrolls, so we never hijack normal scrolling).
-  // Registered natively with { passive: false } because preventDefault is needed and React's
-  // synthetic wheel handler can't guarantee a non-passive listener.
-  useEffect(() => {
-    const el = scrollRef.current;
-    if (!el) return;
-    const onWheel = (e: WheelEvent) => {
-      if (!(e.ctrlKey || e.metaKey)) return;
-      e.preventDefault();
-      setZoom((z) => clampZoom(z * (e.deltaY < 0 ? 1.1 : 1 / 1.1)));
-    };
-    el.addEventListener("wheel", onWheel, { passive: false });
-    return () => el.removeEventListener("wheel", onWheel);
-  }, []);
 
   const showTip = (code: string, el: SVGGElement) => {
     const outer = outerRef.current?.getBoundingClientRect();
@@ -116,22 +95,11 @@ export default function CurriculumGraph({ graph, courses }: Props) {
     <div
       ref={outerRef}
       data-testid="curriculum-graph-viewport"
-      className="relative min-h-[300px] flex-1 overflow-hidden rounded-2xl border border-border bg-surface-2/40 shadow-inner"
+      className="relative rounded-2xl border border-border bg-surface-2/40 p-4 shadow-inner"
     >
-      {/* Zoom controls */}
-      <div className="absolute right-3 top-3 z-20 flex items-center gap-0.5 rounded-lg border border-border-2 bg-surface-2/90 p-1 backdrop-blur">
-        <button type="button" onClick={() => setZoom((z) => clampZoom(z / 1.25))} aria-label="Zoom out" className="grid h-6 w-6 place-items-center rounded text-[15px] font-bold leading-none text-ink hover:bg-surface">−</button>
-        <span className="w-10 text-center text-[11px] tabular-nums text-muted">{Math.round(zoom * 100)}%</span>
-        <button type="button" onClick={() => setZoom((z) => clampZoom(z * 1.25))} aria-label="Zoom in" className="grid h-6 w-6 place-items-center rounded text-[15px] font-bold leading-none text-ink hover:bg-surface">+</button>
-        <button type="button" onClick={() => setZoom(1)} aria-label="Fit to width" className="ml-0.5 rounded px-2 py-1 text-[11px] font-semibold text-ink hover:bg-surface">Fit</button>
-      </div>
-
-      <div ref={scrollRef} className="absolute inset-0 overflow-auto rounded-2xl p-4 backdrop-blur-md">
-        <div style={{ width: `${zoom * 100}%`, minWidth: 600 }}>
           <svg
-            width="100%"
             viewBox={`0 0 ${width} ${height}`}
-            style={{ display: "block" }}
+            style={{ display: "block", width: "100%", height: "auto" }}
             role="group"
             aria-label="Curriculum roadmap. Tab to a course, Enter to open its details."
           >
@@ -335,8 +303,6 @@ export default function CurriculumGraph({ graph, courses }: Props) {
           );
         })}
           </svg>
-        </div>
-      </div>
 
       {tip && tipNode && (
         <CourseTooltip

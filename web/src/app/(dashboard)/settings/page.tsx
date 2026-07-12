@@ -25,7 +25,6 @@ export default function SettingsPage() {
   const [activePlan, setActivePlan] = useState<PlanRecord | null>(null);
   const [status, setStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [error, setError] = useState<string | null>(null);
-  const [optionalTermsEnabled, setOptionalTermsEnabled] = useState(meta.optional_terms_enabled);
   const [admissionTargets, setAdmissionTargets] = useState({ ...meta.admission_targets });
 
   const setAdmissionTarget = (key: keyof typeof admissionTargets, value: number) =>
@@ -34,15 +33,13 @@ export default function SettingsPage() {
   // Everything on this page except Curriculum (which saves per-row, instantly) is deferred:
   // it sits in local state until "Save as new baseline" is clicked. isDirty is the single
   // source of truth for whether that button actually has anything to do — covers Initial
-  // state/Baseline configuration (via buildOverrides), Term calendar, and Admissions targets.
+  // state/Baseline configuration (via buildOverrides) and Admissions targets.
   const isDirty =
     Object.keys(buildOverrides(state, baseline)).length > 0 ||
-    optionalTermsEnabled !== meta.optional_terms_enabled ||
     JSON.stringify(admissionTargets) !== JSON.stringify(meta.admission_targets);
 
   const discardChanges = () => {
     setState(baseline);
-    setOptionalTermsEnabled(meta.optional_terms_enabled);
     setAdmissionTargets({ ...meta.admission_targets });
     setStatus("idle");
     setError(null);
@@ -97,7 +94,6 @@ export default function SettingsPage() {
     if (overrides.dropout_prob_on_repeated_fail !== undefined) configPatch.dropout_prob_on_repeated_fail = overrides.dropout_prob_on_repeated_fail;
     if (overrides.registration_tier_thresholds !== undefined) configPatch.registration_tier_thresholds = overrides.registration_tier_thresholds;
     if (overrides.enrollment_priority_tiers !== undefined) configPatch.enrollment_priority_tiers = overrides.enrollment_priority_tiers;
-    if (optionalTermsEnabled !== meta.optional_terms_enabled) configPatch.optional_terms_enabled = optionalTermsEnabled;
     if (JSON.stringify(admissionTargets) !== JSON.stringify(meta.admission_targets))
       configPatch.admission_targets = admissionTargets;
 
@@ -174,7 +170,6 @@ export default function SettingsPage() {
         {[
           { href: "#initial-state", label: "Initial state" },
           { href: "#curriculum", label: "Curriculum" },
-          { href: "#term-calendar", label: "Term calendar" },
           { href: "#admissions-targets", label: "Admissions targets" },
           { href: "#baseline-configuration", label: "Baseline configuration" },
         ].map((l) => (
@@ -217,29 +212,6 @@ export default function SettingsPage() {
         )}
       </section>
 
-      <section id="term-calendar" className="py-6">
-        <h2 className="mb-3 text-[15px] font-bold">Term calendar</h2>
-        <div className="rounded-2xl border border-border bg-surface p-5">
-          <label className="flex items-start gap-3 text-[12.5px]">
-            <input
-              type="checkbox"
-              checked={optionalTermsEnabled}
-              onChange={(e) => setOptionalTermsEnabled(e.target.checked)}
-              className="mt-0.5"
-            />
-            <span>
-              <span className="font-semibold text-ink">Enable optional Winter/Summer intersessions</span>
-              <br />
-              <span className="text-muted">
-                Off by default: the university runs a 2-season Fall/Spring calendar only. Turning this on
-                adds optional Winter/Summer terms (small bonus sections for a handful of courses,
-                configured in <code>simulation_config.json</code>) that students can use to retake or get
-                ahead without it costing a mandatory semester. Admission stays Fall-only either way.
-              </span>
-            </span>
-          </label>
-        </div>
-      </section>
 
       <section id="admissions-targets" className="py-6">
         <h2 className="mb-3 text-[15px] font-bold">Admissions health targets</h2>
