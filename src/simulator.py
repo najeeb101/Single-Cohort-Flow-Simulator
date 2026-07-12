@@ -36,6 +36,12 @@ class History:
     fail_counts: dict[str, int] = field(default_factory=lambda: defaultdict(int))
     offering_block_counts: dict[str, int] = field(default_factory=lambda: defaultdict(int))
     capacity_block_counts: dict[str, int] = field(default_factory=lambda: defaultdict(int))
+    # Same events as capacity_block_counts but restricted to MANDATORY (regular) terms — the basis
+    # for the capacity-bottleneck ranking (headline/bottlenecks/per-cohort). Optional-term (Summer/
+    # Winter) denials are excluded because that seat pool is a deliberately small bonus
+    # (optional_term_capacity_scale), a denial there doesn't block graduation, and it can't be fixed
+    # by raising the course's regular capacity. The unfiltered counter above still feeds the frames.
+    capacity_block_counts_mandatory: dict[str, int] = field(default_factory=lambda: defaultdict(int))
     prereq_block_counts: dict[str, int] = field(default_factory=lambda: defaultdict(int))
     graduation_times: list[int] = field(default_factory=list)  # personal semesters, study cohorts
 
@@ -43,6 +49,9 @@ class History:
     fail_by_cohort: dict[int, dict[str, int]] = field(
         default_factory=lambda: defaultdict(lambda: defaultdict(int)))
     capacity_block_by_cohort: dict[int, dict[str, int]] = field(
+        default_factory=lambda: defaultdict(lambda: defaultdict(int)))
+    # Mandatory-terms-only variant of capacity_block_by_cohort (see capacity_block_counts_mandatory).
+    capacity_block_mandatory_by_cohort: dict[int, dict[str, int]] = field(
         default_factory=lambda: defaultdict(lambda: defaultdict(int)))
     offering_block_by_cohort: dict[int, dict[str, int]] = field(
         default_factory=lambda: defaultdict(lambda: defaultdict(int)))
@@ -306,9 +315,15 @@ class Simulator:
             stats["denied"] = len(losers)
             stats["full"] = len(winners) >= cap
 
+            is_mandatory = self._is_mandatory_season(season)
             for s in losers:
                 self.history.capacity_block_counts[code] += 1
                 self.history.capacity_block_by_cohort[s.cohort_id][code] += 1
+                # Regular-term denials also feed the mandatory-only counters used for ranking
+                # (Summer/Winter bonus-seat denials are intentionally left out — see History).
+                if is_mandatory:
+                    self.history.capacity_block_counts_mandatory[code] += 1
+                    self.history.capacity_block_mandatory_by_cohort[s.cohort_id][code] += 1
                 seats_denied[s.cohort_id] += 1
                 if self.record_traces:
                     self.history.block_events.append(

@@ -20,7 +20,13 @@ export default function AdvisorPage() {
         </p>
       </header>
       <AdvisorPanel summary={summary} showHeading={false} />
-      <AdvisorChat summary={summary} scenario={scenario} frames={frames} enabled={!!meta.llm_chat_enabled} />
+      <AdvisorChat
+        summary={summary}
+        scenario={scenario}
+        frames={frames}
+        mandatorySeasons={meta.mandatory_terms ?? ["Fall", "Spring"]}
+        enabled={!!meta.llm_chat_enabled}
+      />
     </main>
   );
 }

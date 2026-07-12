@@ -35,9 +35,11 @@ type CourseRunStat = {
   failed: number;
 };
 
-function aggregateCourseStats(frames: Frame[]): Record<string, CourseRunStat> {
+function aggregateCourseStats(frames: Frame[], mandatorySeasons: string[]): Record<string, CourseRunStat> {
+  const mandatory = new Set(mandatorySeasons);
   const out: Record<string, CourseRunStat> = {};
   for (const f of frames) {
+    const isMandatory = mandatory.has(f.season);
     for (const [code, s] of Object.entries(f.courses)) {
       const a =
         out[code] ??
@@ -49,10 +51,14 @@ function aggregateCourseStats(frames: Frame[]): Record<string, CourseRunStat> {
           passed: 0,
           failed: 0,
         });
-      if (s.denied > a.denied_peak) a.denied_peak = s.denied;
+      // Seat pressure (denied / full) counts on regular terms only — optional-term seats are a
+      // deliberately-scarce bonus pool, matching the capacity-bottleneck ranking the model also sees.
+      if (isMandatory) {
+        if (s.denied > a.denied_peak) a.denied_peak = s.denied;
+        if (s.full) a.full_terms += 1;
+      }
       if (s.offering_blocked > a.offering_blocked_peak) a.offering_blocked_peak = s.offering_blocked;
       if (s.prereq_waiting > a.prereq_waiting_peak) a.prereq_waiting_peak = s.prereq_waiting;
-      if (s.full) a.full_terms += 1;
       a.passed += s.passed;
       a.failed += s.failed;
     }
@@ -64,11 +70,13 @@ export default function AdvisorChat({
   summary,
   scenario,
   frames,
+  mandatorySeasons,
   enabled,
 }: {
   summary: FlowTimelineSummary;
   scenario: string;
   frames: Frame[];
+  mandatorySeasons: string[];
   enabled: boolean;
 }) {
   const { refreshBaseline } = useSimulation();
@@ -95,9 +103,9 @@ export default function AdvisorChat({
       },
       criteria: summary.admissions_recommendation.criteria ?? [],
       bottlenecks: summary.top_bottlenecks,
-      course_stats: aggregateCourseStats(frames),
+      course_stats: aggregateCourseStats(frames, mandatorySeasons),
     };
-  }, [summary, scenario, frames]);
+  }, [summary, scenario, frames, mandatorySeasons]);
 
   const send = async (text: string) => {
     const q = text.trim();

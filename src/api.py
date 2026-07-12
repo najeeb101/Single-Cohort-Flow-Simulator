@@ -56,7 +56,7 @@ from src.db_models import Plan as PlanRow
 from src.db_models import Run, User
 from src.livesim import LiveRunner
 from src.models.course import Course
-from src.models.semester import DEFAULT_TERMS, effective_admit_interval_terms
+from src.models.semester import DEFAULT_TERMS, effective_admit_interval_terms, get_mandatory_seasons
 from src.models.student import TERMINAL_STAGES, stage_node_names, standing_levels
 from src.montecarlo import run_monte_carlo
 from src.optimizer import DEFAULT_RUN_BUDGET, MAX_RUN_BUDGET, solve_for_targets
@@ -340,6 +340,11 @@ def meta(db: Session = Depends(get_db)) -> dict:
         # list, so changing a plan's calendar (add/remove a season) needs no code change.
         # Defaults to the engine's DEFAULT_TERMS when a plan predates the key.
         "terms_per_year": list(config.get("terms_per_year") or DEFAULT_TERMS),
+        # Which of those seasons advance a student's clock (Fall/Spring by default). The frontend
+        # treats these as the "regular" terms: seat denials in the other (optional) seasons are a
+        # deliberately-scarce bonus pool, so capacity views (recommendations + advisor grounding)
+        # count only these — matching the engine's capacity_block_counts_mandatory ranking.
+        "mandatory_terms": list(get_mandatory_seasons(config)),
         "max_terms": config.get("max_terms"),
         "seed": config.get("seed"),
         "dropout_gpa_floor": config.get("dropout_gpa_floor"),

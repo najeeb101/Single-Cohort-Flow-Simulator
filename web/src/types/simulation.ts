@@ -250,6 +250,7 @@ export interface MetaResponse {
   admit_interval_terms: number;
   optional_terms_enabled: boolean;
   terms_per_year: string[]; // the plan's season cycle — the valid set for a course's offering
+  mandatory_terms?: string[]; // the "regular" seasons (Fall/Spring); capacity views count only these
   max_terms: number;
   seed: number;
   dropout_gpa_floor: number;

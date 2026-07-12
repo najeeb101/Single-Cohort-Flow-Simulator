@@ -17,10 +17,15 @@ function buildRecommendations(frames: Frame[], meta: MetaResponse): CourseRec[] 
   const capacityByCode: Record<string, number> = {};
   for (const node of meta.graph.nodes) capacityByCode[node.code] = node.capacity;
 
+  // Only regular (mandatory) terms count toward capacity planning: optional-term (Summer/Winter)
+  // seat denials come from a deliberately small bonus pool and don't block graduation. Matches the
+  // engine's capacity_block_counts_mandatory ranking, so this table and the "Capacity blocks" card
+  // list the same courses.
+  const mandatory = new Set(meta.mandatory_terms ?? ["Fall", "Spring"]);
   const denied: Record<string, number[]> = {};
 
   for (const frame of frames) {
-    if (frame.season !== "Fall" && frame.season !== "Spring") continue;
+    if (!mandatory.has(frame.season)) continue;
     for (const [code, stat] of Object.entries(frame.courses)) {
       if (!denied[code]) denied[code] = [];
       if (stat.denied > 0) denied[code].push(stat.denied);

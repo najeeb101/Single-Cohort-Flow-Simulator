@@ -134,6 +134,43 @@ def test_optional_term_capacity_uses_scale():
     assert optional < regular
 
 
+# ── Optional-term seat denials are excluded from the capacity-bottleneck ranking ── #
+
+def test_optional_term_capacity_denials_excluded_from_mandatory_counter():
+    """A seat denial in an optional (Summer) term still fires the raw counter (the "even the
+    bonus session is oversubscribed" signal) but is left OUT of capacity_block_counts_mandatory --
+    the counter the headline/bottlenecks/per-cohort ranking reads. Summer's pool is a
+    deliberately small bonus, a denial there doesn't block graduation, and it can't be relieved by
+    raising the course's regular capacity, so it must not dominate the "where to add seats" ranking.
+    A denial on a mandatory (Fall) term, by contrast, DOES feed the mandatory counter.
+    """
+    def _one_course():
+        return {"C": course_from_dict({
+            "code": "C", "title": "C", "credits": 9, "prerequisites": [], "pass_rate": 0.95,
+            "offering": ["Fall", "Spring", "Summer"], "category": "cs_core", "capacity": 5,
+            "study_plan_order": 1})}
+    config = {**FOUR_SEASON_CONFIG_BASE, "cohort_size": 12, "max_terms": 4,
+              "num_cohorts": 1, "num_incumbent_cohorts": 0, "admit_interval_terms": 4,
+              "optional_term_capacity_scale": 0.4}  # optional cap = floor(5*0.4)=2
+
+    # Summer (optional): 12 requesters, cap 2 -> 10 denied. Raw counter fires; mandatory does NOT.
+    sim_summer = Simulator(_one_course(), config, {"name": "t"})
+    sim_summer.students = [Student(i, seed=1, cohort_id=0, entry_term=0) for i in range(12)]
+    sim_summer.cohort_entry[0] = 0
+    sim_summer._run_term(3, "Summer")  # term 3 in the 4-cycle is Summer
+    assert sim_summer.history.capacity_block_counts["C"] > 0
+    assert sim_summer.history.capacity_block_counts_mandatory.get("C", 0) == 0
+    assert sim_summer.history.capacity_block_mandatory_by_cohort.get(0, {}).get("C", 0) == 0
+
+    # Fall (mandatory): 12 requesters, cap 5 -> 7 denied. Mandatory counter fires.
+    sim_fall = Simulator(_one_course(), config, {"name": "t"})
+    sim_fall.students = [Student(i, seed=1, cohort_id=0, entry_term=0) for i in range(12)]
+    sim_fall.cohort_entry[0] = 0
+    sim_fall._run_term(0, "Fall")
+    assert sim_fall.history.capacity_block_counts_mandatory["C"] > 0
+    assert sim_fall.history.capacity_block_mandatory_by_cohort[0]["C"] > 0
+
+
 # ── prereq_block during an optional term: only for courses offered then ── #
 
 def test_prereq_block_scoped_to_courses_offered_in_optional_term():
