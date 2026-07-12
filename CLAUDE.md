@@ -440,11 +440,12 @@ recommendation already uses.
   (each iteration adds seats based on the *previous* run's shortfall) and is **not parallelizable** —
   its floor is `run_budget` × per-run sim time (~18s). Only the **intake-probe fallback**
   (`_probe_intake`, independent candidate intakes) is parallelized (picks the largest passing intake,
-  identical to the old step-down). Cutting the greedy loop itself needs a per-run engine speedup
-  (`docs/simulation_optimization_plan.md` item 4), not parallelism.
+  identical to the old step-down). Cutting the greedy loop itself only comes from making each run
+  faster (the eligibility cache above already bought ~20%; a further inverted `unpassed_prereqs`
+  index in `_record_blocks` is possible but needs real cache-invalidation), not from parallelism.
 - Profiling/benchmark harness: `scripts/profile_run.py` (cProfile) + `scripts/benchmark.py` (untraced
-  wall time + separate `tracemalloc` memory sample, writes `outputs/profiling/benchmark_baseline.json`).
-  See `docs/simulation_optimization_plan.md` for the baseline and the prioritized remaining items.
+  wall time + separate `tracemalloc` memory sample, writes `outputs/profiling/benchmark_baseline.json`,
+  the committed reference `--compare` diffs against).
 
 ## Key Constraints
 
