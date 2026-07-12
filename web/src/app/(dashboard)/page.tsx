@@ -4,6 +4,7 @@ import { useSimulation } from "@/lib/SimulationContext";
 import AnimationSection from "@/components/AnimationSection";
 import AdmissionsRecommendation from "@/components/AdmissionsRecommendation";
 import HeadlineKpis from "@/components/HeadlineKpis";
+import CohortsTable from "@/components/CohortsTable";
 
 export default function Home() {
   const { meta, data, chartMeta } = useSimulation();
@@ -50,6 +51,7 @@ export default function Home() {
 
       <AdmissionsRecommendation rec={summary.admissions_recommendation} />
       <HeadlineKpis headline={summary.headline} onTimeTerms={meta.on_time_terms} />
+      <CohortsTable cohorts={summary.per_cohort} />
     </main>
   );
 }
