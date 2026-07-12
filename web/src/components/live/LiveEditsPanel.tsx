@@ -82,12 +82,12 @@ export default function LiveEditsPanel({ meta, pending, setPending }: Props) {
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left text-[13px] font-semibold"
+        className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left text-sm font-semibold"
       >
         <span className="flex items-center gap-2">
           Edits for next term
           {changeCount > 0 && (
-            <span className="rounded-full bg-accent/20 px-2 py-0.5 text-[11px] font-semibold text-accent">
+            <span className="rounded-full bg-accent/20 px-2 py-0.5 text-xs font-semibold text-accent">
               {changeCount} pending
             </span>
           )}
@@ -120,13 +120,13 @@ export default function LiveEditsPanel({ meta, pending, setPending }: Props) {
             hint="capacity = seats per term; pass rate 0..1"
           >
             <div className="max-h-[360px] overflow-auto rounded-lg border border-border">
-              <table className="w-full border-collapse text-[12.5px]">
+              <table className="w-full border-collapse text-sm">
                 <thead>
                   <tr>
                     {["Course", "Capacity", "Pass rate", "Offered"].map((h) => (
                       <th
                         key={h}
-                        className="sticky top-0 border-b border-border bg-surface px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-wide text-muted"
+                        className="sticky top-0 border-b border-border bg-surface px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-muted"
                       >
                         {h}
                       </th>
@@ -201,7 +201,7 @@ export default function LiveEditsPanel({ meta, pending, setPending }: Props) {
               type="button"
               onClick={() => setPending(emptyPending())}
               disabled={changeCount === 0}
-              className="rounded-[9px] border border-border-2 bg-surface-2 px-3.5 py-1.5 text-[13px] font-semibold text-ink disabled:cursor-not-allowed disabled:opacity-50"
+              className="rounded-xl border border-border-2 bg-surface-2 px-3.5 py-1.5 text-sm font-semibold text-ink disabled:cursor-not-allowed disabled:opacity-50"
             >
               Clear pending edits
             </button>

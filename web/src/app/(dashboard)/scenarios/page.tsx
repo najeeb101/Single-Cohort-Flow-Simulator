@@ -40,7 +40,7 @@ export default function ScenariosPage() {
     <main className="mx-auto w-full max-w-[1600px] px-7 pb-16">
       <header className="border-b border-border py-5">
         <h1 className="text-[19px] font-bold tracking-tight">Scenarios</h1>
-        <p className="mt-0.5 max-w-2xl text-[12.5px] text-muted">
+        <p className="mt-0.5 max-w-2xl text-sm text-muted">
           Saved override sets — named what-ifs you can revisit. Create one from a suggestion in the{" "}
           <span className="font-semibold text-ink">Advisor</span> (each proposal has a{" "}
           <span className="font-semibold text-ink">Save as scenario</span> option). Click a row to see its full override payload.
@@ -48,21 +48,21 @@ export default function ScenariosPage() {
       </header>
 
       <section className="py-6">
-        {error && <p className="mb-3 text-[12.5px] text-bad">{error}</p>}
+        {error && <p className="mb-3 text-sm text-bad">{error}</p>}
         {scenarios === null ? (
-          <p className="text-[12.5px] text-muted">Loading…</p>
+          <p className="text-sm text-muted">Loading…</p>
         ) : scenarios.length === 0 ? (
-          <p className="text-[12.5px] text-muted">
+          <p className="text-sm text-muted">
             No saved scenarios yet — ask the Advisor for a change, then use its <span className="font-semibold text-ink">Save as scenario</span> option.
           </p>
         ) : (
-          <table className="w-full border-collapse text-[12.5px]">
+          <table className="w-full border-collapse text-sm">
             <thead>
               <tr>
                 {["Name", "Overrides", "Saved", ""].map((h) => (
                   <th
                     key={h}
-                    className="border-b border-border px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-wide text-muted"
+                    className="border-b border-border px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-muted"
                   >
                     {h}
                   </th>
@@ -81,7 +81,7 @@ export default function ScenariosPage() {
                         type="button"
                         onClick={(e) => { e.stopPropagation(); remove(s.id); }}
                         aria-label={`Delete scenario ${s.name}`}
-                        className="rounded-md px-2 py-1 text-[11.5px] font-semibold text-muted hover:bg-bad/10 hover:text-bad"
+                        className="rounded-md px-2 py-1 text-xs font-semibold text-muted hover:bg-bad/10 hover:text-bad"
                       >
                         Delete
                       </button>
@@ -90,7 +90,7 @@ export default function ScenariosPage() {
                   {expandedId === s.id && (
                     <tr>
                       <td colSpan={4} className="border-b border-border bg-surface-2 px-3 py-3">
-                        <pre className="overflow-x-auto text-[11px] text-muted">{JSON.stringify(s.overrides, null, 2)}</pre>
+                        <pre className="overflow-x-auto text-xs text-muted">{JSON.stringify(s.overrides, null, 2)}</pre>
                       </td>
                     </tr>
                   )}

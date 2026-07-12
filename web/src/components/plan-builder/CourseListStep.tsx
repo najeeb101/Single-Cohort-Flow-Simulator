@@ -59,14 +59,14 @@ function CourseRow({ course, allCourseCodes, knownCategories, seasons, onSave, o
               onSave(draft);
               setEditing(false);
             }}
-            className="rounded-[9px] bg-accent px-3.5 py-1.5 font-semibold text-white"
+            className="rounded-xl bg-accent px-3.5 py-1.5 font-semibold text-white"
           >
             Save
           </button>
           <button
             type="button"
             onClick={() => setEditing(false)}
-            className="rounded-[9px] border border-border-2 bg-surface px-3.5 py-1.5 font-semibold text-ink"
+            className="rounded-xl border border-border-2 bg-surface px-3.5 py-1.5 font-semibold text-ink"
           >
             Cancel
           </button>
@@ -106,19 +106,19 @@ export default function CourseListStep({
 
   return (
     <div className="flex flex-col gap-4">
-      <p className="text-[12.5px] text-muted">
+      <p className="text-sm text-muted">
         {courses.length} course{courses.length === 1 ? "" : "s"} — at least one is required before continuing.
       </p>
 
       {courses.length > 0 && (
         <div className="max-h-[440px] overflow-auto rounded-lg border border-border">
-          <table className="w-full border-collapse text-[12.5px]">
+          <table className="w-full border-collapse text-sm">
             <thead>
               <tr>
                 {["Course", "Title", "Category", "Pass rate", ""].map((h) => (
                   <th
                     key={h}
-                    className="sticky top-0 border-b border-border bg-surface px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-wide text-muted"
+                    className="sticky top-0 border-b border-border bg-surface px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-muted"
                   >
                     {h}
                   </th>
@@ -145,12 +145,12 @@ export default function CourseListStep({
       {adding ? (
         <div className="rounded-lg border border-border bg-surface-2 p-4">
           <CourseFormFields value={draft} allCourseCodes={codes} knownCategories={knownCategories} seasons={seasons} onChange={setDraft} editableCode />
-          {error && <p className="mt-2 text-[12.5px] text-bad">{error}</p>}
+          {error && <p className="mt-2 text-sm text-bad">{error}</p>}
           <div className="mt-3 flex gap-2">
             <button
               type="button"
               onClick={addCourse}
-              className="rounded-[9px] bg-accent px-3.5 py-1.5 text-[12.5px] font-semibold text-white"
+              className="rounded-xl bg-accent px-3.5 py-1.5 text-sm font-semibold text-white"
             >
               Add course
             </button>
@@ -161,7 +161,7 @@ export default function CourseListStep({
                   setAdding(false);
                   setError(null);
                 }}
-                className="rounded-[9px] border border-border-2 bg-surface px-3.5 py-1.5 text-[12.5px] font-semibold text-ink"
+                className="rounded-xl border border-border-2 bg-surface px-3.5 py-1.5 text-sm font-semibold text-ink"
               >
                 Cancel
               </button>
@@ -172,7 +172,7 @@ export default function CourseListStep({
         <button
           type="button"
           onClick={() => setAdding(true)}
-          className="self-start font-semibold text-accent text-[12.5px]"
+          className="self-start font-semibold text-accent text-sm"
         >
           + Add course
         </button>

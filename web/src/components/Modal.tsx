@@ -28,7 +28,7 @@ export default function Modal({ open, onClose, title, children }: Props) {
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-3 flex items-center justify-between gap-3">
-          <span className="text-[13px] font-semibold">{title}</span>
+          <span className="text-sm font-semibold">{title}</span>
           <button
             type="button"
             onClick={onClose}

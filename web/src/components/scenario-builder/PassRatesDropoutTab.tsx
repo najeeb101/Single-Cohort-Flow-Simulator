@@ -63,13 +63,13 @@ export default function PassRatesDropoutTab({ mode, meta, state, baseline, setRe
       {mode === "advanced" && (
         <SectionCard title="All courses — pass rate">
           <div className="max-h-[420px] overflow-auto rounded-lg border border-border">
-            <table className="w-full border-collapse text-[12.5px]">
+            <table className="w-full border-collapse text-sm">
               <thead>
                 <tr>
-                  <th className="sticky top-0 border-b border-border bg-surface px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-wide text-muted">
+                  <th className="sticky top-0 border-b border-border bg-surface px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-muted">
                     Course
                   </th>
-                  <th className="sticky top-0 border-b border-border bg-surface px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-wide text-muted">
+                  <th className="sticky top-0 border-b border-border bg-surface px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-muted">
                     Pass rate
                   </th>
                 </tr>

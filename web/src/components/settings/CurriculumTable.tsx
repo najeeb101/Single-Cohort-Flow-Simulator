@@ -96,7 +96,7 @@ function CurriculumRow({ course, allCourseCodes, knownCategories, seasons, onSav
               Delete
             </button>
           </div>
-          {error && <p className="mt-1 text-right text-[11px] text-bad">{error}</p>}
+          {error && <p className="mt-1 text-right text-sm text-bad">{error}</p>}
         </td>
       </tr>
     );
@@ -114,14 +114,14 @@ function CurriculumRow({ course, allCourseCodes, knownCategories, seasons, onSav
             type="button"
             onClick={save}
             disabled={busy}
-            className="rounded-[9px] bg-accent px-3.5 py-1.5 font-semibold text-white disabled:opacity-50"
+            className="rounded-xl bg-accent px-3.5 py-1.5 font-semibold text-white disabled:opacity-50"
           >
             {busy ? "Saving…" : "Save"}
           </button>
           <button
             type="button"
             onClick={() => setEditing(false)}
-            className="rounded-[9px] border border-border-2 bg-surface px-3.5 py-1.5 font-semibold text-ink"
+            className="rounded-xl border border-border-2 bg-surface px-3.5 py-1.5 font-semibold text-ink"
           >
             Cancel
           </button>
@@ -191,7 +191,7 @@ function AddCourseRow({
             type="button"
             onClick={add}
             disabled={busy}
-            className="rounded-[9px] bg-accent px-3.5 py-1.5 font-semibold text-white disabled:opacity-50"
+            className="rounded-xl bg-accent px-3.5 py-1.5 font-semibold text-white disabled:opacity-50"
           >
             {busy ? "Adding…" : "Add course"}
           </button>
@@ -202,7 +202,7 @@ function AddCourseRow({
               setDraft(BLANK_COURSE);
               setError(null);
             }}
-            className="rounded-[9px] border border-border-2 bg-surface px-3.5 py-1.5 font-semibold text-ink"
+            className="rounded-xl border border-border-2 bg-surface px-3.5 py-1.5 font-semibold text-ink"
           >
             Cancel
           </button>
@@ -237,13 +237,13 @@ export default function CurriculumTable({
 
   return (
     <div className="max-h-[560px] overflow-auto rounded-lg border border-border">
-      <table className="w-full border-collapse text-[12.5px]">
+      <table className="w-full border-collapse text-sm">
         <thead>
           <tr>
             {["Course", "Title", "Category", "Pass rate", "Capacity", ""].map((h) => (
               <th
                 key={h}
-                className="sticky top-0 border-b border-border bg-surface px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-wide text-muted"
+                className="sticky top-0 border-b border-border bg-surface px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-muted"
               >
                 {h}
               </th>

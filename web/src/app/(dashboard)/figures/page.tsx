@@ -14,7 +14,7 @@ export default function FiguresPage() {
     <main className="mx-auto w-full max-w-[1600px] px-7 pb-16">
       <header className="border-b border-border py-5">
         <h1 className="text-[19px] font-bold tracking-tight">Figures</h1>
-        <p className="mt-0.5 max-w-2xl text-[12.5px] text-muted">
+        <p className="mt-0.5 max-w-2xl text-sm text-muted">
           Four views across the full simulation run — population trends, per-cohort survival, graduation timing, and where seats ran out.
         </p>
       </header>

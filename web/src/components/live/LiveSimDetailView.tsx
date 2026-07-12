@@ -90,7 +90,7 @@ export default function LiveSimDetailView({ meta, detail, onChanged, onDeleted }
       <header className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border bg-surface px-4 py-3.5">
         <div>
           <h2 className="text-[15px] font-bold text-ink">{liveSim.name}</h2>
-          <p className="mt-0.5 text-[12.5px] text-muted">
+          <p className="mt-0.5 text-sm text-muted">
             {liveSim.current_term === null
               ? "Not started"
               : `Term ${liveSim.current_term} of ${liveSim.total_terms}`}
@@ -99,7 +99,7 @@ export default function LiveSimDetailView({ meta, detail, onChanged, onDeleted }
         </div>
         <div className="flex items-center gap-3">
           <span
-            className={`rounded-full px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide ${
+            className={`rounded-full px-2.5 py-1 text-xs font-semibold uppercase tracking-wide ${
               finished ? "bg-surface-2 text-muted" : "bg-good/15 text-good"
             }`}
           >
@@ -109,7 +109,7 @@ export default function LiveSimDetailView({ meta, detail, onChanged, onDeleted }
             type="button"
             onClick={handleDelete}
             disabled={deleting}
-            className="rounded-[9px] border border-border-2 bg-surface-2 px-3 py-1.5 text-[12.5px] font-semibold text-bad disabled:cursor-not-allowed disabled:opacity-50"
+            className="rounded-xl border border-border-2 bg-surface-2 px-3 py-1.5 text-sm font-semibold text-bad disabled:cursor-not-allowed disabled:opacity-50"
           >
             {deleting ? "Deleting…" : "Delete"}
           </button>
@@ -117,7 +117,7 @@ export default function LiveSimDetailView({ meta, detail, onChanged, onDeleted }
       </header>
 
       {error && (
-        <div className="rounded-xl border border-[#5a2c2c] bg-[#241516] px-4 py-3 text-[12.5px] text-[#f0c2c2]">
+        <div className="rounded-xl border border-border border-l-[4px] border-l-bad bg-surface px-4 py-3 text-sm text-bad">
           {error}
         </div>
       )}
@@ -127,7 +127,7 @@ export default function LiveSimDetailView({ meta, detail, onChanged, onDeleted }
       <div className="flex items-center justify-between gap-3 rounded-2xl border border-border bg-surface px-4 py-3">
         <div className="flex-1">
           {snapshots.length === 0 ? (
-            <span className="text-[12.5px] text-muted">No terms simulated yet.</span>
+            <span className="text-sm text-muted">No terms simulated yet.</span>
           ) : (
             <div className="flex flex-col gap-1.5">
               <input
@@ -139,7 +139,7 @@ export default function LiveSimDetailView({ meta, detail, onChanged, onDeleted }
                 onChange={(e) => setScrubIndex(Number(e.target.value))}
                 className="h-1 w-full rounded-full accent-[var(--accent)]"
               />
-              <div className="flex items-center justify-between text-[11.5px] text-muted">
+              <div className="flex items-center justify-between text-xs text-muted">
                 <span>History — {current?.label ?? ""}</span>
                 {!isLatest && (
                   <button type="button" onClick={() => setScrubIndex(snapshots.length - 1)} className="font-semibold text-accent">
@@ -154,14 +154,14 @@ export default function LiveSimDetailView({ meta, detail, onChanged, onDeleted }
           type="button"
           onClick={handleAdvance}
           disabled={advancing || finished}
-          className="shrink-0 rounded-[10px] bg-accent px-5 py-2 text-[13px] font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
+          className="shrink-0 rounded-xl bg-accent px-5 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
         >
           {advancing ? "Advancing…" : finished ? "Finished" : "▶ Advance to next term"}
         </button>
       </div>
 
       {!isLatest && (
-        <div className="rounded-xl border border-border-2 bg-surface-2 px-4 py-2 text-[12px] text-muted">
+        <div className="rounded-xl border border-border-2 bg-surface-2 px-4 py-2 text-sm text-muted">
           Viewing a past term read-only. Edits above apply on top of the latest term, not this one.
         </div>
       )}
@@ -169,20 +169,20 @@ export default function LiveSimDetailView({ meta, detail, onChanged, onDeleted }
       {runningTotals && (
         <div className="flex flex-col gap-2 rounded-2xl border border-border bg-surface px-4 py-3">
           <div className="flex flex-wrap gap-3">
-            <span className="text-[11px] font-semibold uppercase tracking-wide text-muted self-center mr-1">Running totals</span>
+            <span className="text-xs font-semibold uppercase tracking-wide text-muted self-center mr-1">Running totals</span>
             {[
               { label: "Graduated", value: runningTotals.graduated, color: "text-good" },
               { label: "Dropped", value: runningTotals.dropped, color: "text-bad" },
               { label: "Still enrolled", value: runningTotals.active, color: "text-ink" },
               { label: "Capacity blocks", value: runningTotals.capacityBlocks.toLocaleString(), color: "text-warn" },
             ].map(({ label, value, color }) => (
-              <div key={label} className="rounded-[9px] border border-border bg-surface-2 px-3 py-1.5 text-[12.5px] text-muted">
+              <div key={label} className="rounded-xl border border-border bg-surface-2 px-3 py-1.5 text-sm text-muted">
                 {label}: <b className={`ml-0.5 font-bold ${color}`}>{value}</b>
               </div>
             ))}
           </div>
           {baselineAtCurrent && current && (
-            <p className="text-[12px] text-muted">
+            <p className="text-sm text-muted">
               At {current.label} in the baseline run: <b className="font-semibold text-ink">{baselineAtCurrent.graduated}</b>{" "}
               graduated · <b className="font-semibold text-ink">{baselineAtCurrent.dropped}</b> dropped ·{" "}
               <b className="font-semibold text-ink">{baselineAtCurrent.active}</b> still enrolled
@@ -193,7 +193,7 @@ export default function LiveSimDetailView({ meta, detail, onChanged, onDeleted }
 
       <section className="grid gap-4 lg:grid-cols-[1fr_360px]">
         <div className="min-w-0 rounded-2xl border border-border bg-surface">
-          <div className="flex items-baseline justify-between gap-3 border-b border-border px-4 py-2.5 text-[13px] font-semibold">
+          <div className="flex items-baseline justify-between gap-3 border-b border-border px-4 py-2.5 text-sm font-semibold">
             <span>Curriculum status</span>
             <span className="text-xs font-normal text-muted">
               {current ? current.label : "structure only — advance to see live stats"}
@@ -203,11 +203,11 @@ export default function LiveSimDetailView({ meta, detail, onChanged, onDeleted }
         </div>
 
         <div className="rounded-2xl border border-border bg-surface p-4">
-          <div className="mb-1 text-[13px] font-semibold">Stage overview</div>
+          <div className="mb-1 text-sm font-semibold">Stage overview</div>
           {current ? (
             <StageOverview frame={current.frame} stageNodes={simMeta.stage_nodes} cohortSel="totals" />
           ) : (
-            <p className="text-[12.5px] text-muted">Advance a term to see stage flow.</p>
+            <p className="text-sm text-muted">Advance a term to see stage flow.</p>
           )}
         </div>
       </section>

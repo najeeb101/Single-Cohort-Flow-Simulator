@@ -69,14 +69,14 @@ export default function RegistrationPolicyTab({ mode, state, baseline, courses, 
                   <button
                     type="button"
                     onClick={() => removeTier(idx)}
-                    className="text-[11px] font-semibold text-bad hover:underline"
+                    className="text-xs font-semibold text-bad hover:underline"
                   >
                     Remove
                   </button>
                 </div>
                 <div className="mb-2 flex flex-wrap gap-3">
                   {categories.map((cat) => (
-                    <label key={cat} className="flex items-center gap-1.5 text-[12.5px] text-ink">
+                    <label key={cat} className="flex items-center gap-1.5 text-sm text-ink">
                       <input
                         type="checkbox"
                         checked={tier.categories.includes(cat)}
@@ -103,7 +103,7 @@ export default function RegistrationPolicyTab({ mode, state, baseline, courses, 
             <button
               type="button"
               onClick={addTier}
-              className="self-start rounded-[9px] border border-border-2 bg-surface-2 px-3.5 py-1.5 text-[13px] font-semibold text-ink"
+              className="self-start rounded-xl border border-border-2 bg-surface-2 px-3.5 py-1.5 text-sm font-semibold text-ink"
             >
               + Add tier
             </button>

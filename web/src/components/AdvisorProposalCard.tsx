@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ApiError, createScenario, simulate, updateConfig, updateCourse } from "@/lib/api";
+import { ApiError, simulate, updateConfig, updateCourse } from "@/lib/api";
 import { pct } from "@/lib/format";
 import type { AdvisorProposal, Headline, ScenarioRequest } from "@/types/simulation";
 
@@ -66,11 +66,6 @@ export default function AdvisorProposalCard({
   const [testing, setTesting] = useState(false);
   const [testErr, setTestErr] = useState<string | null>(null);
   const [testResult, setTestResult] = useState<TestResult | null>(null);
-  const [showSave, setShowSave] = useState(false);
-  const [scenarioName, setScenarioName] = useState("");
-  const [saving, setSaving] = useState(false);
-  const [saveMsg, setSaveMsg] = useState<string | null>(null);
-  const [saveErr, setSaveErr] = useState<string | null>(null);
 
   const test = async () => {
     setTesting(true);
@@ -84,25 +79,6 @@ export default function AdvisorProposalCard({
       setTestErr(e instanceof ApiError ? e.message : "Test failed — is the API running?");
     } finally {
       setTesting(false);
-    }
-  };
-
-  // Persist this proposal as a named, revisitable Scenario (POST /scenarios) — distinct from Apply,
-  // which bakes it into the plan baseline. Same override the Test run uses.
-  const saveScenario = async () => {
-    const name = scenarioName.trim();
-    if (!name) return;
-    setSaving(true);
-    setSaveErr(null);
-    setSaveMsg(null);
-    try {
-      const s = await createScenario(name, buildOverride(proposal));
-      setSaveMsg(`Saved “${s.name}” — see the Scenarios page.`);
-      setScenarioName("");
-    } catch (e) {
-      setSaveErr(e instanceof ApiError ? e.message : "Couldn't save the scenario.");
-    } finally {
-      setSaving(false);
     }
   };
 
@@ -152,9 +128,9 @@ export default function AdvisorProposalCard({
             <span className="rounded bg-accent/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-accent">
               {TYPE_LABEL[proposal.type]}
             </span>
-            <span className="text-[12.5px] font-semibold text-ink">{proposal.label}</span>
+            <span className="text-sm font-semibold text-ink">{proposal.label}</span>
           </div>
-          {proposal.reason && <p className="mt-1 text-[11.5px] leading-snug text-muted">{proposal.reason}</p>}
+          {proposal.reason && <p className="mt-1 text-xs leading-snug text-muted">{proposal.reason}</p>}
         </div>
 
         <div className="flex shrink-0 items-center gap-2">
@@ -162,7 +138,7 @@ export default function AdvisorProposalCard({
             type="button"
             onClick={test}
             disabled={testing}
-            className="rounded-lg border border-border-2 px-3 py-1 text-[12px] font-semibold text-ink hover:bg-surface-2 disabled:opacity-50"
+            className="rounded-lg border border-border-2 px-3 py-1 text-sm font-semibold text-ink hover:bg-surface-2 disabled:opacity-50"
           >
             {testing ? "Testing…" : testResult ? "Re-test" : "Test"}
           </button>
@@ -170,21 +146,21 @@ export default function AdvisorProposalCard({
             <button
               type="button"
               onClick={() => setState("confirm")}
-              className="rounded-lg border border-accent px-3 py-1 text-[12px] font-semibold text-accent hover:bg-accent/10"
+              className="rounded-lg border border-accent px-3 py-1 text-sm font-semibold text-accent hover:bg-accent/10"
             >
               Apply
             </button>
           )}
-          {state === "applying" && <span className="text-[12px] text-muted">Applying…</span>}
-          {state === "applied" && <span className="text-[12px] font-semibold text-good">✓ Applied</span>}
+          {state === "applying" && <span className="text-sm text-muted">Applying…</span>}
+          {state === "applied" && <span className="text-sm font-semibold text-good">✓ Applied</span>}
         </div>
       </div>
 
-      {testErr && <p className="mt-2 text-[11.5px] text-bad">{testErr}</p>}
+      {testErr && <p className="mt-2 text-sm text-bad">{testErr}</p>}
 
       {testResult && (
         <div className="mt-2.5 overflow-x-auto rounded-lg border border-border bg-surface-2">
-          <table className="w-full border-collapse text-[11.5px]">
+          <table className="w-full border-collapse text-sm">
             <thead>
               <tr>
                 {["Predicted effect", "Now", "If applied", "Δ"].map((h) => (
@@ -196,7 +172,7 @@ export default function AdvisorProposalCard({
             </thead>
             <tbody>
               {rows.map((r) => (
-                <tr key={r.label} className="border-b border-border last:border-0">
+                <tr key={r.label} className="group border-b border-border transition-colors hover:bg-surface-2 last:border-0">
                   <td className="px-3 py-1.5 text-muted">{r.label}</td>
                   <td className="px-3 py-1.5 tabular-nums">{r.now}</td>
                   <td className="px-3 py-1.5 font-semibold tabular-nums">{r.next}</td>
@@ -213,19 +189,19 @@ export default function AdvisorProposalCard({
 
       {state === "confirm" && (
         <div className="mt-2 flex items-center justify-between gap-2 rounded-lg bg-surface-2 px-2.5 py-2">
-          <span className="text-[11px] text-muted">This edits your live plan and re-runs the baseline.</span>
+          <span className="text-xs text-muted">This edits your live plan and re-runs the baseline.</span>
           <span className="flex shrink-0 gap-1.5">
             <button
               type="button"
               onClick={() => setState("idle")}
-              className="rounded-lg px-2.5 py-1 text-[12px] text-muted hover:text-ink"
+              className="rounded-lg px-2.5 py-1 text-sm text-muted hover:text-ink"
             >
               Cancel
             </button>
             <button
               type="button"
               onClick={apply}
-              className="rounded-lg bg-accent px-3 py-1 text-[12px] font-semibold text-white hover:opacity-90"
+              className="rounded-lg bg-accent px-3 py-1 text-sm font-semibold text-white hover:opacity-90"
             >
               Confirm
             </button>
@@ -235,49 +211,17 @@ export default function AdvisorProposalCard({
 
       {state === "error" && (
         <div className="mt-2 flex items-center justify-between gap-2">
-          <span className="text-[11px] text-bad">{err}</span>
+          <span className="text-sm text-bad">{err}</span>
           <button
             type="button"
             onClick={apply}
-            className="rounded-lg border border-border-2 px-2.5 py-1 text-[12px] font-semibold text-ink hover:bg-surface-2"
+            className="rounded-lg border border-border-2 px-2.5 py-1 text-sm font-semibold text-ink hover:bg-surface-2"
           >
             Retry
           </button>
         </div>
       )}
 
-      <div className="mt-2 flex items-center gap-2">
-        {!showSave ? (
-          <button
-            type="button"
-            onClick={() => setShowSave(true)}
-            className="text-[11px] font-semibold text-muted hover:text-ink"
-          >
-            Save as scenario
-          </button>
-        ) : (
-          <>
-            <input
-              type="text"
-              value={scenarioName}
-              onChange={(e) => { setScenarioName(e.target.value); setSaveMsg(null); }}
-              placeholder="Scenario name"
-              aria-label="Scenario name"
-              className="w-40 rounded-md border border-border-2 bg-surface-2 px-2 py-1 text-[11.5px] text-ink placeholder:text-faint focus:outline-none focus:ring-1 focus:ring-accent"
-            />
-            <button
-              type="button"
-              onClick={saveScenario}
-              disabled={saving || !scenarioName.trim()}
-              className="rounded-md border border-border-2 px-2.5 py-1 text-[11.5px] font-semibold text-ink hover:bg-surface-2 disabled:opacity-50"
-            >
-              {saving ? "Saving…" : "Save"}
-            </button>
-          </>
-        )}
-        {saveMsg && <span className="text-[11px] font-semibold text-good">{saveMsg}</span>}
-        {saveErr && <span className="text-[11px] text-bad">{saveErr}</span>}
-      </div>
     </div>
   );
 }

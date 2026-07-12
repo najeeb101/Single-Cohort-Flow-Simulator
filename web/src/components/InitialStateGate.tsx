@@ -71,7 +71,7 @@ export default function InitialStateGate({ meta, onComplete }: Props) {
 
       <div className="py-6">
         {courses === null ? (
-          <p className="text-[12.5px] text-muted">Loading courses…</p>
+          <p className="text-sm text-muted">Loading courses…</p>
         ) : (
           <InitialStateEditor
             courses={courses}
@@ -91,7 +91,7 @@ export default function InitialStateGate({ meta, onComplete }: Props) {
           type="button"
           onClick={handleContinue}
           disabled={busy || courses === null}
-          className="rounded-[10px] bg-accent px-7 py-2.5 text-[14px] font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
+          className="rounded-xl bg-accent px-7 py-2.5 text-[14px] font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
         >
           {saving ? "Saving…" : "Continue"}
         </button>
@@ -99,11 +99,11 @@ export default function InitialStateGate({ meta, onComplete }: Props) {
           type="button"
           onClick={handleSkip}
           disabled={busy || courses === null}
-          className="text-[12px] text-muted underline underline-offset-2 transition-colors hover:text-ink disabled:cursor-not-allowed disabled:opacity-50"
+          className="text-sm text-muted underline underline-offset-2 transition-colors hover:text-ink disabled:cursor-not-allowed disabled:opacity-50"
         >
           {skipping ? "Starting empty…" : "Skip for now — start empty"}
         </button>
-        <span className="mt-1 max-w-lg text-[11.5px] leading-relaxed text-muted">
+        <span className="mt-1 max-w-lg text-xs leading-relaxed text-muted">
           Change these anytime in <span className="font-medium text-ink/80">Settings</span> ·
           step through it term-by-term in <span className="font-medium text-ink/80">Live</span> ·
           find &amp; fix delays in <span className="font-medium text-ink/80">Bottlenecks</span>.

@@ -23,11 +23,11 @@ export default function GraduationHistogram({ distribution, onTimeTerms }: { dis
 
   return (
     <div className="rounded-2xl border border-border bg-surface p-4">
-      <div className="mb-1 flex items-baseline justify-between gap-3 text-[13px] font-semibold">
+      <div className="mb-1 flex items-baseline justify-between gap-3 text-sm font-semibold">
         <span>Time-to-graduate distribution</span>
         <span className="text-xs font-normal text-muted">semesters to graduate</span>
       </div>
-      <p className="mb-3 text-[12px] text-muted">
+      <p className="mb-3 text-sm text-muted">
         How many students graduated in each semester (counted from their own entry). The ideal shape is a tall bar at semester {onTimeTerms} (on-time for this programme) with a short tail after it. A spread-out or right-shifted distribution means students are being delayed — typically by failed prerequisites, seat shortages on gateway courses, or dropout before reaching graduation.
       </p>
       <svg viewBox={`0 0 ${W + 16} ${H + 24}`} className="w-full" style={{ maxHeight: 220 }}>

@@ -138,7 +138,7 @@ export default function AdvisorChat({
     return (
       <section className="py-6">
         <h2 className="mb-1 text-[15px] font-bold">Ask the advisor</h2>
-        <div className="rounded-2xl border border-dashed border-border-2 bg-surface p-4 text-[12.5px] text-muted">
+        <div className="rounded-2xl border border-dashed border-border-2 bg-surface p-4 text-sm text-muted">
           The conversational advisor is off. Add <code className="rounded bg-black/20 px-1 py-0.5">LLM_API_KEY</code> to
           your <code className="rounded bg-black/20 px-1 py-0.5">.env</code> (see{" "}
           <code className="rounded bg-black/20 px-1 py-0.5">.env.example</code>) and restart the backend to chat with an
@@ -161,14 +161,14 @@ export default function AdvisorChat({
         <div ref={listRef} className="max-h-[420px] min-h-[80px] overflow-y-auto px-4 py-3">
           {messages.length === 0 ? (
             <div className="flex flex-col gap-2">
-              <p className="text-[12.5px] text-muted">Ask about the results, the bottlenecks, or what to change. Try:</p>
+              <p className="text-sm text-muted">Ask about the results, the bottlenecks, or what to change. Try:</p>
               <div className="flex flex-wrap gap-2">
                 {SUGGESTIONS.map((s) => (
                   <button
                     key={s}
                     type="button"
                     onClick={() => send(s)}
-                    className="rounded-full border border-border-2 px-3 py-1 text-[11.5px] text-ink hover:bg-surface-2"
+                    className="rounded-full border border-border-2 px-3 py-1 text-xs text-ink hover:bg-surface-2"
                   >
                     {s}
                   </button>
@@ -180,7 +180,7 @@ export default function AdvisorChat({
               {messages.map((m, i) => (
                 <div key={i} className={`flex flex-col gap-2 ${m.role === "user" ? "items-end" : "items-start"}`}>
                   <div
-                    className={`max-w-[85%] whitespace-pre-wrap rounded-2xl px-3 py-2 text-[12.5px] leading-relaxed ${
+                    className={`max-w-[85%] whitespace-pre-wrap rounded-2xl px-3 py-2 text-sm leading-relaxed ${
                       m.role === "user"
                         ? "bg-accent/10 text-ink"
                         : "border border-border bg-surface-2 text-ink"
@@ -190,7 +190,7 @@ export default function AdvisorChat({
                   </div>
                   {m.role === "assistant" && m.proposals && m.proposals.length > 0 && (
                     <div className="flex w-full max-w-[85%] flex-col gap-1.5">
-                      <p className="text-[11px] font-semibold uppercase tracking-wide text-muted">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-muted">
                         Suggested changes — test, then apply
                       </p>
                       {m.proposals.map((p, j) => (
@@ -208,7 +208,7 @@ export default function AdvisorChat({
               ))}
               {sending && (
                 <div className="flex justify-start">
-                  <div className="rounded-2xl border border-border bg-surface-2 px-3 py-2 text-[12.5px] text-muted">
+                  <div className="rounded-2xl border border-border bg-surface-2 px-3 py-2 text-sm text-muted">
                     <span className="inline-block h-1.5 w-1.5 animate-ping rounded-full bg-accent" /> thinking…
                   </div>
                 </div>
@@ -231,23 +231,23 @@ export default function AdvisorChat({
             placeholder="Ask about this run…"
             aria-label="Ask the advisor"
             disabled={sending}
-            className="flex-1 rounded-[9px] border border-border-2 bg-surface-2 px-3 py-1.5 text-[13px] text-ink placeholder:text-faint focus:outline-none focus:ring-1 focus:ring-accent disabled:opacity-60"
+            className="flex-1 rounded-xl border border-border-2 bg-surface-2 px-3 py-1.5 text-sm text-ink placeholder:text-faint focus:outline-none focus:ring-1 focus:ring-accent disabled:opacity-60"
           />
           <button
             type="submit"
             disabled={sending || !input.trim()}
-            className="rounded-[9px] bg-accent px-4 py-1.5 text-[13px] font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
+            className="rounded-xl bg-accent px-4 py-1.5 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
           >
             Send
           </button>
         </form>
-        {error && <p className="px-4 pb-2.5 text-[12px] text-bad">{error}</p>}
+        {error && <p className="px-4 pb-2.5 text-sm text-bad">{error}</p>}
       </div>
-      <p className="mt-1.5 text-[11px] text-muted">
+      <p className="mt-1.5 text-xs text-muted">
         Answers come from an LLM reading this run&apos;s numbers and your full curriculum + settings. When it
         suggests a change you can <span className="font-semibold text-ink">Test</span> it (a what-if run that
         predicts the effect without changing anything) and then <span className="font-semibold text-ink">Apply</span> it,
-        which updates your plan and re-runs the baseline. It never edits anything on its own. Treat replies as a
+        which writes it into your active plan and re-runs the baseline. It never edits anything on its own. Treat replies as a
         starting point, not ground truth.
       </p>
     </section>

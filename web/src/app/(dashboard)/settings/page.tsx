@@ -146,12 +146,12 @@ export default function SettingsPage() {
     <main className="mx-auto w-full max-w-[1600px] px-7 pb-16">
       <header className="border-b border-border py-5">
         <h1 className="text-[19px] font-bold tracking-tight">Settings</h1>
-        <p className="mt-0.5 text-[12.5px] text-muted">
+        <p className="mt-0.5 text-sm text-muted">
           Edits here persist to the database as the new baseline — every future run starts from these
           values, unlike the Scenario Builder&apos;s per-run overrides.
         </p>
         {activePlan && (
-          <p className="mt-2 text-[12.5px]">
+          <p className="mt-2 text-sm">
             Editing plan: <span className="font-semibold text-ink">{activePlan.name}</span>
             {activePlan.is_default && (
               <span className="ml-2 text-muted">
@@ -166,7 +166,7 @@ export default function SettingsPage() {
         )}
       </header>
 
-      <nav className="sticky top-0 z-10 -mx-7 flex flex-wrap gap-x-5 gap-y-1 border-b border-border bg-bg/90 px-7 py-2.5 text-[12px] backdrop-blur-sm">
+      <nav className="sticky top-0 z-10 -mx-7 flex flex-wrap gap-x-5 gap-y-1 border-b border-border bg-bg/90 px-7 py-2.5 text-sm backdrop-blur-sm">
         {[
           { href: "#initial-state", label: "Initial state" },
           { href: "#curriculum", label: "Curriculum" },
@@ -181,7 +181,7 @@ export default function SettingsPage() {
 
       <section id="initial-state" className="border-b border-border py-6">
         <h2 className="mb-1 text-[15px] font-bold">Initial state</h2>
-        <p className="mb-3 max-w-2xl text-[12.5px] text-muted">
+        <p className="mb-3 max-w-2xl text-sm text-muted">
           The existing student body the first simulated cohort walks into: per-course occupied seats and how
           many students are already at each year-standing. Use{" "}
           <b className="font-semibold text-ink">Import from file</b> to bulk-load from a CSV or Excel sheet
@@ -203,10 +203,10 @@ export default function SettingsPage() {
 
       <section id="curriculum" className="py-6">
         <h2 className="mb-3 text-[15px] font-bold">
-          Curriculum <span className="text-[11px] font-normal text-muted">— saves instantly, no baseline step</span>
+          Curriculum <span className="text-xs font-normal text-muted">— saves instantly, no baseline step</span>
         </h2>
         {courses === null ? (
-          <p className="text-[12.5px] text-muted">Loading…</p>
+          <p className="text-sm text-muted">Loading…</p>
         ) : (
           <CurriculumTable courses={courses} onChange={handleCoursesChange} seasons={meta.terms_per_year} />
         )}
@@ -215,7 +215,7 @@ export default function SettingsPage() {
 
       <section id="admissions-targets" className="py-6">
         <h2 className="mb-3 text-[15px] font-bold">Admissions health targets</h2>
-        <p className="mb-4 max-w-2xl text-[12.5px] text-muted">
+        <p className="mb-4 max-w-2xl text-sm text-muted">
           The four pass/fail thresholds used by the Admissions recommendation on the Capacity Planning
           page. Slack ≥ 1 means the criterion is met; the worst slack determines the recommended intake.
         </p>
@@ -232,7 +232,7 @@ export default function SettingsPage() {
               const dirty = admissionTargets[key] !== meta.admission_targets[key];
               return (
                 <label key={key} className="flex flex-col gap-1">
-                  <span className={`text-[11.5px] font-semibold ${dirty ? "text-accent" : "text-muted"}`}>
+                  <span className={`text-xs font-semibold ${dirty ? "text-accent" : "text-muted"}`}>
                     {label}{dirty ? " *" : ""}
                   </span>
                   <input
@@ -242,7 +242,7 @@ export default function SettingsPage() {
                     max={max}
                     step={step}
                     onChange={(e) => setAdmissionTarget(key, Number(e.target.value))}
-                    className="w-full rounded-[8px] border border-border bg-surface-2 px-3 py-1.5 text-[13px] text-ink focus:outline-none focus:ring-1 focus:ring-accent"
+                    className="w-full rounded-lg border border-border bg-surface-2 px-3 py-1.5 text-sm text-ink focus:outline-none focus:ring-1 focus:ring-accent"
                   />
                 </label>
               );
@@ -269,8 +269,8 @@ export default function SettingsPage() {
       </section>
 
       {(isDirty || status === "saved" || status === "error") && (
-        <div className="fixed bottom-5 left-1/2 z-20 flex w-[min(680px,calc(100%-2rem))] -translate-x-1/2 items-center justify-between gap-3 rounded-2xl border border-border-2 bg-surface px-5 py-3 shadow-accent">
-          <span className="text-[13px]">
+        <div className="fixed bottom-5 left-1/2 z-20 flex w-[min(680px,calc(100%-2rem))] -translate-x-1/2 items-center justify-between gap-3 rounded-2xl border border-border-2 bg-surface px-5 py-3 shadow-xl">
+          <span className="text-sm">
             {status === "saving" ? (
               <span className="text-accent">Saving…</span>
             ) : status === "saved" ? (
@@ -286,7 +286,7 @@ export default function SettingsPage() {
               <button
                 type="button"
                 onClick={discardChanges}
-                className="rounded-[9px] border border-border-2 px-3.5 py-1.5 text-[13px] font-semibold text-muted hover:text-ink"
+                className="rounded-xl border border-border-2 px-3.5 py-1.5 text-sm font-semibold text-muted hover:text-ink"
               >
                 Discard
               </button>
@@ -295,7 +295,7 @@ export default function SettingsPage() {
               type="button"
               onClick={saveConfig}
               disabled={status === "saving" || !isDirty}
-              className="rounded-[9px] bg-accent px-4 py-1.5 text-[13px] font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
+              className="rounded-xl bg-accent px-4 py-1.5 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
             >
               {status === "saving" ? "Saving…" : "Save as new baseline"}
             </button>

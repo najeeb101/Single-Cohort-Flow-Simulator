@@ -37,13 +37,13 @@ export default function AnimationControls({
   return (
     <div className="sticky top-0 z-20 mb-3.5 flex flex-wrap items-center gap-3 rounded-xl border border-border bg-surface/90 px-3.5 py-3 backdrop-blur">
       <div className="flex gap-1.5">
-        <button type="button" onClick={() => onStep(-1)} className="rounded-[9px] border border-border-2 bg-surface-2 px-3 py-2 text-[13px] font-semibold text-ink" title="Previous semester">
+        <button type="button" onClick={() => onStep(-1)} className="rounded-xl border border-border-2 bg-surface-2 px-3 py-2 text-sm font-semibold text-ink" title="Previous semester">
           ⟨
         </button>
-        <button type="button" onClick={onTogglePlay} className="min-w-[92px] rounded-[9px] border border-transparent bg-accent px-3.5 py-2 text-[13px] font-semibold text-white">
+        <button type="button" onClick={onTogglePlay} className="min-w-[92px] rounded-xl border border-transparent bg-accent px-3.5 py-2 text-sm font-semibold text-white">
           {playing ? "⏸ Pause" : "▶ Play"}
         </button>
-        <button type="button" onClick={() => onStep(1)} className="rounded-[9px] border border-border-2 bg-surface-2 px-3 py-2 text-[13px] font-semibold text-ink" title="Next semester">
+        <button type="button" onClick={() => onStep(1)} className="rounded-xl border border-border-2 bg-surface-2 px-3 py-2 text-sm font-semibold text-ink" title="Next semester">
           ⟩
         </button>
       </div>
@@ -58,7 +58,7 @@ export default function AnimationControls({
         style={{ background: `linear-gradient(to right, var(--accent) ${scrubPct}%, var(--border-2) ${scrubPct}%)` }}
       />
 
-      <span className="min-w-[168px] rounded-[9px] border border-border bg-surface-2 px-2.5 py-1.5 text-center text-sm font-bold">
+      <span className="min-w-[168px] rounded-xl border border-border bg-surface-2 px-2.5 py-1.5 text-center text-sm font-bold">
         {termLabel}
       </span>
 
@@ -67,7 +67,7 @@ export default function AnimationControls({
         <select
           value={speed}
           onChange={(e) => onSpeedChange(Number(e.target.value))}
-          className="rounded-lg border border-border-2 bg-surface-2 px-2 py-1.5 text-[12.5px] text-ink"
+          className="rounded-lg border border-border-2 bg-surface-2 px-2 py-1.5 text-sm text-ink"
         >
           <option value={1200}>Slow</option>
           <option value={700}>Normal</option>
@@ -80,7 +80,7 @@ export default function AnimationControls({
         <select
           value={cohortSel}
           onChange={(e) => onCohortChange(e.target.value)}
-          className="rounded-lg border border-border-2 bg-surface-2 px-2 py-1.5 text-[12.5px] text-ink"
+          className="rounded-lg border border-border-2 bg-surface-2 px-2 py-1.5 text-sm text-ink"
         >
           <option value="totals">University total</option>
           {cohorts.map((c) => (

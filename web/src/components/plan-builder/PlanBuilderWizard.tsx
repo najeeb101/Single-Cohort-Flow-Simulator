@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { activatePlan, ApiError, exportPlan, importPlan, listPlans } from "@/lib/api";
 import { baselineFromMeta, type BuilderState } from "@/lib/scenarioBuilder";
@@ -10,7 +10,7 @@ import CourseListStep from "./CourseListStep";
 import ConfigStep from "./ConfigStep";
 
 type Step = "seed" | "courses" | "config" | "review";
-type SeedChoice = "clone" | "blank";
+type SeedChoice = "clone" | "blank" | "import";
 
 export default function PlanBuilderWizard() {
   const router = useRouter();
@@ -20,6 +20,12 @@ export default function PlanBuilderWizard() {
   const [seedChoice, setSeedChoice] = useState<SeedChoice>("clone");
   const [loadingSeed, setLoadingSeed] = useState(false);
   const [seedError, setSeedError] = useState<string | null>(null);
+
+  // import-from-file state
+  const curriculumInputRef = useRef<HTMLInputElement | null>(null);
+  const configInputRef = useRef<HTMLInputElement | null>(null);
+  const [importCurriculumFile, setImportCurriculumFile] = useState<File | null>(null);
+  const [importConfigFile, setImportConfigFile] = useState<File | null>(null);
 
   const [courses, setCourses] = useState<CourseRecord[]>([]);
   const [baseConfig, setBaseConfig] = useState<Record<string, unknown>>({});
@@ -43,6 +49,15 @@ export default function PlanBuilderWizard() {
         const exported = await exportPlan(defaultPlan.id);
         seedCourses = exported.curriculum;
         seedConfig = exported.config;
+      } else if (seedChoice === "import") {
+        if (!importCurriculumFile || !importConfigFile)
+          throw new Error("Please select both a Curriculum JSON and a Config JSON file.");
+        const [curriculum, config] = await Promise.all([
+          importCurriculumFile.text().then((t) => JSON.parse(t) as CourseRecord[]),
+          importConfigFile.text().then((t) => JSON.parse(t) as Record<string, unknown>),
+        ]);
+        seedCourses = curriculum;
+        seedConfig = config;
       } else {
         seedCourses = [];
         seedConfig = { ...BLANK_CONFIG };
@@ -106,13 +121,13 @@ export default function PlanBuilderWizard() {
     <div className="flex flex-col gap-6">
       <header className="border-b border-border py-5">
         <h1 className="text-[19px] font-bold tracking-tight">Plan Builder</h1>
-        <p className="mt-0.5 text-[12.5px] text-muted">
+        <p className="mt-0.5 text-sm text-muted">
           Build a new curriculum + configuration plan — clone the default to tweak it, or start
           from nothing and enter everything by hand.
         </p>
       </header>
 
-      <div className="flex gap-4 text-[12.5px]">
+      <div className="flex gap-4 text-sm">
         {(Object.keys(STEP_LABELS) as Step[]).map((s) => (
           <span key={s} className={s === step ? "font-semibold text-accent" : "text-muted"}>
             {STEP_LABELS[s]}
@@ -122,17 +137,17 @@ export default function PlanBuilderWizard() {
 
       {step === "seed" && (
         <section className="flex flex-col gap-4">
-          <label className="flex flex-col gap-1.5 text-[12.5px] text-muted">
+          <label className="flex flex-col gap-1.5 text-sm text-muted">
             Plan name
             <input
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="e.g. Revised CS curriculum 2027"
-              className="max-w-md rounded-[9px] border border-border-2 bg-surface-2 px-3 py-2 text-[13px] text-ink outline-none focus:border-accent"
+              className="max-w-md rounded-xl border border-border-2 bg-surface-2 px-3 py-2 text-sm text-ink outline-none focus:border-accent"
             />
           </label>
 
-          <div className="flex flex-col gap-2 text-[12.5px]">
+          <div className="flex flex-col gap-2 text-sm">
             <label className="flex items-center gap-2">
               <input
                 type="radio"
@@ -153,15 +168,54 @@ export default function PlanBuilderWizard() {
               />
               Start blank — no courses, default config scalars, enter everything manually
             </label>
+            <label className="flex items-center gap-2">
+              <input
+                type="radio"
+                name="seed"
+                checked={seedChoice === "import"}
+                onChange={() => setSeedChoice("import")}
+                className="accent-[var(--accent)]"
+              />
+              Import from JSON files — upload an existing Curriculum JSON + Config JSON
+            </label>
           </div>
 
-          {seedError && <p className="text-[12.5px] text-bad">{seedError}</p>}
+          {seedChoice === "import" && (
+            <div className="flex flex-col gap-3 rounded-xl border border-border bg-surface-2 px-4 py-3">
+              <label className="flex flex-col gap-1.5 text-sm text-muted">
+                Curriculum JSON
+                <input
+                  ref={curriculumInputRef}
+                  type="file"
+                  accept="application/json,.json"
+                  onChange={(e) => setImportCurriculumFile(e.target.files?.[0] ?? null)}
+                  className="text-sm text-muted file:mr-3 file:rounded-lg file:border-0 file:bg-surface file:px-3 file:py-1.5 file:font-semibold file:text-ink"
+                />
+              </label>
+              <label className="flex flex-col gap-1.5 text-sm text-muted">
+                Config JSON
+                <input
+                  ref={configInputRef}
+                  type="file"
+                  accept="application/json,.json"
+                  onChange={(e) => setImportConfigFile(e.target.files?.[0] ?? null)}
+                  className="text-sm text-muted file:mr-3 file:rounded-lg file:border-0 file:bg-surface file:px-3 file:py-1.5 file:font-semibold file:text-ink"
+                />
+              </label>
+            </div>
+          )}
+
+          {seedError && <p className="text-sm text-bad">{seedError}</p>}
 
           <button
             type="button"
             onClick={loadSeedAndContinue}
-            disabled={!name.trim() || loadingSeed}
-            className="self-start rounded-[9px] bg-accent px-4 py-2 text-[13px] font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
+            disabled={
+              !name.trim() ||
+              loadingSeed ||
+              (seedChoice === "import" && (!importCurriculumFile || !importConfigFile))
+            }
+            className="self-start rounded-xl bg-accent px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
           >
             {loadingSeed ? "Loading…" : "Continue"}
           </button>
@@ -183,7 +237,7 @@ export default function PlanBuilderWizard() {
             <button
               type="button"
               onClick={() => setStep("seed")}
-              className="rounded-[9px] border border-border-2 bg-surface px-4 py-2 text-[13px] font-semibold text-ink"
+              className="rounded-xl border border-border-2 bg-surface px-4 py-2 text-sm font-semibold text-ink"
             >
               Back
             </button>
@@ -191,7 +245,7 @@ export default function PlanBuilderWizard() {
               type="button"
               onClick={goToConfigStep}
               disabled={courses.length === 0}
-              className="rounded-[9px] bg-accent px-4 py-2 text-[13px] font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
+              className="rounded-xl bg-accent px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
             >
               Continue
             </button>
@@ -213,14 +267,14 @@ export default function PlanBuilderWizard() {
             <button
               type="button"
               onClick={() => setStep("courses")}
-              className="rounded-[9px] border border-border-2 bg-surface px-4 py-2 text-[13px] font-semibold text-ink"
+              className="rounded-xl border border-border-2 bg-surface px-4 py-2 text-sm font-semibold text-ink"
             >
               Back
             </button>
             <button
               type="button"
               onClick={() => setStep("review")}
-              className="rounded-[9px] bg-accent px-4 py-2 text-[13px] font-semibold text-white"
+              className="rounded-xl bg-accent px-4 py-2 text-sm font-semibold text-white"
             >
               Continue
             </button>
@@ -230,7 +284,7 @@ export default function PlanBuilderWizard() {
 
       {step === "review" && builderState && (
         <section className="flex flex-col gap-4">
-          <div className="rounded-2xl border border-border bg-surface p-4 text-[12.5px]">
+          <div className="rounded-2xl border border-border bg-surface p-4 text-sm">
             <dl className="grid grid-cols-2 gap-2 sm:grid-cols-3">
               <div>
                 <dt className="text-muted">Name</dt>
@@ -259,7 +313,7 @@ export default function PlanBuilderWizard() {
             </dl>
           </div>
 
-          <label className="flex items-center gap-2 text-[12.5px]">
+          <label className="flex items-center gap-2 text-sm">
             <input
               type="checkbox"
               checked={activateAfterSave}
@@ -269,14 +323,14 @@ export default function PlanBuilderWizard() {
             Activate this plan immediately after saving
           </label>
 
-          {saveError && <p className="text-[12.5px] text-bad">{saveError}</p>}
+          {saveError && <p className="text-sm text-bad">{saveError}</p>}
 
           <div className="flex gap-2 border-t border-border pt-4">
             <button
               type="button"
               onClick={() => setStep("config")}
               disabled={saving}
-              className="rounded-[9px] border border-border-2 bg-surface px-4 py-2 text-[13px] font-semibold text-ink disabled:opacity-50"
+              className="rounded-xl border border-border-2 bg-surface px-4 py-2 text-sm font-semibold text-ink disabled:opacity-50"
             >
               Back
             </button>
@@ -284,7 +338,7 @@ export default function PlanBuilderWizard() {
               type="button"
               onClick={save}
               disabled={saving}
-              className="rounded-[9px] bg-accent px-4 py-2 text-[13px] font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
+              className="rounded-xl bg-accent px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
             >
               {saving ? "Saving…" : "Save plan"}
             </button>

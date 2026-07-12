@@ -6,15 +6,15 @@ export default function CohortsTable({ cohorts, showHeading = true }: { cohorts:
   return (
     <section className={showHeading ? "py-6" : ""}>
       {showHeading && <h2 className="mb-1 text-[15px] font-bold">Per-cohort outcomes</h2>}
-      <p className="mb-4 max-w-3xl text-[12.5px] text-muted">
+      <p className="mb-4 max-w-3xl text-sm text-muted">
         One row per cohort showing graduation rate, dropout rate, and average semesters to complete — plus the single course that blocked each cohort the most by seat denial, prerequisite, and failure. Cohorts that entered in busy years (when the university is already full) typically show lower graduation rates and higher seat-block counts than later cohorts.
       </p>
       <div className="overflow-auto rounded-2xl border border-border bg-surface">
-        <table className="w-full border-collapse text-[12.5px]">
+        <table className="w-full border-collapse text-sm">
           <thead>
             <tr>
               {["Cohort", "n", "Grad", "Dropout", "Censored", "Avg sem", "Top seat-block", "Top prereq-block", "Top fail"].map((h) => (
-                <th key={h} className="sticky top-0 whitespace-nowrap border-b border-border bg-surface px-3 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wide text-muted">
+                <th key={h} className="sticky top-0 whitespace-nowrap border-b border-border bg-surface px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-muted">
                   {h}
                 </th>
               ))}
@@ -22,7 +22,7 @@ export default function CohortsTable({ cohorts, showHeading = true }: { cohorts:
           </thead>
           <tbody>
             {cohorts.map((c) => (
-              <tr key={c.cohort_id} className={c.is_incumbent ? "italic text-muted" : ""}>
+              <tr key={c.cohort_id} className={`group hover:bg-surface-2 transition-colors ${c.is_incumbent ? "italic text-muted" : "text-ink"}`}>
                 <td className="whitespace-nowrap border-b border-border px-3 py-2.5">{c.is_incumbent ? "inc " : ""}{c.cohort_id}</td>
                 <td className="whitespace-nowrap border-b border-border px-3 py-2.5">{c.n}</td>
                 <td className="whitespace-nowrap border-b border-border px-3 py-2.5">{pct(c.graduation_rate)}</td>

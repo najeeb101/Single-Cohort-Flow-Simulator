@@ -22,7 +22,7 @@ export default function SignalLegend({ signals = SIGNAL_ORDER, active, onToggle,
         {signals.map((k) => {
           const info = SIGNAL_META[k];
           const on = !active || active.has(k);
-          const base = `inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[11px] font-medium transition-opacity ${info.pill}`;
+          const base = `inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-medium transition-opacity ${info.pill}`;
           const dimmed = on ? "" : "opacity-35";
           const content = (
             <>

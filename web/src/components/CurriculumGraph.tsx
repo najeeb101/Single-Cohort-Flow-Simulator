@@ -320,7 +320,7 @@ export default function CurriculumGraph({ graph, courses }: Props) {
         <div className="absolute bottom-3 left-3 z-20 w-72 rounded-xl border border-border-2 bg-surface-2 p-3 text-xs shadow-lg">
           <div className="mb-1.5 flex items-start justify-between gap-2">
             <div>
-              <div className="text-[13px] font-bold text-ink">{selectedNode.code}</div>
+              <div className="text-sm font-bold text-ink">{selectedNode.code}</div>
               <div className="text-muted">{selectedNode.title}</div>
             </div>
             <button

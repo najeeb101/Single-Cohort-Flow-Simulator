@@ -122,7 +122,7 @@ export function SimulationProvider({ children }: { children: ReactNode }) {
   if (phase === "error" || !meta) {
     return (
       <main className="mx-auto max-w-xl px-7 py-16">
-        <div className="rounded-2xl border border-[#5a2c2c] bg-[#241516] px-6 py-5 text-[#f0c2c2]">
+        <div className="rounded-2xl border border-border border-l-[4px] border-l-bad bg-surface px-6 py-5 text-bad">
           Could not reach the simulation API. Start it with{" "}
           <code className="rounded bg-black/35 px-1.5 py-0.5">py -m uvicorn src.api:app --port 8001</code>{" "}
           (from the repo root) and reload.
@@ -199,12 +199,12 @@ function StartingScreen({
           </h1>
           {error ? (
             <>
-              <p className="mt-3 text-[13.5px] text-bad">{error}</p>
+              <p className="mt-3 text-sm text-bad">{error}</p>
               <button
                 type="button"
                 onClick={onRetry}
                 disabled={retrying}
-                className="mt-4 rounded-[10px] bg-accent px-6 py-2 text-[14px] font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
+                className="mt-4 rounded-xl bg-accent px-6 py-2 text-[14px] font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {retrying ? "Running…" : "Try again"}
               </button>
@@ -219,7 +219,7 @@ function StartingScreen({
       </div>
 
       <section className="mt-6 rounded-2xl border border-border bg-surface">
-        <div className="flex items-baseline justify-between gap-3 border-b border-border px-4 py-2.5 text-[13px] font-semibold">
+        <div className="flex items-baseline justify-between gap-3 border-b border-border px-4 py-2.5 text-sm font-semibold">
           <span>Programme roadmap</span>
           <span className="text-xs font-normal text-muted">
             {totalCourses} courses · {totalCH} CH · coloured by requirement type
@@ -236,7 +236,7 @@ function StartingScreen({
 // can't read this state.
 function UpdatingIndicator() {
   return (
-    <div className="fixed bottom-5 right-5 z-[60] flex items-center gap-2 rounded-full border border-border-2 bg-surface px-4 py-2 text-[12.5px] font-semibold text-ink shadow-lg">
+    <div className="fixed bottom-5 right-5 z-[60] flex items-center gap-2 rounded-full border border-border-2 bg-surface px-4 py-2 text-sm font-semibold text-ink shadow-lg">
       <span className="inline-block h-2 w-2 animate-ping rounded-full bg-accent" />
       Updating simulation…
     </div>

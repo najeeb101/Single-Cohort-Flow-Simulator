@@ -67,7 +67,7 @@ export default function CapacityRecommendations({
     return (
       <section className="py-6">
         <h2 className="mb-1 text-[15px] font-bold">Capacity recommendations</h2>
-        <p className="text-[12.5px] text-muted">No seat denials recorded — current capacity is sufficient.</p>
+        <p className="text-sm text-muted">No seat denials recorded — current capacity is sufficient.</p>
       </section>
     );
   }
@@ -75,7 +75,7 @@ export default function CapacityRecommendations({
   return (
     <section className="py-6">
       <h2 className="mb-1 text-[15px] font-bold">Capacity recommendations</h2>
-      <p className="mb-4 max-w-3xl text-[12.5px] text-muted">
+      <p className="mb-4 max-w-3xl text-sm text-muted">
         Courses ranked by total seat denials. <span className="font-semibold text-ink">Recommended capacity</span>{" "}
         is current capacity plus the worst single term&apos;s shortfall — enough to clear every denial seen in
         this run. To test the actual impact of raising capacity, ask the{" "}
@@ -86,13 +86,13 @@ export default function CapacityRecommendations({
       </p>
 
       <div className="overflow-auto rounded-2xl border border-border bg-surface">
-        <table className="w-full border-collapse text-[12.5px]">
+        <table className="w-full border-collapse text-sm">
           <thead>
             <tr>
               {["Course", "Capacity", "Total denied", "Recommended capacity"].map((h) => (
                 <th
                   key={h}
-                  className="whitespace-nowrap border-b border-border bg-surface px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-wide text-muted"
+                  className="whitespace-nowrap border-b border-border bg-surface px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-muted"
                 >
                   {h}
                 </th>
@@ -101,14 +101,17 @@ export default function CapacityRecommendations({
           </thead>
           <tbody>
             {recs.map((r) => (
-              <tr key={r.code} className="border-b border-border last:border-0">
+              <tr key={r.code} className="group border-b border-border transition-colors hover:bg-surface-2 last:border-0">
                 <td className="whitespace-nowrap px-3 py-2.5 font-semibold">{r.code}</td>
                 <td className="whitespace-nowrap px-3 py-2.5 tabular-nums text-muted">{r.currentCapacity}</td>
-                <td className="whitespace-nowrap px-3 py-2.5 tabular-nums font-semibold text-bad">
+                <td className="whitespace-nowrap px-3 py-2.5 tabular-nums font-bold text-ink">
                   {r.totalDenied.toLocaleString()}
                 </td>
-                <td className="whitespace-nowrap px-3 py-2.5 tabular-nums font-semibold text-good">
-                  {r.recommendedCapacity.toLocaleString()} (+{r.peakShortfall.toLocaleString()})
+                <td className="whitespace-nowrap px-3 py-2.5 tabular-nums font-bold text-ink">
+                  {r.recommendedCapacity.toLocaleString()}{" "}
+                  <span className="ml-1 rounded bg-surface-2 px-1.5 py-0.5 text-xs font-medium text-muted">
+                    +{r.peakShortfall.toLocaleString()}
+                  </span>
                 </td>
               </tr>
             ))}

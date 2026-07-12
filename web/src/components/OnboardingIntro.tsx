@@ -49,8 +49,8 @@ function CardGrid({ items }: { items: { label: string; desc: string }[] }) {
     <div className="mx-auto grid max-w-4xl gap-3 sm:grid-cols-3">
       {items.map((c) => (
         <div key={c.label} className="rounded-2xl border border-border bg-surface px-4 py-3.5 text-left">
-          <div className="mb-1 text-[12.5px] font-bold text-ink">{c.label}</div>
-          <div className="text-[12px] text-muted">{c.desc}</div>
+          <div className="mb-1 text-sm font-bold text-ink">{c.label}</div>
+          <div className="text-sm text-muted">{c.desc}</div>
         </div>
       ))}
     </div>
@@ -87,7 +87,7 @@ export default function OnboardingIntro({ onComplete, showSkip = true }: Props) 
           {step === "how" && (
             <>
               <h1 className="mt-3 text-[22px] font-extrabold tracking-tight text-ink">How it works</h1>
-              <p className="mt-1 text-[13px] leading-relaxed text-muted">
+              <p className="mt-1 text-sm leading-relaxed text-muted">
                 Three things you can do with a plan, once it&apos;s simulated.
               </p>
             </>
@@ -95,13 +95,13 @@ export default function OnboardingIntro({ onComplete, showSkip = true }: Props) 
           {step === "pages" && (
             <>
               <h1 className="mt-3 text-[22px] font-extrabold tracking-tight text-ink">Where to go</h1>
-              <p className="mt-1 text-[13px] leading-relaxed text-muted">
+              <p className="mt-1 text-sm leading-relaxed text-muted">
                 A quick tour of every page — you can revisit this anytime from the About link.
               </p>
             </>
           )}
 
-          <div className="mt-4 flex gap-4 text-[12px]">
+          <div className="mt-4 flex gap-4 text-sm">
             {STEP_ORDER.map((s) => (
               <span key={s} className={s === step ? "font-semibold text-accent" : "text-muted"}>
                 {STEP_LABELS[s]}
@@ -126,7 +126,7 @@ export default function OnboardingIntro({ onComplete, showSkip = true }: Props) 
             <button
               type="button"
               onClick={back}
-              className="rounded-[10px] border border-border-2 bg-surface px-6 py-2 text-[14px] font-semibold text-ink"
+              className="rounded-xl border border-border-2 bg-surface px-6 py-2 text-[14px] font-semibold text-ink"
             >
               Back
             </button>
@@ -134,7 +134,7 @@ export default function OnboardingIntro({ onComplete, showSkip = true }: Props) 
           <button
             type="button"
             onClick={forward}
-            className="rounded-[10px] bg-accent px-7 py-2.5 text-[14px] font-semibold text-white"
+            className="rounded-xl bg-accent px-7 py-2.5 text-[14px] font-semibold text-white"
           >
             {isLast ? "Start" : "Continue"}
           </button>
@@ -143,7 +143,7 @@ export default function OnboardingIntro({ onComplete, showSkip = true }: Props) 
           <button
             type="button"
             onClick={onComplete}
-            className="text-[12px] text-muted underline underline-offset-2 transition-colors hover:text-ink"
+            className="text-sm text-muted underline underline-offset-2 transition-colors hover:text-ink"
           >
             Skip intro
           </button>

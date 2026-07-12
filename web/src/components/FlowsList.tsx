@@ -23,7 +23,7 @@ export default function FlowsList({ frame, cohortSel }: Props) {
   return (
     <div className="mt-3.5">
       {flows.length ? (
-        <ul className="m-0 list-none p-0 text-[12.5px]">
+        <ul className="m-0 list-none p-0 text-sm">
           {flows.map((fl, i) => (
             <li key={i} className="flex justify-between border-b border-border py-1.5 last:border-b-0">
               <span>{fl.from} → {fl.to}</span>

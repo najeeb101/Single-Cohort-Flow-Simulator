@@ -77,7 +77,7 @@ export default function AutofillPanel() {
         <h2 className="text-[15px] font-bold">Auto-fill to targets</h2>
         <span className="text-xs font-normal text-muted">— solve for the seats that hit your targets</span>
       </div>
-      <p className="mb-4 max-w-3xl text-[12.5px] text-muted">
+      <p className="mb-4 max-w-3xl text-sm text-muted">
         Searches the smallest capacity additions that meet every admission health target at the current
         intake. Runs a series of simulations (a few seconds), then lets you apply the result.
       </p>
@@ -87,12 +87,16 @@ export default function AutofillPanel() {
           type="button"
           onClick={run}
           disabled={running || applying}
-          className="rounded-[10px] bg-accent px-5 py-2 text-[13px] font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
+          className={`rounded-xl px-5 py-2 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-50 ${
+            result && !running
+              ? "border border-border bg-surface-2 text-ink hover:border-accent/50"
+              : "bg-accent text-white"
+          }`}
         >
-          {running ? "Searching…" : "▶ Auto-fill to hit targets"}
+          {running ? "Searching…" : result ? "↻ Run again" : "▶ Auto-fill to hit targets"}
         </button>
-        {running && <span className="text-[12.5px] text-muted">running simulations…</span>}
-        {error && <span className="text-[12.5px] text-bad">{error}</span>}
+        {running && <span className="text-sm text-muted">running simulations…</span>}
+        {error && <span className="text-sm text-bad">{error}</span>}
       </div>
 
       {result && (
@@ -105,12 +109,12 @@ export default function AutofillPanel() {
                 : "border-border border-l-warn bg-surface"
             }`}
           >
-            <div className={`text-[13.5px] font-bold ${result.feasible ? "text-good" : "text-warn"}`}>
+            <div className={`text-sm font-bold ${result.feasible ? "text-good" : "text-warn"}`}>
               {result.feasible
                 ? "All targets can be met by adding seats"
                 : "Capacity alone can't meet every target"}
             </div>
-            <p className="mt-1 text-[12.5px] text-muted">
+            <p className="mt-1 text-sm text-muted">
               {result.feasible
                 ? `Adding ${result.total_seats_added.toLocaleString()} seats across ${recEntries.length} course(s) meets every target at the current intake of ${result.current_intake}.`
                 : `Even after ${result.total_seats_added.toLocaleString()} added seats, some targets stay breached — those aren't seat-driven. ${result.intake_suggestion?.note ?? ""}`}
@@ -122,8 +126,8 @@ export default function AutofillPanel() {
             {result.criteria.map((c) => (
               <div
                 key={c.name}
-                className={`rounded-[9px] border px-3 py-1.5 text-[12px] ${
-                  c.met ? "border-good/40 text-good" : "border-bad/40 text-bad"
+                className={`rounded-xl border border-border px-3 py-1.5 text-sm ${
+                  c.met ? "text-good" : "text-bad"
                 }`}
               >
                 <span className="font-semibold">{CRITERION_LABEL[c.name] ?? c.name}</span>{" "}
@@ -137,13 +141,13 @@ export default function AutofillPanel() {
           {/* Recommended capacities */}
           {recEntries.length > 0 && (
             <div className="overflow-auto rounded-2xl border border-border bg-surface">
-              <table className="w-full border-collapse text-[12.5px]">
+              <table className="w-full border-collapse text-sm">
                 <thead>
                   <tr>
-                    {["Course", "Current", "Recommended", "Added"].map((h) => (
+                    {["Course", "Current", "Recommended capacity"].map((h) => (
                       <th
                         key={h}
-                        className="whitespace-nowrap border-b border-border px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-wide text-muted"
+                        className="whitespace-nowrap border-b border-border bg-surface px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-muted"
                       >
                         {h}
                       </th>
@@ -152,11 +156,15 @@ export default function AutofillPanel() {
                 </thead>
                 <tbody>
                   {recEntries.map(([code, rec]) => (
-                    <tr key={code} className="border-b border-border last:border-0">
+                    <tr key={code} className="group border-b border-border transition-colors hover:bg-surface-2 last:border-0">
                       <td className="whitespace-nowrap px-3 py-2.5 font-semibold">{code}</td>
-                      <td className="px-3 py-2.5 tabular-nums text-muted">{rec.current}</td>
-                      <td className="px-3 py-2.5 tabular-nums font-semibold text-good">{rec.recommended}</td>
-                      <td className="px-3 py-2.5 tabular-nums font-semibold text-good">+{rec.added}</td>
+                      <td className="whitespace-nowrap px-3 py-2.5 tabular-nums text-muted">{rec.current}</td>
+                      <td className="whitespace-nowrap px-3 py-2.5 tabular-nums font-bold text-ink">
+                        {rec.recommended}{" "}
+                        <span className="ml-1 rounded bg-surface-2 px-1.5 py-0.5 text-xs font-medium text-muted">
+                          +{rec.added}
+                        </span>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -165,14 +173,14 @@ export default function AutofillPanel() {
           )}
 
           {/* Resulting metrics */}
-          <div className="flex flex-wrap gap-2 text-[12px]">
+          <div className="flex flex-wrap gap-2 text-sm">
             {[
               ["Graduation", pct(result.final_metrics.graduation_rate)],
               ["On-time", pct(result.final_metrics.on_time_rate)],
               ["Avg time", `${result.final_metrics.avg_graduation_time.toFixed(1)} sem`],
               ["Dropout", pct(result.final_metrics.academic_dropout_rate)],
             ].map(([k, v]) => (
-              <div key={k} className="rounded-[9px] border border-border bg-surface px-3 py-1.5 text-muted">
+              <div key={k} className="rounded-xl border border-border bg-surface px-3 py-1.5 text-muted">
                 {k}: <b className="text-ink">{v}</b>
               </div>
             ))}
@@ -180,7 +188,7 @@ export default function AutofillPanel() {
 
           {/* Optional intake fallback */}
           {intake != null && (
-            <label className="flex items-start gap-2 text-[12.5px]">
+            <label className="flex items-start gap-2 text-sm">
               <input
                 type="checkbox"
                 checked={applyIntake}
@@ -200,15 +208,15 @@ export default function AutofillPanel() {
               type="button"
               onClick={apply}
               disabled={applying || recEntries.length === 0}
-              className="rounded-[10px] bg-accent px-5 py-2 text-[13px] font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
+              className="rounded-xl bg-accent px-5 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
             >
               {applying ? "Applying…" : "Apply these changes"}
             </button>
-            {applied && <span className="text-[12.5px] font-semibold text-good">Applied — new baseline in effect</span>}
+            {applied && <span className="text-sm font-semibold text-good">Applied — new baseline in effect</span>}
             <button
               type="button"
               onClick={() => setShowTrace((v) => !v)}
-              className="text-[12px] font-semibold text-muted hover:text-ink"
+              className="text-sm font-semibold text-muted hover:text-ink"
             >
               {showTrace ? "Hide search steps" : "Show search steps"}
             </button>
@@ -216,11 +224,11 @@ export default function AutofillPanel() {
 
           {showTrace && (
             <div className="overflow-auto rounded-2xl border border-border bg-surface">
-              <table className="w-full border-collapse text-[12px]">
+              <table className="w-full border-collapse text-sm">
                 <thead>
                   <tr>
                     {["#", "Action", "Course", "Seats", "Worst target", "Slack"].map((h) => (
-                      <th key={h} className="border-b border-border px-3 py-1.5 text-left text-[10.5px] font-semibold uppercase tracking-wide text-muted">
+                      <th key={h} className="border-b border-border px-3 py-1.5 text-left text-xs font-semibold uppercase tracking-wide text-muted">
                         {h}
                       </th>
                     ))}
@@ -228,15 +236,15 @@ export default function AutofillPanel() {
                 </thead>
                 <tbody>
                   {result.trace.map((t) => (
-                    <tr key={t.iteration} className="border-b border-border last:border-0">
-                      <td className="px-3 py-1.5 tabular-nums text-muted">{t.iteration}</td>
-                      <td className="px-3 py-1.5">{t.action}</td>
-                      <td className="px-3 py-1.5 font-semibold">{t.course ?? "—"}</td>
-                      <td className="px-3 py-1.5 tabular-nums text-muted">
+                    <tr key={t.iteration} className="group border-b border-border transition-colors hover:bg-surface-2 last:border-0">
+                      <td className="whitespace-nowrap px-3 py-2.5 tabular-nums text-muted">{t.iteration}</td>
+                      <td className="whitespace-nowrap px-3 py-2.5">{t.action}</td>
+                      <td className="whitespace-nowrap px-3 py-2.5 font-semibold">{t.course ?? "—"}</td>
+                      <td className="whitespace-nowrap px-3 py-2.5 tabular-nums text-muted">
                         {t.from != null && t.to != null ? `${t.from} → ${t.to}` : "—"}
                       </td>
-                      <td className="px-3 py-1.5 text-muted">{t.worst_criterion ? (CRITERION_LABEL[t.worst_criterion] ?? t.worst_criterion) : "—"}</td>
-                      <td className="px-3 py-1.5 tabular-nums text-muted">{t.worst_slack ?? "—"}</td>
+                      <td className="whitespace-nowrap px-3 py-2.5 text-muted">{t.worst_criterion ? (CRITERION_LABEL[t.worst_criterion] ?? t.worst_criterion) : "—"}</td>
+                      <td className="whitespace-nowrap px-3 py-2.5 tabular-nums text-muted">{t.worst_slack ?? "—"}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -244,7 +252,7 @@ export default function AutofillPanel() {
             </div>
           )}
 
-          <p className="text-[11px] text-muted">{result.note}</p>
+          <p className="text-xs text-muted">{result.note}</p>
         </div>
       )}
     </section>

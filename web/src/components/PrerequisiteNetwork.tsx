@@ -50,7 +50,7 @@ export default function PrerequisiteNetwork({ graph, frames }: Props) {
 
   return (
     <div className="rounded-2xl border border-border bg-surface p-4">
-      <div className="mb-2 flex items-baseline justify-between gap-3 text-[13px] font-semibold">
+      <div className="mb-2 flex items-baseline justify-between gap-3 text-sm font-semibold">
         <span>Prerequisite network — failure hotspots</span>
         <span className="text-xs font-normal text-muted">Courses with prerequisite links · shaded by total failures, whole run</span>
       </div>

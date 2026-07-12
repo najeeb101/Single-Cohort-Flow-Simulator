@@ -163,7 +163,7 @@ export default function AdvisorPanel({
             <h2 className="text-[15px] font-bold">Advisor</h2>
             <span className="text-xs font-normal text-muted">— what this run is telling you</span>
           </div>
-          <p className="mb-4 max-w-3xl text-[12.5px] text-muted">
+          <p className="mb-4 max-w-3xl text-sm text-muted">
             Automatic reading of the results against your admission targets. Each card is grounded in this
             run&apos;s numbers — most important first.
           </p>
@@ -184,12 +184,12 @@ export default function AdvisorPanel({
                   {SEVERITY_WORD[a.severity]}
                 </span>
               </div>
-              <div className="text-[13.5px] font-bold text-ink">{a.title}</div>
-              <p className="mt-1 text-[12.5px] leading-relaxed text-muted">{a.body}</p>
+              <div className="text-sm font-bold text-ink">{a.title}</div>
+              <p className="mt-1 text-sm leading-relaxed text-muted">{a.body}</p>
               {a.action && (
                 <Link
                   href={a.action.href}
-                  className="mt-2 inline-block text-[12px] font-semibold text-accent hover:underline"
+                  className="mt-2 inline-block text-sm font-semibold text-accent hover:underline"
                 >
                   {a.action.label}
                 </Link>

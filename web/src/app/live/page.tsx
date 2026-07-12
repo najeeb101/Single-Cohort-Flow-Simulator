@@ -115,7 +115,7 @@ export default function LivePage() {
   if (phase === "error" || !meta) {
     return (
       <main className="mx-auto max-w-xl px-7 py-16">
-        <div className="rounded-2xl border border-[#5a2c2c] bg-[#241516] px-6 py-5 text-[#f0c2c2]">
+        <div className="rounded-2xl border border-border border-l-[4px] border-l-bad bg-surface px-6 py-5 text-bad">
           Could not reach the simulation API. Start it with{" "}
           <code className="rounded bg-black/35 px-1.5 py-0.5">py -m uvicorn src.api:app --port 8001</code>{" "}
           (from the repo root) and reload.
@@ -128,7 +128,7 @@ export default function LivePage() {
     <main className="mx-auto w-full max-w-[1600px] px-7 pb-16">
       <header className="border-b border-border py-5">
         <h1 className="text-[19px] font-bold tracking-tight">Live Simulation</h1>
-        <p className="mt-0.5 text-[12.5px] text-muted">
+        <p className="mt-0.5 text-sm text-muted">
           Step a simulation forward one term at a time, tweaking capacity, pass rates, offerings, and admissions
           between terms — independent of the baseline run on the Dashboard.
         </p>
@@ -146,15 +146,15 @@ export default function LivePage() {
 
         <div className="min-w-0">
           {selectedId === null ? (
-            <div className="rounded-2xl border border-border bg-surface px-4 py-10 text-center text-[12.5px] text-muted">
+            <div className="rounded-2xl border border-border bg-surface px-4 py-10 text-center text-sm text-muted">
               Select a live simulation, or create a new one to get started.
             </div>
           ) : detailFetchFailed && !detail ? (
-            <div className="rounded-2xl border border-border bg-surface px-4 py-10 text-center text-[12.5px] text-bad">
+            <div className="rounded-2xl border border-border bg-surface px-4 py-10 text-center text-sm text-bad">
               Could not load this live simulation.
             </div>
           ) : detailLoading || !detail ? (
-            <div className="rounded-2xl border border-border bg-surface px-4 py-10 text-center text-[12.5px] text-muted">
+            <div className="rounded-2xl border border-border bg-surface px-4 py-10 text-center text-sm text-muted">
               Loading…
             </div>
           ) : (

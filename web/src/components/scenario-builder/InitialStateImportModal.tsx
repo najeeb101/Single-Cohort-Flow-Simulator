@@ -283,7 +283,7 @@ export default function InitialStateImportModal({ open, onClose, courses, standi
         value={text}
         onChange={(e) => handleTextChange(e.target.value)}
         placeholder={"code,value\nYear2,40\nCOURSE101,30"}
-        className="h-32 w-full resize-y rounded-[8px] border border-border-2 bg-surface-2 px-2.5 py-1.5 font-mono text-[12.5px] text-ink focus:outline-none focus:ring-1 focus:ring-accent"
+        className="h-32 w-full resize-y rounded-lg border border-border-2 bg-surface-2 px-2.5 py-1.5 font-mono text-sm text-ink focus:outline-none focus:ring-1 focus:ring-accent"
       />
 
       <div className="mt-2 flex items-center gap-2">
@@ -301,23 +301,23 @@ export default function InitialStateImportModal({ open, onClose, courses, standi
         <button
           type="button"
           onClick={() => fileInputRef.current?.click()}
-          className="rounded-md border border-border-2 px-2.5 py-1 text-[11px] font-semibold text-ink hover:bg-surface-2"
+          className="rounded-md border border-border-2 px-2.5 py-1 text-xs font-semibold text-ink hover:bg-surface-2"
         >
           Upload file
         </button>
         <button
           type="button"
           onClick={downloadSample}
-          className="rounded-md border border-border-2 px-2.5 py-1 text-[11px] font-semibold text-ink hover:bg-surface-2"
+          className="rounded-md border border-border-2 px-2.5 py-1 text-xs font-semibold text-ink hover:bg-surface-2"
         >
           Download sample CSV
         </button>
       </div>
 
-      {error && <p className="mt-2 text-[12px] text-bad">{error}</p>}
+      {error && <p className="mt-2 text-sm text-bad">{error}</p>}
 
       {(fileResult !== null || text.trim().length > 0) && (
-        <div className="mt-3 overflow-hidden rounded-lg border border-border bg-surface-2 text-[12px]">
+        <div className="mt-3 overflow-hidden rounded-lg border border-border bg-surface-2 text-sm">
           {fileName && (
             <p className="border-b border-border px-3 py-1.5 text-muted">
               Loaded from <span className="font-semibold text-ink">{fileName}</span>
@@ -327,7 +327,7 @@ export default function InitialStateImportModal({ open, onClose, courses, standi
             <p className="px-3 py-2 text-muted">Nothing to import — no rows found.</p>
           ) : (
             <>
-              <div className="flex flex-wrap gap-x-3 gap-y-0.5 px-3 py-1.5 text-[11px]">
+              <div className="flex flex-wrap gap-x-3 gap-y-0.5 px-3 py-1.5 text-xs">
                 <span className="text-good">
                   <b>{occupancyCount}</b> occupancy
                 </span>
@@ -374,7 +374,7 @@ export default function InitialStateImportModal({ open, onClose, courses, standi
         <button
           type="button"
           onClick={handleClose}
-          className="rounded-[9px] border border-border-2 px-3.5 py-1.5 text-[13px] font-semibold text-ink hover:bg-surface-2"
+          className="rounded-xl border border-border-2 px-3.5 py-1.5 text-sm font-semibold text-ink hover:bg-surface-2"
         >
           Cancel
         </button>
@@ -382,7 +382,7 @@ export default function InitialStateImportModal({ open, onClose, courses, standi
           type="button"
           onClick={handleApply}
           disabled={!hasAnything}
-          className="rounded-[9px] bg-accent px-3.5 py-1.5 text-[13px] font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
+          className="rounded-xl bg-accent px-3.5 py-1.5 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
         >
           Apply
         </button>

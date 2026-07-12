@@ -23,11 +23,11 @@ export default function CourseTooltip({ node, stat, catLabel, x, y, flip = false
   return (
     <div
       role="tooltip"
-      className="pointer-events-none absolute z-30 rounded-lg border border-border-2 bg-surface-2 px-2.5 py-2 text-[11px] shadow-lg"
+      className="pointer-events-none absolute z-30 rounded-lg border border-border-2 bg-surface-2 px-2.5 py-2 text-xs shadow-lg"
       style={{ left, top: y, width: TIP_W, transform: flip ? "translateY(-100%)" : undefined }}
     >
       <div className="flex items-baseline justify-between gap-2">
-        <span className="text-[12px] font-bold text-ink">{node.code}</span>
+        <span className="text-sm font-bold text-ink">{node.code}</span>
         <span className="text-muted">{node.credits} CH</span>
       </div>
       <div className="mt-0.5 text-muted">{node.title}</div>

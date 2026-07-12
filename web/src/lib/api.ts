@@ -190,6 +190,14 @@ export function deletePlan(id: number): Promise<void> {
   return fetch(`${API_BASE}/plans/${id}`, { method: "DELETE" }).then((res) => asJson<void>(res));
 }
 
+export function renamePlan(id: number, name: string): Promise<PlanRecord> {
+  return fetch(`${API_BASE}/plans/${id}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name }),
+  }).then((res) => asJson<PlanRecord>(res));
+}
+
 export function exportPlan(id: number): Promise<PlanExportPayload> {
   return fetch(`${API_BASE}/plans/${id}/export`).then((res) => asJson<PlanExportPayload>(res));
 }

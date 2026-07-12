@@ -42,7 +42,7 @@ export default function BottlenecksPanel({ bottlenecks, frames }: { bottlenecks:
       <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
         <div>
           <h2 className="text-[15px] font-bold">Top bottlenecks</h2>
-          <p className="mt-0.5 max-w-2xl text-[12.5px] text-muted">
+          <p className="mt-0.5 max-w-2xl text-sm text-muted">
             The reasons a student couldn&apos;t take a course they needed — ranked by how often each course
             caused the problem across the run. A course near the top of multiple lists is the deepest structural
             delay point in the curriculum.
@@ -62,17 +62,17 @@ export default function BottlenecksPanel({ bottlenecks, frames }: { bottlenecks:
                 <span className={`h-2 w-2 rounded-full ${info.dot}`} aria-hidden />
                 <span className="text-ink">{card.title}</span>
               </h4>
-              <p className="mb-2.5 text-[11px] text-muted">{card.desc}</p>
+              <p className="mb-2.5 text-xs text-muted">{card.desc}</p>
               {list.length ? (
-                <ol className="space-y-1 text-[13px]">
+                <ol className="space-y-1 text-sm">
                   {list.map(([code, n], i) => (
                     <li key={code} className="flex items-center gap-2">
-                      <span className="w-4 text-right text-[11px] text-muted tabular-nums">{i + 1}</span>
+                      <span className="w-4 text-right text-xs text-muted tabular-nums">{i + 1}</span>
                       <button
                         type="button"
                         onClick={() => setDetail({ signal: k, code })}
                         aria-label={`Open ${code} ${card.title.toLowerCase()} details`}
-                        className="font-medium text-ink underline decoration-dotted decoration-border-2 underline-offset-2 hover:decoration-accent"
+                        className="font-semibold text-ink transition-colors hover:text-accent hover:underline hover:underline-offset-2"
                         title="See this course's signal over time"
                       >
                         {code}
@@ -132,16 +132,16 @@ function DetailModal({ detail, frames, onClose }: { detail: Detail; frames: Fram
 
   return (
     <Modal open onClose={onClose} title={`${detail.code} · ${info.label} over time`}>
-      <p className="mb-3 text-[12px] text-muted">{info.unit}</p>
+      <p className="mb-3 text-sm text-muted">{info.unit}</p>
       <div className="overflow-x-auto rounded-lg border border-border bg-surface-2 p-3">
         <SignalBars rows={rows} fill={info.fill} />
       </div>
-      <p className="mt-2 text-[12px] text-ink">
+      <p className="mt-2 text-sm text-ink">
         Peak <b>{peakRow.v.toLocaleString()}</b>
         {peakRow.v > 0 && <span className="text-muted"> in {peakRow.label}</span>} · total{" "}
         <b>{rows.reduce((s, r) => s + r.v, 0).toLocaleString()}</b> across {total} terms.
       </p>
-      <div className="mt-3 rounded-lg border border-accent/30 bg-accent/5 px-3 py-2 text-[12px] text-ink">
+      <div className="mt-3 rounded-lg border border-border bg-surface-2 px-4 py-3 text-sm text-ink">
         <span className="font-semibold">Suggested fix: </span>
         {fix}
       </div>

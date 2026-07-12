@@ -33,7 +33,7 @@ export default function ThemeToggle() {
       onClick={toggle}
       title={light ? "Switch to dark theme" : "Switch to light theme"}
       aria-label={light ? "Switch to dark theme" : "Switch to light theme"}
-      className="grid h-8 w-8 place-items-center rounded-[8px] border border-border-2 bg-surface-2 text-ink transition-colors hover:bg-surface"
+      className="grid h-8 w-8 place-items-center rounded-lg border border-border-2 bg-surface-2 text-ink transition-colors hover:bg-surface"
     >
       {light ? (
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">

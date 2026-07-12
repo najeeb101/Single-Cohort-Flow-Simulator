@@ -25,7 +25,7 @@ const isCourseLeaf = (e: RuleExpr): e is string => typeof e === "string";
 export default function RuleExprEditor({ expr, allCourseCodes, onChange }: Props) {
   if (!isAllNode(expr)) {
     return (
-      <p className="text-[11px] text-bad">
+      <p className="text-sm text-bad">
         This rule isn&apos;t a top-level &quot;all&quot; expression — editing it isn&apos;t supported in this UI.
       </p>
     );
@@ -47,9 +47,9 @@ export default function RuleExprEditor({ expr, allCourseCodes, onChange }: Props
   const availableForAny = allCourseCodes.filter((c) => !anyChoices.includes(c));
 
   return (
-    <div className="flex flex-col gap-3 text-[12.5px]">
+    <div className="flex flex-col gap-3 text-sm">
       <div>
-        <div className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-muted">
+        <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-muted">
           Required (all of these)
         </div>
         <div className="flex flex-wrap gap-1.5">
@@ -83,7 +83,7 @@ export default function RuleExprEditor({ expr, allCourseCodes, onChange }: Props
       </div>
 
       <div>
-        <div className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-muted">
+        <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-muted">
           At least one of
         </div>
         <div className="flex flex-wrap gap-1.5">
@@ -117,7 +117,7 @@ export default function RuleExprEditor({ expr, allCourseCodes, onChange }: Props
       </div>
 
       <div className="flex items-center gap-2">
-        <span className="text-[11px] font-semibold uppercase tracking-wide text-muted">
+        <span className="text-xs font-semibold uppercase tracking-wide text-muted">
           Min. completed CH
         </span>
         <input
@@ -129,7 +129,7 @@ export default function RuleExprEditor({ expr, allCourseCodes, onChange }: Props
           onChange={(e) =>
             rebuild(requiredCourses, anyChoices, e.target.value === "" ? undefined : Number(e.target.value))
           }
-          className="w-20 rounded-[8px] border border-border-2 bg-surface-2 px-2 py-1 text-ink"
+          className="w-20 rounded-lg border border-border-2 bg-surface-2 px-2 py-1 text-ink"
         />
       </div>
     </div>

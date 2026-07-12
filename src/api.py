@@ -749,6 +749,24 @@ def activate_plan(
     return _plan_to_dict(plan, current_user)
 
 
+@app.patch("/plans/{plan_id}")
+def rename_plan(
+    plan_id: int, body: dict, db: Session = Depends(get_db)
+) -> dict:
+    current_user = get_current_user(db)
+    plan = db.get(PlanRow, plan_id)
+    if plan is None or plan.owner_user_id != current_user.id:
+        raise HTTPException(status_code=404, detail="Plan not found")
+    if plan.is_default:
+        raise HTTPException(status_code=400, detail="Cannot rename the default plan")
+    name = (body.get("name") or "").strip()
+    if not name:
+        raise HTTPException(status_code=422, detail="Name must not be empty")
+    plan.name = name
+    db.commit()
+    return _plan_to_dict(plan, current_user)
+
+
 @app.delete("/plans/{plan_id}")
 def delete_plan(
     plan_id: int, db: Session = Depends(get_db)

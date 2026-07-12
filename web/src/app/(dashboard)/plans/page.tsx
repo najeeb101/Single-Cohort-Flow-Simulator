@@ -1,20 +1,15 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
-import { activatePlan, deletePlan, exportPlan, importPlan, listPlans } from "@/lib/api";
+import { activatePlan, deletePlan, exportPlan, listPlans } from "@/lib/api";
 import { useSimulation } from "@/lib/SimulationContext";
-import type { CourseRecord, PlanRecord } from "@/types/simulation";
+import type { PlanRecord } from "@/types/simulation";
 
 export default function PlansPage() {
   const { refreshBaseline } = useSimulation();
-  const curriculumInputRef = useRef<HTMLInputElement | null>(null);
-  const configInputRef = useRef<HTMLInputElement | null>(null);
   const [plans, setPlans] = useState<PlanRecord[] | null>(null);
-  const [name, setName] = useState("");
-  const [curriculumFile, setCurriculumFile] = useState<File | null>(null);
-  const [configFile, setConfigFile] = useState<File | null>(null);
-  const [busy, setBusy] = useState<number | "import" | null>(null);
+  const [busy, setBusy] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const refreshPlans = async () => {
@@ -27,30 +22,6 @@ export default function PlansPage() {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     refreshPlans().catch(() => setPlans([]));
   }, []);
-
-  const onImport = async (event: React.FormEvent) => {
-    event.preventDefault();
-    if (!curriculumFile || !configFile || !name.trim()) return;
-    setBusy("import");
-    setError(null);
-    try {
-      const [curriculum, config] = await Promise.all([
-        curriculumFile.text().then((text) => JSON.parse(text) as CourseRecord[]),
-        configFile.text().then((text) => JSON.parse(text) as Record<string, unknown>),
-      ]);
-      await importPlan({ name: name.trim(), curriculum, config });
-      setName("");
-      setCurriculumFile(null);
-      setConfigFile(null);
-      if (curriculumInputRef.current) curriculumInputRef.current.value = "";
-      if (configInputRef.current) configInputRef.current.value = "";
-      await refreshPlans();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not import plan");
-    } finally {
-      setBusy(null);
-    }
-  };
 
   const activate = async (plan: PlanRecord) => {
     setBusy(plan.id);
@@ -103,27 +74,27 @@ export default function PlansPage() {
         <h1 className="text-[19px] font-bold tracking-tight">Plans</h1>
         <Link
           href="/plan-builder"
-          className="rounded-[9px] bg-accent px-4 py-2 text-[13px] font-semibold text-white"
+          className="rounded-xl bg-accent px-4 py-2 text-sm font-semibold text-white"
         >
           + New plan
         </Link>
       </header>
 
-      <section className="grid gap-8 py-6 lg:grid-cols-[1fr_340px]">
+      <section className="py-6">
         <div>
           {plans === null ? (
-            <p className="text-[12.5px] text-muted">Loading...</p>
+            <p className="text-sm text-muted">Loading...</p>
           ) : (
-            <table className="w-full border-collapse text-[12.5px]">
+            <table className="w-full border-collapse text-sm">
               <thead>
                 <tr>
-                  <th className="border-b border-border px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-wide text-muted">
+                  <th className="border-b border-border px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-muted">
                     Name
                   </th>
-                  <th className="border-b border-border px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-wide text-muted">
+                  <th className="border-b border-border px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-muted">
                     Scope
                   </th>
-                  <th className="border-b border-border px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-wide text-muted">
+                  <th className="border-b border-border px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-muted">
                     Status
                   </th>
                   <th className="border-b border-border px-3 py-2" />
@@ -131,7 +102,7 @@ export default function PlansPage() {
               </thead>
               <tbody>
                 {plans.map((plan) => (
-                  <tr key={plan.id}>
+                  <tr key={plan.id} className="group transition-colors hover:bg-surface-2">
                     <td className="border-b border-border px-3 py-2">{plan.name}</td>
                     <td className="border-b border-border px-3 py-2 text-muted">
                       {plan.is_default ? "Default" : "Private"}
@@ -180,47 +151,8 @@ export default function PlansPage() {
               </tbody>
             </table>
           )}
+          {error && <p className="mt-3 text-sm text-bad">{error}</p>}
         </div>
-
-        <form onSubmit={onImport} className="h-fit border border-border bg-surface px-4 py-4">
-          <h2 className="mb-4 text-[14px] font-bold">Import Plan</h2>
-          <label className="mb-3 flex flex-col gap-1.5 text-[12.5px] text-muted">
-            Name
-            <input
-              value={name}
-              onChange={(event) => setName(event.target.value)}
-              className="rounded-[7px] border border-border-2 bg-surface-2 px-3 py-2 text-[13px] text-ink outline-none focus:border-accent"
-            />
-          </label>
-          <label className="mb-3 flex flex-col gap-1.5 text-[12.5px] text-muted">
-            Curriculum JSON
-            <input
-              ref={curriculumInputRef}
-              type="file"
-              accept="application/json,.json"
-              onChange={(event) => setCurriculumFile(event.target.files?.[0] ?? null)}
-              className="text-[12.5px] text-muted file:mr-3 file:rounded-[7px] file:border-0 file:bg-surface-2 file:px-3 file:py-2 file:font-semibold file:text-ink"
-            />
-          </label>
-          <label className="mb-4 flex flex-col gap-1.5 text-[12.5px] text-muted">
-            Config JSON
-            <input
-              ref={configInputRef}
-              type="file"
-              accept="application/json,.json"
-              onChange={(event) => setConfigFile(event.target.files?.[0] ?? null)}
-              className="text-[12.5px] text-muted file:mr-3 file:rounded-[7px] file:border-0 file:bg-surface-2 file:px-3 file:py-2 file:font-semibold file:text-ink"
-            />
-          </label>
-          {error && <p className="mb-3 text-[12.5px] text-bad">{error}</p>}
-          <button
-            type="submit"
-            disabled={busy !== null || !name.trim() || !curriculumFile || !configFile}
-            className="w-full rounded-[7px] bg-accent px-4 py-2 text-[13px] font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {busy === "import" ? "Importing..." : "Import"}
-          </button>
-        </form>
       </section>
     </main>
   );

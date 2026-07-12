@@ -17,28 +17,25 @@ export default function RunsPage() {
     <main className="mx-auto w-full max-w-[1600px] px-7 pb-16">
       <header className="border-b border-border py-5">
         <h1 className="text-[19px] font-bold tracking-tight">Run History</h1>
-        <p className="mt-0.5 text-[12.5px] text-muted">Every simulation run logged with its overrides and headline outcomes. Click a row to see the full override payload.</p>
+        <p className="mt-0.5 text-sm text-muted">Every simulation run logged with its overrides and headline outcomes. Click a row to see the full override payload.</p>
       </header>
 
       <section className="py-6">
         {runs === null ? (
-          <p className="text-[12.5px] text-muted">Loading…</p>
+          <p className="text-sm text-muted">Loading…</p>
         ) : runs.length === 0 ? (
-          <p className="text-[12.5px] text-muted">No runs yet — every simulation run is logged here.</p>
+          <p className="text-sm text-muted">No runs yet — every simulation run is logged here.</p>
         ) : (
-          <table className="w-full border-collapse text-[12.5px]">
+          <table className="w-full border-collapse text-sm">
             <thead>
               <tr>
-                <th className="border-b border-border px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-wide text-muted">
+                <th className="border-b border-border px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-muted">
                   When
                 </th>
-                <th className="border-b border-border px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-wide text-muted">
-                  Scenario
-                </th>
-                <th className="border-b border-border px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-wide text-muted">
+                <th className="border-b border-border px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-muted">
                   Graduation rate
                 </th>
-                <th className="border-b border-border px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-wide text-muted">
+                <th className="border-b border-border px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-muted">
                   Academic dropout
                 </th>
               </tr>
@@ -54,9 +51,6 @@ export default function RunsPage() {
                       {new Date(run.requested_at).toLocaleString()}
                     </td>
                     <td className="border-b border-border px-3 py-2">
-                      {run.scenario_id ? `#${run.scenario_id}` : "ad-hoc"}
-                    </td>
-                    <td className="border-b border-border px-3 py-2">
                       {pct(run.summary_json.metrics.graduation_rate)}
                     </td>
                     <td className="border-b border-border px-3 py-2">
@@ -65,8 +59,8 @@ export default function RunsPage() {
                   </tr>
                   {expandedId === run.id && (
                     <tr>
-                      <td colSpan={4} className="border-b border-border bg-surface-2 px-3 py-3">
-                        <pre className="overflow-x-auto text-[11px] text-muted">
+                      <td colSpan={3} className="border-b border-border bg-surface-2 px-3 py-3">
+                        <pre className="overflow-x-auto text-xs text-muted">
                           {JSON.stringify(run.overrides_json, null, 2)}
                         </pre>
                       </td>

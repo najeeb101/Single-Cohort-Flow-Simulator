@@ -17,7 +17,7 @@ export default function Home() {
     <main className="mx-auto w-full max-w-[1600px] px-7 pb-16">
       <header className="border-b border-border py-5">
         <h1 className="text-[19px] font-bold tracking-tight">Dashboard</h1>
-        <p className="mt-0.5 max-w-2xl text-[12.5px] text-muted">
+        <p className="mt-0.5 max-w-2xl text-sm text-muted">
           Live roadmap and results for the active plan — see{" "}
           <a href="/about" className="font-semibold text-accent hover:underline">About</a>{" "}
           for an overview of what this tool does, or{" "}
@@ -27,7 +27,7 @@ export default function Home() {
       </header>
 
       <section className="py-4">
-        <div className="flex flex-wrap justify-center gap-2.5">
+        <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 rounded-2xl border border-border bg-surface-2 px-5 py-3">
           {[
             ["Cohorts", data.flow_timeline.meta.num_cohorts],
             ["Cohort size", meta.cohort_size],
@@ -36,8 +36,8 @@ export default function Home() {
             ["Credit hours", totalCH],
             ["Prerequisite links", chartMeta.graph.edges.length],
           ].map(([k, v]) => (
-            <div key={String(k)} className="rounded-[10px] border border-border bg-surface px-3.5 py-2 text-[12.5px] text-muted">
-              {k}: <b className="ml-0.5 font-bold text-ink">{v}</b>
+            <div key={String(k)} className="text-sm text-muted">
+              {k}: <b className="ml-1 font-semibold text-ink">{v}</b>
             </div>
           ))}
         </div>
@@ -64,7 +64,7 @@ export default function Home() {
       </CollapsibleSection>
 
       <CollapsibleSection title="Prerequisites" subtitle="who's waiting on what">
-        <p className="mb-4 max-w-3xl text-[12.5px] text-muted">
+        <p className="mb-4 max-w-3xl text-sm text-muted">
           The prerequisite dependency graph — each arrow means &quot;must pass this before taking that.&quot; Courses with many outgoing arrows (high out-degree) are gateways: failing or being blocked on them delays every course downstream. Node colour reflects how often students were blocked on that course across the run.
         </p>
         <PrerequisiteNetwork graph={chartMeta.graph} frames={data.flow_timeline.frames} />

@@ -31,7 +31,6 @@ const GROUPS: { label: string; links: NavLink[] }[] = [
     links: [
       { href: "/plans", label: "Plans" },
       { href: "/plan-builder", label: "Plan Builder" },
-      { href: "/scenarios", label: "Scenarios" },
       { href: "/runs", label: "Run History" },
     ],
   },
@@ -59,20 +58,20 @@ function NavDropdown({ label, links, active }: { label: string; links: NavLink[]
         onClick={() => setOpen((v) => !v)}
         className={
           active
-            ? "whitespace-nowrap border-b-2 border-accent px-3 py-3 text-[13px] font-semibold text-ink"
-            : "whitespace-nowrap border-b-2 border-transparent px-3 py-3 text-[13px] font-semibold text-muted hover:text-ink"
+            ? "whitespace-nowrap border-b-2 border-accent px-3 py-3 text-sm font-semibold text-ink"
+            : "whitespace-nowrap border-b-2 border-transparent px-3 py-3 text-sm font-semibold text-muted hover:text-ink"
         }
       >
         {label} <span className="text-[10px]">▾</span>
       </button>
       {open && (
-        <div className="absolute left-0 top-full z-10 min-w-[170px] rounded-[9px] border border-border-2 bg-surface py-1.5 shadow-lg">
+        <div className="absolute left-0 top-full z-10 min-w-[170px] rounded-xl border border-border-2 bg-surface py-1.5 shadow-lg">
           {links.map((link) => (
             <Link
               key={link.href}
               href={link.href}
               onClick={() => setOpen(false)}
-              className="block px-3.5 py-2 text-[13px] font-semibold text-muted hover:bg-surface-2 hover:text-ink"
+              className="block px-3.5 py-2 text-sm font-semibold text-muted hover:bg-surface-2 hover:text-ink"
             >
               {link.label}
             </Link>
@@ -90,7 +89,7 @@ export default function NavBar() {
     <nav className="border-b border-border bg-surface/85 backdrop-blur-md sticky top-0 z-50">
       <div className="mx-auto grid max-w-[1600px] grid-cols-[1fr_auto_1fr] items-center px-7">
         <Link href="/" className="flex items-center gap-2" aria-label="Cohort Analyzer home">
-          <span className="grid h-7 w-7 place-items-center rounded-[7px] bg-maroon text-[11px] font-extrabold text-white">
+          <span className="grid h-7 w-7 place-items-center rounded-lg bg-maroon text-xs font-extrabold text-white">
             CA
           </span>
         </Link>
@@ -103,8 +102,8 @@ export default function NavBar() {
                 href={link.href}
                 className={
                   active
-                    ? "whitespace-nowrap border-b-2 border-accent px-3 py-3 text-[13px] font-semibold text-ink"
-                    : "whitespace-nowrap border-b-2 border-transparent px-3 py-3 text-[13px] font-semibold text-muted hover:text-ink"
+                    ? "whitespace-nowrap border-b-2 border-accent px-3 py-3 text-sm font-semibold text-ink"
+                    : "whitespace-nowrap border-b-2 border-transparent px-3 py-3 text-sm font-semibold text-muted hover:text-ink"
                 }
               >
                 {link.label}
@@ -123,8 +122,8 @@ export default function NavBar() {
             href={SETTINGS_LINK.href}
             className={
               pathname === SETTINGS_LINK.href
-                ? "whitespace-nowrap border-b-2 border-accent px-3 py-3 text-[13px] font-semibold text-ink"
-                : "whitespace-nowrap border-b-2 border-transparent px-3 py-3 text-[13px] font-semibold text-muted hover:text-ink"
+                ? "whitespace-nowrap border-b-2 border-accent px-3 py-3 text-sm font-semibold text-ink"
+                : "whitespace-nowrap border-b-2 border-transparent px-3 py-3 text-sm font-semibold text-muted hover:text-ink"
             }
           >
             {SETTINGS_LINK.label}
@@ -135,7 +134,7 @@ export default function NavBar() {
             href="/about"
             title="About this tool"
             aria-label="About this tool"
-            className="grid h-8 w-8 place-items-center rounded-[8px] border border-border-2 bg-surface-2 text-[13px] font-bold text-ink transition-colors hover:bg-surface"
+            className="grid h-8 w-8 place-items-center rounded-lg border border-border-2 bg-surface-2 text-sm font-bold text-ink transition-colors hover:bg-surface"
           >
             ?
           </Link>

@@ -68,14 +68,14 @@ export default function InitialStateEditor({
             <button
               type="button"
               onClick={populateDemo}
-              className="rounded-md border border-border-2 px-2.5 py-1 text-[11px] font-semibold text-ink hover:bg-surface-2"
+              className="rounded-md border border-border-2 px-2.5 py-1 text-xs font-semibold text-ink hover:bg-surface-2"
             >
               Populate demo data
             </button>
             <button
               type="button"
               onClick={() => setImportOpen(true)}
-              className="rounded-md border border-border-2 px-2.5 py-1 text-[11px] font-semibold text-ink hover:bg-surface-2"
+              className="rounded-md border border-border-2 px-2.5 py-1 text-xs font-semibold text-ink hover:bg-surface-2"
             >
               Import from file
             </button>

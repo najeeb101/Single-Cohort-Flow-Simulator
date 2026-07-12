@@ -100,7 +100,7 @@ export default function AnimationSection({ graph, stageNodes, cohorts, frames, m
           scaled down for a data dashboard rather than a marketing grid). */}
       <div className="flex flex-col gap-4">
         <div className="flex min-w-0 flex-col rounded-2xl border border-border bg-surface">
-          <div className="flex items-baseline justify-between gap-3 border-b border-border px-4 py-2.5 text-[13px] font-semibold">
+          <div className="flex items-baseline justify-between gap-3 border-b border-border px-4 py-2.5 text-sm font-semibold">
             <span>Program roadmap</span>
             <span className="text-xs font-normal text-muted">
               {graph.nodes.length} courses · {graph.nodes.reduce((s, n) => s + (n.credits || 0), 0)} CH · boxes coloured by requirement type · bar = seat use
@@ -126,12 +126,12 @@ export default function AnimationSection({ graph, stageNodes, cohorts, frames, m
 
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <aside className="flex flex-col rounded-2xl border border-border bg-surface px-4 pb-3.5">
-            <div className="border-b border-border py-2.5 text-[13px] font-semibold">Stage overview</div>
+            <div className="border-b border-border py-2.5 text-sm font-semibold">Stage overview</div>
             <StageOverview frame={frame} stageNodes={stageNodes} cohortSel={cohortSel} />
           </aside>
 
           <aside className="flex flex-col rounded-2xl border border-border bg-surface px-4 pb-3.5">
-            <div className="border-b border-border py-2.5 text-[13px] font-semibold">Biggest moves</div>
+            <div className="border-b border-border py-2.5 text-sm font-semibold">Biggest moves</div>
             <FlowsList frame={frame} cohortSel={cohortSel} />
           </aside>
         </div>

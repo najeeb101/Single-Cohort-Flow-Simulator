@@ -10,23 +10,23 @@ export default function AdmissionsRecommendation({ rec, showHeading = true }: { 
           Admissions recommendation <span className="text-xs font-normal text-muted">— heuristic, edit targets in Settings</span>
         </h2>
       )}
-      <div className="rounded-2xl border border-border border-l-[3px] border-l-good bg-surface px-5.5 py-4.5">
+      <div className="rounded-2xl border border-border border-l-[4px] border-l-accent bg-surface px-6 py-5">
         {!rec.recommended_intake ? (
-          <span className="text-xs text-muted">No recommendation.</span>
+          <div className="py-6 text-center text-sm italic text-muted">No capacity recommendation available for this scenario.</div>
         ) : (
           <>
-            <div className="text-[25px] font-extrabold tracking-tight text-good">
-              Admit {rec.recommended_intake} students / year{" "}
-              <span className="text-sm font-semibold text-muted">(current {rec.current_intake})</span>
+            <div className="text-2xl font-extrabold tracking-tight text-ink">
+              Supported capacity: {rec.recommended_intake} students / year{" "}
+              <span className="text-sm font-semibold text-muted">(current intake: {rec.current_intake})</span>
             </div>
-            <div className="my-2 max-w-3xl text-[12.5px] text-muted">
+            <div className="my-2 max-w-3xl text-sm text-muted">
               Binding criterion: <b className="text-ink">{rec.binding_criterion}</b> (slack {rec.binding_slack}). {rec.note}
             </div>
-            <table className="max-w-2xl text-[12.5px]">
+            <table className="max-w-2xl text-sm">
               <thead>
                 <tr>
                   {["Health criterion", "Observed", "Target", "Slack"].map((h) => (
-                    <th key={h} className="px-3 py-1.5 text-left text-[11px] font-semibold uppercase tracking-wide text-muted">
+                    <th key={h} className="px-3 py-1.5 text-left text-xs font-semibold uppercase tracking-wide text-muted">
                       {h}
                     </th>
                   ))}
@@ -34,7 +34,7 @@ export default function AdmissionsRecommendation({ rec, showHeading = true }: { 
               </thead>
               <tbody>
                 {(rec.criteria ?? []).map((c) => (
-                  <tr key={c.name} className="border-b border-border">
+                  <tr key={c.name} className="group border-b border-border transition-colors hover:bg-surface-2">
                     <td className="px-3 py-1.5">{c.name}</td>
                     <td className="px-3 py-1.5">{formatCriterionValue(c.name, c.observed)}</td>
                     <td className="px-3 py-1.5">{formatCriterionValue(c.name, c.target)}</td>

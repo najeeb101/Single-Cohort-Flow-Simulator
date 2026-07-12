@@ -14,14 +14,14 @@ export default function BottlenecksPage() {
     <main className="mx-auto w-full max-w-[1600px] px-7 pb-16">
       <header className="border-b border-border py-5">
         <h1 className="text-[19px] font-bold tracking-tight">Bottlenecks</h1>
-        <p className="mt-0.5 max-w-2xl text-[12.5px] text-muted">
+        <p className="mt-0.5 max-w-2xl text-sm text-muted">
           The top courses blocking student progress — split by block type. Use this to identify which courses need more seats or earlier offerings.
         </p>
       </header>
       <BottlenecksPanel bottlenecks={summary.top_bottlenecks} frames={data.flow_timeline.frames} />
       <CapacityRecommendations frames={data.flow_timeline.frames} meta={meta} />
       <AutofillPanel />
-      <p className="mt-6 rounded-2xl border border-dashed border-border-2 bg-surface p-4 text-[12.5px] text-muted">
+      <p className="mt-6 rounded-2xl border border-dashed border-border-2 bg-surface p-4 text-sm text-muted">
         Want to try a specific change and see its effect first? Head to the{" "}
         <Link href="/advisor" className="font-semibold text-accent">Advisor</Link>{" "}— ask it something like{" "}
         &ldquo;what if I add 50 seats to CMPS323?&rdquo; and it will predict the impact, then let you apply it.

@@ -33,13 +33,13 @@ export default function InitialOccupancyTable({ courses, occupancy, baselineOccu
       actions={actions}
     >
       <div className="max-h-[420px] overflow-auto rounded-lg border border-border">
-        <table className="w-full border-collapse text-[12.5px]">
+        <table className="w-full border-collapse text-sm">
           <thead>
             <tr>
               {["Course", "Title", "Term", "Capacity", "Occupancy", "Free / term"].map((h) => (
                 <th
                   key={h}
-                  className="sticky top-0 border-b border-border bg-surface px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-wide text-muted"
+                  className="sticky top-0 border-b border-border bg-surface px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-muted"
                 >
                   {h}
                 </th>
@@ -68,7 +68,7 @@ export default function InitialOccupancyTable({ courses, occupancy, baselineOccu
                   </td>
                   <td className={`whitespace-nowrap border-b border-border px-3 py-1.5 tabular-nums ${exceeds ? "text-bad" : "text-muted"}`}>
                     {free}
-                    {exceeds && <span className="ml-1.5 text-[11px]">exceeds capacity</span>}
+                    {exceeds && <span className="ml-1.5 text-xs">exceeds capacity</span>}
                   </td>
                 </tr>
               );

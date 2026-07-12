@@ -39,7 +39,7 @@ export default function CourseFormFields({ value, allCourseCodes, knownCategorie
   const removeRule = () => onChange({ ...value, rule_expr: null });
 
   return (
-    <div className="flex flex-col gap-3 text-[12.5px]">
+    <div className="flex flex-col gap-3 text-sm">
       <div className="flex flex-wrap gap-3">
         {editableCode && (
           <label className="flex flex-col gap-1 text-muted">
@@ -47,7 +47,7 @@ export default function CourseFormFields({ value, allCourseCodes, knownCategorie
             <input
               value={value.code}
               onChange={(e) => onChange({ ...value, code: e.target.value.trim() })}
-              className="w-32 rounded-[8px] border border-border-2 bg-surface px-2.5 py-1.5 text-ink"
+              className="w-32 rounded-lg border border-border-2 bg-surface px-2.5 py-1.5 text-ink"
             />
           </label>
         )}
@@ -56,7 +56,7 @@ export default function CourseFormFields({ value, allCourseCodes, knownCategorie
           <input
             value={value.title}
             onChange={(e) => onChange({ ...value, title: e.target.value })}
-            className="rounded-[8px] border border-border-2 bg-surface px-2.5 py-1.5 text-ink"
+            className="rounded-lg border border-border-2 bg-surface px-2.5 py-1.5 text-ink"
           />
         </label>
         <label className="flex flex-col gap-1 text-muted">
@@ -66,7 +66,7 @@ export default function CourseFormFields({ value, allCourseCodes, knownCategorie
             onChange={(e) => onChange({ ...value, category: e.target.value })}
             list="course-category-options"
             placeholder="e.g. core, elective"
-            className="w-40 rounded-[8px] border border-border-2 bg-surface px-2.5 py-1.5 text-ink"
+            className="w-40 rounded-lg border border-border-2 bg-surface px-2.5 py-1.5 text-ink"
           />
           <datalist id="course-category-options">
             {(knownCategories ?? []).map((cat) => (
@@ -82,7 +82,7 @@ export default function CourseFormFields({ value, allCourseCodes, knownCategorie
             max={6}
             value={value.credits}
             onChange={(e) => onChange({ ...value, credits: Number(e.target.value) })}
-            className="w-20 rounded-[8px] border border-border-2 bg-surface px-2.5 py-1.5 text-ink"
+            className="w-20 rounded-lg border border-border-2 bg-surface px-2.5 py-1.5 text-ink"
           />
         </label>
         <label className="flex flex-col gap-1 text-muted">
@@ -94,7 +94,7 @@ export default function CourseFormFields({ value, allCourseCodes, knownCategorie
             step={0.01}
             value={value.pass_rate}
             onChange={(e) => onChange({ ...value, pass_rate: Number(e.target.value) })}
-            className="w-24 rounded-[8px] border border-border-2 bg-surface px-2.5 py-1.5 text-ink"
+            className="w-24 rounded-lg border border-border-2 bg-surface px-2.5 py-1.5 text-ink"
           />
         </label>
         <label className="flex flex-col gap-1 text-muted">
@@ -104,7 +104,7 @@ export default function CourseFormFields({ value, allCourseCodes, knownCategorie
             min={1}
             value={value.capacity}
             onChange={(e) => onChange({ ...value, capacity: Number(e.target.value) })}
-            className="w-24 rounded-[8px] border border-border-2 bg-surface px-2.5 py-1.5 text-ink"
+            className="w-24 rounded-lg border border-border-2 bg-surface px-2.5 py-1.5 text-ink"
           />
         </label>
         <label className="flex flex-col gap-1 text-muted" title="Recommended semester column in the flow chart (0 = unscheduled)">
@@ -115,7 +115,7 @@ export default function CourseFormFields({ value, allCourseCodes, knownCategorie
             max={20}
             value={value.study_plan_term}
             onChange={(e) => onChange({ ...value, study_plan_term: Number(e.target.value) })}
-            className="w-20 rounded-[8px] border border-border-2 bg-surface px-2.5 py-1.5 text-ink"
+            className="w-20 rounded-lg border border-border-2 bg-surface px-2.5 py-1.5 text-ink"
           />
         </label>
       </div>
@@ -160,11 +160,11 @@ export default function CourseFormFields({ value, allCourseCodes, knownCategorie
         <div className="flex items-center gap-2">
           <span className="text-muted">Compound eligibility rule</span>
           {value.rule_expr === null ? (
-            <button type="button" onClick={addRule} className="text-[11px] font-semibold text-accent hover:underline">
+            <button type="button" onClick={addRule} className="text-xs font-semibold text-accent hover:underline">
               + Add rule
             </button>
           ) : (
-            <button type="button" onClick={removeRule} className="text-[11px] font-semibold text-bad hover:underline">
+            <button type="button" onClick={removeRule} className="text-xs font-semibold text-bad hover:underline">
               Remove rule
             </button>
           )}
