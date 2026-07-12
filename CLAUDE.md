@@ -172,20 +172,25 @@ immediately, no server restart needed. See [Multi-Plan Model](#multi-plan-model)
 - **The four block signals stay mandatory-term-accurate**: `capacity_block_counts`/`fail_counts`
   only ever fire on a real enrollment attempt, so the raw counters are untouched and *do* still
   fire during optional terms (e.g. "even the bonus session is oversubscribed" is a real signal,
-  visible per-term in the timeline frames + utilization heatmap). **But the capacity-bottleneck
-  *ranking* is mandatory-terms-only**: `Simulator` also keeps `capacity_block_counts_mandatory`
-  (+ `capacity_block_mandatory_by_cohort`), incremented only on mandatory-season denials, and
-  `analytics` ranks `top_capacity_blocks` / `top_bottlenecks.capacity` / per-cohort
-  `top_capacity_block` off *those*. This is because an optional term's seats are a deliberately
-  small bonus pool (`optional_term_capacity_scale`): a Summer denial doesn't block graduation (the
-  student takes the course in a regular term) and can't be relieved by raising the course's regular
-  capacity, so counting it would make the ranking (and the Bottlenecks "Capacity blocks" card, the
-  Capacity-recommendations table, and the advisor's grounding, all of which read it) point at
-  Summer service courses that are scarce *by design* instead of the regular-term gateways that
-  actually delay students. `GET /meta.mandatory_terms` exposes the regular seasons so the frontend
+  visible per-term in the timeline frames + utilization heatmap). **But the three *structural*
+  bottleneck rankings (capacity, offering, prereq) are mandatory-terms-only**: `Simulator` keeps
+  `capacity_block_counts_mandatory` / `offering_block_counts_mandatory` /
+  `prereq_block_counts_mandatory` (+ `*_mandatory_by_cohort`), incremented only on mandatory-season
+  events, and `analytics` ranks `top_capacity_blocks`/`top_offering_blocks`/`top_prereq_blocks`,
+  `top_bottlenecks.{capacity,offering,prereq}`, and the per-cohort `top_*_block` off *those*. This is
+  because an optional term's seats are a deliberately small bonus pool (`optional_term_capacity_scale`):
+  a Summer denial/wait doesn't block graduation (the student takes the course in a regular term) and
+  can't be relieved by raising the course's regular capacity/offering, so counting it would make the
+  ranking (and the Bottlenecks cards, the Capacity-recommendations table, and the advisor's grounding,
+  all of which read it) point at Summer service courses that are scarce *by design* instead of the
+  regular-term gateways that actually delay students. In practice **offering** blocks can't occur in
+  an optional term at all (a swept course is by definition offered), so its mandatory counter equals
+  the raw one; **capacity** and **prereq** have real optional-term components that the mandatory
+  counters strip. **`fail_counts` is deliberately NOT filtered** — a fail is a real fail whenever it
+  happens. `GET /meta.mandatory_terms` exposes the regular seasons so the frontend
   (Capacity-recommendations, advisor `course_stats`) filters identically. Covered by
   `tests/test_optional_terms.py`.
-  `offering_block_counts`/`prereq_block_counts` are different — they fire passively for every
+  `offering_block_counts`/`prereq_block_counts` also fire passively for every
   eligible-or-waiting student every term regardless of intent, so sweeping the *entire*
   curriculum during an optional term (where almost nothing is offered) would inflate both purely
   from adding extra calendar terms. `Simulator._record_blocks` is scoped accordingly: on a

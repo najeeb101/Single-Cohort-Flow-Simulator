@@ -171,6 +171,51 @@ def test_optional_term_capacity_denials_excluded_from_mandatory_counter():
     assert sim_fall.history.capacity_block_mandatory_by_cohort[0]["C"] > 0
 
 
+def test_optional_term_prereq_blocks_excluded_from_mandatory_counter():
+    """A prereq wait recorded in an optional (Summer) term -- for a service course that DOES run in
+    Summer but whose prereq isn't met yet -- feeds the raw counter but NOT the mandatory-only counter
+    the bottleneck ranking reads. On a mandatory term the same wait does feed it."""
+    # A is Spring-only so it can't be cleared on a Fall term (blocks are recorded after courses are
+    # taken, so a same-term pass would otherwise satisfy B's prereq before the sweep).
+    curriculum = {
+        "A": _course("A", 9, [], ["Spring"], 1),
+        "B": _course("B", 9, ["A"], ["Fall", "Spring", "Summer"], 2),  # runs in Summer, needs A
+    }
+    config = {**FOUR_SEASON_CONFIG_BASE, "cohort_size": 1, "max_terms": 4,
+              "num_cohorts": 1, "num_incumbent_cohorts": 0, "admit_interval_terms": 4}
+
+    sim_summer = Simulator(curriculum, config, {"name": "t"})
+    sim_summer.students = [Student(0, seed=1, cohort_id=0, entry_term=0)]
+    sim_summer.cohort_entry[0] = 0
+    sim_summer._run_term(3, "Summer")  # B is offered but A unmet -> prereq wait, optional term
+    assert sim_summer.history.prereq_block_counts["B"] > 0
+    assert sim_summer.history.prereq_block_counts_mandatory.get("B", 0) == 0
+    assert sim_summer.history.prereq_block_mandatory_by_cohort.get(0, {}).get("B", 0) == 0
+
+    sim_fall = Simulator(curriculum, config, {"name": "t"})
+    sim_fall.students = [Student(0, seed=1, cohort_id=0, entry_term=0)]
+    sim_fall.cohort_entry[0] = 0
+    sim_fall._run_term(0, "Fall")  # A not offered in Fall, so B stays prereq-blocked this term
+    assert sim_fall.history.prereq_block_counts_mandatory["B"] > 0
+    assert sim_fall.history.prereq_block_mandatory_by_cohort[0]["B"] > 0
+
+
+def test_offering_block_mandatory_counter_tracks_regular_term_waits():
+    """Offering blocks can only occur on mandatory terms (an optional-term sweep only touches courses
+    that ARE offered that term), so the mandatory counter equals the raw one -- verify a regular-term
+    wait for a single-term course feeds it, so the ranking stays uniform with capacity/prereq."""
+    curriculum = {"C": _course("C", 9, [], ["Spring"], 1)}  # Spring-only
+    config = {**FOUR_SEASON_CONFIG_BASE, "cohort_size": 1, "max_terms": 4,
+              "num_cohorts": 1, "num_incumbent_cohorts": 0, "admit_interval_terms": 4}
+    sim = Simulator(curriculum, config, {"name": "t"})
+    sim.students = [Student(0, seed=1, cohort_id=0, entry_term=0)]
+    sim.cohort_entry[0] = 0
+    sim._run_term(0, "Fall")  # C not offered in Fall, prereqs met -> offering wait
+    assert sim.history.offering_block_counts["C"] > 0
+    assert sim.history.offering_block_counts_mandatory["C"] == sim.history.offering_block_counts["C"]
+    assert sim.history.offering_block_mandatory_by_cohort[0]["C"] > 0
+
+
 # ── prereq_block during an optional term: only for courses offered then ── #
 
 def test_prereq_block_scoped_to_courses_offered_in_optional_term():

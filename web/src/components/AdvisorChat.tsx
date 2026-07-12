@@ -51,14 +51,15 @@ function aggregateCourseStats(frames: Frame[], mandatorySeasons: string[]): Reco
           passed: 0,
           failed: 0,
         });
-      // Seat pressure (denied / full) counts on regular terms only — optional-term seats are a
-      // deliberately-scarce bonus pool, matching the capacity-bottleneck ranking the model also sees.
+      // The structural signals (seat denials, full, offering + prereq waits) count on regular terms
+      // only — optional-term seats are a deliberately-scarce bonus pool, matching the mandatory-only
+      // bottleneck rankings the model also sees. Passes/fails are real whenever they happen.
       if (isMandatory) {
         if (s.denied > a.denied_peak) a.denied_peak = s.denied;
         if (s.full) a.full_terms += 1;
+        if (s.offering_blocked > a.offering_blocked_peak) a.offering_blocked_peak = s.offering_blocked;
+        if (s.prereq_waiting > a.prereq_waiting_peak) a.prereq_waiting_peak = s.prereq_waiting;
       }
-      if (s.offering_blocked > a.offering_blocked_peak) a.offering_blocked_peak = s.offering_blocked;
-      if (s.prereq_waiting > a.prereq_waiting_peak) a.prereq_waiting_peak = s.prereq_waiting;
       a.passed += s.passed;
       a.failed += s.failed;
     }

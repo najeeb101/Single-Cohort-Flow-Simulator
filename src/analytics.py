@@ -94,8 +94,8 @@ def compute_metrics(result: "SimulationResult") -> dict:
         "mean_gpa_at_graduation": mean_gpa,
         "top_fail_courses":       _top3(history.fail_counts),
         "top_capacity_blocks":    _top3(history.capacity_block_counts_mandatory),
-        "top_offering_blocks":    _top3(history.offering_block_counts),
-        "top_prereq_blocks":      _top3(history.prereq_block_counts),
+        "top_offering_blocks":    _top3(history.offering_block_counts_mandatory),
+        "top_prereq_blocks":      _top3(history.prereq_block_counts_mandatory),
     }
 
 
@@ -131,8 +131,8 @@ def compute_cohort_metrics(result: "SimulationResult") -> dict[int, dict]:
             "probation_rate":        sum(1 for s in members if s.ever_probation) / n,
             "top_fail":           _top1_code(history.fail_by_cohort.get(cid, {})),
             "top_capacity_block": _top1_code(history.capacity_block_mandatory_by_cohort.get(cid, {})),
-            "top_offering_block": _top1_code(history.offering_block_by_cohort.get(cid, {})),
-            "top_prereq_block":   _top1_code(history.prereq_block_by_cohort.get(cid, {})),
+            "top_offering_block": _top1_code(history.offering_block_mandatory_by_cohort.get(cid, {})),
+            "top_prereq_block":   _top1_code(history.prereq_block_mandatory_by_cohort.get(cid, {})),
         }
     return out
 
@@ -623,8 +623,8 @@ def flow_timeline_payload(
             "top_bottlenecks": {
                 "fail":     _top3(history.fail_counts),
                 "capacity": _top3(history.capacity_block_counts_mandatory),
-                "offering": _top3(history.offering_block_counts),
-                "prereq":   _top3(history.prereq_block_counts),
+                "offering": _top3(history.offering_block_counts_mandatory),
+                "prereq":   _top3(history.prereq_block_counts_mandatory),
             },
         },
     }

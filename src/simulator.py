@@ -36,13 +36,18 @@ class History:
     fail_counts: dict[str, int] = field(default_factory=lambda: defaultdict(int))
     offering_block_counts: dict[str, int] = field(default_factory=lambda: defaultdict(int))
     capacity_block_counts: dict[str, int] = field(default_factory=lambda: defaultdict(int))
-    # Same events as capacity_block_counts but restricted to MANDATORY (regular) terms — the basis
-    # for the capacity-bottleneck ranking (headline/bottlenecks/per-cohort). Optional-term (Summer/
-    # Winter) denials are excluded because that seat pool is a deliberately small bonus
-    # (optional_term_capacity_scale), a denial there doesn't block graduation, and it can't be fixed
-    # by raising the course's regular capacity. The unfiltered counter above still feeds the frames.
-    capacity_block_counts_mandatory: dict[str, int] = field(default_factory=lambda: defaultdict(int))
     prereq_block_counts: dict[str, int] = field(default_factory=lambda: defaultdict(int))
+    # MANDATORY (regular) term-only variants of the three *structural* block signals — the basis for
+    # the capacity/offering/prereq bottleneck rankings (headline + bottlenecks + per-cohort). Optional
+    # (Summer/Winter) terms are excluded: those seats are a deliberately small bonus pool
+    # (optional_term_capacity_scale), so a denial/wait there doesn't block graduation and isn't fixed
+    # by regular capacity/offering — counting it would point the ranking at Summer service courses
+    # that are scarce by design instead of the regular-term gateways that delay students. The
+    # unfiltered counters above still feed the timeline frames + utilization heatmap. (fail_counts is
+    # deliberately NOT filtered: a fail is a real fail whenever it happens.)
+    capacity_block_counts_mandatory: dict[str, int] = field(default_factory=lambda: defaultdict(int))
+    offering_block_counts_mandatory: dict[str, int] = field(default_factory=lambda: defaultdict(int))
+    prereq_block_counts_mandatory: dict[str, int] = field(default_factory=lambda: defaultdict(int))
     graduation_times: list[int] = field(default_factory=list)  # personal semesters, study cohorts
 
     # Per-cohort-per-course block counters (cohort_id -> {course_code -> count})
@@ -50,12 +55,17 @@ class History:
         default_factory=lambda: defaultdict(lambda: defaultdict(int)))
     capacity_block_by_cohort: dict[int, dict[str, int]] = field(
         default_factory=lambda: defaultdict(lambda: defaultdict(int)))
-    # Mandatory-terms-only variant of capacity_block_by_cohort (see capacity_block_counts_mandatory).
-    capacity_block_mandatory_by_cohort: dict[int, dict[str, int]] = field(
-        default_factory=lambda: defaultdict(lambda: defaultdict(int)))
     offering_block_by_cohort: dict[int, dict[str, int]] = field(
         default_factory=lambda: defaultdict(lambda: defaultdict(int)))
     prereq_block_by_cohort: dict[int, dict[str, int]] = field(
+        default_factory=lambda: defaultdict(lambda: defaultdict(int)))
+    # Mandatory-terms-only variants (see capacity_block_counts_mandatory) — power the per-cohort
+    # top_capacity_block / top_offering_block / top_prereq_block rankings.
+    capacity_block_mandatory_by_cohort: dict[int, dict[str, int]] = field(
+        default_factory=lambda: defaultdict(lambda: defaultdict(int)))
+    offering_block_mandatory_by_cohort: dict[int, dict[str, int]] = field(
+        default_factory=lambda: defaultdict(lambda: defaultdict(int)))
+    prereq_block_mandatory_by_cohort: dict[int, dict[str, int]] = field(
         default_factory=lambda: defaultdict(lambda: defaultdict(int)))
 
     # Per-cohort, per-term ledger rows + frontend timeline frames
@@ -636,6 +646,7 @@ class Simulator:
         course_stats: dict[str, dict],
         courses_to_check: dict[str, Course],
     ) -> None:
+        is_mandatory = self._is_mandatory_season(season)
         for student in active_students:
             for code, course in courses_to_check.items():
                 if student.has_passed(code):
@@ -646,6 +657,11 @@ class Simulator:
                     if season not in self._effective_offering(course):
                         self.history.offering_block_counts[code] += 1
                         self.history.offering_block_by_cohort[student.cohort_id][code] += 1
+                        # Regular-term waits also feed the mandatory-only ranking counters (optional-
+                        # term passive-sweep waits are calendar-term noise — see History).
+                        if is_mandatory:
+                            self.history.offering_block_counts_mandatory[code] += 1
+                            self.history.offering_block_mandatory_by_cohort[student.cohort_id][code] += 1
                         if code in course_stats:
                             course_stats[code]["offering_blocked"] += 1
                         if self.record_traces:
@@ -654,6 +670,9 @@ class Simulator:
                 else:
                     self.history.prereq_block_counts[code] += 1
                     self.history.prereq_block_by_cohort[student.cohort_id][code] += 1
+                    if is_mandatory:
+                        self.history.prereq_block_counts_mandatory[code] += 1
+                        self.history.prereq_block_mandatory_by_cohort[student.cohort_id][code] += 1
                     if code in course_stats:
                         course_stats[code]["prereq_waiting"] += 1
                     if self.record_traces:
