@@ -125,9 +125,10 @@ function CandidateCard({
 
 function TermRow({ t }: { t: StudentTraceTerm }) {
   // Capacity/offering blocks are the actionable "eligible but stuck" signals — show them.
-  // Prereq blocks are still computed by the engine but no longer surfaced anywhere in the UI, so
-  // they're dropped here (they were noise per-student — a whole-curriculum sweep every term).
+  // Prereq blocks sweep the whole remaining curriculum every term and are noise per-student,
+  // so collapse them into a count.
   const notable = t.blocked.filter((b) => b.signal !== "prereq");
+  const prereqCount = t.blocked.length - notable.length;
 
   return (
     <div className="relative pl-6">
@@ -168,7 +169,7 @@ function TermRow({ t }: { t: StudentTraceTerm }) {
           </div>
         )}
 
-        {notable.length > 0 && (
+        {(notable.length > 0 || prereqCount > 0) && (
           <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[11px]">
             {notable.map((b) => (
               <span
@@ -179,10 +180,15 @@ function TermRow({ t }: { t: StudentTraceTerm }) {
                 {b.code} · {SIGNAL_META[b.signal].label}
               </span>
             ))}
+            {prereqCount > 0 && (
+              <span className="text-muted" title={SIGNAL_META.prereq.unit}>
+                waiting on prerequisites for {prereqCount} course{prereqCount > 1 ? "s" : ""}
+              </span>
+            )}
           </div>
         )}
 
-        {t.courses.length === 0 && notable.length === 0 && (
+        {t.courses.length === 0 && t.blocked.length === 0 && (
           <div className="mt-1.5 text-[11.5px] text-muted">No courses this term.</div>
         )}
       </div>

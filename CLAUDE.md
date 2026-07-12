@@ -294,7 +294,7 @@ Each term also records: per-cohort-per-course block counters (all four signals),
 
 Each also has a `*_by_cohort` variant (`cohort_id -> {course -> count}`) powering per-cohort "where did they get stuck" post-mortems.
 
-**`prereq_block` is computed but no longer surfaced in the UI or the advisor** (product decision — a passive whole-curriculum sweep that's hard to act on). The engine still tracks it, `flow_timeline` still carries `prereq_waiting` / `top_bottlenecks.prereq` / per-cohort `top_prereq_block` (contract unchanged), and `SIGNAL_META.prereq` still exists — but it's dropped from the frontend `SIGNAL_ORDER` (so the Bottlenecks card + legend pill vanish), the Cohorts table, the Student-Trace chips, the animated narrative, and the advisor's grounding prompt. Re-add `"prereq"` to `web/src/lib/signalMeta.ts::SIGNAL_ORDER` (and the removed display bits) to bring it back.
+**The prereq signal's Bottlenecks *card* is hidden** (product decision — it's a passive whole-curriculum sweep that's noisier than the others). It's dropped from the frontend `SIGNAL_ORDER` (`web/src/lib/signalMeta.ts`), which also drops its legend-toggle pill on the Bottlenecks page — that list is the *only* consumer of `SIGNAL_ORDER`. Everything else still shows it: the Cohorts table's `top_prereq_block` column, the Student-Trace "waiting on prerequisites" count, the animated narrative, and the advisor's grounding. `SIGNAL_META.prereq`, the `BlockSignal` type, and the whole `flow_timeline` contract (`prereq_waiting` / `top_bottlenecks.prereq` / `top_prereq_block`) are all untouched. Re-add `"prereq"` to `SIGNAL_ORDER` to bring the card back.
 
 ## Scenarios (in simulation_config.json)
 
