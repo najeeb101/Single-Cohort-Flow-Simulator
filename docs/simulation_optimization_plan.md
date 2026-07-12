@@ -1,6 +1,25 @@
 # Simulation Optimization Plan
 
-Last updated: 2026-07-11
+Last updated: 2026-07-12
+
+> **STATUS: CLOSED (2026-07-12).** The high-value work shipped in commit `8408d63`:
+> item 1 (profiling/benchmark harness), item 2 (parallel Monte Carlo — **~7.5× faster**, plus
+> the Auto-fill intake-probe), and the safe subset of item 4 (monotonic eligibility cache —
+> **~20% faster per run**, byte-identical). A single sim is ~0.75s and 30-seed Monte Carlo went
+> from ~28s to ~4s.
+>
+> The remaining items were **deliberately not done**, each for a measured reason:
+> - **Item 3** (`metrics_only` mode): moot — the "expensive" discarded per-run work measured ~1ms.
+> - **Item 5** (heapq allocation): moot — profiling showed sorting is ~0.05s, not a hotspot.
+> - **Item 6** (LiveRunner checkpointing): its target was "advance < 1s"; a full replay-from-0 is
+>   now ~0.75s, so it's effectively already met.
+> - **Items 7–9** (memory / micro-opts / JIT): low value — peak memory is ~10 MB.
+> - **Item 4 remainder** (inverted `unpassed_prereqs` index → toward the >40% target): the one
+>   real lever left, but it needs genuine cache-invalidation logic (grade replacement, retakes,
+>   initial-state students) and carries correctness risk. Reopen this if per-run speed ever
+>   matters again; the safe cache already in place is the floor to beat.
+>
+> Everything below is the original plan, kept for provenance; per-item DONE/PARTIAL notes are inline.
 
 Purpose
 - Capture a prioritized, actionable plan to optimize the simulation engine (hot paths, batching, parallelization, memory use, and interactive responsiveness).
