@@ -22,6 +22,7 @@ import math
 from typing import TYPE_CHECKING
 
 from src.analytics import evaluate_health_criteria
+from src.parallel import ordered_map, resolve_workers
 from src.service import run_simulation
 
 if TYPE_CHECKING:
@@ -190,21 +191,34 @@ def solve_for_targets(
     }
 
 
+def _probe_one(task: tuple) -> tuple[int, bool]:
+    """One intake candidate: does intake `size` meet every target with the capacity additions
+    fixed? Module-level (not a closure) so it pickles for the process pool. `task` is
+    (curriculum, config, overrides, size)."""
+    curriculum, config, overrides, size = task
+    result = _run(curriculum, config, overrides, size)
+    return size, _all_met(_criteria_of(result))
+
+
 def _probe_intake(curriculum, config, overrides, current_intake: int) -> dict | None:
-    """Fallback lever: with the capacity additions fixed, step intake down until every target is
-    met, and report the largest intake (smallest cut) that works. Bounded to a handful of runs."""
+    """Fallback lever: with the capacity additions fixed, find the largest intake (smallest cut)
+    that still meets every target. The candidate intakes are independent, so they run in
+    parallel (`src.parallel`) and we pick the largest passing one — identical to stepping down
+    sequentially and taking the first that passes, just without waiting on each in turn."""
     floor = max(1, int(current_intake * _INTAKE_FLOOR_FRACTION))
     step = max(1, int(current_intake * _INTAKE_STEP_FRACTION))
-    size = current_intake - step
-    while size >= floor:
-        result = _run(curriculum, config, overrides, size)
-        if _all_met(_criteria_of(result)):
+    sizes = list(range(current_intake - step, floor - 1, -step))  # descending: largest cut last
+
+    tasks = [(curriculum, config, overrides, size) for size in sizes]
+    outcomes = ordered_map(_probe_one, tasks, workers=resolve_workers(len(sizes)))
+
+    for size, met in outcomes:  # sizes are descending, so the first that passes is the largest
+        if met:
             return {
                 "recommended_intake": size,
                 "note": f"Capacity alone can't reach every target at intake {current_intake}. "
                         f"With the capacity additions above, dropping intake to {size}/year meets all targets.",
             }
-        size -= step
     return {
         "recommended_intake": None,
         "note": f"Even cutting intake to {floor}/year with the capacity additions above did not meet "

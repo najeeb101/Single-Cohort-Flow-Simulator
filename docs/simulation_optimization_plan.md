@@ -14,27 +14,85 @@ High-level goals
 
 Prioritized action list (why → what → acceptance)
 
-1) Add a profiling harness (MANDATORY, 1 day)
+1) Add a profiling harness (MANDATORY, 1 day) — **DONE 2026-07-12**
 - Why: verify hotspots before changing code.
-- What: add `scripts/profile_run.py` that runs a representative scenario under `cProfile` and optionally emits a flamegraph-friendly callgrind output or `pyinstrument` snapshot. Document how to run locally.
-- Acceptance: a `profile_report.html` or `callgrind.out` is produced and identifies top 3 hot functions (expected: `_run_term`, `_record_blocks`, allocation sorting).
+- What: `scripts/profile_run.py` (cProfile, stdlib-only, `--montecarlo N`/`--sort`/`--top`/`--out`,
+  optional `--pyinstrument` HTML if the package is installed) + `scripts/benchmark.py` (wall time
+  via `perf_counter` + peak Python memory via `tracemalloc`, `--repeats`/`--montecarlo`/`--compare`,
+  writes a committable `outputs/profiling/benchmark_baseline.json`). Raw `.out`/`.html` are
+  gitignored; the JSON baseline is tracked for PR-to-PR diffs.
+- Run: `py scripts/profile_run.py --sort tottime` and `py scripts/benchmark.py`.
+- **Measured baseline (commit 4bd4b0d, CPython 3.14, one 800-student baseline run):
+  ~0.9s wall (median 0.925s), ~8.5 MB peak traced memory.**
+  - *Correction (same day):* the first cut of `benchmark.py` timed the run **while tracemalloc
+    was active**, which inflates wall time ~3.6x — so an earlier draft of this doc read "~3.1s".
+    The harness now times untraced repeats and samples memory in a separate untimed run; the
+    true single-run figure is ~0.9s. Derived serial costs: Monte Carlo 30 seeds ≈ 27s,
+    Auto-fill (up to 20 greedy runs + ≤6 probe runs) ≈ 24s.
+- **Findings — top hot functions by tottime (whole run, ~2.6s of engine time):**
+  1. `student.get_desired_courses` (0.34s, phase-1 desired-enrollment build)
+  2. `simulator._record_blocks` (0.23s) — as predicted
+  3. `student.prerequisites_met` (0.22s, 270k calls) + `student.has_passed` (0.21s, **942k calls**)
+     + `can_enroll` / `is_eligible_for` — the eligibility-check family dominates collectively.
+  4. `simulator._run_term` (0.21s tottime; 2.6s cumulative — the driver).
+- **Correction to the plan's guess:** "allocation sorting" is **not** a real hotspot
+  (`sorted` ~0.05s, 11k calls). Item 5 (heapq selection) will pay almost nothing at this
+  population; the win is in the eligibility/prereq sweep, so **prioritize item 4 over item 5.**
+  Memory is already tiny (~8.5 MB), so item 7's memory angle is low value — its record-level
+  angle only matters as plumbing for item 3.
 
-2) Parallelize Monte Carlo and optimizer candidate runs (HIGH, 1–2 days)
+2) Parallelize Monte Carlo and optimizer candidate runs (HIGH, 1–2 days) — **DONE 2026-07-12**
 - Why: independent sims are embarrassingly parallel — large wall-time gains across cores.
-- What: implement `concurrent.futures.ProcessPoolExecutor` wrappers in `src/montecarlo.py` and `src/optimizer.py` (configurable `max_workers`). Ensure deterministic seeding per process (seed + worker_id + candidate_index). Add a `--workers` CLI and unit tests for deterministic outputs.
-- Acceptance: Monte Carlo of 40 seeds on 8 cores runs ~5× faster than single-thread baseline and produces identical aggregated results to serial run.
+- What shipped: `src/parallel.py` — a small `ordered_map(fn, items, workers=...)` over
+  `concurrent.futures.ProcessPoolExecutor` that (a) preserves input order so aggregates are
+  byte-identical to serial, and (b) falls back to a serial map on any pool/spawn failure (a real
+  bug in `fn` re-raises from the serial path, so nothing is masked).
+  - `run_monte_carlo(..., workers=None)` fans its seeds across the pool. Seeds are still
+    `base_seed + k` (unchanged); results are collected in seed order, so mean/stdev/CI are
+    identical. Worker count: explicit `workers` arg → `config["monte_carlo"]["workers"]` →
+    one per CPU. `workers=1` forces serial.
+  - `optimizer._probe_intake` (the Auto-fill intake fallback) fans its independent candidate
+    intakes across the pool and picks the largest passing one — identical to the old
+    sequential step-down.
+  - Tests: `tests/test_parallel.py` (parallel == serial byte-for-byte + order/worker-resolution
+    units); existing `test_multicohort`/`test_optimizer` determinism checks still pass (201 total).
+- **Measured (20-core box, real config):**
+  - **Monte Carlo 30 seeds: 27.7s → 4.0s (6.9× faster), result byte-identical.** ✅ beats the ~5× bar.
+  - Auto-fill intake probe (6 candidates): 3.4s → 1.2s (2.8×). This only trims the fallback;
+    **Auto-fill's main greedy loop is a strict dependency chain (each iteration's seats depend on
+    the previous run) and is genuinely unparallelizable** — its ~18s floor is `run_budget` × the
+    per-run sim time, so cutting *that* needs a per-run engine speedup (item 4), not parallelism.
+- Note: the plan's "seed + worker_id + candidate_index" seeding was unnecessary — seeds are
+  already unique per run (`base_seed + k`) and order-preserving collection keeps parallel and
+  serial bit-identical, which is stronger than "deterministic per process".
 
 3) Add `metrics_only` / `lite` simulation mode for short-run control loops (MEDIUM, 1–2 days)
 - Why: optimizer and capacity-solver only need a handful of metrics; recording transcripts/timeline is expensive.
 - What: add `Simulator(..., record_traces=False, record_history_level="full|metrics|none")`. `metrics` mode collects only counters needed by `evaluate_health_criteria` and `compute_metrics` (e.g., history capacity_block_counts, fail_counts, graduation counts) and skips `transcript`, `outcomes`, `history.timeline`. Make `optimizer.solve_for_targets` use `metrics` mode.
 - Acceptance: `solve_for_targets` runs with <40% memory and ~30–50% time of full-run mode on benchmark.
 
-4) Avoid full per-term curriculum sweep in `_record_blocks` (ALGO, 2–4 days)
+4) Avoid full per-term curriculum sweep in `_record_blocks` (ALGO, 2–4 days) — **PARTIAL / safe subset DONE 2026-07-12**
 - Why: current inner loop is student × course and dominates runtime for large populations.
-- What: replace full sweep with incremental/inverted strategies:
-  - Maintain per-student `unpassed_prereqs` set updated only when a student passes a course; only iterate those few codes per student.
-  - For offering-block counts, compute eligible courses by checking the student's `unpassed_prereqs` and intersect with offered set (small). If many students share unchanged prerequisites, memoize eligibility by `student_id` and invalidate on pass events.
-- Acceptance: measured per-term runtime on a stress scenario reduces by >40% vs baseline profiling numbers and block counts remain identical.
+- What shipped (the safe, zero-risk subset): a **monotonic eligibility cache** on `Student`.
+  `is_eligible_for` now caches a *True* result in `self._eligible_codes` (wiped in
+  `_reset_rng_and_state`, so a scenario re-run never inherits stale state). This is provably
+  behavior-preserving because eligibility is monotonic: it depends only on passed courses
+  (grades are never removed) and `completed_ch` (only increases), combined by `rule_expr`'s
+  AND/OR of `has_passed`/`min_ch` — the grammar (`src/rules.py`) has **no negation or upper
+  bound**, so a course that is eligible stays eligible. A False is never cached (recomputed until
+  it flips). Both hot callers benefit: `get_desired_courses`'s per-course `can_enroll` and
+  `_record_blocks`'s passive sweep.
+- **Verified byte-identical**: a full fingerprint (metrics + cohort metrics + admissions rec +
+  the entire `flow_timeline` frames/summary + all four raw block-count dicts incl.
+  mandatory/by-cohort variants) hashes to the *same* sha256 before and after. All 201 tests pass.
+- **Measured**: single run **0.925s → 0.743s (−20%)**; Auto-fill (20 greedy runs) ~18.5s → ~16.6s;
+  Monte Carlo 30 (parallel) 4.0s → 3.7s. Peak memory 8.5 → 10.2 MB (a small `set` per student —
+  negligible in absolute terms).
+- **Not done (the riskier remainder, deferred):** the fully *inverted* index — a per-student
+  `unpassed_prereqs` set so `_record_blocks` iterates only the few not-yet-eligible codes instead
+  of sweeping the whole curriculum. That would push toward the >40% target but needs real
+  invalidation logic (grade replacement, retakes, initial-state students), so it's a separate,
+  carefully-verified change, not folded into this safe pass.
 
 5) Replace full sort with selection for allocation (LOW, 0.5–1 day)
 - Why: selecting top-`cap` winners does not need an O(n log n) full sort when cap << requesters.

@@ -73,7 +73,12 @@ src/
 ├── api.py                # FastAPI wrapper: /health, /meta, /simulate, /autofill, /scenarios, /runs,
 │                         # /curriculum (GET/POST/PUT/DELETE), /config, /plans, /livesim — no
 │                         # login required (see auth.py); see docs/api.md for the full reference
-├── montecarlo.py         # run_monte_carlo() — mean ± 95% CI over many seeds
+├── montecarlo.py         # run_monte_carlo() — mean ± 95% CI over many seeds (parallel across
+│                         # seeds via src/parallel.py; results collected in seed order so they're
+│                         # byte-identical to a serial run)
+├── parallel.py           # ordered_map() — process-pool helper for the embarrassingly-parallel
+│                         # workloads (MC seeds, Auto-fill intake-probe); order-preserving with a
+│                         # serial fallback that can't mask real bugs. See "Parallel Workloads"
 ├── visualize.py          # save_all_figures() + per-figure functions
 └── utils.py              # load_json(), grade_tier()
 web/                   # Next.js/TypeScript dashboard — talks to src/api.py via next.config.ts's
@@ -406,6 +411,40 @@ recommendation already uses.
   term-by-term timeline with grade chips, block chips, a status pill per term, and an inline SVG
   GPA sparkline) on the **`/students`** dashboard page (`Analytics → Student Trace` in the nav).
   Covered by `tests/test_student_trace.py` + trace cases in `tests/test_api.py`.
+
+## Parallel Workloads
+
+- A single simulation is cheap (~0.75s / ~10 MB for the 800-student baseline; the earlier "~3.1s"
+  figure was a `benchmark.py` bug — it timed the run under `tracemalloc`, which inflates wall time
+  ~3.6x, now fixed). What was slow was the workloads that run *many* independent sims.
+- **Per-run hot path**: eligibility (`Student.is_eligible_for`) is called hundreds of thousands of
+  times per run (active student × candidate course × term, from both `get_desired_courses` and
+  `_record_blocks`). It caches a *True* result in `Student._eligible_codes` (wiped in
+  `_reset_rng_and_state`). This is behavior-preserving because eligibility is **monotonic** —
+  `rule_expr` (`src/rules.py`) is only AND/OR of `has_passed`/`min_ch`, with no negation or upper
+  bound, and passed grades / `completed_ch` never decrease — so a course that's eligible stays
+  eligible. Verified byte-identical (same flow_timeline + block-count fingerprint before/after);
+  ~20% faster per run. A False is never cached. **Don't add a non-monotonic gate (e.g. an upper CH
+  bound, or a "not passed X") to the rule grammar without invalidating this cache.**
+- **`src/parallel.py::ordered_map(fn, items, workers=...)`** fans independent sims across a
+  `ProcessPoolExecutor`. Two properties callers rely on: **order-preserving** (results come back in
+  input order, so aggregates are byte-identical to a serial loop) and a **serial fallback** on any
+  pool/spawn failure (a genuine bug in `fn` re-raises from the serial path — only environmental pool
+  problems are silently recovered). `fn` must be a module-level function (spawn-picklable); below 3
+  items or `workers<=1` it just runs serial.
+- **Monte Carlo** (`run_monte_carlo(..., workers=None)`) parallelizes across its `base_seed + k`
+  seeds — **~7x faster on a 20-core box (27.7s → 4.0s for 30 seeds), result byte-identical.** Worker
+  count: explicit `workers` arg → `config["monte_carlo"]["workers"]` → one per CPU; `workers=1` forces
+  serial. Only runs when `include_monte_carlo` is set, so it never touches the default dashboard load.
+- **Auto-fill** (`optimizer.solve_for_targets`): its greedy loop is a **strict dependency chain**
+  (each iteration adds seats based on the *previous* run's shortfall) and is **not parallelizable** —
+  its floor is `run_budget` × per-run sim time (~18s). Only the **intake-probe fallback**
+  (`_probe_intake`, independent candidate intakes) is parallelized (picks the largest passing intake,
+  identical to the old step-down). Cutting the greedy loop itself needs a per-run engine speedup
+  (`docs/simulation_optimization_plan.md` item 4), not parallelism.
+- Profiling/benchmark harness: `scripts/profile_run.py` (cProfile) + `scripts/benchmark.py` (untraced
+  wall time + separate `tracemalloc` memory sample, writes `outputs/profiling/benchmark_baseline.json`).
+  See `docs/simulation_optimization_plan.md` for the baseline and the prioritized remaining items.
 
 ## Key Constraints
 

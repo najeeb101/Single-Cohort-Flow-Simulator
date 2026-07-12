@@ -1,0 +1,17 @@
+{
+  "commit": "4bd4b0d",
+  "timestamp": "2026-07-12T14:10:41+00:00",
+  "python": "3.14.0",
+  "platform": "Windows-11-10.0.26200-SP0",
+  "scenario": "baseline",
+  "montecarlo_runs": 0,
+  "n_students": 800,
+  "repeats": 5,
+  "wall_seconds": {
+    "min": 0.8845705999992788,
+    "mean": 0.9491637599887326,
+    "median": 0.9252593000419438,
+    "max": 1.0345948999747634
+  },
+  "peak_mem_mb": 8.477566719055176
+}

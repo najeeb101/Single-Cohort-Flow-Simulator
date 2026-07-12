@@ -119,6 +119,11 @@ class Student:
 
         self.completed_courses: dict[str, str] = {}
         self.failed_attempts: dict[str, int] = {}
+        # Codes this student is confirmed eligible for. Eligibility is monotonic (see
+        # is_eligible_for), so a code only ever gets *added* here — a per-run cache that turns
+        # the every-term eligibility re-check into an O(1) set hit for already-eligible courses.
+        # Wiped here (and on reset()) so a scenario re-run never inherits stale eligibility.
+        self._eligible_codes: set[str] = set()
         self.gpa: float = 0.0
         self.completed_ch: int = 0
         self._gpa_numerator: float = 0.0
@@ -164,10 +169,25 @@ class Student:
         return all(self.has_passed(p) for p in course.prerequisites)
 
     def is_eligible_for(self, course: Course, curriculum: dict[str, Course]) -> bool:
-        """Eligibility for any course: a compound `rule_expr` if it has one, else plain prerequisites."""
+        """Eligibility for any course: a compound `rule_expr` if it has one, else plain prerequisites.
+
+        Eligibility is *monotonic*: it depends only on courses passed (grades are never removed)
+        and `completed_ch` (only increases), combined by `rule_expr`'s AND/OR of has_passed/min_ch
+        leaves — there is no negation or upper bound in the grammar (see src/rules.py). So once a
+        course is eligible it stays eligible; we cache that True and skip re-deriving it from the
+        prerequisite lists on every subsequent term. A False is never cached — it's recomputed
+        until it flips — so the result is identical to always computing fresh, just cheaper. This
+        is the hot path: `is_eligible_for`/`prerequisites_met` are called hundreds of thousands of
+        times per run (once per active student per candidate course per term)."""
+        if course.code in self._eligible_codes:
+            return True
         if course.rule_expr is not None:
-            return evaluate_rule(course.rule_expr, self)
-        return self.prerequisites_met(course, curriculum)
+            eligible = evaluate_rule(course.rule_expr, self)
+        else:
+            eligible = self.prerequisites_met(course, curriculum)
+        if eligible:
+            self._eligible_codes.add(course.code)
+        return eligible
 
     def get_load_cap(self, config: dict) -> int:
         return config["probation_load_ch"] if self.on_probation else config["normal_load_ch"]
