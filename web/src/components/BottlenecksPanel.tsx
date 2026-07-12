@@ -43,7 +43,7 @@ export default function BottlenecksPanel({ bottlenecks, frames }: { bottlenecks:
         <div>
           <h2 className="text-[15px] font-bold">Top bottlenecks</h2>
           <p className="mt-0.5 max-w-2xl text-[12.5px] text-muted">
-            The four reasons a student couldn&apos;t take a course they needed — ranked by how often each course
+            The reasons a student couldn&apos;t take a course they needed — ranked by how often each course
             caused the problem across the run. A course near the top of multiple lists is the deepest structural
             delay point in the curriculum.
           </p>

@@ -65,5 +65,8 @@ export const SIGNAL_META: Record<SignalKey, SignalInfo> = {
   },
 };
 
-// Fixed display order (matches the per-term loop's signal ordering, most-actionable first).
-export const SIGNAL_ORDER: SignalKey[] = ["fail", "capacity", "offering", "prereq"];
+// Fixed DISPLAY order, most-actionable first. `prereq` is intentionally omitted: the prerequisite
+// signal is still computed by the engine and kept in SIGNAL_META (so the trace/types stay valid),
+// but it's no longer surfaced anywhere in the dashboard — it's a passive per-term sweep that's hard
+// to act on and was removed from the visuals per product decision. Add it back here to re-surface it.
+export const SIGNAL_ORDER: SignalKey[] = ["fail", "capacity", "offering"];

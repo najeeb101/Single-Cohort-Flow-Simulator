@@ -30,7 +30,6 @@ type CourseRunStat = {
   denied_peak: number;
   full_terms: number;
   offering_blocked_peak: number;
-  prereq_waiting_peak: number;
   passed: number;
   failed: number;
 };
@@ -47,18 +46,17 @@ function aggregateCourseStats(frames: Frame[], mandatorySeasons: string[]): Reco
           denied_peak: 0,
           full_terms: 0,
           offering_blocked_peak: 0,
-          prereq_waiting_peak: 0,
           passed: 0,
           failed: 0,
         });
-      // The structural signals (seat denials, full, offering + prereq waits) count on regular terms
-      // only — optional-term seats are a deliberately-scarce bonus pool, matching the mandatory-only
+      // The structural signals (seat denials, full, offering waits) count on regular terms only —
+      // optional-term seats are a deliberately-scarce bonus pool, matching the mandatory-only
       // bottleneck rankings the model also sees. Passes/fails are real whenever they happen.
+      // (Prereq blocks are computed but no longer surfaced to the user or the advisor.)
       if (isMandatory) {
         if (s.denied > a.denied_peak) a.denied_peak = s.denied;
         if (s.full) a.full_terms += 1;
         if (s.offering_blocked > a.offering_blocked_peak) a.offering_blocked_peak = s.offering_blocked;
-        if (s.prereq_waiting > a.prereq_waiting_peak) a.prereq_waiting_peak = s.prereq_waiting;
       }
       a.passed += s.passed;
       a.failed += s.failed;

@@ -65,13 +65,6 @@ export default function NarrativePanel({ frame, nextFrame, maxTerms }: Props) {
     if (closing.length) next.push({ text: `Closes (off-season): ${closing.slice(0, 6).join(", ")}.` });
     const nextEntrants = aggFlows(nextFrame)["Admitted→Year1"] || 0;
     if (nextEntrants > 0) next.push({ text: "A new cohort will enrol.", emphasis: "em" });
-    const waiting = Object.entries(frame.courses)
-      .filter(([, s]) => (s.prereq_waiting || 0) > 0)
-      .sort((a, b) => b[1].prereq_waiting - a[1].prereq_waiting)
-      .slice(0, 2);
-    if (waiting.length) {
-      next.push({ text: `Students are queued behind prerequisites for ${waiting.map(([c, s]) => `${c} (${s.prereq_waiting})`).join(", ")}.` });
-    }
   } else {
     next.push({ text: "End of the simulation horizon — see the dashboard below for final outcomes." });
   }

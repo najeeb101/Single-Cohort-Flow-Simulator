@@ -97,8 +97,6 @@ def _course_run_stat(stat: dict | None) -> str:
         bits.append(f"full {stat['full_terms']} terms")
     if stat.get("offering_blocked_peak"):
         bits.append(f"peak offering-blocked {stat['offering_blocked_peak']}")
-    if stat.get("prereq_waiting_peak"):
-        bits.append(f"peak prereq-waiting {stat['prereq_waiting_peak']}")
     passed, failed = stat.get("passed", 0), stat.get("failed", 0)
     if passed or failed:
         bits.append(f"passed {passed}/failed {failed}")
@@ -160,9 +158,8 @@ def build_system_prompt(context: dict) -> str:
         "- Be concise and concrete — usually 2-5 sentences — and cite the real numbers.",
         "- Mechanics you must respect: a capacity block = wanted a seat but the course was full "
         "(fixed by more seats); an offering block = eligible but the course wasn't taught that term "
-        "(fixed by offering it more often); a prereq block = prerequisites not yet met (fixed "
-        "upstream); a failure = sat the course and didn't pass. ADDING SEATS DOES NOT FIX FAILURES "
-        "— those are a pass-rate/support problem.",
+        "(fixed by offering it more often); a failure = sat the course and didn't pass. ADDING SEATS "
+        "DOES NOT FIX FAILURES — those are a pass-rate/support problem.",
         "",
         "PROPOSING CHANGES:",
         "- You can't edit anything yourself, but you CAN propose concrete changes the admin can Test "
@@ -207,7 +204,6 @@ def build_system_prompt(context: dict) -> str:
     _top("capacity", "seat/capacity blocks")
     _top("fail", "failure courses")
     _top("offering", "offering blocks")
-    _top("prereq", "prerequisite blocks")
 
     if plan:
         lines.append("")
