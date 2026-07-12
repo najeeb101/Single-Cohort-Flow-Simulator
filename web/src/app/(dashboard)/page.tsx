@@ -5,6 +5,7 @@ import AnimationSection from "@/components/AnimationSection";
 import AdmissionsRecommendation from "@/components/AdmissionsRecommendation";
 import HeadlineKpis from "@/components/HeadlineKpis";
 import CohortsTable from "@/components/CohortsTable";
+import PrerequisiteNetwork from "@/components/PrerequisiteNetwork";
 
 export default function Home() {
   const { meta, data, chartMeta } = useSimulation();
@@ -52,6 +53,14 @@ export default function Home() {
       <AdmissionsRecommendation rec={summary.admissions_recommendation} />
       <HeadlineKpis headline={summary.headline} onTimeTerms={meta.on_time_terms} />
       <CohortsTable cohorts={summary.per_cohort} />
+
+      <section className="py-6">
+        <h2 className="mb-1 text-[15px] font-bold">Prerequisites</h2>
+        <p className="mb-4 max-w-3xl text-[12.5px] text-muted">
+          The prerequisite dependency graph — each arrow means &quot;must pass this before taking that.&quot; Courses with many outgoing arrows (high out-degree) are gateways: failing or being blocked on them delays every course downstream. Node colour reflects how often students were blocked on that course across the run.
+        </p>
+        <PrerequisiteNetwork graph={chartMeta.graph} frames={data.flow_timeline.frames} />
+      </section>
     </main>
   );
 }

@@ -24,7 +24,6 @@ const GROUPS: { label: string; links: NavLink[] }[] = [
       { href: "/advisor", label: "Advisor" },
       { href: "/students", label: "Student Trace" },
       { href: "/figures", label: "Figures" },
-      { href: "/prerequisites", label: "Prerequisites" },
     ],
   },
   {
