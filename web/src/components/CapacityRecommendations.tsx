@@ -71,61 +71,67 @@ export default function CapacityRecommendations({
   if (recs.length === 0) {
     return (
       <section className="py-6">
-        <h2 className="mb-1 text-[15px] font-bold">Capacity recommendations</h2>
-        <p className="text-sm text-muted">No seat denials recorded — current capacity is sufficient.</p>
-        {children && <div className="mt-6 border-t border-border pt-6">{children}</div>}
+        <div className="rounded-2xl border border-border bg-surface p-5">
+          <h2 className="mb-1 text-[15px] font-bold">Capacity recommendations</h2>
+          <p className="text-sm text-muted">No seat denials recorded — current capacity is sufficient.</p>
+          {children && <div className="mt-5 border-t border-border pt-5">{children}</div>}
+        </div>
       </section>
     );
   }
 
   return (
     <section className="py-6">
-      <h2 className="mb-1 text-[15px] font-bold">Capacity recommendations</h2>
-      <p className="mb-4 max-w-3xl text-sm text-muted">
-        Courses ranked by total seat denials. <span className="font-semibold text-ink">Recommended capacity</span>{" "}
-        is current capacity plus the worst single term&apos;s shortfall — enough to clear every denial seen in
-        this run. To test the actual impact of raising capacity, ask the{" "}
-        <Link href="/advisor" className="font-semibold text-accent">Advisor</Link>{" "}
-        (it predicts the effect, then lets you apply it), or edit{" "}
-        <Link href="/settings" className="font-semibold text-accent">Settings</Link>{" "}
-        to make a change permanent.
-      </p>
+      <div className="rounded-2xl border border-border bg-surface">
+        <div className="p-5">
+          <h2 className="mb-1 text-[15px] font-bold">Capacity recommendations</h2>
+          <p className="max-w-3xl text-sm text-muted">
+            Courses ranked by total seat denials. <span className="font-semibold text-ink">Recommended capacity</span>{" "}
+            is current capacity plus the worst single term&apos;s shortfall — enough to clear every denial seen in
+            this run. To test the actual impact of raising capacity, ask the{" "}
+            <Link href="/advisor" className="font-semibold text-accent">Advisor</Link>{" "}
+            (it predicts the effect, then lets you apply it), or edit{" "}
+            <Link href="/settings" className="font-semibold text-accent">Settings</Link>{" "}
+            to make a change permanent.
+          </p>
+        </div>
 
-      <div className="overflow-auto rounded-2xl border border-border bg-surface">
-        <table className="w-full border-collapse text-sm">
-          <thead>
-            <tr>
-              {["Course", "Capacity", "Total denied", "Recommended capacity"].map((h) => (
-                <th
-                  key={h}
-                  className="whitespace-nowrap border-b border-border bg-surface px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-muted"
-                >
-                  {h}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {recs.map((r) => (
-              <tr key={r.code} className="group border-b border-border transition-colors hover:bg-surface-2 last:border-0">
-                <td className="whitespace-nowrap px-3 py-2.5 font-semibold">{r.code}</td>
-                <td className="whitespace-nowrap px-3 py-2.5 tabular-nums text-muted">{r.currentCapacity}</td>
-                <td className="whitespace-nowrap px-3 py-2.5 tabular-nums font-bold text-ink">
-                  {r.totalDenied.toLocaleString()}
-                </td>
-                <td className="whitespace-nowrap px-3 py-2.5 tabular-nums font-bold text-ink">
-                  {r.recommendedCapacity.toLocaleString()}{" "}
-                  <span className="ml-1 rounded bg-surface-2 px-1.5 py-0.5 text-xs font-medium text-muted">
-                    +{r.peakShortfall.toLocaleString()}
-                  </span>
-                </td>
+        <div className="overflow-auto border-t border-border">
+          <table className="w-full border-collapse text-sm">
+            <thead>
+              <tr>
+                {["Course", "Capacity", "Total denied", "Recommended capacity"].map((h) => (
+                  <th
+                    key={h}
+                    className="whitespace-nowrap border-b border-border bg-surface px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-muted"
+                  >
+                    {h}
+                  </th>
+                ))}
               </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+            </thead>
+            <tbody>
+              {recs.map((r) => (
+                <tr key={r.code} className="group border-b border-border transition-colors hover:bg-surface-2 last:border-0">
+                  <td className="whitespace-nowrap px-3 py-2.5 font-semibold">{r.code}</td>
+                  <td className="whitespace-nowrap px-3 py-2.5 tabular-nums text-muted">{r.currentCapacity}</td>
+                  <td className="whitespace-nowrap px-3 py-2.5 tabular-nums font-bold text-ink">
+                    {r.totalDenied.toLocaleString()}
+                  </td>
+                  <td className="whitespace-nowrap px-3 py-2.5 tabular-nums font-bold text-ink">
+                    {r.recommendedCapacity.toLocaleString()}{" "}
+                    <span className="ml-1 rounded bg-surface-2 px-1.5 py-0.5 text-xs font-medium text-muted">
+                      +{r.peakShortfall.toLocaleString()}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
 
-      {children && <div className="mt-6 border-t border-border pt-6">{children}</div>}
+        {children && <div className="border-t border-border p-5">{children}</div>}
+      </div>
     </section>
   );
 }
