@@ -7,7 +7,6 @@ import { categoryLegend } from "@/lib/graphLayout";
 import AnimationControls from "@/components/AnimationControls";
 import NarrativePanel from "@/components/NarrativePanel";
 import StageOverview from "@/components/StageOverview";
-import FlowsList from "@/components/FlowsList";
 
 interface Props {
   graph: Graph; // frozen at initial load (page.tsx) — curriculum structure never changes
@@ -124,17 +123,10 @@ export default function AnimationSection({ graph, stageNodes, cohorts, frames, m
           </div>
         </div>
 
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-          <aside className="flex flex-col rounded-2xl border border-border bg-surface px-4 pb-3.5">
-            <div className="border-b border-border py-2.5 text-sm font-semibold">Stage overview</div>
-            <StageOverview frame={frame} stageNodes={stageNodes} cohortSel={cohortSel} />
-          </aside>
-
-          <aside className="flex flex-col rounded-2xl border border-border bg-surface px-4 pb-3.5">
-            <div className="border-b border-border py-2.5 text-sm font-semibold">Biggest moves</div>
-            <FlowsList frame={frame} cohortSel={cohortSel} />
-          </aside>
-        </div>
+        <aside className="flex flex-col rounded-2xl border border-border bg-surface px-4 pb-3.5">
+          <div className="border-b border-border py-2.5 text-sm font-semibold">Stage overview</div>
+          <StageOverview frame={frame} stageNodes={stageNodes} cohortSel={cohortSel} />
+        </aside>
       </div>
     </section>
   );
