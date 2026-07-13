@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useSimulation } from "@/lib/SimulationContext";
 import BottlenecksPanel from "@/components/BottlenecksPanel";
 import CapacityRecommendations from "@/components/CapacityRecommendations";
@@ -21,11 +20,6 @@ export default function BottlenecksPage() {
       <BottlenecksPanel bottlenecks={summary.top_bottlenecks} frames={data.flow_timeline.frames} />
       <CapacityRecommendations frames={data.flow_timeline.frames} meta={meta} />
       <AutofillPanel />
-      <p className="mt-6 rounded-2xl border border-dashed border-border-2 bg-surface p-4 text-sm text-muted">
-        Want to try a specific change and see its effect first? Head to the{" "}
-        <Link href="/advisor" className="font-semibold text-accent">Advisor</Link>{" "}— ask it something like{" "}
-        &ldquo;what if I add 50 seats to CMPS323?&rdquo; and it will predict the impact, then let you apply it.
-      </p>
     </main>
   );
 }
