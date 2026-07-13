@@ -123,7 +123,7 @@ export default function AnimationSection({ graph, stageNodes, cohorts, frames, m
           </div>
         </div>
 
-        <aside className="flex flex-col rounded-2xl border border-border bg-surface px-4 pb-3.5">
+        <aside className="flex w-full max-w-2xl flex-col rounded-2xl border border-border bg-surface px-4 pb-3.5">
           <div className="border-b border-border py-2.5 text-sm font-semibold">Stage overview</div>
           <StageOverview frame={frame} stageNodes={stageNodes} cohortSel={cohortSel} />
         </aside>

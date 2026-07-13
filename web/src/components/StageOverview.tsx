@@ -21,8 +21,8 @@ function stageColor(node: string): string {
 // read as a funnel (one entry point, three possible exits) rather than a straight line.
 const TERMINAL = new Set(["Graduated", "Dropped", "Censored"]);
 
-const W = 300;
-const H = 220;
+const W = 520;
+const H = 190;
 const MARGIN_X = 22;
 const MARGIN_Y = 10;
 const BAR_W = 10;
@@ -109,7 +109,7 @@ export default function StageOverview({ frame, stageNodes, cohortSel }: Props) {
 
   return (
     <div>
-      <div className="mt-3.5 max-w-[340px]">
+      <div className="mt-3.5">
         <svg width="100%" viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="xMidYMid meet">
           {flows.map((f, i) => {
             const a = rectOf[f.from];
