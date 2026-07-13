@@ -72,7 +72,7 @@ export default function AutofillPanel() {
   const intake = result?.intake_suggestion?.recommended_intake ?? null;
 
   return (
-    <section className="py-6">
+    <section>
       <div className="mb-1 flex items-baseline gap-2">
         <h2 className="text-[15px] font-bold">Auto-fill to targets</h2>
         <span className="text-xs font-normal text-muted">— solve for the seats that hit your targets</span>

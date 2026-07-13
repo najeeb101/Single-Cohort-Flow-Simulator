@@ -18,8 +18,9 @@ export default function BottlenecksPage() {
         </p>
       </header>
       <BottlenecksPanel bottlenecks={summary.top_bottlenecks} frames={data.flow_timeline.frames} />
-      <CapacityRecommendations frames={data.flow_timeline.frames} meta={meta} />
-      <AutofillPanel />
+      <CapacityRecommendations frames={data.flow_timeline.frames} meta={meta}>
+        <AutofillPanel />
+      </CapacityRecommendations>
     </main>
   );
 }

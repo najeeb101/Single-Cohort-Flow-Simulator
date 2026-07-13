@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo } from "react";
+import { useMemo, type ReactNode } from "react";
 import type { Frame, MetaResponse } from "@/types/simulation";
 
 interface CourseRec {
@@ -57,9 +57,14 @@ function buildRecommendations(frames: Frame[], meta: MetaResponse): CourseRec[] 
 export default function CapacityRecommendations({
   frames,
   meta,
+  children,
 }: {
   frames: Frame[];
   meta: MetaResponse;
+  // Optional slot rendered under a divider at the bottom of the section — used on the
+  // Bottlenecks page to group the Auto-fill solver together with these recommendations,
+  // since both are capacity tools.
+  children?: ReactNode;
 }) {
   const recs = useMemo(() => buildRecommendations(frames, meta), [frames, meta]);
 
@@ -68,6 +73,7 @@ export default function CapacityRecommendations({
       <section className="py-6">
         <h2 className="mb-1 text-[15px] font-bold">Capacity recommendations</h2>
         <p className="text-sm text-muted">No seat denials recorded — current capacity is sufficient.</p>
+        {children && <div className="mt-6 border-t border-border pt-6">{children}</div>}
       </section>
     );
   }
@@ -118,6 +124,8 @@ export default function CapacityRecommendations({
           </tbody>
         </table>
       </div>
+
+      {children && <div className="mt-6 border-t border-border pt-6">{children}</div>}
     </section>
   );
 }
