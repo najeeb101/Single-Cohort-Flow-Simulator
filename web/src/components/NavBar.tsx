@@ -93,7 +93,7 @@ export default function NavBar() {
       <div className="mx-auto grid max-w-[1600px] grid-cols-[1fr_auto_1fr] items-center px-7">
         <Link href="/" className="flex items-center gap-2" aria-label="Cohort Analyzer home">
           <span className="grid h-7 w-7 place-items-center rounded-lg bg-maroon text-xs font-extrabold text-white">
-            CA
+            QU
           </span>
         </Link>
         {/* Desktop nav: the full bar. Below md it collapses into the hamburger menu below. */}

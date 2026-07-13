@@ -55,7 +55,7 @@ export default function InitialStateGate({ meta, onComplete }: Props) {
       <div className="border-b border-border py-10">
         <div className="mx-auto flex max-w-2xl flex-col items-center text-center">
           <div className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-maroon text-[18px] font-extrabold text-white">
-            CA
+            QU
           </div>
           <h1 className="mt-3 text-[28px] font-extrabold tracking-tight text-ink">
             Set up today&apos;s department state
