@@ -27,7 +27,7 @@ export default function Home() {
       </header>
 
       <section className="py-4">
-        <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 rounded-2xl border border-border bg-surface-2 px-5 py-3">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
           {[
             ["Cohorts", data.flow_timeline.meta.num_cohorts],
             ["Cohort size", meta.cohort_size],
@@ -36,8 +36,9 @@ export default function Home() {
             ["Credit hours", totalCH],
             ["Prerequisite links", chartMeta.graph.edges.length],
           ].map(([k, v]) => (
-            <div key={String(k)} className="text-sm text-muted">
-              {k}: <b className="ml-1 font-semibold text-ink">{v}</b>
+            <div key={String(k)} className="rounded-2xl border border-border bg-surface p-4 shadow-sm">
+              <div className="text-[26px] font-extrabold leading-none tracking-tight text-ink">{v}</div>
+              <div className="mt-2 text-[11px] uppercase tracking-wide text-muted">{k}</div>
             </div>
           ))}
         </div>
