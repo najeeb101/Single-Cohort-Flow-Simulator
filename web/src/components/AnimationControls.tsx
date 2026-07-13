@@ -15,10 +15,6 @@ interface Props {
   onStep: (delta: number) => void;
   onSpeedChange: (speed: number) => void;
   onCohortChange: (key: string) => void;
-  // When embedded in the Control Center card (AnimationSection) the toolbar drops its own
-  // sticky/bordered/blurred chrome and renders as a plain flex row, so the card supplies the
-  // frame instead of nesting a bordered strip inside a bordered card.
-  bare?: boolean;
 }
 
 // Port of the <div class="controls"> toolbar in frontend/index.html + app.js::wireControls().
@@ -35,18 +31,11 @@ export default function AnimationControls({
   onStep,
   onSpeedChange,
   onCohortChange,
-  bare = false,
 }: Props) {
   const scrubPct = (idx / Math.max(1, frameCount - 1)) * 100;
 
   return (
-    <div
-      className={
-        bare
-          ? "flex flex-wrap items-center gap-3"
-          : "sticky top-0 z-20 mb-3.5 flex flex-wrap items-center gap-3 rounded-xl border border-border bg-surface/90 px-3.5 py-3 backdrop-blur"
-      }
-    >
+    <div className="sticky top-0 z-20 mb-3.5 flex flex-wrap items-center gap-3 rounded-xl border border-border bg-surface/90 px-3.5 py-3 backdrop-blur">
       <div className="flex gap-1.5">
         <button type="button" onClick={() => onStep(-1)} className="rounded-xl border border-border-2 bg-surface-2 px-3 py-2 text-sm font-semibold text-ink" title="Previous semester">
           ⟨

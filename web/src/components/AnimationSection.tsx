@@ -74,34 +74,22 @@ export default function AnimationSection({ graph, stageNodes, cohorts, frames, m
         Prerequisite flow <span className="text-xs font-normal text-muted">— semester by semester</span>
       </h2>
 
-      {/* Control Center: playback controls (the action) and the per-semester alerts (the
-          reaction) share one split card so scrubbing the timeline and the results it produces
-          read as a single connected surface instead of two disconnected strips. */}
-      <div className="mb-3.5 overflow-hidden rounded-2xl border border-border bg-surface">
-        <div className="grid lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]">
-          <div className="flex flex-col justify-center gap-3 border-b border-border p-4 lg:border-b-0 lg:border-r">
-            <div className="text-xs font-semibold uppercase tracking-wide text-muted">Simulation controls</div>
-            <AnimationControls
-              bare
-              idx={idx}
-              frameCount={frames.length}
-              playing={playing}
-              speed={speed}
-              cohortSel={cohortSel}
-              cohorts={cohorts}
-              termLabel={termLabel}
-              onScrub={setIdx}
-              onTogglePlay={() => setPlaying((p) => !p)}
-              onStep={(delta) => setIdx((i) => Math.max(0, Math.min(frames.length - 1, i + delta)))}
-              onSpeedChange={setSpeed}
-              onCohortChange={setCohortSel}
-            />
-          </div>
-          <div className="p-4">
-            <NarrativePanel stacked frame={frame} nextFrame={frames[idx + 1]} maxTerms={maxTerms} />
-          </div>
-        </div>
-      </div>
+      <AnimationControls
+        idx={idx}
+        frameCount={frames.length}
+        playing={playing}
+        speed={speed}
+        cohortSel={cohortSel}
+        cohorts={cohorts}
+        termLabel={termLabel}
+        onScrub={setIdx}
+        onTogglePlay={() => setPlaying((p) => !p)}
+        onStep={(delta) => setIdx((i) => Math.max(0, Math.min(frames.length - 1, i + delta)))}
+        onSpeedChange={setSpeed}
+        onCohortChange={setCohortSel}
+      />
+
+      <NarrativePanel frame={frame} nextFrame={frames[idx + 1]} maxTerms={maxTerms} />
 
       {/* Asymmetric bento: the curriculum graph is the dominant cell (spans both rows);
           Stage overview and Flows sit beside it as two smaller, independent cards rather

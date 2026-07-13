@@ -5,10 +5,6 @@ interface Props {
   frame: Frame;
   nextFrame: Frame | undefined;
   maxTerms: number;
-  // In the Control Center card the two alert boxes sit in a narrow right column, so they stack
-  // vertically (and drop the outer margin the card already provides) instead of the default
-  // side-by-side two-up layout.
-  stacked?: boolean;
 }
 
 type Entry = { text: string; emphasis?: "em" | "good" | "bad" };
@@ -17,7 +13,7 @@ const EMPHASIS_CLASS: Record<string, string> = { em: "text-warn font-semibold", 
 // Faithful port of frontend/app.js::renderNarrative() — always uses the global aggFlows()
 // regardless of the cohort selector (that's the vanilla behavior; only the stage/flow
 // side panels are cohort-scoped).
-export default function NarrativePanel({ frame, nextFrame, maxTerms, stacked = false }: Props) {
+export default function NarrativePanel({ frame, nextFrame, maxTerms }: Props) {
   const flows = aggFlows(frame);
   const get = (k: string) => flows[k] || 0;
 
@@ -77,7 +73,7 @@ export default function NarrativePanel({ frame, nextFrame, maxTerms, stacked = f
     e.emphasis ? <li key={i}><span className={EMPHASIS_CLASS[e.emphasis]}>{e.text}</span></li> : <li key={i}>{e.text}</li>;
 
   return (
-    <div className={stacked ? "grid grid-cols-1 gap-3" : "mb-3.5 grid grid-cols-1 gap-3.5 md:grid-cols-2"}>
+    <div className="mb-3.5 grid grid-cols-1 gap-3.5 md:grid-cols-2">
       <div className="rounded-2xl border border-border border-l-[3px] border-l-accent bg-surface px-4.5 py-3.5">
         <h4 className="mb-2 text-xs uppercase tracking-wide text-accent">This semester</h4>
         <ul className="m-0 list-disc space-y-1 pl-4.5 text-sm text-ink/85">{now.map(renderEntry)}</ul>
