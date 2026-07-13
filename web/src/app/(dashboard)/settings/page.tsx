@@ -182,9 +182,10 @@ export default function SettingsPage() {
       <section id="initial-state" className="border-b border-border py-6">
         <h2 className="mb-1 text-[15px] font-bold">Initial state</h2>
         <p className="mb-3 max-w-2xl text-sm text-muted">
-          The existing student body the first simulated cohort walks into: per-course occupied seats and how
-          many students are already at each year-standing. Use{" "}
-          <b className="font-semibold text-ink">Import from file</b> to bulk-load from a CSV or Excel sheet
+          The existing student body the first simulated cohort walks into: how many students are already at each
+          year-standing, plus per-course occupied seats (edited in the{" "}
+          <b className="font-semibold text-ink">Occupancy</b> column of the Curriculum table below). Use{" "}
+          <b className="font-semibold text-ink">Import from file</b> to bulk-load either from a CSV or Excel sheet
           instead of typing each row. Saved with &ldquo;Save as new baseline&rdquo; below.
         </p>
         <InitialStateEditor
@@ -194,6 +195,7 @@ export default function SettingsPage() {
           standingNodes={standingLevelsFromThresholds(meta.year_standing_thresholds)}
           baselineOccupancy={baseline.initialOccupancy}
           baselineStanding={baseline.standing}
+          showOccupancyTable={false}
           onOccupancyChange={(code, v) => setRecordField("initialOccupancy", code, v)}
           onOccupancyBulkChange={(patch) => setField("initialOccupancy", { ...state.initialOccupancy, ...patch })}
           onStandingChange={(node, v) => setRecordField("standing", node, v)}
@@ -202,13 +204,23 @@ export default function SettingsPage() {
       </section>
 
       <section id="curriculum" className="py-6">
-        <h2 className="mb-3 text-[15px] font-bold">
-          Curriculum <span className="text-xs font-normal text-muted">— saves instantly, no baseline step</span>
-        </h2>
+        <h2 className="mb-1 text-[15px] font-bold">Curriculum &amp; initial occupancy</h2>
+        <p className="mb-3 max-w-2xl text-sm text-muted">
+          Course edits (Edit / Add / Delete) save instantly. The{" "}
+          <b className="font-semibold text-ink">Occupancy</b> column — seats already taken by the existing
+          student body — is part of the initial state, so it saves with &ldquo;Save as new baseline&rdquo; below.
+        </p>
         {courses === null ? (
           <p className="text-sm text-muted">Loading…</p>
         ) : (
-          <CurriculumTable courses={courses} onChange={handleCoursesChange} seasons={meta.terms_per_year} />
+          <CurriculumTable
+            courses={courses}
+            onChange={handleCoursesChange}
+            seasons={meta.terms_per_year}
+            occupancy={state.initialOccupancy}
+            baselineOccupancy={baseline.initialOccupancy}
+            onOccupancyChange={(code, v) => setRecordField("initialOccupancy", code, v)}
+          />
         )}
       </section>
 

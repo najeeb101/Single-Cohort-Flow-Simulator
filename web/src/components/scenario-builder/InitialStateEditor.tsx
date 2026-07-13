@@ -17,6 +17,10 @@ interface Props {
   onStandingBulkChange: (patch: Record<string, number>) => void;
   baselineOccupancy?: Record<string, number>;
   baselineStanding?: Record<string, number>;
+  // Settings folds per-course occupancy into its Curriculum table instead, so it hides the
+  // standalone occupancy table here (default true keeps Scenario/Plan Builder unchanged). Bulk
+  // import + demo still populate occupancy via the callbacks above; it just renders elsewhere.
+  showOccupancyTable?: boolean;
 }
 
 // The shared "initial state — existing student body" editor: year-standing head-counts +
@@ -33,6 +37,7 @@ export default function InitialStateEditor({
   onStandingBulkChange,
   baselineOccupancy,
   baselineStanding,
+  showOccupancyTable = true,
 }: Props) {
   const [importOpen, setImportOpen] = useState(false);
   const nodes = standingNodes && standingNodes.length ? standingNodes : [...STANDING_NODES];
@@ -85,7 +90,9 @@ export default function InitialStateEditor({
         <p className="mb-2.5 text-xs text-muted">
           Head-count of students already enrolled at each year-standing when the simulation
           starts. Added as a constant background to the flow chart so it isn&apos;t empty at term&nbsp;0.
-          Per-course occupied seats are entered in the table below.
+          {showOccupancyTable
+            ? " Per-course occupied seats are entered in the table below."
+            : " Per-course occupied seats are set in the Curriculum table below."}
         </p>
         <div className="flex flex-wrap gap-2">
           {nodes.map((node) => {
@@ -100,12 +107,14 @@ export default function InitialStateEditor({
         </div>
       </SectionCard>
 
-      <InitialOccupancyTable
-        courses={courses}
-        occupancy={occupancy}
-        baselineOccupancy={baselineOccupancy}
-        onChange={onOccupancyChange}
-      />
+      {showOccupancyTable && (
+        <InitialOccupancyTable
+          courses={courses}
+          occupancy={occupancy}
+          baselineOccupancy={baselineOccupancy}
+          onChange={onOccupancyChange}
+        />
+      )}
 
       <InitialStateImportModal
         open={importOpen}

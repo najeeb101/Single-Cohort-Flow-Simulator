@@ -5,6 +5,7 @@ import { ApiError, createCourse, deleteCourse, updateCourse } from "@/lib/api";
 import { validateCourseDraft } from "@/lib/planBuilder";
 import type { CourseRecord, CourseUpdate } from "@/types/simulation";
 import CourseFormFields from "@/components/CourseFormFields";
+import { NumberBox } from "@/components/scenario-builder/fields";
 
 const BLANK_COURSE: CourseRecord = {
   code: "",
@@ -20,16 +21,48 @@ const BLANK_COURSE: CourseRecord = {
   study_plan_term: 0,
 };
 
+// Initial-occupancy column, threaded from Settings. When present, the table gains editable
+// "Occupancy" + computed "Free / term" columns so there's one course table instead of a
+// separate initial-occupancy table. Occupancy is part of config.initial_state (not a Course
+// field), so it stays *deferred* — edits land in the parent's state and persist with
+// "Save as new baseline", exactly as the standalone table did.
+interface OccupancyCol {
+  value: number;
+  baseline: number;
+  onChange: (value: number) => void;
+}
+
 interface RowProps {
   course: CourseRecord;
   allCourseCodes: string[];
   knownCategories: string[];
   seasons: string[];
+  colSpan: number;
+  occupancy?: OccupancyCol;
   onSaved: (updated: CourseRecord) => void;
   onDeleted: (code: string) => void;
 }
 
-function CurriculumRow({ course, allCourseCodes, knownCategories, seasons, onSaved, onDeleted }: RowProps) {
+function OccupancyCells({ capacity, occ }: { capacity: number; occ: OccupancyCol }) {
+  const exceeds = occ.value > capacity;
+  const free = Math.max(0, capacity - occ.value);
+  const dirty = Math.abs(occ.value - occ.baseline) > 1e-9;
+  return (
+    <>
+      <td className={`border-b border-border px-3 py-2 ${dirty ? "bg-accent/[0.07]" : ""}`}>
+        <div className="w-20">
+          <NumberBox value={occ.value} onChange={occ.onChange} min={0} step={1} />
+        </div>
+      </td>
+      <td className={`whitespace-nowrap border-b border-border px-3 py-2 tabular-nums ${exceeds ? "text-bad" : "text-muted"}`}>
+        {free}
+        {exceeds && <span className="ml-1.5 text-xs">exceeds capacity</span>}
+      </td>
+    </>
+  );
+}
+
+function CurriculumRow({ course, allCourseCodes, knownCategories, seasons, colSpan, occupancy, onSaved, onDeleted }: RowProps) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState<CourseRecord>(course);
   const [error, setError] = useState<string | null>(null);
@@ -86,7 +119,8 @@ function CurriculumRow({ course, allCourseCodes, knownCategories, seasons, onSav
         <td className="border-b border-border px-3 py-2">{course.title}</td>
         <td className="border-b border-border px-3 py-2 text-muted">{course.category}</td>
         <td className="border-b border-border px-3 py-2 text-muted">{course.pass_rate.toFixed(2)}</td>
-        <td className="border-b border-border px-3 py-2 text-muted">{course.capacity}</td>
+        <td className="border-b border-border px-3 py-2 tabular-nums text-muted">{course.capacity}</td>
+        {occupancy && <OccupancyCells capacity={course.capacity} occ={occupancy} />}
         <td className="border-b border-border px-3 py-2">
           <div className="flex justify-end gap-3">
             <button type="button" onClick={startEdit} disabled={busy} className="font-semibold text-accent disabled:opacity-50">
@@ -104,7 +138,7 @@ function CurriculumRow({ course, allCourseCodes, knownCategories, seasons, onSav
 
   return (
     <tr>
-      <td colSpan={6} className="border-b border-border bg-surface-2 px-3 py-3">
+      <td colSpan={colSpan} className="border-b border-border bg-surface-2 px-3 py-3">
         <CourseFormFields value={draft} allCourseCodes={allCourseCodes} knownCategories={knownCategories} seasons={seasons} onChange={setDraft} />
 
         {error && <p className="mt-2 text-bad">{error}</p>}
@@ -135,11 +169,13 @@ function AddCourseRow({
   allCourseCodes,
   knownCategories,
   seasons,
+  colSpan,
   onAdded,
 }: {
   allCourseCodes: string[];
   knownCategories: string[];
   seasons: string[];
+  colSpan: number;
   onAdded: (created: CourseRecord) => void;
 }) {
   const [open, setOpen] = useState(false);
@@ -150,7 +186,7 @@ function AddCourseRow({
   if (!open) {
     return (
       <tr>
-        <td colSpan={6} className="px-3 py-2">
+        <td colSpan={colSpan} className="px-3 py-2">
           <button type="button" onClick={() => setOpen(true)} className="font-semibold text-accent">
             + Add course
           </button>
@@ -181,7 +217,7 @@ function AddCourseRow({
 
   return (
     <tr>
-      <td colSpan={6} className="border-b border-border bg-surface-2 px-3 py-3">
+      <td colSpan={colSpan} className="border-b border-border bg-surface-2 px-3 py-3">
         <CourseFormFields value={draft} allCourseCodes={allCourseCodes} knownCategories={knownCategories} seasons={seasons} onChange={setDraft} editableCode />
 
         {error && <p className="mt-2 text-bad">{error}</p>}
@@ -216,12 +252,24 @@ export default function CurriculumTable({
   courses,
   onChange,
   seasons,
+  occupancy,
+  baselineOccupancy,
+  onOccupancyChange,
 }: {
   courses: CourseRecord[];
   onChange: (next: CourseRecord[]) => void;
   seasons: string[]; // the active plan's season cycle (meta.terms_per_year)
+  // When provided, the table shows an editable initial-occupancy column (deferred save).
+  occupancy?: Record<string, number>;
+  baselineOccupancy?: Record<string, number>;
+  onOccupancyChange?: (code: string, value: number) => void;
 }) {
   const knownCategories = Array.from(new Set(courses.map((c) => c.category))).filter(Boolean).sort();
+  const hasOccupancy = onOccupancyChange !== undefined;
+  const headers = hasOccupancy
+    ? ["Course", "Title", "Category", "Pass rate", "Capacity", "Occupancy", "Free / term", ""]
+    : ["Course", "Title", "Category", "Pass rate", "Capacity", ""];
+  const colSpan = headers.length;
 
   const handleSaved = (updated: CourseRecord) => {
     onChange(courses.map((c) => (c.code === updated.code ? updated : c)));
@@ -240,9 +288,9 @@ export default function CurriculumTable({
       <table className="w-full border-collapse text-sm">
         <thead>
           <tr>
-            {["Course", "Title", "Category", "Pass rate", "Capacity", ""].map((h) => (
+            {headers.map((h, i) => (
               <th
-                key={h}
+                key={h || `col-${i}`}
                 className="sticky top-0 border-b border-border bg-surface px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-muted"
               >
                 {h}
@@ -258,11 +306,21 @@ export default function CurriculumTable({
               allCourseCodes={courses.map((c) => c.code).filter((c) => c !== course.code)}
               knownCategories={knownCategories}
               seasons={seasons}
+              colSpan={colSpan}
+              occupancy={
+                hasOccupancy
+                  ? {
+                      value: occupancy?.[course.code] ?? 0,
+                      baseline: baselineOccupancy?.[course.code] ?? 0,
+                      onChange: (v) => onOccupancyChange!(course.code, v),
+                    }
+                  : undefined
+              }
               onSaved={handleSaved}
               onDeleted={handleDeleted}
             />
           ))}
-          <AddCourseRow allCourseCodes={courses.map((c) => c.code)} knownCategories={knownCategories} seasons={seasons} onAdded={handleAdded} />
+          <AddCourseRow allCourseCodes={courses.map((c) => c.code)} knownCategories={knownCategories} seasons={seasons} colSpan={colSpan} onAdded={handleAdded} />
         </tbody>
       </table>
     </div>
