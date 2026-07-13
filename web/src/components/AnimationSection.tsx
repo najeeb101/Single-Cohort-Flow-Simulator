@@ -89,14 +89,6 @@ export default function AnimationSection({ graph, stageNodes, cohorts, frames, m
         onCohortChange={setCohortSel}
       />
 
-      <NarrativePanel frame={frame} nextFrame={frames[idx + 1]} maxTerms={maxTerms} />
-
-      {/* Asymmetric bento: the curriculum graph is the dominant cell (spans both rows);
-          Stage overview and Flows sit beside it as two smaller, independent cards rather
-          than one tall stacked aside — that's what actually reads as "bento" instead of
-          "sidebar." Mobile collapses to a plain single-column stack via the unprefixed
-          col-span-1 default (high-end-visual-design's "Asymmetrical Bento" archetype,
-          scaled down for a data dashboard rather than a marketing grid). */}
       <div className="flex flex-col gap-4">
         <div className="flex min-w-0 flex-col rounded-2xl border border-border bg-surface">
           <div className="flex items-baseline justify-between gap-3 border-b border-border px-4 py-2.5 text-sm font-semibold">
@@ -123,10 +115,16 @@ export default function AnimationSection({ graph, stageNodes, cohorts, frames, m
           </div>
         </div>
 
-        <aside className="flex w-full max-w-2xl flex-col rounded-2xl border border-border bg-surface px-4 pb-3.5">
-          <div className="border-b border-border py-2.5 text-sm font-semibold">Stage overview</div>
-          <StageOverview frame={frame} stageNodes={stageNodes} cohortSel={cohortSel} />
-        </aside>
+        {/* The two per-semester narrative alerts sit on either side of the Stage overview,
+            so the action's outcome (This/Next semester) frames the funnel it produces. */}
+        <div className="grid gap-4 lg:grid-cols-3 lg:items-start">
+          <NarrativePanel show="now" frame={frame} nextFrame={frames[idx + 1]} maxTerms={maxTerms} />
+          <aside className="flex w-full flex-col rounded-2xl border border-border bg-surface px-4 pb-3.5">
+            <div className="border-b border-border py-2.5 text-sm font-semibold">Stage overview</div>
+            <StageOverview frame={frame} stageNodes={stageNodes} cohortSel={cohortSel} />
+          </aside>
+          <NarrativePanel show="next" frame={frame} nextFrame={frames[idx + 1]} maxTerms={maxTerms} />
+        </div>
       </div>
     </section>
   );

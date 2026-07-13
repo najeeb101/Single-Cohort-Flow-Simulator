@@ -5,6 +5,10 @@ interface Props {
   frame: Frame;
   nextFrame: Frame | undefined;
   maxTerms: number;
+  // Which alert box(es) to render. Default "both" keeps the original side-by-side pair; "now"
+  // / "next" render just one box as a standalone card, so the dashboard can place the two on
+  // either side of the Stage overview instead of together.
+  show?: "both" | "now" | "next";
 }
 
 type Entry = { text: string; emphasis?: "em" | "good" | "bad" };
@@ -13,7 +17,7 @@ const EMPHASIS_CLASS: Record<string, string> = { em: "text-warn font-semibold", 
 // Faithful port of frontend/app.js::renderNarrative() — always uses the global aggFlows()
 // regardless of the cohort selector (that's the vanilla behavior; only the stage/flow
 // side panels are cohort-scoped).
-export default function NarrativePanel({ frame, nextFrame, maxTerms }: Props) {
+export default function NarrativePanel({ frame, nextFrame, maxTerms, show = "both" }: Props) {
   const flows = aggFlows(frame);
   const get = (k: string) => flows[k] || 0;
 
@@ -72,16 +76,26 @@ export default function NarrativePanel({ frame, nextFrame, maxTerms }: Props) {
   const renderEntry = (e: Entry, i: number) =>
     e.emphasis ? <li key={i}><span className={EMPHASIS_CLASS[e.emphasis]}>{e.text}</span></li> : <li key={i}>{e.text}</li>;
 
+  const nowBox = (
+    <div className="rounded-2xl border border-border border-l-[3px] border-l-accent bg-surface px-4.5 py-3.5">
+      <h4 className="mb-2 text-xs uppercase tracking-wide text-accent">This semester</h4>
+      <ul className="m-0 list-disc space-y-1 pl-4.5 text-sm text-ink/85">{now.map(renderEntry)}</ul>
+    </div>
+  );
+  const nextBox = (
+    <div className="rounded-2xl border border-border border-l-[3px] border-l-warn bg-surface px-4.5 py-3.5">
+      <h4 className="mb-2 text-xs uppercase tracking-wide text-warn">Next semester</h4>
+      <ul className="m-0 list-disc space-y-1 pl-4.5 text-sm text-ink/85">{next.map(renderEntry)}</ul>
+    </div>
+  );
+
+  if (show === "now") return nowBox;
+  if (show === "next") return nextBox;
+
   return (
     <div className="mb-3.5 grid grid-cols-1 gap-3.5 md:grid-cols-2">
-      <div className="rounded-2xl border border-border border-l-[3px] border-l-accent bg-surface px-4.5 py-3.5">
-        <h4 className="mb-2 text-xs uppercase tracking-wide text-accent">This semester</h4>
-        <ul className="m-0 list-disc space-y-1 pl-4.5 text-sm text-ink/85">{now.map(renderEntry)}</ul>
-      </div>
-      <div className="rounded-2xl border border-border border-l-[3px] border-l-warn bg-surface px-4.5 py-3.5">
-        <h4 className="mb-2 text-xs uppercase tracking-wide text-warn">Next semester</h4>
-        <ul className="m-0 list-disc space-y-1 pl-4.5 text-sm text-ink/85">{next.map(renderEntry)}</ul>
-      </div>
+      {nowBox}
+      {nextBox}
     </div>
   );
 }
