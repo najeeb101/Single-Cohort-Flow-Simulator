@@ -2,6 +2,7 @@
 
 import { useSimulation } from "@/lib/SimulationContext";
 import AnimationSection from "@/components/AnimationSection";
+import TopKpis from "@/components/TopKpis";
 import AdmissionsRecommendation from "@/components/AdmissionsRecommendation";
 import HeadlineKpis from "@/components/HeadlineKpis";
 import CohortsTable from "@/components/CohortsTable";
@@ -26,22 +27,18 @@ export default function Home() {
         </p>
       </header>
 
-      <section className="py-4">
-        <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 rounded-2xl border border-border bg-surface-2 px-5 py-3">
-          {[
-            ["Cohorts", data.flow_timeline.meta.num_cohorts],
-            ["Cohort size", meta.cohort_size],
-            ["Max semesters", data.flow_timeline.meta.max_terms],
-            ["Courses", chartMeta.graph.nodes.length],
-            ["Credit hours", totalCH],
-            ["Prerequisite links", chartMeta.graph.edges.length],
-          ].map(([k, v]) => (
-            <div key={String(k)} className="text-sm text-muted">
-              {k}: <b className="ml-1 font-semibold text-ink">{v}</b>
-            </div>
-          ))}
-        </div>
-      </section>
+      <TopKpis
+        headline={summary.headline}
+        onTimeTerms={meta.on_time_terms}
+        config={[
+          { label: "Cohorts", value: data.flow_timeline.meta.num_cohorts },
+          { label: "Cohort size", value: meta.cohort_size },
+          { label: "Max semesters", value: data.flow_timeline.meta.max_terms },
+          { label: "Courses", value: chartMeta.graph.nodes.length },
+          { label: "Credit hours", value: totalCH },
+          { label: "Prerequisite links", value: chartMeta.graph.edges.length },
+        ]}
+      />
 
       <AnimationSection
         graph={chartMeta.graph}
