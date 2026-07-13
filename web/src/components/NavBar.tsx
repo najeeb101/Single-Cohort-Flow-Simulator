@@ -92,8 +92,10 @@ export default function NavBar() {
     <nav className="border-b border-border bg-surface/85 backdrop-blur-md sticky top-0 z-50">
       <div className="mx-auto grid max-w-[1600px] grid-cols-[1fr_auto_1fr] items-center px-7">
         <Link href="/" className="flex items-center gap-2" aria-label="Cohort Analyzer home">
+          {/* Nav uses the emblem-only mark (cropped from the stacked logo) so it stays legible at
+              nav size; the full stacked wordmark is used on the larger hero/onboarding screens. */}
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/qu-logo.png" alt="Qatar University" className="h-14 w-auto rounded-md bg-white object-contain p-1" />
+          <img src="/qu-emblem.png" alt="Qatar University" className="h-11 w-auto rounded-md bg-white object-contain p-1.5" />
         </Link>
         {/* Desktop nav: the full bar. Below md it collapses into the hamburger menu below. */}
         <div className="hidden items-center justify-center gap-1 md:flex">

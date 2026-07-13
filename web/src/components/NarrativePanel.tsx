@@ -76,14 +76,17 @@ export default function NarrativePanel({ frame, nextFrame, maxTerms, show = "bot
   const renderEntry = (e: Entry, i: number) =>
     e.emphasis ? <li key={i}><span className={EMPHASIS_CLASS[e.emphasis]}>{e.text}</span></li> : <li key={i}>{e.text}</li>;
 
+  // flex-col + justify-center keeps the alert text vertically centered when the card is stretched
+  // to match the taller Stage overview beside it (the three-across dashboard row); in the default
+  // two-up layout the cards are natural height, so centering is a no-op there.
   const nowBox = (
-    <div className="rounded-2xl border border-border border-l-[3px] border-l-accent bg-surface px-4.5 py-3.5">
+    <div className="flex h-full flex-col justify-center rounded-2xl border border-border border-l-[3px] border-l-accent bg-surface px-4.5 py-3.5">
       <h4 className="mb-2 text-xs uppercase tracking-wide text-accent">This semester</h4>
       <ul className="m-0 list-disc space-y-1 pl-4.5 text-sm text-ink/85">{now.map(renderEntry)}</ul>
     </div>
   );
   const nextBox = (
-    <div className="rounded-2xl border border-border border-l-[3px] border-l-warn bg-surface px-4.5 py-3.5">
+    <div className="flex h-full flex-col justify-center rounded-2xl border border-border border-l-[3px] border-l-warn bg-surface px-4.5 py-3.5">
       <h4 className="mb-2 text-xs uppercase tracking-wide text-warn">Next semester</h4>
       <ul className="m-0 list-disc space-y-1 pl-4.5 text-sm text-ink/85">{next.map(renderEntry)}</ul>
     </div>
