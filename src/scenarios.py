@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
@@ -106,8 +106,20 @@ def delete_scenario(
 
 
 @router.get("/runs")
-def list_runs(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)) -> list[dict]:
-    rows = db.query(Run).filter_by(user_id=current_user.id).order_by(Run.requested_at.desc()).all()
+def list_runs(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    limit: int = Query(100, ge=1, le=500),
+) -> list[dict]:
+    # Every /simulate logs a Run, so this table grows without bound — cap to the most recent
+    # `limit` (newest first) so the Run History page can't balloon to thousands of rows.
+    rows = (
+        db.query(Run)
+        .filter_by(user_id=current_user.id)
+        .order_by(Run.requested_at.desc())
+        .limit(limit)
+        .all()
+    )
     return [_run_to_dict(row) for row in rows]
 
 

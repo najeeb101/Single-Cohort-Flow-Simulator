@@ -106,8 +106,10 @@ export function autofill(runBudget?: number): Promise<AutofillResult> {
   }).then((res) => asJson<AutofillResult>(res));
 }
 
-export function listRuns(): Promise<RunRecord[]> {
-  return fetch(`${API_BASE}/runs`).then((res) => asJson<RunRecord[]>(res));
+export const RUNS_LIMIT = 100;
+
+export function listRuns(limit = RUNS_LIMIT): Promise<RunRecord[]> {
+  return fetch(`${API_BASE}/runs?limit=${limit}`).then((res) => asJson<RunRecord[]>(res));
 }
 
 export function getRun(id: number): Promise<RunRecord> {

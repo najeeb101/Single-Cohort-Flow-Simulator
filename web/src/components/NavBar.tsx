@@ -84,6 +84,9 @@ function NavDropdown({ label, links, active }: { label: string; links: NavLink[]
 
 export default function NavBar() {
   const pathname = usePathname();
+  const [mobileOpen, setMobileOpen] = useState(false);
+  // Each mobile link closes the menu via its own onClick, so no route-change effect is needed.
+  const mobileLinks = [...PRIMARY_LINKS, ...GROUPS.flatMap((g) => g.links), SETTINGS_LINK];
 
   return (
     <nav className="border-b border-border bg-surface/85 backdrop-blur-md sticky top-0 z-50">
@@ -93,7 +96,8 @@ export default function NavBar() {
             CA
           </span>
         </Link>
-        <div className="flex items-center justify-center gap-1">
+        {/* Desktop nav: the full bar. Below md it collapses into the hamburger menu below. */}
+        <div className="hidden items-center justify-center gap-1 md:flex">
           {PRIMARY_LINKS.map((link) => {
             const active = pathname === link.href;
             return (
@@ -139,8 +143,52 @@ export default function NavBar() {
             ?
           </Link>
           <ThemeToggle />
+          <button
+            type="button"
+            onClick={() => setMobileOpen((v) => !v)}
+            aria-label="Toggle navigation menu"
+            aria-expanded={mobileOpen}
+            className="grid h-8 w-8 place-items-center rounded-lg border border-border-2 bg-surface-2 text-ink transition-colors hover:bg-surface md:hidden"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+              {mobileOpen ? (
+                <path d="M6 6l12 12M6 18L18 6" />
+              ) : (
+                <>
+                  <path d="M3 6h18" />
+                  <path d="M3 12h18" />
+                  <path d="M3 18h18" />
+                </>
+              )}
+            </svg>
+          </button>
         </div>
       </div>
+
+      {/* Mobile menu: full link list, shown only below md when the hamburger is open. */}
+      {mobileOpen && (
+        <div className="border-t border-border bg-surface md:hidden">
+          <div className="mx-auto flex max-w-[1600px] flex-col px-5 py-2">
+            {mobileLinks.map((link) => {
+              const active = pathname === link.href;
+              return (
+                <Link
+                  key={link.href}
+                  href={link.href}
+                  onClick={() => setMobileOpen(false)}
+                  className={
+                    active
+                      ? "rounded-lg bg-surface-2 px-3 py-2.5 text-sm font-semibold text-ink"
+                      : "rounded-lg px-3 py-2.5 text-sm font-semibold text-muted hover:bg-surface-2 hover:text-ink"
+                  }
+                >
+                  {link.label}
+                </Link>
+              );
+            })}
+          </div>
+        </div>
+      )}
     </nav>
   );
 }

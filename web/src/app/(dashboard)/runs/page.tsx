@@ -1,7 +1,7 @@
 "use client";
 
 import { Fragment, useEffect, useState } from "react";
-import { listRuns } from "@/lib/api";
+import { listRuns, RUNS_LIMIT } from "@/lib/api";
 import { pct } from "@/lib/format";
 import type { RunRecord } from "@/types/simulation";
 
@@ -17,7 +17,12 @@ export default function RunsPage() {
     <main className="mx-auto w-full max-w-[1600px] px-7 pb-16">
       <header className="border-b border-border py-5">
         <h1 className="text-[19px] font-bold tracking-tight">Run History</h1>
-        <p className="mt-0.5 text-sm text-muted">Every simulation run logged with its overrides and headline outcomes. Click a row to see the full override payload.</p>
+        <p className="mt-0.5 text-sm text-muted">
+          Every simulation run logged with its overrides and headline outcomes. Click a row to see the full override payload.
+          {runs && runs.length >= RUNS_LIMIT && (
+            <> Showing the most recent {RUNS_LIMIT} runs (newest first).</>
+          )}
+        </p>
       </header>
 
       <section className="py-6">

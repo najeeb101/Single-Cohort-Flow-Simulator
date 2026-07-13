@@ -97,9 +97,12 @@ export default function CurriculumGraph({ graph, courses }: Props) {
       data-testid="curriculum-graph-viewport"
       className="relative rounded-2xl border border-border bg-surface-2/40 p-4 shadow-inner"
     >
+      <div className="overflow-x-auto">
+          {/* minWidth keeps the 8-column roadmap legible on narrow screens: below it the
+              wrapper scrolls horizontally instead of the SVG shrinking to an unreadable thumbnail. */}
           <svg
             viewBox={`0 0 ${width} ${height}`}
-            style={{ display: "block", width: "100%", height: "auto" }}
+            style={{ display: "block", width: "100%", minWidth: 760, height: "auto" }}
             role="group"
             aria-label="Curriculum roadmap. Tab to a course, Enter to open its details."
           >
@@ -303,6 +306,7 @@ export default function CurriculumGraph({ graph, courses }: Props) {
           );
         })}
           </svg>
+      </div>
 
       {tip && tipNode && (
         <CourseTooltip
