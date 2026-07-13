@@ -16,12 +16,13 @@ interface Props {
   onChange: (next: CourseRecord) => void;
   editableCode?: boolean; // true when creating a new course (code not yet fixed)
   hidePassRate?: boolean; // Settings edits pass rate inline in the curriculum table instead
+  hideCapacity?: boolean; // Settings edits capacity inline in the curriculum table instead
 }
 
 // Controlled course-field form shared by the Settings curriculum editor (editing/adding a
 // row in the active plan) and the Plan Builder wizard (composing a brand-new plan client-side
 // before anything is saved) — no server calls here, just `value`/`onChange`.
-export default function CourseFormFields({ value, allCourseCodes, knownCategories, seasons, onChange, editableCode, hidePassRate }: Props) {
+export default function CourseFormFields({ value, allCourseCodes, knownCategories, seasons, onChange, editableCode, hidePassRate, hideCapacity }: Props) {
   const offerings = seasons && seasons.length ? seasons : DEFAULT_SEASONS;
   const toggleOffering = (season: string) => {
     const has = value.offering.includes(season);
@@ -100,16 +101,18 @@ export default function CourseFormFields({ value, allCourseCodes, knownCategorie
             />
           </label>
         )}
-        <label className="flex flex-col gap-1 text-muted">
-          Capacity / offering
-          <input
-            type="number"
-            min={1}
-            value={value.capacity}
-            onChange={(e) => onChange({ ...value, capacity: Number(e.target.value) })}
-            className="w-24 rounded-lg border border-border-2 bg-surface px-2.5 py-1.5 text-ink"
-          />
-        </label>
+        {!hideCapacity && (
+          <label className="flex flex-col gap-1 text-muted">
+            Capacity / offering
+            <input
+              type="number"
+              min={1}
+              value={value.capacity}
+              onChange={(e) => onChange({ ...value, capacity: Number(e.target.value) })}
+              className="w-24 rounded-lg border border-border-2 bg-surface px-2.5 py-1.5 text-ink"
+            />
+          </label>
+        )}
         <label className="flex flex-col gap-1 text-muted" title="Recommended semester column in the flow chart (0 = unscheduled)">
           Plan term
           <input

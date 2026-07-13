@@ -40,6 +40,7 @@ interface RowProps {
   colSpan: number;
   occupancy?: DeferredCol;
   passRate?: DeferredCol; // when set, Pass rate is inline-editable (and dropped from the edit form)
+  capacity?: DeferredCol; // when set, Capacity is inline-editable (and dropped from the edit form)
   onSaved: (updated: CourseRecord) => void;
   onDeleted: (code: string) => void;
 }
@@ -74,7 +75,18 @@ function PassRateCell({ pr }: { pr: DeferredCol }) {
   );
 }
 
-function CurriculumRow({ course, allCourseCodes, knownCategories, seasons, colSpan, occupancy, passRate, onSaved, onDeleted }: RowProps) {
+function CapacityCell({ cap }: { cap: DeferredCol }) {
+  const dirty = Math.abs(cap.value - cap.baseline) > 1e-9;
+  return (
+    <td className={`border-b border-border px-3 py-2 ${dirty ? "bg-accent/[0.07]" : ""}`}>
+      <div className="w-20">
+        <NumberBox value={cap.value} onChange={cap.onChange} min={1} step={1} />
+      </div>
+    </td>
+  );
+}
+
+function CurriculumRow({ course, allCourseCodes, knownCategories, seasons, colSpan, occupancy, passRate, capacity, onSaved, onDeleted }: RowProps) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState<CourseRecord>(course);
   const [error, setError] = useState<string | null>(null);
@@ -95,13 +107,14 @@ function CurriculumRow({ course, allCourseCodes, knownCategories, seasons, colSp
       prerequisites: draft.prerequisites,
       offering: draft.offering,
       category: draft.category,
-      capacity: draft.capacity,
       rule_expr: draft.rule_expr,
       study_plan_order: draft.study_plan_order,
     };
-    // Pass rate has its own inline (deferred) column when `passRate` is set, so the edit form
-    // neither shows nor saves it — leaving it to "Save as new baseline". Otherwise save it here.
+    // Pass rate and capacity each have their own inline (deferred) column when set, so the edit
+    // form neither shows nor saves them — leaving them to "Save as new baseline". Otherwise the
+    // edit form owns the value and saves it here.
     if (!passRate) patch.pass_rate = draft.pass_rate;
+    if (!capacity) patch.capacity = draft.capacity;
     try {
       const updated = await updateCourse(course.code, patch);
       onSaved(updated);
@@ -133,8 +146,8 @@ function CurriculumRow({ course, allCourseCodes, knownCategories, seasons, colSp
         <td className="border-b border-border px-3 py-2">{course.title}</td>
         <td className="border-b border-border px-3 py-2 text-muted">{course.category}</td>
         {passRate ? <PassRateCell pr={passRate} /> : <td className="border-b border-border px-3 py-2 text-muted">{course.pass_rate.toFixed(2)}</td>}
-        <td className="border-b border-border px-3 py-2 tabular-nums text-muted">{course.capacity}</td>
-        {occupancy && <OccupancyCells capacity={course.capacity} occ={occupancy} />}
+        {capacity ? <CapacityCell cap={capacity} /> : <td className="border-b border-border px-3 py-2 tabular-nums text-muted">{course.capacity}</td>}
+        {occupancy && <OccupancyCells capacity={capacity ? capacity.value : course.capacity} occ={occupancy} />}
         <td className="border-b border-border px-3 py-2">
           <div className="flex justify-end gap-3">
             <button type="button" onClick={startEdit} disabled={busy} className="font-semibold text-accent disabled:opacity-50">
@@ -153,8 +166,13 @@ function CurriculumRow({ course, allCourseCodes, knownCategories, seasons, colSp
   return (
     <tr>
       <td colSpan={colSpan} className="border-b border-border bg-surface-2 px-3 py-3">
-        <CourseFormFields value={draft} allCourseCodes={allCourseCodes} knownCategories={knownCategories} seasons={seasons} onChange={setDraft} hidePassRate={!!passRate} />
-        {passRate && <p className="mt-1 text-xs text-muted">Pass rate is edited in its column and saved with &ldquo;Save as new baseline&rdquo;.</p>}
+        <CourseFormFields value={draft} allCourseCodes={allCourseCodes} knownCategories={knownCategories} seasons={seasons} onChange={setDraft} hidePassRate={!!passRate} hideCapacity={!!capacity} />
+        {(passRate || capacity) && (
+          <p className="mt-1 text-xs text-muted">
+            {[passRate && "Pass rate", capacity && "Capacity"].filter(Boolean).join(" and ")} {passRate && capacity ? "are" : "is"} edited in{" "}
+            {passRate && capacity ? "their columns" : "its column"} and saved with &ldquo;Save as new baseline&rdquo;.
+          </p>
+        )}
 
         {error && <p className="mt-2 text-bad">{error}</p>}
 
@@ -273,6 +291,9 @@ export default function CurriculumTable({
   passRates,
   baselinePassRates,
   onPassRateChange,
+  capacities,
+  baselineCapacities,
+  onCapacityChange,
 }: {
   courses: CourseRecord[];
   onChange: (next: CourseRecord[]) => void;
@@ -285,10 +306,15 @@ export default function CurriculumTable({
   passRates?: Record<string, number>;
   baselinePassRates?: Record<string, number>;
   onPassRateChange?: (code: string, value: number) => void;
+  // When provided, the Capacity column becomes inline-editable (deferred save).
+  capacities?: Record<string, number>;
+  baselineCapacities?: Record<string, number>;
+  onCapacityChange?: (code: string, value: number) => void;
 }) {
   const knownCategories = Array.from(new Set(courses.map((c) => c.category))).filter(Boolean).sort();
   const hasOccupancy = onOccupancyChange !== undefined;
   const hasPassRate = onPassRateChange !== undefined;
+  const hasCapacity = onCapacityChange !== undefined;
   const headers = hasOccupancy
     ? ["Course", "Title", "Category", "Pass rate", "Capacity", "Occupancy", "Free / term", ""]
     : ["Course", "Title", "Category", "Pass rate", "Capacity", ""];
@@ -345,6 +371,15 @@ export default function CurriculumTable({
                       value: passRates?.[course.code] ?? course.pass_rate,
                       baseline: baselinePassRates?.[course.code] ?? course.pass_rate,
                       onChange: (v) => onPassRateChange!(course.code, v),
+                    }
+                  : undefined
+              }
+              capacity={
+                hasCapacity
+                  ? {
+                      value: capacities?.[course.code] ?? course.capacity,
+                      baseline: baselineCapacities?.[course.code] ?? course.capacity,
+                      onChange: (v) => onCapacityChange!(course.code, v),
                     }
                   : undefined
               }

@@ -26,6 +26,17 @@ export default function SettingsPage() {
   const [status, setStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [error, setError] = useState<string | null>(null);
   const [admissionTargets, setAdmissionTargets] = useState({ ...meta.admission_targets });
+  // Deferred capacity edits, keyed by course code. Like pass rate, capacity is a per-course
+  // Course field (not a BuilderState scalar), so its edits live here until "Save as new
+  // baseline" writes each changed course via PUT /curriculum. Baseline = the loaded course's
+  // current capacity, so a saved edit becomes the new baseline once `courses` updates.
+  const [capacityEdits, setCapacityEdits] = useState<Record<string, number>>({});
+  const baselineCapacities = Object.fromEntries((courses ?? []).map((c) => [c.code, c.capacity]));
+  // Only count edits for courses that still exist and actually differ from their saved value —
+  // so editing back to the original (or a deleted course) doesn't register as an unsaved change.
+  const capacityChanges = Object.entries(capacityEdits).filter(
+    ([code, v]) => code in baselineCapacities && v !== baselineCapacities[code],
+  );
 
   const setAdmissionTarget = (key: keyof typeof admissionTargets, value: number) =>
     setAdmissionTargets((prev) => ({ ...prev, [key]: value }));
@@ -36,11 +47,13 @@ export default function SettingsPage() {
   // state/Baseline configuration (via buildOverrides) and Admissions targets.
   const isDirty =
     Object.keys(buildOverrides(state, baseline)).length > 0 ||
-    JSON.stringify(admissionTargets) !== JSON.stringify(meta.admission_targets);
+    JSON.stringify(admissionTargets) !== JSON.stringify(meta.admission_targets) ||
+    capacityChanges.length > 0;
 
   const discardChanges = () => {
     setState(baseline);
     setAdmissionTargets({ ...meta.admission_targets });
+    setCapacityEdits({});
     setStatus("idle");
     setError(null);
   };
@@ -107,25 +120,43 @@ export default function SettingsPage() {
       return;
     }
 
-    // Pass rate is a Course/curriculum field, not a baseline-config scalar — persist each
-    // changed course individually via PUT /curriculum/{code}. Use allSettled rather than
-    // aborting on the first failure: the config write above already committed, so a single
-    // bad course shouldn't hide that the rest of the pass-rate edits saved fine.
+    // Pass rate and capacity are Course/curriculum fields, not baseline-config scalars — persist
+    // each changed course individually via PUT /curriculum/{code}. Use allSettled rather than
+    // aborting on the first failure: the config write above already committed, so a single bad
+    // course shouldn't hide that the rest of the per-course edits saved fine.
     const passRateChanges = overrides.pass_rate_overrides ?? {};
-    const entries = Object.entries(passRateChanges);
-    const results = await Promise.allSettled(entries.map(([code, rate]) => updateCourse(code, { pass_rate: rate })));
+    const prEntries = Object.entries(passRateChanges);
+    const prResults = await Promise.allSettled(prEntries.map(([code, rate]) => updateCourse(code, { pass_rate: rate })));
+    const capResults = await Promise.allSettled(capacityChanges.map(([code, cap]) => updateCourse(code, { capacity: cap })));
 
-    const succeededCodes = new Set(entries.filter((_, i) => results[i].status === "fulfilled").map(([code]) => code));
-    if (succeededCodes.size > 0 && courses) {
-      setCourses(courses.map((c) => (succeededCodes.has(c.code) ? { ...c, pass_rate: passRateChanges[c.code] } : c)));
+    const prOk = new Set(prEntries.filter((_, i) => prResults[i].status === "fulfilled").map(([code]) => code));
+    const capOk = new Set(capacityChanges.filter((_, i) => capResults[i].status === "fulfilled").map(([code]) => code));
+    if ((prOk.size > 0 || capOk.size > 0) && courses) {
+      setCourses(
+        courses.map((c) => {
+          let next = c;
+          if (prOk.has(c.code)) next = { ...next, pass_rate: passRateChanges[c.code] };
+          if (capOk.has(c.code)) next = { ...next, capacity: capacityEdits[c.code] };
+          return next;
+        }),
+      );
+    }
+    if (capOk.size > 0) {
+      setCapacityEdits((prev) => {
+        const nextEdits = { ...prev };
+        capOk.forEach((code) => delete nextEdits[code]);
+        return nextEdits;
+      });
     }
 
-    const failed = entries.filter((_, i) => results[i].status === "rejected");
-    if (failed.length > 0) {
-      const firstError = results.find((r) => r.status === "rejected") as PromiseRejectedResult;
+    const prFailed = prEntries.filter((_, i) => prResults[i].status === "rejected");
+    const capFailed = capacityChanges.filter((_, i) => capResults[i].status === "rejected");
+    if (prFailed.length > 0 || capFailed.length > 0) {
+      const firstError = [...prResults, ...capResults].find((r) => r.status === "rejected") as PromiseRejectedResult;
       const reason = firstError.reason instanceof ApiError ? firstError.reason.message : "save failed";
+      const codes = [...prFailed, ...capFailed].map(([code]) => code);
       setStatus("error");
-      setError(`Pass rate not saved for ${failed.map(([code]) => code).join(", ")} (${reason})`);
+      setError(`Not saved for ${codes.join(", ")} (${reason})`);
       return;
     }
 
@@ -207,7 +238,8 @@ export default function SettingsPage() {
         <h2 className="mb-1 text-[15px] font-bold">Curriculum &amp; initial occupancy</h2>
         <p className="mb-3 max-w-2xl text-sm text-muted">
           Course structure (Edit / Add / Delete) saves instantly. The{" "}
-          <b className="font-semibold text-ink">Pass rate</b> and{" "}
+          <b className="font-semibold text-ink">Pass rate</b>,{" "}
+          <b className="font-semibold text-ink">Capacity</b> and{" "}
           <b className="font-semibold text-ink">Occupancy</b> columns are per-course tuning values, saved with
           &ldquo;Save as new baseline&rdquo; below.
         </p>
@@ -224,6 +256,9 @@ export default function SettingsPage() {
             passRates={state.passRates}
             baselinePassRates={baseline.passRates}
             onPassRateChange={(code, v) => setRecordField("passRates", code, v)}
+            capacities={{ ...baselineCapacities, ...capacityEdits }}
+            baselineCapacities={baselineCapacities}
+            onCapacityChange={(code, v) => setCapacityEdits((prev) => ({ ...prev, [code]: v }))}
           />
         )}
       </section>
