@@ -139,8 +139,11 @@ function CurriculumRow({ course, allCourseCodes, knownCategories, seasons, colSp
     }
   };
 
-  if (!editing) {
-    return (
+  // The normal row (with its inline Pass rate / Capacity / Occupancy cells) stays rendered even
+  // while editing — the structural form opens as an *expansion row* beneath it rather than
+  // replacing it, so those inline columns don't vanish the moment you click Edit.
+  return (
+    <>
       <tr>
         <td className="border-b border-border px-3 py-2 font-semibold">{course.code}</td>
         <td className="border-b border-border px-3 py-2">{course.title}</td>
@@ -150,51 +153,56 @@ function CurriculumRow({ course, allCourseCodes, knownCategories, seasons, colSp
         {occupancy && <OccupancyCells capacity={capacity ? capacity.value : course.capacity} occ={occupancy} />}
         <td className="border-b border-border px-3 py-2">
           <div className="flex justify-end gap-3">
-            <button type="button" onClick={startEdit} disabled={busy} className="font-semibold text-accent disabled:opacity-50">
-              Edit
+            <button
+              type="button"
+              onClick={editing ? () => setEditing(false) : startEdit}
+              disabled={busy}
+              className="font-semibold text-accent disabled:opacity-50"
+            >
+              {editing ? "Close" : "Edit"}
             </button>
             <button type="button" onClick={remove} disabled={busy} className="font-semibold text-bad disabled:opacity-50">
               Delete
             </button>
           </div>
-          {error && <p className="mt-1 text-right text-sm text-bad">{error}</p>}
+          {error && !editing && <p className="mt-1 text-right text-sm text-bad">{error}</p>}
         </td>
       </tr>
-    );
-  }
 
-  return (
-    <tr>
-      <td colSpan={colSpan} className="border-b border-border bg-surface-2 px-3 py-3">
-        <CourseFormFields value={draft} allCourseCodes={allCourseCodes} knownCategories={knownCategories} seasons={seasons} onChange={setDraft} hidePassRate={!!passRate} hideCapacity={!!capacity} />
-        {(passRate || capacity) && (
-          <p className="mt-1 text-xs text-muted">
-            {[passRate && "Pass rate", capacity && "Capacity"].filter(Boolean).join(" and ")} {passRate && capacity ? "are" : "is"} edited in{" "}
-            {passRate && capacity ? "their columns" : "its column"} and saved with &ldquo;Save as new baseline&rdquo;.
-          </p>
-        )}
+      {editing && (
+        <tr>
+          <td colSpan={colSpan} className="border-b border-border bg-surface-2 px-3 py-3">
+            <CourseFormFields value={draft} allCourseCodes={allCourseCodes} knownCategories={knownCategories} seasons={seasons} onChange={setDraft} hidePassRate={!!passRate} hideCapacity={!!capacity} />
+            {(passRate || capacity) && (
+              <p className="mt-1 text-xs text-muted">
+                {[passRate && "Pass rate", capacity && "Capacity"].filter(Boolean).join(" and ")} {passRate && capacity ? "are" : "is"} edited in{" "}
+                {passRate && capacity ? "their columns above" : "its column above"} and saved with &ldquo;Save as new baseline&rdquo;.
+              </p>
+            )}
 
-        {error && <p className="mt-2 text-bad">{error}</p>}
+            {error && <p className="mt-2 text-bad">{error}</p>}
 
-        <div className="mt-3 flex gap-2">
-          <button
-            type="button"
-            onClick={save}
-            disabled={busy}
-            className="rounded-xl bg-accent px-3.5 py-1.5 font-semibold text-white disabled:opacity-50"
-          >
-            {busy ? "Saving…" : "Save"}
-          </button>
-          <button
-            type="button"
-            onClick={() => setEditing(false)}
-            className="rounded-xl border border-border-2 bg-surface px-3.5 py-1.5 font-semibold text-ink"
-          >
-            Cancel
-          </button>
-        </div>
-      </td>
-    </tr>
+            <div className="mt-3 flex gap-2">
+              <button
+                type="button"
+                onClick={save}
+                disabled={busy}
+                className="rounded-xl bg-accent px-3.5 py-1.5 font-semibold text-white disabled:opacity-50"
+              >
+                {busy ? "Saving…" : "Save"}
+              </button>
+              <button
+                type="button"
+                onClick={() => setEditing(false)}
+                className="rounded-xl border border-border-2 bg-surface px-3.5 py-1.5 font-semibold text-ink"
+              >
+                Cancel
+              </button>
+            </div>
+          </td>
+        </tr>
+      )}
+    </>
   );
 }
 
