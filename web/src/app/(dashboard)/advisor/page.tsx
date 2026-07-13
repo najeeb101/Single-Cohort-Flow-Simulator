@@ -19,7 +19,6 @@ export default function AdvisorPage() {
           the top bottlenecks, turned into a prioritized list of what to do and what not to do.
         </p>
       </header>
-      <AdvisorPanel summary={summary} showHeading={false} />
       <AdvisorChat
         summary={summary}
         scenario={scenario}
@@ -27,6 +26,7 @@ export default function AdvisorPage() {
         mandatorySeasons={meta.mandatory_terms ?? ["Fall", "Spring"]}
         enabled={!!meta.llm_chat_enabled}
       />
+      <AdvisorPanel summary={summary} showHeading={false} />
     </main>
   );
 }
