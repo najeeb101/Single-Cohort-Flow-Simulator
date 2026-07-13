@@ -117,7 +117,7 @@ export default function AnimationSection({ graph, stageNodes, cohorts, frames, m
 
         {/* The two per-semester narrative alerts sit on either side of the Stage overview,
             so the action's outcome (This/Next semester) frames the funnel it produces. */}
-        <div className="grid gap-4 lg:grid-cols-3 lg:items-start">
+        <div className="grid gap-4 lg:grid-cols-3 lg:items-stretch">
           <NarrativePanel show="now" frame={frame} nextFrame={frames[idx + 1]} maxTerms={maxTerms} />
           <aside className="flex w-full flex-col rounded-2xl border border-border bg-surface px-4 pb-3.5">
             <div className="border-b border-border py-2.5 text-sm font-semibold">Stage overview</div>
