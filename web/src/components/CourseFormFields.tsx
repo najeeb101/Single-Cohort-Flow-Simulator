@@ -15,12 +15,13 @@ interface Props {
   seasons?: string[]; // the plan's season cycle (terms_per_year); defaults to Fall/Spring
   onChange: (next: CourseRecord) => void;
   editableCode?: boolean; // true when creating a new course (code not yet fixed)
+  hidePassRate?: boolean; // Settings edits pass rate inline in the curriculum table instead
 }
 
 // Controlled course-field form shared by the Settings curriculum editor (editing/adding a
 // row in the active plan) and the Plan Builder wizard (composing a brand-new plan client-side
 // before anything is saved) — no server calls here, just `value`/`onChange`.
-export default function CourseFormFields({ value, allCourseCodes, knownCategories, seasons, onChange, editableCode }: Props) {
+export default function CourseFormFields({ value, allCourseCodes, knownCategories, seasons, onChange, editableCode, hidePassRate }: Props) {
   const offerings = seasons && seasons.length ? seasons : DEFAULT_SEASONS;
   const toggleOffering = (season: string) => {
     const has = value.offering.includes(season);
@@ -85,18 +86,20 @@ export default function CourseFormFields({ value, allCourseCodes, knownCategorie
             className="w-20 rounded-lg border border-border-2 bg-surface px-2.5 py-1.5 text-ink"
           />
         </label>
-        <label className="flex flex-col gap-1 text-muted">
-          Pass rate
-          <input
-            type="number"
-            min={0}
-            max={1}
-            step={0.01}
-            value={value.pass_rate}
-            onChange={(e) => onChange({ ...value, pass_rate: Number(e.target.value) })}
-            className="w-24 rounded-lg border border-border-2 bg-surface px-2.5 py-1.5 text-ink"
-          />
-        </label>
+        {!hidePassRate && (
+          <label className="flex flex-col gap-1 text-muted">
+            Pass rate
+            <input
+              type="number"
+              min={0}
+              max={1}
+              step={0.01}
+              value={value.pass_rate}
+              onChange={(e) => onChange({ ...value, pass_rate: Number(e.target.value) })}
+              className="w-24 rounded-lg border border-border-2 bg-surface px-2.5 py-1.5 text-ink"
+            />
+          </label>
+        )}
         <label className="flex flex-col gap-1 text-muted">
           Capacity / offering
           <input

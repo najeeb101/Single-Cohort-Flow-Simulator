@@ -206,9 +206,10 @@ export default function SettingsPage() {
       <section id="curriculum" className="py-6">
         <h2 className="mb-1 text-[15px] font-bold">Curriculum &amp; initial occupancy</h2>
         <p className="mb-3 max-w-2xl text-sm text-muted">
-          Course edits (Edit / Add / Delete) save instantly. The{" "}
-          <b className="font-semibold text-ink">Occupancy</b> column — seats already taken by the existing
-          student body — is part of the initial state, so it saves with &ldquo;Save as new baseline&rdquo; below.
+          Course structure (Edit / Add / Delete) saves instantly. The{" "}
+          <b className="font-semibold text-ink">Pass rate</b> and{" "}
+          <b className="font-semibold text-ink">Occupancy</b> columns are per-course tuning values, saved with
+          &ldquo;Save as new baseline&rdquo; below.
         </p>
         {courses === null ? (
           <p className="text-sm text-muted">Loading…</p>
@@ -220,6 +221,9 @@ export default function SettingsPage() {
             occupancy={state.initialOccupancy}
             baselineOccupancy={baseline.initialOccupancy}
             onOccupancyChange={(code, v) => setRecordField("initialOccupancy", code, v)}
+            passRates={state.passRates}
+            baselinePassRates={baseline.passRates}
+            onPassRateChange={(code, v) => setRecordField("passRates", code, v)}
           />
         )}
       </section>
@@ -275,7 +279,7 @@ export default function SettingsPage() {
             setRecordField={setRecordField}
             showInitialState={false}
           />
-          <PassRatesDropoutTab mode="advanced" meta={meta} state={state} baseline={baseline} setField={setField} setRecordField={setRecordField} />
+          <PassRatesDropoutTab mode="advanced" meta={meta} state={state} baseline={baseline} setField={setField} setRecordField={setRecordField} showAllCoursesTable={false} />
           <RegistrationPolicyTab mode="advanced" state={state} baseline={baseline} courses={courses ?? []} setField={setField} />
         </div>
       </section>

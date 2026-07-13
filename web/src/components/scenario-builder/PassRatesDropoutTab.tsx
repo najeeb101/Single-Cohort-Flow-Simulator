@@ -10,9 +10,12 @@ interface Props {
   baseline: BuilderState;
   setRecordField: (key: "passRates", code: string, value: number) => void;
   setField: <K extends keyof BuilderState>(key: K, value: BuilderState[K]) => void;
+  // Settings folds the full per-course pass-rate table into its Curriculum table, so it hides
+  // this one (default true keeps Plan Builder unchanged). The "lowest pass-rate" quick-edit stays.
+  showAllCoursesTable?: boolean;
 }
 
-export default function PassRatesDropoutTab({ mode, meta, state, baseline, setRecordField, setField }: Props) {
+export default function PassRatesDropoutTab({ mode, meta, state, baseline, setRecordField, setField, showAllCoursesTable = true }: Props) {
   const lowestPassRateCourses = useMemo(
     () => Object.entries(meta.course_pass_rates).sort((a, b) => a[1] - b[1]).slice(0, 3).map(([code]) => code),
     [meta.course_pass_rates],
@@ -60,7 +63,7 @@ export default function PassRatesDropoutTab({ mode, meta, state, baseline, setRe
         </div>
       </SectionCard>
 
-      {mode === "advanced" && (
+      {mode === "advanced" && showAllCoursesTable && (
         <SectionCard title="All courses — pass rate">
           <div className="max-h-[420px] overflow-auto rounded-lg border border-border">
             <table className="w-full border-collapse text-sm">

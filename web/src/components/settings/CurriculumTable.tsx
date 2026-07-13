@@ -21,12 +21,12 @@ const BLANK_COURSE: CourseRecord = {
   study_plan_term: 0,
 };
 
-// Initial-occupancy column, threaded from Settings. When present, the table gains editable
-// "Occupancy" + computed "Free / term" columns so there's one course table instead of a
-// separate initial-occupancy table. Occupancy is part of config.initial_state (not a Course
-// field), so it stays *deferred* — edits land in the parent's state and persist with
-// "Save as new baseline", exactly as the standalone table did.
-interface OccupancyCol {
+// A deferred, inline-editable numeric column threaded from Settings (occupancy, pass rate).
+// These fold the old standalone "initial occupancy" and "all courses — pass rate" tables into
+// this one table. Both are *deferred* — edits land in the parent's BuilderState and persist with
+// "Save as new baseline" (occupancy → PUT /config initial_state; pass rate → per-course
+// PUT /curriculum), exactly as the standalone tables did.
+interface DeferredCol {
   value: number;
   baseline: number;
   onChange: (value: number) => void;
@@ -38,12 +38,13 @@ interface RowProps {
   knownCategories: string[];
   seasons: string[];
   colSpan: number;
-  occupancy?: OccupancyCol;
+  occupancy?: DeferredCol;
+  passRate?: DeferredCol; // when set, Pass rate is inline-editable (and dropped from the edit form)
   onSaved: (updated: CourseRecord) => void;
   onDeleted: (code: string) => void;
 }
 
-function OccupancyCells({ capacity, occ }: { capacity: number; occ: OccupancyCol }) {
+function OccupancyCells({ capacity, occ }: { capacity: number; occ: DeferredCol }) {
   const exceeds = occ.value > capacity;
   const free = Math.max(0, capacity - occ.value);
   const dirty = Math.abs(occ.value - occ.baseline) > 1e-9;
@@ -62,7 +63,18 @@ function OccupancyCells({ capacity, occ }: { capacity: number; occ: OccupancyCol
   );
 }
 
-function CurriculumRow({ course, allCourseCodes, knownCategories, seasons, colSpan, occupancy, onSaved, onDeleted }: RowProps) {
+function PassRateCell({ pr }: { pr: DeferredCol }) {
+  const dirty = Math.abs(pr.value - pr.baseline) > 1e-9;
+  return (
+    <td className={`border-b border-border px-3 py-2 ${dirty ? "bg-accent/[0.07]" : ""}`}>
+      <div className="w-20">
+        <NumberBox value={pr.value} onChange={pr.onChange} min={0} max={1} step={0.01} />
+      </div>
+    </td>
+  );
+}
+
+function CurriculumRow({ course, allCourseCodes, knownCategories, seasons, colSpan, occupancy, passRate, onSaved, onDeleted }: RowProps) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState<CourseRecord>(course);
   const [error, setError] = useState<string | null>(null);
@@ -81,13 +93,15 @@ function CurriculumRow({ course, allCourseCodes, knownCategories, seasons, colSp
       title: draft.title,
       credits: draft.credits,
       prerequisites: draft.prerequisites,
-      pass_rate: draft.pass_rate,
       offering: draft.offering,
       category: draft.category,
       capacity: draft.capacity,
       rule_expr: draft.rule_expr,
       study_plan_order: draft.study_plan_order,
     };
+    // Pass rate has its own inline (deferred) column when `passRate` is set, so the edit form
+    // neither shows nor saves it — leaving it to "Save as new baseline". Otherwise save it here.
+    if (!passRate) patch.pass_rate = draft.pass_rate;
     try {
       const updated = await updateCourse(course.code, patch);
       onSaved(updated);
@@ -118,7 +132,7 @@ function CurriculumRow({ course, allCourseCodes, knownCategories, seasons, colSp
         <td className="border-b border-border px-3 py-2 font-semibold">{course.code}</td>
         <td className="border-b border-border px-3 py-2">{course.title}</td>
         <td className="border-b border-border px-3 py-2 text-muted">{course.category}</td>
-        <td className="border-b border-border px-3 py-2 text-muted">{course.pass_rate.toFixed(2)}</td>
+        {passRate ? <PassRateCell pr={passRate} /> : <td className="border-b border-border px-3 py-2 text-muted">{course.pass_rate.toFixed(2)}</td>}
         <td className="border-b border-border px-3 py-2 tabular-nums text-muted">{course.capacity}</td>
         {occupancy && <OccupancyCells capacity={course.capacity} occ={occupancy} />}
         <td className="border-b border-border px-3 py-2">
@@ -139,7 +153,8 @@ function CurriculumRow({ course, allCourseCodes, knownCategories, seasons, colSp
   return (
     <tr>
       <td colSpan={colSpan} className="border-b border-border bg-surface-2 px-3 py-3">
-        <CourseFormFields value={draft} allCourseCodes={allCourseCodes} knownCategories={knownCategories} seasons={seasons} onChange={setDraft} />
+        <CourseFormFields value={draft} allCourseCodes={allCourseCodes} knownCategories={knownCategories} seasons={seasons} onChange={setDraft} hidePassRate={!!passRate} />
+        {passRate && <p className="mt-1 text-xs text-muted">Pass rate is edited in its column and saved with &ldquo;Save as new baseline&rdquo;.</p>}
 
         {error && <p className="mt-2 text-bad">{error}</p>}
 
@@ -255,6 +270,9 @@ export default function CurriculumTable({
   occupancy,
   baselineOccupancy,
   onOccupancyChange,
+  passRates,
+  baselinePassRates,
+  onPassRateChange,
 }: {
   courses: CourseRecord[];
   onChange: (next: CourseRecord[]) => void;
@@ -263,9 +281,14 @@ export default function CurriculumTable({
   occupancy?: Record<string, number>;
   baselineOccupancy?: Record<string, number>;
   onOccupancyChange?: (code: string, value: number) => void;
+  // When provided, the Pass rate column becomes inline-editable (deferred save).
+  passRates?: Record<string, number>;
+  baselinePassRates?: Record<string, number>;
+  onPassRateChange?: (code: string, value: number) => void;
 }) {
   const knownCategories = Array.from(new Set(courses.map((c) => c.category))).filter(Boolean).sort();
   const hasOccupancy = onOccupancyChange !== undefined;
+  const hasPassRate = onPassRateChange !== undefined;
   const headers = hasOccupancy
     ? ["Course", "Title", "Category", "Pass rate", "Capacity", "Occupancy", "Free / term", ""]
     : ["Course", "Title", "Category", "Pass rate", "Capacity", ""];
@@ -313,6 +336,15 @@ export default function CurriculumTable({
                       value: occupancy?.[course.code] ?? 0,
                       baseline: baselineOccupancy?.[course.code] ?? 0,
                       onChange: (v) => onOccupancyChange!(course.code, v),
+                    }
+                  : undefined
+              }
+              passRate={
+                hasPassRate
+                  ? {
+                      value: passRates?.[course.code] ?? course.pass_rate,
+                      baseline: baselinePassRates?.[course.code] ?? course.pass_rate,
+                      onChange: (v) => onPassRateChange!(course.code, v),
                     }
                   : undefined
               }
