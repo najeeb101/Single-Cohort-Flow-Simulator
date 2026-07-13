@@ -16,11 +16,6 @@ function tiersDiffer(a: EnrollmentPriorityTier[], b: EnrollmentPriorityTier[]): 
 
 export default function RegistrationPolicyTab({ mode, state, baseline, courses, setField }: Props) {
   const categories = Array.from(new Set((courses ?? []).map((c) => c.category))).filter(Boolean).sort();
-  const setThreshold = (idx: number, value: number) => {
-    const next = [...state.registrationTierThresholds];
-    next[idx] = value;
-    setField("registrationTierThresholds", next);
-  };
 
   const updateTier = (idx: number, patch: Partial<EnrollmentPriorityTier>) => {
     const next = state.enrollmentPriorityTiers.map((t, i) => (i === idx ? { ...t, ...patch } : t));
@@ -39,23 +34,6 @@ export default function RegistrationPolicyTab({ mode, state, baseline, courses, 
 
   return (
     <div className="flex flex-col gap-4">
-      <SectionCard
-        title="Registration priority bands"
-        hint="completed CH thresholds, registers-first to registers-last"
-      >
-        <div className="flex flex-wrap gap-2">
-          {state.registrationTierThresholds.map((ch, idx) => (
-            <FieldRow
-              key={idx}
-              label={`Tier ${idx + 1} (${idx === 0 ? "registers first" : idx === state.registrationTierThresholds.length - 1 ? "registers last" : "—"})`}
-              dirty={ch !== baseline.registrationTierThresholds[idx]}
-            >
-              <NumberBox value={ch} onChange={(v) => setThreshold(idx, v)} min={0} max={120} step={1} />
-            </FieldRow>
-          ))}
-        </div>
-      </SectionCard>
-
       {mode === "advanced" && (
         <SectionCard
           title="Enrollment priority tiers"
