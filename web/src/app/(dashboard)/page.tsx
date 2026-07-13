@@ -26,14 +26,6 @@ export default function Home() {
         </p>
       </header>
 
-      <AnimationSection
-        graph={chartMeta.graph}
-        stageNodes={chartMeta.stageNodes}
-        cohorts={chartMeta.cohorts}
-        frames={data.flow_timeline.frames}
-        maxTerms={meta.max_terms}
-      />
-
       <section className="py-4">
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
           {[
@@ -51,6 +43,14 @@ export default function Home() {
           ))}
         </div>
       </section>
+
+      <AnimationSection
+        graph={chartMeta.graph}
+        stageNodes={chartMeta.stageNodes}
+        cohorts={chartMeta.cohorts}
+        frames={data.flow_timeline.frames}
+        maxTerms={meta.max_terms}
+      />
 
       <CollapsibleSection title="Admissions recommendation" subtitle="heuristic, edit targets in Settings">
         <AdmissionsRecommendation rec={summary.admissions_recommendation} showHeading={false} />
