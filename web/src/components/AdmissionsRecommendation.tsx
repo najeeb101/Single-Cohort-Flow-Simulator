@@ -3,6 +3,10 @@ import { formatCriterionValue } from "@/lib/format";
 
 // Faithful port of frontend/app.js::renderRecommendation().
 export default function AdmissionsRecommendation({ rec, showHeading = true }: { rec: Rec; showHeading?: boolean }) {
+  const repLabel =
+    typeof rec.representative_cohort === "number"
+      ? `cohort ${rec.representative_cohort}`
+      : "the mean across study cohorts";
   return (
     <section className={showHeading ? "py-6" : ""}>
       {showHeading && (
@@ -43,6 +47,14 @@ export default function AdmissionsRecommendation({ rec, showHeading = true }: { 
                 ))}
               </tbody>
             </table>
+            <p className="mt-3 max-w-2xl text-xs leading-relaxed text-muted">
+              <b className="font-semibold text-ink">Different scope from the dashboard headline.</b>{" "}
+              <span className="text-ink">Graduation rate</span> and <span className="text-ink">time-to-degree</span>{" "}
+              here are for the <b className="font-semibold text-ink">representative steady-state cohort</b> ({repLabel}) —
+              the newest cohort to finish, when the university is fully loaded — so they won&rsquo;t match the
+              whole-university averages at the top of the dashboard (earlier cohorts entered a partly-empty
+              university and did better). Seats-denied and throughput-stability are measured across all cohorts.
+            </p>
           </>
         )}
       </div>
