@@ -109,7 +109,7 @@ export default function StageOverview({ frame, stageNodes, cohortSel }: Props) {
 
   return (
     <div>
-      <div className="mt-3.5">
+      <div className="mt-3.5 max-w-[340px]">
         <svg width="100%" viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="xMidYMid meet">
           {flows.map((f, i) => {
             const a = rectOf[f.from];
