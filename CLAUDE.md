@@ -414,9 +414,8 @@ recommendation already uses.
 
 ## Parallel Workloads
 
-- A single simulation is cheap (~0.75s / ~10 MB for the 800-student baseline; the earlier "~3.1s"
-  figure was a `benchmark.py` bug — it timed the run under `tracemalloc`, which inflates wall time
-  ~3.6x, now fixed). What was slow was the workloads that run *many* independent sims.
+- A single simulation is cheap (~0.75s / ~10 MB for the 800-student baseline). What was slow was
+  the workloads that run *many* independent sims.
 - **Per-run hot path**: eligibility (`Student.is_eligible_for`) is called hundreds of thousands of
   times per run (active student × candidate course × term, from both `get_desired_courses` and
   `_record_blocks`). It caches a *True* result in `Student._eligible_codes` (wiped in
@@ -443,9 +442,6 @@ recommendation already uses.
   identical to the old step-down). Cutting the greedy loop itself only comes from making each run
   faster (the eligibility cache above already bought ~20%; a further inverted `unpassed_prereqs`
   index in `_record_blocks` is possible but needs real cache-invalidation), not from parallelism.
-- Profiling/benchmark harness: `scripts/profile_run.py` (cProfile) + `scripts/benchmark.py` (untraced
-  wall time + separate `tracemalloc` memory sample, writes `outputs/profiling/benchmark_baseline.json`,
-  the committed reference `--compare` diffs against).
 
 ## Key Constraints
 
