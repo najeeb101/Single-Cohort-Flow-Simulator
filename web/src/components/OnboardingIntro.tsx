@@ -70,9 +70,8 @@ export default function OnboardingIntro({ onComplete, showSkip = true }: Props) 
     <main className="mx-auto w-full max-w-[1600px] px-7 pb-16">
       <div className="border-b border-border py-10">
         <div className="mx-auto flex max-w-2xl flex-col items-center gap-1 text-center">
-          <div className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-maroon text-[18px] font-extrabold text-white">
-            QU
-          </div>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/qu-logo.png" alt="Qatar University" className="h-16 w-auto shrink-0 rounded-xl bg-white object-contain p-2" />
 
           {step === "welcome" && (
             <>

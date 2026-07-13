@@ -92,9 +92,8 @@ export default function NavBar() {
     <nav className="border-b border-border bg-surface/85 backdrop-blur-md sticky top-0 z-50">
       <div className="mx-auto grid max-w-[1600px] grid-cols-[1fr_auto_1fr] items-center px-7">
         <Link href="/" className="flex items-center gap-2" aria-label="Cohort Analyzer home">
-          <span className="grid h-7 w-7 place-items-center rounded-lg bg-maroon text-xs font-extrabold text-white">
-            QU
-          </span>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/qu-logo.png" alt="Qatar University" className="h-8 w-auto rounded-md bg-white object-contain p-1" />
         </Link>
         {/* Desktop nav: the full bar. Below md it collapses into the hamburger menu below. */}
         <div className="hidden items-center justify-center gap-1 md:flex">
