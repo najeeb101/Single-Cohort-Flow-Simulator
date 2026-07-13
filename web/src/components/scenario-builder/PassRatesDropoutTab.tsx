@@ -1,4 +1,3 @@
-import { useMemo } from "react";
 import type { MetaResponse } from "@/types/simulation";
 import type { BuilderState } from "@/lib/scenarioBuilder";
 import { FieldRow, NumberBox, SectionCard } from "./fields";
@@ -11,30 +10,15 @@ interface Props {
   setRecordField: (key: "passRates", code: string, value: number) => void;
   setField: <K extends keyof BuilderState>(key: K, value: BuilderState[K]) => void;
   // Settings folds the full per-course pass-rate table into its Curriculum table, so it hides
-  // this one (default true keeps Plan Builder unchanged). The "lowest pass-rate" quick-edit stays.
+  // this one (default true keeps Plan Builder unchanged).
   showAllCoursesTable?: boolean;
 }
 
 export default function PassRatesDropoutTab({ mode, meta, state, baseline, setRecordField, setField, showAllCoursesTable = true }: Props) {
-  const lowestPassRateCourses = useMemo(
-    () => Object.entries(meta.course_pass_rates).sort((a, b) => a[1] - b[1]).slice(0, 3).map(([code]) => code),
-    [meta.course_pass_rates],
-  );
-
   const dirty = (key: keyof BuilderState) => state[key] !== baseline[key];
 
   return (
     <div className="flex flex-col gap-4">
-      <SectionCard title="Lowest pass-rate courses" hint="probability a student passes on attempt">
-        <div className="flex flex-wrap gap-2">
-          {lowestPassRateCourses.map((code) => (
-            <FieldRow key={code} label={code} dirty={Math.abs(state.passRates[code] - baseline.passRates[code]) > 1e-9}>
-              <NumberBox value={state.passRates[code]} onChange={(v) => setRecordField("passRates", code, v)} min={0} max={1} step={0.01} />
-            </FieldRow>
-          ))}
-        </div>
-      </SectionCard>
-
       <SectionCard title="Dropout — headline knobs">
         <div className="flex flex-wrap gap-2">
           <FieldRow label="Base hazard / term" dirty={dirty("dropoutBaseHazard")}>
