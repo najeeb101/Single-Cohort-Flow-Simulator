@@ -47,6 +47,10 @@ desktop.ini
 # outputs/reports/ is regenerated raw data (CSV + the 16k-line flow_timeline.json) embedded
 # nowhere — keep it out of history. web/ gets the same shape live from POST /simulate, not this file.
 outputs/reports/
+# Machine-specific benchmark timings (scripts/profile_run.py output) — no consumer reads the
+# committed copy (profile_run.py has no --compare), and tracking it makes every run show up as a
+# diff on every machine. Generate it locally when you need it.
+outputs/profiling/benchmark_baseline.json
 data/app.db
 data/app.db-journal
 data/app.db-wal
