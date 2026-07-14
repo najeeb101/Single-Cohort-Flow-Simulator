@@ -1,0 +1,29 @@
+{
+  "runs": 3,
+  "timings_seconds": {
+    "min": 0.494545,
+    "median": 0.498597,
+    "max": 0.502334,
+    "mean": 0.498492
+  },
+  "canonical_run": {
+    "students": 800,
+    "terms": 38,
+    "graduation_rate": 0.63125,
+    "avg_graduation_time": 9.273267326732674,
+    "top_capacity_blocks": [
+      [
+        "CSEL2",
+        1740
+      ],
+      [
+        "CSEL3",
+        1496
+      ],
+      [
+        "CMPE263",
+        653
+      ]
+    ]
+  }
+}

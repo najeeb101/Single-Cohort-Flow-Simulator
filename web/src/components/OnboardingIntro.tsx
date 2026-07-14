@@ -4,7 +4,7 @@ import { useState } from "react";
 
 interface Props {
   onComplete: () => void;
-  // The gated first-run flow can be skipped; the /about replay page (no gate to skip) hides it.
+  // The gated first-run flow can be skipped; the /about replay page hides it.
   showSkip?: boolean;
 }
 
@@ -12,10 +12,16 @@ type Step = "welcome" | "how" | "pages";
 
 const STEP_ORDER: Step[] = ["welcome", "how", "pages"];
 const STEP_LABELS: Record<Step, string> = {
-  welcome: "1. Welcome",
-  how: "2. How it works",
-  pages: "3. Page guide",
+  welcome: "Welcome",
+  how: "How it works",
+  pages: "Page guide",
 };
+
+const WELCOME_POINTS = [
+  { label: "Student-level", desc: "Each student carries grades, credits, standing, and delay history." },
+  { label: "Seat-aware", desc: "Every term respects course capacity, offering seasons, and prerequisite gates." },
+  { label: "Plan-ready", desc: "Use the same run to explain bottlenecks, compare plans, and size interventions." },
+];
 
 const HOW_IT_WORKS = [
   {
@@ -32,26 +38,40 @@ const HOW_IT_WORKS = [
   },
 ];
 
-const PAGE_GUIDE = [
-  { label: "Dashboard", desc: "The live roadmap and headline results for the active plan." },
-  { label: "Bottlenecks", desc: "The top courses blocking progress, and Auto-fill to search for the fewest seats that clear your targets." },
-  { label: "Live", desc: "Step a simulation forward one term at a time, adjusting knobs as you go." },
-  { label: "Advisor", desc: "A plain-language read of this run's results — what's wrong, and what to do about it." },
-  { label: "Cohorts", desc: "Graduation and delay outcomes broken down by entry cohort." },
-  { label: "Figures", desc: "Population trends, survival, graduation timing, and seat utilization charts." },
-  { label: "Prerequisites", desc: "The prerequisite chain, shaded by where students get stuck." },
-  { label: "Plans", desc: "Import, build, or switch between different curriculum + config combinations." },
-  { label: "Settings", desc: "Edit the active plan's curriculum, initial state, and simulation parameters." },
+const PAGE_GROUPS = [
+  {
+    label: "Explore",
+    desc: "Start with the current run and inspect how students move.",
+    pages: "Dashboard, Live, Cohorts",
+  },
+  {
+    label: "Analyze",
+    desc: "Find the courses and patterns that delay graduation.",
+    pages: "Bottlenecks, Figures, Prerequisites, Advisor",
+  },
+  {
+    label: "Manage",
+    desc: "Change the plan, warm-start state, and simulation assumptions.",
+    pages: "Plans, Settings",
+  },
 ];
 
-function CardGrid({ items }: { items: { label: string; desc: string }[] }) {
+function CardGrid({ items }: { items: { label: string; desc: string; pages?: string }[] }) {
   return (
-    <div className="mx-auto grid max-w-4xl gap-3 sm:grid-cols-3">
+    <div className="mx-auto grid max-w-5xl gap-2.5 sm:grid-cols-3">
       {items.map((c) => (
-        <div key={c.label} className="rounded-2xl border border-border bg-surface px-4 py-3.5 text-left">
-          <div className="mb-1 text-sm font-bold text-ink">{c.label}</div>
-          <div className="text-sm text-muted">{c.desc}</div>
-        </div>
+        <article
+          key={c.label}
+          className="rounded-xl border border-border bg-surface px-4 py-2.5 text-left transition-transform hover:-translate-y-0.5"
+        >
+          <div className="mb-0.5 text-sm font-semibold text-ink">{c.label}</div>
+          <div className="text-[13px] leading-5 text-muted">{c.desc}</div>
+          {c.pages && (
+            <div className="mt-2 border-t border-border pt-1.5 text-xs font-medium text-accent">
+              {c.pages}
+            </div>
+          )}
+        </article>
       ))}
     </div>
   );
@@ -67,65 +87,88 @@ export default function OnboardingIntro({ onComplete, showSkip = true }: Props) 
   const forward = () => (isLast ? onComplete() : setStep(STEP_ORDER[idx + 1]));
 
   return (
-    <main className="mx-auto w-full max-w-[1600px] px-7 pb-16">
-      <div className="border-b border-border py-10">
-        <div className="mx-auto flex max-w-2xl flex-col items-center gap-1 text-center">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/qu-logo.png" alt="Qatar University" className="h-36 w-auto shrink-0 rounded-xl bg-white object-contain p-3" />
+    <main className="mx-auto w-full max-w-[1600px] px-5 pb-3 sm:px-7">
+      <section className="border-b border-border py-4">
+        <div className="mx-auto max-w-5xl">
+          <div className="flex flex-col items-center gap-3 text-center sm:flex-row sm:justify-center sm:gap-5 sm:text-left">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="/qu-logo.png"
+              alt="Qatar University"
+              className="h-16 w-auto shrink-0 rounded-xl bg-white object-contain p-2 sm:h-20"
+            />
 
-          {step === "welcome" && (
-            <>
-              <h1 className="mt-3 text-[28px] font-extrabold tracking-tight text-ink">Cohort Analyzer</h1>
-              <p className="mt-1 text-[14px] leading-relaxed text-muted">
-                A discrete-term, agent-based model of students moving through a curriculum, term by
-                term. Every student follows the real prerequisite chain, competes for the same
-                limited seats, and can fail, repeat, or drop out — just like the real program.
-              </p>
-            </>
-          )}
-          {step === "how" && (
-            <>
-              <h1 className="mt-3 text-[22px] font-extrabold tracking-tight text-ink">How it works</h1>
-              <p className="mt-1 text-sm leading-relaxed text-muted">
-                Three things you can do with a plan, once it&apos;s simulated.
-              </p>
-            </>
-          )}
-          {step === "pages" && (
-            <>
-              <h1 className="mt-3 text-[22px] font-extrabold tracking-tight text-ink">Where to go</h1>
-              <p className="mt-1 text-sm leading-relaxed text-muted">
-                A quick tour of every page — you can revisit this anytime from the About link.
-              </p>
-            </>
-          )}
-
-          <div className="mt-4 flex gap-4 text-sm">
-            {STEP_ORDER.map((s) => (
-              <span key={s} className={s === step ? "font-semibold text-accent" : "text-muted"}>
-                {STEP_LABELS[s]}
-              </span>
-            ))}
+            <div className="max-w-2xl">
+              {step === "welcome" && (
+                <>
+                  <h1 className="text-[28px] font-extrabold leading-tight tracking-tight text-ink sm:text-[34px]">
+                    Cohort Analyzer
+                  </h1>
+                  <p className="mt-1.5 text-[13px] leading-5 text-muted sm:text-[14px]">
+                    A discrete-term, agent-based model of students moving through a curriculum, term by
+                    term. Every student follows the real prerequisite chain, competes for the same
+                    limited seats, and can fail, repeat, or drop out.
+                  </p>
+                </>
+              )}
+              {step === "how" && (
+                <>
+                  <h1 className="text-[25px] font-extrabold leading-tight tracking-tight text-ink">
+                    How it works
+                  </h1>
+                  <p className="mt-1.5 text-sm leading-5 text-muted">
+                    Three practical moves once a plan has been simulated.
+                  </p>
+                </>
+              )}
+              {step === "pages" && (
+                <>
+                  <h1 className="text-[25px] font-extrabold leading-tight tracking-tight text-ink">
+                    Where to go
+                  </h1>
+                  <p className="mt-1.5 text-sm leading-5 text-muted">
+                    The dashboard is organized around exploration, analysis, and plan management.
+                  </p>
+                </>
+              )}
+            </div>
           </div>
-        </div>
-      </div>
 
-      {step === "welcome" ? (
-        <div className="h-8" />
-      ) : (
-        <div className="py-8">
-          {step === "how" && <CardGrid items={HOW_IT_WORKS} />}
-          {step === "pages" && <CardGrid items={PAGE_GUIDE} />}
+          <nav className="mx-auto mt-3 flex w-full max-w-2xl flex-col gap-2 sm:grid sm:grid-cols-3" aria-label="Intro steps">
+            {STEP_ORDER.map((s, stepIdx) => (
+              <button
+                key={s}
+                type="button"
+                onClick={() => setStep(s)}
+                aria-current={s === step ? "step" : undefined}
+                className={[
+                  "rounded-xl border px-3 py-1.5 text-left text-sm font-semibold",
+                  s === step
+                    ? "border-accent bg-accent/10 text-ink"
+                    : "border-border bg-surface-2 text-muted hover:border-border-2 hover:text-ink",
+                ].join(" ")}
+              >
+                <span className="mr-2 text-xs text-accent">{stepIdx + 1}</span>
+                {STEP_LABELS[s]}
+              </button>
+            ))}
+          </nav>
         </div>
-      )}
+      </section>
 
-      <div className="flex flex-col items-center gap-2 border-t border-border pt-6 text-center">
+      <section className="py-3">
+        {step === "welcome" && <CardGrid items={WELCOME_POINTS} />}
+        {step === "how" && <CardGrid items={HOW_IT_WORKS} />}
+        {step === "pages" && <CardGrid items={PAGE_GROUPS} />}
+      </section>
+
+      <div className="flex flex-col items-center gap-1.5 border-t border-border pt-3 text-center">
         <div className="flex items-center gap-3">
           {!isFirst && (
             <button
               type="button"
               onClick={back}
-              className="rounded-xl border border-border-2 bg-surface px-6 py-2 text-[14px] font-semibold text-ink"
+              className="rounded-xl border border-border-2 bg-surface px-5 py-1.5 text-[14px] font-semibold text-ink hover:border-accent"
             >
               Back
             </button>
@@ -133,7 +176,7 @@ export default function OnboardingIntro({ onComplete, showSkip = true }: Props) 
           <button
             type="button"
             onClick={forward}
-            className="rounded-xl bg-accent px-7 py-2.5 text-[14px] font-semibold text-white"
+            className="rounded-xl bg-accent px-6 py-2 text-[14px] font-semibold text-white"
           >
             {isLast ? "Start" : "Continue"}
           </button>
