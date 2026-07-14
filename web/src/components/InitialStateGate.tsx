@@ -51,24 +51,30 @@ export default function InitialStateGate({ meta, onComplete }: Props) {
   const handleSkip = () => persistAndContinue({ occupancy: {}, standing: {} }, setSkipping);
 
   return (
-    <main className="mx-auto w-full max-w-[1600px] px-7 pb-16">
-      <div className="border-b border-border py-10">
-        <div className="mx-auto flex max-w-2xl flex-col items-center text-center">
+    <main className="mx-auto w-full max-w-[1600px] px-5 pb-10 sm:px-7">
+      <div className="border-b border-border py-4">
+        <div className="mx-auto flex max-w-3xl flex-col items-center gap-3 text-center sm:flex-row sm:items-center sm:gap-5 sm:text-left">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/qu-logo.png" alt="Qatar University" className="h-36 w-auto shrink-0 rounded-xl bg-white object-contain p-3" />
-          <h1 className="mt-3 text-[28px] font-extrabold tracking-tight text-ink">
-            Set up today&apos;s department state
-          </h1>
-          <p className="mt-1 text-[14px] leading-relaxed text-muted">
-            Before the first simulation runs, enter the university this new cohort actually walks
-            into: seats already taken in each course, and how many students are already at each
-            year-standing. If the department is genuinely starting from zero, leave everything as
-            0 and continue.
-          </p>
+          <img
+            src="/qu-logo.png"
+            alt="Qatar University"
+            className="h-16 w-auto shrink-0 rounded-xl bg-white object-contain p-2 sm:h-20"
+          />
+          <div className="max-w-2xl">
+            <h1 className="text-[24px] font-extrabold leading-tight tracking-tight text-ink sm:text-[28px]">
+              Set up today&apos;s department state
+            </h1>
+            <p className="mt-1.5 text-[13px] leading-5 text-muted sm:text-[14px]">
+              Before the first simulation runs, enter the university this new cohort actually walks
+              into: seats already taken in each course, and how many students are already at each
+              year-standing. If the department is genuinely starting from zero, leave everything as
+              0 and continue.
+            </p>
+          </div>
         </div>
       </div>
 
-      <div className="py-6">
+      <div className="py-4">
         {courses === null ? (
           <p className="text-sm text-muted">Loading courses…</p>
         ) : (

@@ -1,10 +1,10 @@
 {
-  "runs": 3,
+  "runs": 5,
   "timings_seconds": {
-    "min": 0.494545,
-    "median": 0.498597,
-    "max": 0.502334,
-    "mean": 0.498492
+    "min": 0.495571,
+    "median": 0.498903,
+    "max": 0.504662,
+    "mean": 0.499152
   },
   "canonical_run": {
     "students": 800,

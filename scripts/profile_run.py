@@ -24,12 +24,15 @@ from src.simulator import Simulator
 from src.utils import load_json
 
 
-DEFAULT_OUTPUT = Path("outputs/profiling/benchmark_baseline.json")
+# Anchor data/output paths to the repo ROOT (not the current working directory) so the script
+# runs the same from anywhere — `py scripts/profile_run.py` from a subdir previously died with
+# FileNotFoundError because these were resolved against the CWD.
+DEFAULT_OUTPUT = ROOT / "outputs/profiling/benchmark_baseline.json"
 
 
 def run_once() -> tuple[float, dict]:
-    config = load_json("data/simulation_config.json")
-    curriculum = load_curriculum("data/curriculum.json")
+    config = load_json(str(ROOT / "data/simulation_config.json"))
+    curriculum = load_curriculum(str(ROOT / "data/curriculum.json"))
     scenario = config["scenarios"][0]
 
     start = time.perf_counter()
