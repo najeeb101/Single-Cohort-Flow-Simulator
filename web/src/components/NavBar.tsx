@@ -65,13 +65,13 @@ function NavDropdown({ label, links, active }: { label: string; links: NavLink[]
         {label} <span className="text-[10px]">▾</span>
       </button>
       {open && (
-        <div className="absolute left-0 top-full z-10 min-w-[170px] rounded-xl border border-border-2 bg-surface py-1.5 shadow-lg">
+        <div className="absolute left-0 top-full z-10 min-w-[170px] rounded-xl border border-border-2 bg-surface p-1.5 shadow-lg">
           {links.map((link) => (
             <Link
               key={link.href}
               href={link.href}
               onClick={() => setOpen(false)}
-              className="block px-3.5 py-2 text-sm font-semibold text-muted hover:bg-surface-2 hover:text-ink"
+              className="block rounded-lg px-3.5 py-2 text-sm font-semibold text-muted hover:bg-surface-2 hover:text-ink"
             >
               {link.label}
             </Link>
