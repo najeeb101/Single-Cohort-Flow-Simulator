@@ -204,6 +204,21 @@ def test_extract_proposals_bare_object_fallback():
     assert clean == "Do this." and raw[0]["value"] == 80
 
 
+def test_extract_proposals_tolerates_trailing_comma():
+    # llama models frequently emit a trailing comma before the closing bracket. Without lenient
+    # parsing the whole block was unparseable, so the raw JSON leaked into the reply AND the
+    # proposal was lost — the exact failure seen in live testing.
+    text = (
+        "Add seats to CMPS303.\n"
+        '```json\n{"proposals": ['
+        '{"type": "capacity", "code": "CMPS303", "value": 120, "reason": "full every term"},'
+        "]}\n```"
+    )
+    clean, raw = advisor.extract_proposals(text)
+    assert "```" not in clean and clean == "Add seats to CMPS303."
+    assert len(raw) == 1 and raw[0]["type"] == "capacity" and raw[0]["value"] == 120
+
+
 def test_validate_proposals_normalizes_and_drops_bad():
     from src.models.course import Course
 

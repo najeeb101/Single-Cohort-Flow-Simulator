@@ -155,14 +155,21 @@ def build_system_prompt(context: dict) -> str:
         "term, so answer specific per-course questions (\"what unlocks X?\", \"how many seats does Y "
         "have?\", \"when is Z taught?\") directly from that list.",
         "- You are read-only: you can't change anything yourself. To act, point them at the right tool: "
-        "Settings (edit the plan), Bottlenecks + Auto-fill (fix seat shortfalls), the What-if panel "
-        "(test a change safely), or Live (step term by term).",
+        "Settings (edit the plan permanently), Bottlenecks + Auto-fill (auto-solve seat shortfalls), the "
+        "Test button on a proposal you emit below (a safe what-if run that predicts the effect before "
+        "they Apply it), or Live (step term by term). There is no separate \"what-if panel\" — you ARE "
+        "the what-if surface, via the proposals you emit.",
         "- Be concise and concrete — usually 2-5 sentences — and cite the real numbers.",
         "- Mechanics you must respect: a capacity block = wanted a seat but the course was full "
         "(fixed by more seats); an offering block = eligible but the course wasn't taught that term "
         "(fixed by offering it more often); a prereq block = prerequisites not yet met (fixed "
         "upstream); a failure = sat the course and didn't pass. ADDING SEATS DOES NOT FIX FAILURES "
         "— those are a pass-rate/support problem.",
+        "- The prerequisite-block COUNT is a passive whole-curriculum sweep (every not-yet-eligible "
+        "student is re-counted every term), so it runs large and noisy — never call it \"the biggest "
+        "bottleneck\". Rank real, actionable pressure by seat/capacity blocks, offering blocks, and "
+        "failures instead; a high prereq count means fix the UPSTREAM gateway (its seats or pass rate), "
+        "not the downstream course that's waiting.",
         "",
         "PROPOSING CHANGES:",
         "- You can't edit anything yourself, but you CAN propose concrete changes the admin can Test "
@@ -272,7 +279,21 @@ def run_chat(messages: list[dict], context: dict, *, timeout: float = 30.0) -> s
 # The LLM never writes anything — it only suggests; the human clicks Apply.
 
 _FENCE_RE = re.compile(r"```(?:json)?\s*(.*?)\s*```", re.DOTALL)
+_TRAILING_COMMA_RE = re.compile(r",(\s*[}\]])")
 _PROPOSAL_TYPES = ("capacity", "offering", "pass_rate", "cohort_size")
+
+
+def _loads_lenient(s: str) -> object:
+    """``json.loads`` that also tolerates a trailing comma before a closing ``}``/``]`` — the single
+    most common way LLMs (llama especially) emit *almost*-valid JSON. Without this, a trailing comma
+    made the whole proposal block unparseable, so the raw JSON leaked into the shown reply AND the
+    proposal was dropped. Returns ``None`` if it still can't parse."""
+    for candidate in (s, _TRAILING_COMMA_RE.sub(r"\1", s)):
+        try:
+            return json.loads(candidate)
+        except (ValueError, TypeError):
+            continue
+    return None
 
 
 def extract_proposals(text: str) -> tuple[str, list]:
@@ -281,22 +302,16 @@ def extract_proposals(text: str) -> tuple[str, list]:
     if not text:
         return text, []
     for m in _FENCE_RE.finditer(text):
-        try:
-            data = json.loads(m.group(1).strip())
-        except (ValueError, TypeError):
-            continue
+        data = _loads_lenient(m.group(1).strip())
         if isinstance(data, dict) and isinstance(data.get("proposals"), list):
             clean = (text[: m.start()] + text[m.end():]).strip()
             return clean, data["proposals"]
     # Fallback: a bare (un-fenced) {"proposals": ...} object, assumed to run to the end of the text.
     idx = text.find('{"proposals"')
     if idx != -1:
-        try:
-            data = json.loads(text[idx:])
-            if isinstance(data, dict) and isinstance(data.get("proposals"), list):
-                return text[:idx].strip(), data["proposals"]
-        except (ValueError, TypeError):
-            pass
+        data = _loads_lenient(text[idx:])
+        if isinstance(data, dict) and isinstance(data.get("proposals"), list):
+            return text[:idx].strip(), data["proposals"]
     return text, []
 
 
