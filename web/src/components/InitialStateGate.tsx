@@ -58,7 +58,7 @@ export default function InitialStateGate({ meta, onComplete }: Props) {
           <img
             src="/qu-logo.png"
             alt="Qatar University"
-            className="h-16 w-auto shrink-0 rounded-xl bg-white object-contain p-2 sm:h-20"
+            className="qu-mark h-16 w-auto shrink-0 object-contain sm:h-20"
           />
           <div className="max-w-2xl">
             <h1 className="text-[24px] font-extrabold leading-tight tracking-tight text-ink sm:text-[28px]">

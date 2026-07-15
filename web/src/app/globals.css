@@ -116,13 +116,14 @@
   --censored: #8b5fa3;
 }
 
-/* QU emblem is a single-colour maroon PNG on a transparent background. On the light theme it
-   sits as-is over the near-white nav; on the dark theme (the default) we invert it to white so
-   it reads on the dark nav without the old jarring white chip behind it. */
-.nav-emblem {
+/* The QU mark (nav emblem + full stacked wordmark) is a single-colour maroon PNG on a
+   transparent background. On the light theme it sits as-is over the near-white surface; on the
+   dark theme (the default) we invert it to white so it reads on the dark surface without the old
+   jarring white chip behind it. */
+.qu-mark {
   filter: brightness(0) invert(1);
 }
-:root.theme-light .nav-emblem {
+:root.theme-light .qu-mark {
   filter: none;
 }
 

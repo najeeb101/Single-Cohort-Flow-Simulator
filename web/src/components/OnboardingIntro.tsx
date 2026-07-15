@@ -96,7 +96,7 @@ export default function OnboardingIntro({ onComplete, showSkip = true }: Props) 
             <img
               src="/qu-logo.png"
               alt="Qatar University"
-              className="h-15 w-auto shrink-0 rounded-xl bg-white object-contain p-2 sm:h-20"
+              className="qu-mark h-15 w-auto shrink-0 object-contain sm:h-20"
             />
 
             <div className="max-w-2xl">

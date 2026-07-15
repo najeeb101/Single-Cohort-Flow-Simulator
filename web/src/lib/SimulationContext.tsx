@@ -207,7 +207,7 @@ function StartingScreen({
       <div className="border-b border-border py-10">
         <div className="mx-auto flex max-w-2xl flex-col items-center text-center">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/qu-logo.png" alt="Qatar University" className="h-36 w-auto shrink-0 rounded-xl bg-white object-contain p-3" />
+          <img src="/qu-logo.png" alt="Qatar University" className="qu-mark h-36 w-auto shrink-0 object-contain" />
           <h1 className="mt-3 text-[24px] font-extrabold tracking-tight text-ink">
             Cohort Analyzer
           </h1>

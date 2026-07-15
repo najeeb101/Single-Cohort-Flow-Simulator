@@ -95,7 +95,7 @@ export default function NavBar() {
           {/* Nav uses the emblem-only mark (cropped from the stacked logo) so it stays legible at
               nav size; the full stacked wordmark is used on the larger hero/onboarding screens. */}
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/qu-emblem.png" alt="Qatar University" className="nav-emblem h-11 w-auto object-contain" />
+          <img src="/qu-emblem.png" alt="Qatar University" className="qu-mark h-11 w-auto object-contain" />
         </Link>
         {/* Desktop nav: the full bar. Below md it collapses into the hamburger menu below. */}
         <div className="hidden items-center justify-center gap-1 md:flex">
