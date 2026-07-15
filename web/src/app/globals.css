@@ -116,6 +116,16 @@
   --censored: #8b5fa3;
 }
 
+/* QU emblem is a single-colour maroon PNG on a transparent background. On the light theme it
+   sits as-is over the near-white nav; on the dark theme (the default) we invert it to white so
+   it reads on the dark nav without the old jarring white chip behind it. */
+.nav-emblem {
+  filter: brightness(0) invert(1);
+}
+:root.theme-light .nav-emblem {
+  filter: none;
+}
+
 @theme inline {
   --color-bg: var(--bg);
   --color-surface: var(--surface);
