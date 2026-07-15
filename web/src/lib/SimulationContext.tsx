@@ -140,7 +140,7 @@ export function SimulationProvider({ children }: { children: ReactNode }) {
           start it with{" "}
           <code className="rounded bg-black/35 px-1.5 py-0.5">py -m uvicorn src.api:app --port 8001</code>{" "}
           (from the repo root) and reload. On the hosted version the backend may still be waking
-          up — wait a moment and reload.
+          up, so wait a moment and reload.
         </div>
       </main>
     );
