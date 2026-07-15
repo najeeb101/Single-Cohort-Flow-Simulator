@@ -52,6 +52,36 @@ export function getMeta(): Promise<MetaResponse> {
   return fetch(`${API_BASE}/meta`).then((res) => asJson<MetaResponse>(res));
 }
 
+// Render free-tier web services spin down after ~15 min idle; the first request that wakes one
+// can take 40-50s, or bounce with a 502/503 while the backend is still booting. A single
+// getMeta() therefore fails on the very first cold-start visit even though the backend is
+// perfectly healthy. Retry it a few times with backoff and a per-attempt timeout so a cold
+// start reads as "waking up" rather than a hard failure. `onAttempt(n)` fires before each
+// *retry* (n = 1, 2, …) so the UI can show a "waking the backend" message.
+export async function getMetaWithRetry(
+  opts: { retries?: number; timeoutMs?: number; backoffMs?: number; onAttempt?: (attempt: number) => void } = {}
+): Promise<MetaResponse> {
+  const retries = opts.retries ?? 5;
+  const timeoutMs = opts.timeoutMs ?? 25000;
+  const backoffMs = opts.backoffMs ?? 3000;
+  let lastErr: unknown;
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    if (attempt > 0) opts.onAttempt?.(attempt);
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+    try {
+      const res = await fetch(`${API_BASE}/meta`, { signal: ctrl.signal });
+      return await asJson<MetaResponse>(res);
+    } catch (err) {
+      lastErr = err;
+      if (attempt < retries) await new Promise((r) => setTimeout(r, backoffMs));
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+  throw lastErr;
+}
+
 export function simulate(overrides: ScenarioRequest): Promise<SimulateResponse> {
   return fetch(`${API_BASE}/simulate`, {
     method: "POST",

@@ -1,0 +1,36 @@
+name: Keep Render backend awake
+
+# Render free-tier web services spin down after ~15 min idle; the next visitor then eats a
+# 40-50s cold start (and the dashboard can flash a "Could not reach the simulation API" error
+# before the backend finishes booting). This pings the backend's /health every 10 min so it
+# never goes to sleep in the first place.
+#
+# Caveats:
+#  - GitHub disables scheduled workflows after 60 days with no repo commits; any commit re-arms it.
+#  - Scheduled runs are best-effort and can be delayed a few minutes under load, so an occasional
+#    gap may exceed 15 min and let the backend nap once — harmless, the next ping wakes it.
+#  - If the backend service is ever renamed, update the URL below to match.
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch: {}
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping backend /health
+        run: |
+          url="https://scfs-backend.onrender.com/health"
+          for i in 1 2 3; do
+            code=$(curl -s -m 90 -o /dev/null -w "%{http_code}" "$url" || echo "000")
+            echo "attempt $i -> HTTP $code"
+            if [ "$code" = "200" ]; then
+              exit 0
+            fi
+            echo "not healthy yet, retrying in 15s…"
+            sleep 15
+          done
+          echo "backend did not return 200 after 3 attempts"
+          exit 1

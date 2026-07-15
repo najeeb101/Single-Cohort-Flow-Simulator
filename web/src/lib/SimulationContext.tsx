@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
-import { getMeta, simulate } from "@/lib/api";
+import { getMeta, getMetaWithRetry, simulate } from "@/lib/api";
 import CurriculumGraph from "@/components/CurriculumGraph";
 import InitialStateGate from "@/components/InitialStateGate";
 import OnboardingIntro from "@/components/OnboardingIntro";
@@ -47,6 +47,7 @@ export function SimulationProvider({ children }: { children: ReactNode }) {
   const [starting, setStarting] = useState(false);
   const [startError, setStartError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [waking, setWaking] = useState(false);
   const autoStarted = useRef(false);
   const [introDismissed, setIntroDismissed] = useState(
     () => typeof window !== "undefined" && window.localStorage.getItem(ONBOARDING_INTRO_DONE_KEY) === "1"
@@ -56,12 +57,16 @@ export function SimulationProvider({ children }: { children: ReactNode }) {
   );
 
   useEffect(() => {
-    getMeta()
+    // On the hosted (Render free-tier) deployment the backend spins down when idle, so the
+    // first load can hit a 40-50s cold start. Retry with backoff and flag `waking` after the
+    // first miss so the UI shows a "waking the backend" message instead of a hard error.
+    getMetaWithRetry({ onAttempt: () => setWaking(true) })
       .then((m) => {
         setMeta(m);
         setPhase("ready");
       })
-      .catch(() => setPhase("error"));
+      .catch(() => setPhase("error"))
+      .finally(() => setWaking(false));
   }, []);
 
   const applyResult = useCallback((d: SimulateResponse, freezeChartMeta: boolean) => {
@@ -113,8 +118,16 @@ export function SimulationProvider({ children }: { children: ReactNode }) {
 
   if (phase === "loading") {
     return (
-      <main className="mx-auto max-w-5xl px-7 py-16 text-muted">
-        Loading the program structure…
+      <main className="mx-auto max-w-xl px-7 py-16 text-muted">
+        {waking ? (
+          <span className="flex items-center gap-2">
+            <span className="inline-block h-2.5 w-2.5 animate-ping rounded-full bg-accent" />
+            Waking the backend… the free-tier server sleeps when idle and can take up to ~40s to
+            start. Hang tight.
+          </span>
+        ) : (
+          "Loading the program structure…"
+        )}
       </main>
     );
   }
@@ -123,9 +136,11 @@ export function SimulationProvider({ children }: { children: ReactNode }) {
     return (
       <main className="mx-auto max-w-xl px-7 py-16">
         <div className="rounded-2xl border border-border border-l-[4px] border-l-bad bg-surface px-6 py-5 text-bad">
-          Could not reach the simulation API. Start it with{" "}
+          Could not reach the simulation API after several attempts. If you are running locally,
+          start it with{" "}
           <code className="rounded bg-black/35 px-1.5 py-0.5">py -m uvicorn src.api:app --port 8001</code>{" "}
-          (from the repo root) and reload.
+          (from the repo root) and reload. On the hosted version the backend may still be waking
+          up — wait a moment and reload.
         </div>
       </main>
     );
