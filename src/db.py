@@ -44,6 +44,26 @@ CONFIG_JSON_PATH = Path("data/simulation_config.json")
 
 DEFAULT_PLAN_NAME = "QU CS Baseline (default)"
 
+# Config keys the engine reads unconditionally (bracket access, no default) on the
+# import -> activate -> /simulate path. Kept in sync with the `config["..."]` reads in
+# src/simulator.py, src/datasource.py, and src/models/student.py; `import_plan` checks
+# these up front so a malformed upload fails fast at 422 instead of KeyError-ing into an
+# opaque 500 at the first simulation. Deliberately excludes keys with engine-side defaults
+# (terms_per_year, mandatory_terms, optional_terms_enabled, admit_interval_terms, ...).
+REQUIRED_CONFIG_KEYS = (
+    "seed",
+    "cohort_size",
+    "max_terms",
+    "scenarios",
+    "normal_load_ch",
+    "probation_load_ch",
+    "probation_min_ch",
+    "dropout_fails_threshold",
+    "dropout_prob_on_repeated_fail",
+    "enrollment_priority_tiers",
+    "grade_tiers",
+)
+
 
 def init_db() -> None:
     db_models.Base.metadata.create_all(bind=ENGINE)
@@ -167,8 +187,12 @@ def import_plan(
     except CycleError as exc:
         raise PlanImportError(str(exc)) from exc
 
-    if "cohort_size" not in config or "scenarios" not in config:
-        raise PlanImportError("Config must include at least cohort_size and scenarios")
+    missing = [key for key in REQUIRED_CONFIG_KEYS if key not in config]
+    if missing:
+        # Catch it here (422) rather than let the engine KeyError into an opaque 500 at the
+        # first /simulate — these are the keys the simulator reads unconditionally. Guarded,
+        # defaulted keys (terms_per_year, mandatory_terms, …) are deliberately not required.
+        raise PlanImportError("Config is missing required keys: " + ", ".join(missing))
 
     plan = db_models.Plan(owner_user_id=owner_user_id, name=name)
     session.add(plan)

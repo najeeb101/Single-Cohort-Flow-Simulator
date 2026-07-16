@@ -241,6 +241,34 @@ def test_delete_course_rejects_emptying_the_plan():
     assert "last course" in resp.json()["detail"]
 
 
+def test_import_rejects_config_missing_engine_required_keys():
+    # A config that passes the old (cohort_size + scenarios only) check but omits keys the
+    # engine reads unconditionally must be rejected at import (422), not imported and then
+    # 500'd with an opaque KeyError on the first /simulate.
+    payload = {
+        "name": "Incomplete-config Plan",
+        "curriculum": [_NEW_COURSE],
+        "config": {"cohort_size": 10, "scenarios": [{"name": "baseline"}]},
+    }
+
+    resp = client.post("/plans/import", json=payload)
+
+    assert resp.status_code == 422
+    detail = resp.json()["detail"]
+    assert "missing required keys" in detail
+    assert "normal_load_ch" in detail
+
+    # And nothing was committed — the plan list is unchanged.
+    assert all(p["name"] != "Incomplete-config Plan" for p in client.get("/plans").json())
+
+
+def test_import_accepts_full_default_config():
+    # The full default config satisfies REQUIRED_CONFIG_KEYS, so a valid upload still imports.
+    plan = client.post("/plans/import", json=_import_payload("Full-config Plan"))
+    assert plan.status_code == 200
+    client.delete(f"/plans/{plan.json()['id']}")
+
+
 def test_import_rejects_prerequisite_cycle():
     payload = {
         "name": "Cyclic Plan",
