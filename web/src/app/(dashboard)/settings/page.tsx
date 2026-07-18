@@ -96,7 +96,8 @@ export default function SettingsPage() {
     if (overrides.num_cohorts !== undefined) configPatch.num_cohorts = overrides.num_cohorts;
     if (overrides.num_incumbent_cohorts !== undefined) configPatch.num_incumbent_cohorts = overrides.num_incumbent_cohorts;
     if (overrides.initial_state !== undefined) configPatch.initial_state = overrides.initial_state;
-    if (overrides.admit_interval_terms !== undefined) configPatch.admit_interval_terms = overrides.admit_interval_terms;
+    if (overrides.admission_terms !== undefined) configPatch.admission_terms = overrides.admission_terms;
+    if (overrides.admission_sizes !== undefined) configPatch.admission_sizes = overrides.admission_sizes;
     if (overrides.max_terms !== undefined) configPatch.max_terms = overrides.max_terms;
     if (overrides.seed !== undefined) configPatch.seed = overrides.seed;
     if (overrides.dropout_gpa_floor !== undefined) configPatch.dropout_gpa_floor = overrides.dropout_gpa_floor;
@@ -313,6 +314,7 @@ export default function SettingsPage() {
             setField={setField}
             setRecordField={setRecordField}
             showInitialState={false}
+            mandatoryTerms={meta.mandatory_terms}
           />
           <PassRatesDropoutTab mode="advanced" meta={meta} state={state} baseline={baseline} setField={setField} setRecordField={setRecordField} showAllCoursesTable={false} />
           <RegistrationPolicyTab mode="advanced" state={state} baseline={baseline} courses={courses ?? []} setField={setField} />

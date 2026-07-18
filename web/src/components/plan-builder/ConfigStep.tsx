@@ -27,7 +27,7 @@ export default function ConfigStep({
 }) {
   return (
     <div className="flex flex-col gap-4">
-      <AdmissionsTab mode="advanced" state={state} baseline={baseline} courses={courses} setField={setField} setRecordField={setRecordField} standingNodes={standingLevelsFromThresholds(meta.year_standing_thresholds)} />
+      <AdmissionsTab mode="advanced" state={state} baseline={baseline} courses={courses} setField={setField} setRecordField={setRecordField} standingNodes={standingLevelsFromThresholds(meta.year_standing_thresholds)} mandatoryTerms={meta.mandatory_terms} />
       <PassRatesDropoutTab
         mode="advanced"
         meta={meta}

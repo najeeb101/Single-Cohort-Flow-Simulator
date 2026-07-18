@@ -38,7 +38,8 @@ def test_meta_shape():
         "graph", "course_pass_rates",
         "baseline_scenario", "cohort_size", "num_cohorts", "num_incumbent_cohorts",
         "initial_state",
-        "admit_interval_terms", "optional_terms_enabled", "terms_per_year", "mandatory_terms",
+        "admission_terms", "admission_sizes",
+        "optional_terms_enabled", "terms_per_year", "mandatory_terms",
         "max_terms", "seed",
         "dropout_gpa_floor",
         "dropout_base_hazard", "dropout_early_multiplier", "dropout_early_sem_cutoff",
@@ -141,6 +142,30 @@ def test_simulate_admissions_overrides_change_population():
     assert shrunk["flow_timeline"]["meta"]["num_cohorts"] == 1
     assert shrunk["flow_timeline"]["meta"]["num_incumbent_cohorts"] == 0
     assert len(shrunk["flow_timeline"]["meta"]["cohorts"]) < len(baseline["flow_timeline"]["meta"]["cohorts"])
+
+
+def test_simulate_fall_plus_spring_admission_override():
+    # An ephemeral /simulate override (no DB mutation) adds a Spring intake: the study cohorts'
+    # entry terms now include a Spring slot (t % 3 == 1 under the 3-season default cycle), never a
+    # Summer one (t % 3 == 2), and a per-season size override is honored.
+    resp = client.post("/simulate", json={
+        "num_cohorts": 4,
+        "admission_terms": ["Fall", "Spring"],
+        "admission_sizes": {"Spring": 40},
+    })
+    assert resp.status_code == 200
+    cohorts = resp.json()["flow_timeline"]["meta"]["cohorts"]
+    entry_terms = sorted(c["entry_term"] for c in cohorts if not c["is_incumbent"])
+    assert entry_terms == [0, 1, 3, 4]                 # Fall, Spring, Fall, Spring
+    assert all(t % 3 != 2 for t in entry_terms)        # never Summer
+
+
+def test_config_rejects_admission_in_optional_season():
+    # Summer is optional in the default plan and can never admit — PUT /config must 422 without
+    # mutating anything (a rejected write leaves the active plan untouched).
+    resp = client.put("/config", json={"admission_terms": ["Fall", "Summer"]})
+    assert resp.status_code == 422
+    assert client.get("/meta").json()["admission_terms"] == ["Fall"]
 
 
 def test_simulate_dropout_overrides_change_result():

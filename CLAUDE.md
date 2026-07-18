@@ -138,21 +138,18 @@ immediately, no server restart needed. See [Multi-Plan Model](#multi-plan-model)
   `optional_terms_enabled: false`, so Winter/Summer stay off (legacy 2-season behavior) until an
   admin flips it on via Settings → `PUT /config {"optional_terms_enabled": true}` (or `GET /meta`
   to read the current value) — no re-entry of the season data needed either way.
-  `effective_admit_interval_terms(config)` (used by `SyntheticDataSource` instead of reading
-  `admit_interval_terms` directly) auto-rescales the admission cadence so Fall-only yearly
-  admission survives the toggle in both directions: if the stored value matches the *full*
-  `terms_per_year` length (the "one full year" convention), turning optional terms off rescales it
-  to one year under the now-2-season cycle instead of silently admitting every other year; any
-  other stored value (a deliberately non-yearly cadence) is left untouched. A config dict that
-  never sets `optional_terms_enabled` at all (e.g. hand-built test fixtures) defaults to the old,
-  pre-flag behavior — presence of `terms_per_year` alone enables the 4-season cycle, unaffected by
-  this flag's existence.
+  Admission cadence survives the toggle automatically because it's driven by *which seasons
+  admit* (`admission_terms`, see "Multi-Cohort Model"), not a term-count interval:
+  `admission_seasons(config)` walks the calendar and admits only on the chosen (mandatory)
+  seasons, so Fall-only stays exactly one year apart whether the cycle is 2, 3, or 4 terms long,
+  in either toggle direction. A config dict that never sets `optional_terms_enabled` at all (e.g.
+  hand-built test fixtures) defaults to the old, pre-flag behavior — presence of `terms_per_year`
+  alone enables the multi-season cycle, unaffected by this flag's existence.
 - **A course is only offered in an optional season if its own `offering` list says so** — same
-  mechanism as Fall/Spring, no new concept. `admit_interval_terms` was bumped 2 → 4 in the QU
-  default config to keep yearly, Fall-only admissions now that the cycle is 4 terms long instead
-  of 2 (new cohorts are never admitted in an optional term — `SyntheticDataSource` only ever
-  spaces entries by `admit_interval_terms`, and a non-mandatory-aligned interval would be a config
-  mistake, not something the engine guards against).
+  mechanism as Fall/Spring, no new concept. A new cohort is never admitted in an optional term:
+  `admission_seasons` filters out any non-mandatory season, so even a stray `admission_terms`
+  entry naming Summer/Winter is dropped (and rejected at the API with a 422). Admission seasons
+  are the single source of cadence — there is no `admit_interval_terms` knob anymore.
 - **`Student.personal_semester`** (`src/models/student.py`) is a stateful counter, incremented by
   `Simulator._run_term` once per *mandatory* term only (never during an optional term) for every
   non-terminal student. It replaces the old `term_idx - entry_term + 1` recomputation everywhere
@@ -212,8 +209,8 @@ immediately, no server restart needed. See [Multi-Plan Model](#multi-plan-model)
 
 ## Multi-Cohort Model
 
-- **Admissions**: `num_cohorts` study cohorts of `cohort_size` enter every `admit_interval_terms` (default: **8 cohorts, one per year** — enough overlapping cohorts to reach a real steady state, since a ~6-year program with yearly admission has ~6 cohorts enrolled at once; fewer than that under-represents shared-pool competition). `num_incumbent_cohorts` prior cohorts enter at **negative** terms as a warm start, so gateway courses are already partly occupied when study cohort 0 arrives.
-- **Global clock** runs `start_term = -num_incumbent_cohorts*admit_interval` .. `end_term`, where `end_term` is `mandatory_horizon_end_term(...)` (not a linear formula — see "Term/Season Model"). `term_season` handles negative indices (`-6 % 2 == 0` → Fall, under the legacy 2-season cycle; config-driven under any other cycle).
+- **Admissions**: `num_cohorts` study cohorts enter in the seasons named by **`admission_terms`** (default `["Fall"]` — one cohort per year, in Fall; **8 cohorts** by default, enough overlapping cohorts to reach a real steady state, since a ~6-year program with yearly admission has ~6 cohorts enrolled at once). Adding `"Spring"` (`admission_terms: ["Fall", "Spring"]`) gives a **second yearly intake**; `admission_sizes` (`{season: size}`) sets a per-season intake size so a department can run, e.g., a smaller Spring cohort — a season absent from it uses `cohort_size`. **Only mandatory seasons may admit** (`admission_seasons` filters out Summer/Winter; the API returns 422 on one). `SyntheticDataSource` builds the schedule by walking the calendar forward from term 0 (study) and backward from term −1 (incumbents), so entry terms fall on real Fall/Spring slots and never on an optional term. Cohort-id bases are a cumulative sum of sizes (contiguous, unique) — **byte-identical to the old `(cohort_id+num_incumbents)*cohort_size` scheme for equal-size Fall-only admission**, so determinism/CRN is preserved. `num_incumbent_cohorts` prior cohorts warm-start at **negative** terms (default 0 in the QU plan, which warm-starts via [Initial-State Model] instead).
+- **Global clock** runs `start_term` (earliest admission) .. `end_term`, both read straight off `SyntheticDataSource.cohort_specs()`, where `end_term` is `mandatory_horizon_end_term(...)` (not a linear formula — see "Term/Season Model"). `term_season` handles negative indices. There is **no `admit_interval_terms`**; cadence comes entirely from `admission_terms` + the season cycle.
 - **Personal time**: graduation/DELAYED/CENSORED use the stateful `Student.personal_semester` counter (mandatory terms only — see "Term/Season Model"), not a recomputed `global_term - entry_term + 1`. A student gets exactly `max_terms` *mandatory* semesters from their own entry.
 - **Cohort ids**: study cohorts `0..n-1`. `num_incumbent_cohorts` still exists as an engine knob (defaults to **0** — incumbents `-1,-2,-3` at negative terms) but is no longer part of the default plan, which warm-starts via the [Initial-State Model](#initial-state-model) instead. The historical-transcript calibration stand-in (`analytics.compute_historical_transcripts`) is the one consumer that still opts incumbents back in. Globally-unique `student_id = (cohort_id + num_incumbent_cohorts)*cohort_size + i`; RNG seed `seed + student_id` (CRN preserved).
 - **Capacity model**: per-term seats for a course = its own `capacity` field (`data/curriculum.json` / `Course.capacity`), **minus any `initial_state.occupancy[code]`** (see [Initial-State Model](#initial-state-model)). `scripts/size_capacity.py` auto-calibrates it (writes directly into `curriculum.json`), then hand-tunable per course in Settings. **Sizing policy: the whole required sequence (cs_core) and all non-CS courses are sized to *peak* demand; only interchangeable electives (cs_elective) are squeezed to the 75th demand percentile to keep a deliberate bottleneck.** This is *because* of the single-term offerings above: with several once-a-year upper courses, under-provisioning an early required gateway pushes students off the annual rhythm into a full-year wait that cascades into non-completion (CENSORED), so scarcity on the critical path is no longer "just delay." Electives are the only safe place to squeeze (4 interchangeable slots, no prerequisites). On an optional term, a separate, smaller model applies instead — see "Term/Season Model".

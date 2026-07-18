@@ -15,12 +15,30 @@ from src.analytics import (
 )
 from src.datasource import DataSource
 from src.models.course import load_curriculum
-from src.models.semester import effective_admit_interval_terms, mandatory_horizon_end_term
+from src.models.semester import mandatory_horizon_end_term, term_season
 from src.montecarlo import run_monte_carlo
 from src.simulator import Simulator
 from src.utils import load_json
 
 SEED = 42
+
+
+def _expected_entry_terms(config):
+    """Independent re-derivation of the admission schedule (walks only term_season, not the
+    engine's own builder): study cohorts on the admission seasons forward from term 0,
+    incumbents backward from term -1. Returns (study_entry_terms, incumbent_entry_terms)."""
+    admit = set(config.get("admission_terms") or ["Fall"])
+    study, t = [], 0
+    while len(study) < config["num_cohorts"]:
+        if term_season(t, config) in admit:
+            study.append(t)
+        t += 1
+    inc, t = [], -1
+    while len(inc) < config.get("num_incumbent_cohorts", 0):
+        if term_season(t, config) in admit:
+            inc.append(t)
+        t -= 1
+    return study, inc
 
 
 def _setup():
@@ -68,14 +86,48 @@ def test_unique_student_ids_and_cohort_assignment():
 
 def test_entry_terms_match_schedule():
     result, config, _ = _run()
-    interval = effective_admit_interval_terms(config)
+    study, inc = _expected_entry_terms(config)
     entry = {s.cohort_id: s.entry_term for s in result.students}
-    # study cohorts at 0, interval, 2*interval, ...
+    # study cohorts on the admission seasons (default Fall-only: 0, 3, 6, … in the 3-season cycle)
     for c in range(config["num_cohorts"]):
-        assert entry[c] == c * interval
+        assert entry[c] == study[c]
     # incumbents before term 0 (none in the default plan, but the schedule still holds if set)
     for k in range(1, config.get("num_incumbent_cohorts", 0) + 1):
-        assert entry[-k] == -k * interval
+        assert entry[-k] == inc[k - 1]
+
+
+def test_fall_plus_spring_admission_adds_a_second_yearly_intake():
+    """Fall+Spring admission enters a cohort each Fall and each Spring, with a customizable
+    Spring intake size, and never lands a cohort on the optional Summer term."""
+    config, curriculum = _setup()
+    config = dict(config)
+    config["num_cohorts"] = 6
+    config["cohort_size"] = 100
+    config["admission_terms"] = ["Fall", "Spring"]
+    config["admission_sizes"] = {"Spring": 40}
+
+    result = Simulator(curriculum, config, config["scenarios"][0]).run()
+
+    by_cohort = defaultdict(list)
+    for s in result.students:
+        by_cohort[s.cohort_id].append(s)
+    entry = {c: members[0].entry_term for c, members in by_cohort.items()}
+    sizes = {c: len(members) for c, members in by_cohort.items()}
+
+    # Entry terms alternate Fall (t%3==0) then Spring (t%3==1) under the 3-season cycle,
+    # never Summer (t%3==2): 0, 1, 3, 4, 6, 7.
+    assert [entry[c] for c in range(6)] == [0, 1, 3, 4, 6, 7]
+    for c in range(6):
+        assert term_season(entry[c], config) in ("Fall", "Spring")
+        assert term_season(entry[c], config) != "Summer"
+    # Fall cohorts keep cohort_size; Spring cohorts use the admission_sizes override.
+    for c in range(6):
+        expected = 40 if term_season(entry[c], config) == "Spring" else 100
+        assert sizes[c] == expected
+    # ids stay globally unique across the mixed-size cohorts.
+    ids = [s.student_id for s in result.students]
+    assert len(ids) == len(set(ids))
+    assert len(result.students) == 3 * 100 + 3 * 40
 
 
 # ── Warm start: initial-state occupancy + standing (replaces incumbents) ── #
@@ -240,9 +292,8 @@ def test_timeline_frames_and_invariants():
     # horizon. A raw `max_terms` calendar-term count only matches this when every season is
     # mandatory; mandatory_horizon_end_term is what makes this correct once optional
     # (non-mandatory) seasons exist in the cycle too. See CLAUDE.md's "Term/Season Model".
-    interval = effective_admit_interval_terms(config)
-    entry_terms = [c * interval for c in range(config["num_cohorts"])]
-    entry_terms += [-k * interval for k in range(1, config.get("num_incumbent_cohorts", 0) + 1)]
+    study, inc = _expected_entry_terms(config)
+    entry_terms = study + inc
     start_term = min(entry_terms)
     end_term = max(mandatory_horizon_end_term(t, config["max_terms"], config) for t in entry_terms)
     expected_terms = end_term - start_term

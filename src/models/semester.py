@@ -40,27 +40,25 @@ def get_mandatory_seasons(config: dict | None = None) -> frozenset[str]:
                              # season in the (possibly collapsed) cycle is mandatory
 
 
-def effective_admit_interval_terms(config: dict | None = None) -> int:
-    """Terms between yearly admissions under the *active* cycle.
+def admission_seasons(config: dict | None = None) -> list[str]:
+    """Seasons in which new study cohorts are admitted, in the cycle's own order.
 
-    `admit_interval_terms` is normally just "how many terms make up one year" (4 under the
-    4-season cycle, 2 under the legacy/collapsed one). If a config's stored value matches the
-    *full* `terms_per_year` length but optional terms are currently off, using it as-is would
-    silently admit a new cohort only every other year once the cycle collapses to 2 terms — so
-    rescale it to one year under the now-active cycle instead. A value that doesn't match that
-    "one full year" convention is left untouched (an admin's deliberate non-yearly cadence).
+    Replaces the old single "admit every N terms" interval with an intuitive choice of *which
+    seasons take in a new cohort*. Defaults to the first mandatory season only (Fall for the QU
+    default) — identical to the legacy once-a-year Fall admission, since walking the calendar and
+    admitting only on Fall lands cohorts exactly one full year apart. Adding a second mandatory
+    season (e.g. Spring) gives a second intake each year. Optional (non-mandatory) seasons such
+    as Summer/Winter can never be admission seasons and are filtered out here as a safety net,
+    even if a stray value slips past API validation — a bonus intersession never admits a cohort.
     """
     config = config or {}
-    stored = config.get("admit_interval_terms")
-    full_cycle = config.get("terms_per_year")
-    if (
-        stored is not None
-        and full_cycle
-        and stored == len(full_cycle)
-        and not config.get("optional_terms_enabled", True)
-    ):
-        return len(get_terms(config))
-    return stored if stored is not None else len(get_terms(config))
+    cycle = get_terms(config)
+    mandatory = get_mandatory_seasons(config)
+    raw = config.get("admission_terms")
+    chosen = {s for s in raw if s in mandatory} if raw else set()
+    if not chosen:
+        chosen = {next((s for s in cycle if s in mandatory), cycle[0])}
+    return [s for s in cycle if s in chosen]
 
 
 def term_season(term_index: int, config: dict | None = None) -> str:

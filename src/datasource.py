@@ -25,7 +25,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 
-from src.models.semester import effective_admit_interval_terms
+from src.models.semester import admission_seasons, term_season
 from src.models.student import Student
 
 
@@ -126,31 +126,67 @@ class SyntheticDataSource(DataSource):
     """
 
     def __init__(self, config: dict) -> None:
+        self.config: dict = config
         self.seed: int = config["seed"]
         self.cohort_size: int = config["cohort_size"]
         self.num_cohorts: int = config.get("num_cohorts", 1)
         self.num_incumbent_cohorts: int = config.get("num_incumbent_cohorts", 0)
         self.ability_sd: float = config.get("ability_sd", 0.15)
         self.ability_clip: float = config.get("ability_clip", 0.30)
-        # Rescales automatically if optional_terms_enabled is off but admit_interval_terms
-        # was set to "one full (4-season) year" — see effective_admit_interval_terms's docstring.
-        self.admit_interval: int = effective_admit_interval_terms(config)
+        # Admission cadence is now driven by *which seasons admit* (Fall-only, or Fall+Spring)
+        # rather than a single "every N terms" interval — see semester.admission_seasons. A
+        # per-season size override lets a department set a different Spring intake; a season
+        # absent from it falls back to cohort_size.
+        self.admission_terms: frozenset[str] = frozenset(admission_seasons(config))
+        self.admission_sizes: dict[str, int] = config.get("admission_sizes") or {}
+        self._specs: list[CohortSpec] = self._build_specs()
+        # Globally-unique, contiguous ids by cumulative size in admission order (incumbents
+        # earliest-first, then study cohorts). For equal-size Fall-only admission this reproduces
+        # the old `(cohort_id + num_incumbents) * cohort_size` base exactly, so the CRN stream
+        # (seed + student_id) — and every result — is byte-identical to before.
+        self._base_by_cohort: dict[int, int] = {}
+        running = 0
+        for spec in self._specs:
+            self._base_by_cohort[spec.cohort_id] = running
+            running += spec.size
+
+    def _size_for_season(self, season: str) -> int:
+        return int(self.admission_sizes.get(season, self.cohort_size))
+
+    def _build_specs(self) -> list[CohortSpec]:
+        # Study cohorts: walk the calendar forward from term 0, admitting a cohort each time the
+        # season is an admission season, until num_cohorts have been admitted. Fall-only lands
+        # them one year apart (0, cycle, 2*cycle, ...); Fall+Spring adds the half-year Spring
+        # slots. Optional seasons (Summer) are excluded by admission_seasons, so a cohort never
+        # enters in one.
+        study: list[CohortSpec] = []
+        t = 0
+        while len(study) < self.num_cohorts:
+            season = term_season(t, self.config)
+            if season in self.admission_terms:
+                study.append(CohortSpec(cohort_id=len(study), entry_term=t,
+                                        size=self._size_for_season(season)))
+            t += 1
+        # Incumbents warm-start the university before term 0: walk the same admission rhythm
+        # backward from term -1, assigning ids -1 (nearest to 0), -2, ... A collapsed cycle puts
+        # Fall-only incumbents at exactly the old negative interval terms.
+        incumbents: list[CohortSpec] = []
+        t = -1
+        while len(incumbents) < self.num_incumbent_cohorts:
+            season = term_season(t, self.config)
+            if season in self.admission_terms:
+                incumbents.append(CohortSpec(cohort_id=-(len(incumbents) + 1), entry_term=t,
+                                             size=self._size_for_season(season)))
+            t -= 1
+        # Admission order: incumbents earliest (most negative) first, then study cohorts. This
+        # order is what makes the cumulative-id bases match the legacy scheme for equal sizes.
+        return list(reversed(incumbents)) + study
 
     def cohort_specs(self) -> list[CohortSpec]:
-        specs: list[CohortSpec] = []
-        # Incumbents warm-start the university before term 0 (negative ids and entry terms).
-        for k in range(1, self.num_incumbent_cohorts + 1):
-            specs.append(CohortSpec(cohort_id=-k, entry_term=-k * self.admit_interval,
-                                    size=self.cohort_size))
-        # Study cohorts enter at 0, interval, 2*interval, ...
-        for c in range(self.num_cohorts):
-            specs.append(CohortSpec(cohort_id=c, entry_term=c * self.admit_interval,
-                                    size=self.cohort_size))
-        return specs
+        return list(self._specs)
 
     def create_students(self, spec: CohortSpec) -> list[Student]:
-        # Globally-unique, evenly-spaced ids keep each student's CRN stream (seed + id) stable.
-        base = (spec.cohort_id + self.num_incumbent_cohorts) * self.cohort_size
+        base = self._base_by_cohort[spec.cohort_id]
         return [
             Student(base + i, self.seed, cohort_id=spec.cohort_id, entry_term=spec.entry_term,
                     ability_sd=self.ability_sd, ability_clip=self.ability_clip)

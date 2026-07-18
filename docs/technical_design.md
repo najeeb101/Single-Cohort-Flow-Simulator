@@ -499,7 +499,7 @@ without it, probation exceeded 30%.
 The model layers a **steady-state university** on top of the single-student mechanics in §§1–10.
 
 ### 11.1 Admissions & the global clock
-- `num_cohorts` study cohorts of `cohort_size` are admitted every `admit_interval_terms` (default: **8 cohorts**, one per year, entry terms 0, 4, 8, … under the current 4-season config; terms 0/2/4/… under the legacy 2-season one). Eight is chosen for steady state: a ~6-year program with yearly admission has ~6 cohorts enrolled simultaneously, so fewer cohorts would under-represent the shared-pool competition that is the whole point of §11.3.
+- `num_cohorts` study cohorts are admitted in the seasons named by `admission_terms` (default `["Fall"]` → **8 cohorts**, one per year, entry terms 0, 3, 6, … under the current 3-season config — the calendar is walked and a cohort admitted on each Fall). Adding `"Spring"` gives a second yearly intake (entry terms 0, 1, 3, 4, … — Fall then Spring, never the optional Summer). `admission_sizes` (`{season: size}`) sets a per-season intake, defaulting to `cohort_size`. Eight cohorts is chosen for steady state: a ~6-year program with yearly admission has ~6 cohorts enrolled simultaneously, so fewer would under-represent the shared-pool competition that is the whole point of §11.3.
 - **Warm start, current default: initial state, not simulated incumbents.** Rather than admitting
   `num_incumbent_cohorts` prior cohorts at negative terms, the shipped config instead defines
   `initial_state.occupancy` (seats already taken per course by the existing, un-simulated student
@@ -507,8 +507,8 @@ The model layers a **steady-state university** on top of the single-student mech
   subtracted from every course's free seats on every mandatory term; standing is folded into the
   aggregate stage-node counts for display. `num_incumbent_cohorts` still exists as a lower-level
   engine knob (admitting cohorts at negative terms, fully simulated from their negative entry
-  forward, so the global loop's `start_term = −num_incumbent_cohorts × admit_interval`) but
-  defaults to 0 in the shipped config.
+  forward — walked backward from term −1 along the same `admission_terms` rhythm — so the global
+  loop's `start_term` is the earliest such negative entry) but defaults to 0 in the shipped config.
 - `term_season` works for negative indices regardless (`−6 % 2 == 0` → Fall under the legacy
   2-season cycle), so the incumbent-cohort option still works if an admin re-enables it.
 

@@ -3,7 +3,11 @@
   "cohort_size": 100,
   "max_terms": 12,
   "num_cohorts": 8,
-  "admit_interval_terms": 3,
+  "_admission_note": "Which seasons admit a new study cohort, and (optionally) a per-season intake size. Replaces the old admit_interval_terms count. Default ['Fall'] = one cohort a year, in Fall (walking the calendar and admitting only on Fall lands cohorts exactly one year apart under any cycle). Add 'Spring' for a second yearly intake; admission_sizes lets a department set a different Spring cohort size (a season absent uses cohort_size). Only MANDATORY seasons may admit -- an optional intersession (Summer) is a scarce bonus pool and never takes in a cohort. Edit in Settings -> Admissions, the Plan Builder, or the Scenario Builder.",
+  "admission_terms": [
+    "Fall"
+  ],
+  "admission_sizes": {},
   "_initial_state_note": "Replaces the old num_incumbent_cohorts warm start (simulated cohorts admitted at negative terms). The university starts NOT empty: 'occupancy' is how many seats in each course are already taken by the existing student body the first simulated cohort competes against -- a steady-state background load subtracted from that course's free seats on every mandatory term (see src/simulator.py::_effective_capacity and CLAUDE.md's Initial-State Model). 'standing' is a rough head-count of existing students at each year-standing, added as a constant to the aggregate stage-flow chart so it starts non-empty. Edit these in Settings or the Scenario Builder. num_incumbent_cohorts still works as an engine knob (defaults to 0 / no incumbents) but is no longer part of the default plan.",
   "initial_state": {
     "occupancy": {
@@ -36,7 +40,7 @@
     "Fall",
     "Spring"
   ],
-  "_optional_terms_note": "Fall and Spring are mandatory (the only seasons that advance a student's personal_semester clock / max_terms budget; see CLAUDE.md's Term/Season Model). Summer is an optional intersession: a course must explicitly list 'Summer' in its own offering array to run then, and gets a smaller capacity than its mandatory-term seats -- optional_term_capacity_scale x course.capacity. The cycle is 3 seasons (Fall, Spring, Summer), so one year = 3 terms and admit_interval_terms=3 keeps yearly Fall-only admissions. In the default QU plan, ONLY the 22 non-CS service courses (math/science/english/gen_ed) are offered in Summer -- CS courses are never offered in Summer, matching QU's real schedule. optional_terms_enabled defaults to TRUE here: Summer is on. Turning it off (Settings -> PUT /config) collapses to the legacy 2-season Fall/Spring cycle; admit_interval_terms then auto-rescales to 2 so Fall-only yearly admission is preserved either way -- see src/models/semester.py::effective_admit_interval_terms. (The engine's season model is fully generic: an admin could define any terms_per_year cycle, e.g. add a Winter intersession, entirely from config -- nothing about the season names is hardcoded; see tests/test_optional_terms.py.)",
+  "_optional_terms_note": "Fall and Spring are mandatory (the only seasons that advance a student's personal_semester clock / max_terms budget; see CLAUDE.md's Term/Season Model). Summer is an optional intersession: a course must explicitly list 'Summer' in its own offering array to run then, and gets a smaller capacity than its mandatory-term seats -- optional_term_capacity_scale x course.capacity. The cycle is 3 seasons (Fall, Spring, Summer), so one year = 3 terms; admission is driven by admission_terms (default ['Fall']), so cohorts enter yearly in Fall regardless of the cycle length. In the default QU plan, ONLY the 22 non-CS service courses (math/science/english/gen_ed) are offered in Summer -- CS courses are never offered in Summer, matching QU's real schedule. optional_terms_enabled defaults to TRUE here: Summer is on. Turning it off (Settings -> PUT /config) collapses to the legacy 2-season Fall/Spring cycle; admission stays yearly-in-Fall either way since it follows admission_terms, not a term count -- see src/models/semester.py::admission_seasons. (The engine's season model is fully generic: an admin could define any terms_per_year cycle, e.g. add a Winter intersession, entirely from config -- nothing about the season names is hardcoded; see tests/test_optional_terms.py.)",
   "optional_term_capacity_scale": 0.3,
   "normal_load_ch": 18,
   "probation_load_ch": 12,

@@ -9,7 +9,7 @@ import math
 
 from src.models.course import course_from_dict
 from src.models.semester import (
-    effective_admit_interval_terms,
+    admission_seasons,
     get_mandatory_seasons,
     get_terms,
     mandatory_horizon_end_term,
@@ -89,7 +89,7 @@ def test_personal_semester_skips_optional_terms_but_lets_student_progress():
         "C3": _course("C3", 9, [], ["Fall", "Spring", "Winter"], 3),
     }
     config = {**FOUR_SEASON_CONFIG_BASE, "cohort_size": 15, "max_terms": 6,
-              "num_cohorts": 1, "num_incumbent_cohorts": 0, "admit_interval_terms": 4}
+              "num_cohorts": 1, "num_incumbent_cohorts": 0}
     result = Simulator(curriculum, config, {"name": "t"}).run()
 
     seasons_seen = {f["season"] for f in result.history.timeline}
@@ -108,7 +108,7 @@ def test_personal_semester_skips_optional_terms_but_lets_student_progress():
 def test_cohorts_never_admitted_in_optional_terms():
     curriculum = {"C1": _course("C1", 3, [], ["Fall", "Spring"], 1)}
     config = {**FOUR_SEASON_CONFIG_BASE, "cohort_size": 5, "max_terms": 2,
-              "num_cohorts": 3, "num_incumbent_cohorts": 2, "admit_interval_terms": 4}
+              "num_cohorts": 3, "num_incumbent_cohorts": 2}
     result = Simulator(curriculum, config, {"name": "t"}).run()
 
     mandatory = get_mandatory_seasons(config)
@@ -122,7 +122,7 @@ def test_cohorts_never_admitted_in_optional_terms():
 def test_optional_term_capacity_uses_scale():
     course = _course("C1", 3, [], ["Fall", "Spring", "Summer"], 1)  # capacity=35, see _course()
     config = {**FOUR_SEASON_CONFIG_BASE, "cohort_size": 1, "max_terms": 1,
-              "num_cohorts": 1, "num_incumbent_cohorts": 0, "admit_interval_terms": 4,
+              "num_cohorts": 1, "num_incumbent_cohorts": 0,
               "optional_term_capacity_scale": 0.5}
     sim = Simulator({"C1": course}, config, {"name": "t"})
 
@@ -150,7 +150,7 @@ def test_optional_term_capacity_denials_excluded_from_mandatory_counter():
             "offering": ["Fall", "Spring", "Summer"], "category": "cs_core", "capacity": 5,
             "study_plan_order": 1})}
     config = {**FOUR_SEASON_CONFIG_BASE, "cohort_size": 12, "max_terms": 4,
-              "num_cohorts": 1, "num_incumbent_cohorts": 0, "admit_interval_terms": 4,
+              "num_cohorts": 1, "num_incumbent_cohorts": 0,
               "optional_term_capacity_scale": 0.4}  # optional cap = floor(5*0.4)=2
 
     # Summer (optional): 12 requesters, cap 2 -> 10 denied. Raw counter fires; mandatory does NOT.
@@ -182,7 +182,7 @@ def test_optional_term_prereq_blocks_excluded_from_mandatory_counter():
         "B": _course("B", 9, ["A"], ["Fall", "Spring", "Summer"], 2),  # runs in Summer, needs A
     }
     config = {**FOUR_SEASON_CONFIG_BASE, "cohort_size": 1, "max_terms": 4,
-              "num_cohorts": 1, "num_incumbent_cohorts": 0, "admit_interval_terms": 4}
+              "num_cohorts": 1, "num_incumbent_cohorts": 0}
 
     sim_summer = Simulator(curriculum, config, {"name": "t"})
     sim_summer.students = [Student(0, seed=1, cohort_id=0, entry_term=0)]
@@ -206,7 +206,7 @@ def test_offering_block_mandatory_counter_tracks_regular_term_waits():
     wait for a single-term course feeds it, so the ranking stays uniform with capacity/prereq."""
     curriculum = {"C": _course("C", 9, [], ["Spring"], 1)}  # Spring-only
     config = {**FOUR_SEASON_CONFIG_BASE, "cohort_size": 1, "max_terms": 4,
-              "num_cohorts": 1, "num_incumbent_cohorts": 0, "admit_interval_terms": 4}
+              "num_cohorts": 1, "num_incumbent_cohorts": 0}
     sim = Simulator(curriculum, config, {"name": "t"})
     sim.students = [Student(0, seed=1, cohort_id=0, entry_term=0)]
     sim.cohort_entry[0] = 0
@@ -229,7 +229,7 @@ def test_prereq_block_scoped_to_courses_offered_in_optional_term():
         "C": _course("C", 3, ["A"], ["Fall", "Spring"], 3),
     }
     config = {**FOUR_SEASON_CONFIG_BASE, "cohort_size": 1, "max_terms": 4,
-              "num_cohorts": 1, "num_incumbent_cohorts": 0, "admit_interval_terms": 4}
+              "num_cohorts": 1, "num_incumbent_cohorts": 0}
     sim = Simulator(curriculum, config, {"name": "t"})
     student = Student(0, seed=1, cohort_id=0, entry_term=0)
     sim.students = [student]
@@ -248,7 +248,6 @@ def _four_season_config(**overrides):
     return {
         "terms_per_year": ["Fall", "Winter", "Spring", "Summer"],
         "mandatory_terms": ["Fall", "Spring"],
-        "admit_interval_terms": 4,
         **overrides,
     }
 
@@ -269,22 +268,19 @@ def test_optional_terms_enabled_true_matches_omitting_the_flag():
     assert get_mandatory_seasons(explicit_on) == get_mandatory_seasons(omitted) == frozenset({"Fall", "Spring"})
 
 
-def test_effective_admit_interval_rescales_to_one_year_when_disabled():
-    # admit_interval_terms (4) matches the full 4-season cycle length -> it was set on the
-    # "one full year" convention, so disabling optional terms rescales it to 2 (one year
-    # under the now-2-season cycle) rather than silently admitting only every other year.
-    config = _four_season_config(optional_terms_enabled=False)
-    assert effective_admit_interval_terms(config) == 2
-    # Enabled (or omitted) -> unchanged, matches the stored 4-season cadence.
-    assert effective_admit_interval_terms(_four_season_config(optional_terms_enabled=True)) == 4
-    assert effective_admit_interval_terms(_four_season_config()) == 4
+def test_admission_defaults_to_fall_only_and_survives_the_toggle():
+    # Admission cadence is driven by which seasons admit, not a term interval, so Fall-only
+    # yearly admission is preserved whether optional terms are on (4-season cycle) or off
+    # (collapsed to 2) -- no rescaling logic needed, the calendar walk just lands on Fall.
+    assert admission_seasons(_four_season_config()) == ["Fall"]
+    assert admission_seasons(_four_season_config(optional_terms_enabled=False)) == ["Fall"]
 
 
-def test_effective_admit_interval_leaves_custom_cadence_untouched():
-    # 6 doesn't match len(terms_per_year)==4, so it wasn't the "one full year" convention --
-    # leave an admin's deliberate non-yearly cadence alone even with optional terms off.
-    config = _four_season_config(admit_interval_terms=6, optional_terms_enabled=False)
-    assert effective_admit_interval_terms(config) == 6
+def test_admission_seasons_filters_out_optional_seasons():
+    # Even if an admin (or a stray import) names an optional season, it can never admit --
+    # admission_seasons keeps only mandatory seasons, in cycle order.
+    config = _four_season_config(admission_terms=["Fall", "Summer", "Spring"])
+    assert admission_seasons(config) == ["Fall", "Spring"]  # Summer dropped, cycle order kept
 
 
 def test_optional_terms_toggle_off_produces_legacy_two_season_simulation():

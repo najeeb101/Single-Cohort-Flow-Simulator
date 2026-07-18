@@ -56,10 +56,11 @@ from src.db_models import Plan as PlanRow
 from src.db_models import Run, User
 from src.livesim import LiveRunner
 from src.models.course import Course
-from src.models.semester import DEFAULT_TERMS, effective_admit_interval_terms, get_mandatory_seasons
+from src.models.semester import DEFAULT_TERMS, admission_seasons, get_mandatory_seasons
 from src.models.student import TERMINAL_STAGES, stage_node_names, standing_levels
 from src.montecarlo import run_monte_carlo
 from src.optimizer import DEFAULT_RUN_BUDGET, MAX_RUN_BUDGET, solve_for_targets
+from src.datasource import SyntheticDataSource
 from src.rules import gate_edges
 from src.scenarios import router as scenarios_router
 from src.service import run_simulation
@@ -104,7 +105,8 @@ class ScenarioRequest(BaseModel):
     cohort_size: int | None = None        # config override, not a scenario hook
     num_cohorts: int | None = Field(default=None, ge=1)
     num_incumbent_cohorts: int | None = Field(default=None, ge=0)
-    admit_interval_terms: int | None = Field(default=None, ge=1)
+    admission_terms: list[str] | None = None      # which seasons admit (Fall-only / Fall+Spring)
+    admission_sizes: dict[str, int] | None = None  # per-season cohort size override (e.g. Spring)
     max_terms: int | None = Field(default=None, ge=1)
     seed: int | None = None
     initial_state: dict | None = None      # {occupancy: {code: seats}, standing: {Year2/3/4: n}}
@@ -167,6 +169,31 @@ def _validate_initial_state(value: object, config: dict) -> None:
             status_code=422,
             detail=f"initial_state.standing keys must be a subset of {sorted(valid_standing)} with non-negative integer values",
         )
+
+
+def _validate_admissions(patch: dict, config: dict) -> None:
+    """Guard the seasonal-admission knobs against the plan's *mandatory* seasons. Admission is
+    only ever allowed in a mandatory season (Fall/Spring by default) — an optional intersession
+    (Summer/Winter) is a deliberately-scarce bonus pool and must never take in a cohort, so a
+    request naming one is a 422 rather than silently filtered. Sizes must be positive."""
+    if "admission_terms" in patch:
+        terms = patch["admission_terms"]
+        mandatory = set(get_mandatory_seasons(config))
+        if not (isinstance(terms, list) and terms and all(isinstance(s, str) for s in terms)):
+            raise HTTPException(status_code=422, detail="admission_terms must be a non-empty list of season names")
+        bad = [s for s in terms if s not in mandatory]
+        if bad:
+            raise HTTPException(
+                status_code=422,
+                detail=f"admission_terms must be mandatory seasons {sorted(mandatory)}; "
+                       f"optional seasons cannot admit a cohort. Got {bad}",
+            )
+    if "admission_sizes" in patch:
+        sizes = patch["admission_sizes"]
+        if not isinstance(sizes, dict) or not all(
+            isinstance(v, int) and not isinstance(v, bool) and v >= 1 for v in sizes.values()
+        ):
+            raise HTTPException(status_code=422, detail="admission_sizes must map season names to positive integers")
 
 
 def _check_offering(value: list[str]) -> list[str]:
@@ -330,7 +357,14 @@ def meta(db: Session = Depends(get_db)) -> dict:
         # Initial-state warm start (replaces incumbent cohorts) — per-course occupied seats +
         # year-standing head-counts. See src/simulator.py::_effective_capacity / CLAUDE.md.
         "initial_state": config.get("initial_state", {"occupancy": {}, "standing": {}}),
-        "admit_interval_terms": config.get("admit_interval_terms"),
+        # Which seasons admit a new study cohort (Fall-only by default; add Spring for a second
+        # yearly intake). Replaces the old admit_interval_terms knob — admission cadence is now a
+        # choice of seasons, not an opaque term count. admission_sizes lets the department set a
+        # different intake size per season (e.g. a smaller Spring cohort); a season absent from it
+        # uses cohort_size. Both computed through the engine's own helper so /meta reports exactly
+        # what the simulator will do, even for a plan seeded before these keys existed.
+        "admission_terms": admission_seasons(config),
+        "admission_sizes": config.get("admission_sizes", {}),
         # True is the engine's own fallback (src/models/semester.py) when the key is absent —
         # mirrored here so a plan seeded before this flag existed reports its *actual* behavior
         # rather than a hardcoded value that could disagree with what the engine just ran.
@@ -385,8 +419,10 @@ def _apply_scenario_overrides(
         config["num_cohorts"] = req.num_cohorts
     if req.num_incumbent_cohorts is not None:
         config["num_incumbent_cohorts"] = req.num_incumbent_cohorts
-    if req.admit_interval_terms is not None:
-        config["admit_interval_terms"] = req.admit_interval_terms
+    if req.admission_terms is not None:
+        config["admission_terms"] = req.admission_terms
+    if req.admission_sizes is not None:
+        config["admission_sizes"] = req.admission_sizes
     if req.max_terms is not None:
         config["max_terms"] = req.max_terms
     if req.seed is not None:
@@ -695,6 +731,10 @@ def update_config(
     plan_id = resolve_active_plan_id(db, get_current_user(db))
     row = db.query(AppConfigRow).filter_by(plan_id=plan_id).first()
 
+    # Judge admission seasons against the POST-patch config so a request changing mandatory_terms
+    # and admission_terms together is validated against the new season set.
+    _validate_admissions(patch, {**row.data, **patch})
+
     if "initial_state" in patch:
         # Validate standing against the POST-patch config, so a request that changes
         # year_standing_thresholds and standing together is judged against the new year bands.
@@ -946,15 +986,14 @@ def get_live_sim(
     )
 
     # cohorts_meta: the admission schedule is pure config math (cohort_size patches only
-    # change a cohort's *size*, never its entry term or count), so this can be read
-    # straight off base_config without paying for a replay — mirrors
-    # src.livesim.LiveRunner.replay's own cohorts_meta construction.
-    num_cohorts = sim.base_config.get("num_cohorts", 1)
-    num_incumbents = sim.base_config.get("num_incumbent_cohorts", 0)
-    interval = effective_admit_interval_terms(sim.base_config)
+    # change a cohort's *size*, never its entry term or count), so it's read straight off
+    # base_config via the one authoritative schedule builder (SyntheticDataSource) rather than
+    # re-deriving entry terms here — mirrors src.livesim.LiveRunner.replay's construction.
     cohorts_meta = sorted(
-        [{"id": c, "is_incumbent": False, "entry_term": c * interval} for c in range(num_cohorts)]
-        + [{"id": -k, "is_incumbent": True, "entry_term": -k * interval} for k in range(1, num_incumbents + 1)],
+        [
+            {"id": s.cohort_id, "is_incumbent": s.cohort_id < 0, "entry_term": s.entry_term}
+            for s in SyntheticDataSource(sim.base_config).cohort_specs()
+        ],
         key=lambda c: c["entry_term"],
     )
 

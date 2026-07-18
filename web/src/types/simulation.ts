@@ -247,7 +247,10 @@ export interface MetaResponse {
   num_cohorts: number;
   num_incumbent_cohorts: number;
   initial_state: InitialState;
-  admit_interval_terms: number;
+  // Which seasons admit a new study cohort (Fall-only, or Fall+Spring). Replaces the old
+  // admit_interval_terms count. admission_sizes optionally overrides the intake size per season.
+  admission_terms: string[];
+  admission_sizes: Record<string, number>;
   optional_terms_enabled: boolean;
   terms_per_year: string[]; // the plan's season cycle — the valid set for a course's offering
   mandatory_terms?: string[]; // the "regular" seasons (Fall/Spring); capacity views count only these
@@ -304,7 +307,8 @@ export interface ScenarioRequest {
   cohort_size?: number;
   num_cohorts?: number;
   num_incumbent_cohorts?: number;
-  admit_interval_terms?: number;
+  admission_terms?: string[];
+  admission_sizes?: Record<string, number>;
   max_terms?: number;
   seed?: number;
   initial_state?: InitialState;

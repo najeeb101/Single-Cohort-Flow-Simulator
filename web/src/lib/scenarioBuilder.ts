@@ -13,7 +13,10 @@ export interface BuilderState {
   numIncumbentCohorts: number;
   initialOccupancy: Record<string, number>;
   standing: Record<string, number>;
-  admitIntervalTerms: number;
+  // Which seasons admit (Fall-only, or Fall+Spring), and an optional per-season intake size
+  // (e.g. a smaller Spring cohort). Replaces the old single admitIntervalTerms number.
+  admissionTerms: string[];
+  admissionSizes: Record<string, number>;
   maxTerms: number;
   seed: number;
   registrationTierThresholds: number[];
@@ -40,7 +43,8 @@ export function baselineFromMeta(meta: MetaResponse): BuilderState {
     numIncumbentCohorts: meta.num_incumbent_cohorts,
     initialOccupancy: { ...(meta.initial_state?.occupancy ?? {}) },
     standing: { Year2: 0, Year3: 0, Year4: 0, ...(meta.initial_state?.standing ?? {}) },
-    admitIntervalTerms: meta.admit_interval_terms,
+    admissionTerms: [...(meta.admission_terms ?? ["Fall"])],
+    admissionSizes: { ...(meta.admission_sizes ?? {}) },
     maxTerms: meta.max_terms,
     seed: meta.seed,
     registrationTierThresholds: [...meta.registration_tier_thresholds],
@@ -99,8 +103,11 @@ export function buildOverrides(state: BuilderState, baseline: BuilderState): Sce
   if (occupancyChanged || standingChanged) {
     req.initial_state = { occupancy: state.initialOccupancy, standing: state.standing };
   }
-  if (numDiffers(state.admitIntervalTerms, baseline.admitIntervalTerms)) {
-    req.admit_interval_terms = state.admitIntervalTerms;
+  if (JSON.stringify(state.admissionTerms) !== JSON.stringify(baseline.admissionTerms)) {
+    req.admission_terms = state.admissionTerms;
+  }
+  if (JSON.stringify(state.admissionSizes) !== JSON.stringify(baseline.admissionSizes)) {
+    req.admission_sizes = state.admissionSizes;
   }
   if (numDiffers(state.maxTerms, baseline.maxTerms)) req.max_terms = state.maxTerms;
   if (numDiffers(state.seed, baseline.seed)) req.seed = state.seed;
@@ -131,7 +138,8 @@ export function applyOverrides(overrides: ScenarioRequest, baseline: BuilderStat
     numIncumbentCohorts: overrides.num_incumbent_cohorts ?? baseline.numIncumbentCohorts,
     initialOccupancy: { ...baseline.initialOccupancy, ...(overrides.initial_state?.occupancy ?? {}) },
     standing: { ...baseline.standing, ...(overrides.initial_state?.standing ?? {}) },
-    admitIntervalTerms: overrides.admit_interval_terms ?? baseline.admitIntervalTerms,
+    admissionTerms: overrides.admission_terms ?? baseline.admissionTerms,
+    admissionSizes: overrides.admission_sizes ?? baseline.admissionSizes,
     maxTerms: overrides.max_terms ?? baseline.maxTerms,
     seed: overrides.seed ?? baseline.seed,
     registrationTierThresholds: overrides.registration_tier_thresholds ?? baseline.registrationTierThresholds,

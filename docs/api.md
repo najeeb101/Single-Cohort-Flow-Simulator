@@ -39,7 +39,8 @@ Returns everything the dashboard needs before running a simulation, resolved fro
   "num_cohorts": 8,
   "num_incumbent_cohorts": 0,
   "initial_state": {"occupancy": {...}, "standing": {...}},
-  "admit_interval_terms": 3,
+  "admission_terms": ["Fall"],                // seasons that admit a cohort (Fall-only / Fall+Spring)
+  "admission_sizes": {},                      // optional per-season intake size, e.g. {"Spring": 40}
   "optional_terms_enabled": true,
   "max_terms": 12,
   "seed": 42,
@@ -75,7 +76,8 @@ the plan's base config/scenario (all optional; omit a field to use the plan's va
 | `cohort_size` | int | students per cohort |
 | `num_cohorts` | int ≥ 1 | study cohorts admitted |
 | `num_incumbent_cohorts` | int ≥ 0 | prior cohorts warm-started at negative terms |
-| `admit_interval_terms` | int ≥ 1 | terms between admissions |
+| `admission_terms` | `list[str]` | seasons that admit a new cohort (mandatory seasons only; Fall-only or Fall+Spring) |
+| `admission_sizes` | `{season: int}` | per-season intake size override (season absent → `cohort_size`) |
 | `max_terms` | int ≥ 1 | personal semester budget before CENSORED |
 | `seed` | int | RNG base seed |
 | `initial_state` | `{occupancy, standing}` | admin-entered warm-start state (validated shape) |

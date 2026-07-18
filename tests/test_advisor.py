@@ -86,10 +86,11 @@ def test_summarize_plan_flattens_curriculum_and_settings():
             pass_rate=0.75, offering=("Fall",), category="cs_core", capacity=90, study_plan_term=3,
         ),
     }
-    config = {"cohort_size": 100, "num_cohorts": 8, "admit_interval_terms": 3, "max_terms": 12,
+    config = {"cohort_size": 100, "num_cohorts": 8, "admission_terms": ["Fall"], "max_terms": 12,
               "optional_terms_enabled": True, "admission_targets": {"target_grad_rate": 0.7}}
     plan = advisor.summarize_plan(curriculum, config)
     assert plan["cohort_size"] == 100 and plan["max_terms"] == 12
+    assert plan["admission_terms"] == ["Fall"]
     assert plan["targets"]["target_grad_rate"] == 0.7
     # Courses come back in study-plan order, each carrying its definition.
     codes = [c["code"] for c in plan["courses"]]
@@ -102,8 +103,8 @@ def test_prompt_includes_curriculum_and_per_course_run_behavior():
     context = {
         **SAMPLE_CONTEXT,
         "plan": {
-            "cohort_size": 100, "num_cohorts": 8, "admit_interval_terms": 3, "max_terms": 12,
-            "optional_terms_enabled": True, "targets": {"target_grad_rate": 0.7},
+            "cohort_size": 100, "num_cohorts": 8, "admission_terms": ["Fall"], "admission_sizes": {},
+            "max_terms": 12, "optional_terms_enabled": True, "targets": {"target_grad_rate": 0.7},
             "courses": [
                 {"code": "CMPS303", "title": "Data Structures", "credits": 3, "category": "cs_core",
                  "capacity": 90, "pass_rate": 0.75, "offering": ["Fall"], "prerequisites": ["CMPS151"],

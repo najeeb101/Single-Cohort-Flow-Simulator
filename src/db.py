@@ -49,7 +49,7 @@ DEFAULT_PLAN_NAME = "QU CS Baseline (default)"
 # src/simulator.py, src/datasource.py, and src/models/student.py; `import_plan` checks
 # these up front so a malformed upload fails fast at 422 instead of KeyError-ing into an
 # opaque 500 at the first simulation. Deliberately excludes keys with engine-side defaults
-# (terms_per_year, mandatory_terms, optional_terms_enabled, admit_interval_terms, ...).
+# (terms_per_year, mandatory_terms, optional_terms_enabled, admission_terms, admission_sizes, ...).
 REQUIRED_CONFIG_KEYS = (
     "seed",
     "cohort_size",

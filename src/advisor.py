@@ -20,6 +20,8 @@ import re
 
 import httpx
 
+from src.models.semester import admission_seasons
+
 DEFAULT_BASE_URL = "https://api.groq.com/openai/v1"
 DEFAULT_MODEL = "llama-3.3-70b-versatile"
 
@@ -78,7 +80,8 @@ def summarize_plan(curriculum: dict, config: dict) -> dict:
     return {
         "cohort_size": config.get("cohort_size"),
         "num_cohorts": config.get("num_cohorts"),
-        "admit_interval_terms": config.get("admit_interval_terms"),
+        "admission_terms": admission_seasons(config),
+        "admission_sizes": config.get("admission_sizes") or {},
         "max_terms": config.get("max_terms"),
         "optional_terms_enabled": config.get("optional_terms_enabled", False),
         "targets": config.get("admission_targets") or {},
@@ -219,9 +222,14 @@ def build_system_prompt(context: dict) -> str:
     if plan:
         lines.append("")
         lines.append("CURRENT PLAN & SETTINGS:")
+        admit_terms = plan.get("admission_terms") or ["Fall"]
+        admit_sizes = plan.get("admission_sizes") or {}
+        intake_desc = ", ".join(
+            f"{s} ({admit_sizes.get(s, plan.get('cohort_size'))})" for s in admit_terms
+        )
         lines.append(
-            f"- Intake: {plan.get('cohort_size')} students/cohort, {plan.get('num_cohorts')} cohorts, "
-            f"admit every {plan.get('admit_interval_terms')} terms; up to {plan.get('max_terms')} "
+            f"- Intake: {plan.get('num_cohorts')} cohorts, admitting in {intake_desc} (season size); "
+            f"{plan.get('cohort_size')} students/cohort by default; up to {plan.get('max_terms')} "
             "semesters to graduate. Optional (Summer/Winter) terms: "
             f"{'on' if plan.get('optional_terms_enabled') else 'off'}."
         )

@@ -164,7 +164,8 @@ Key multi-cohort knobs in `simulation_config.json`:
 | `num_cohorts` | study cohorts admitted, one per year (default 8, for a steady state) |
 | `num_incumbent_cohorts` | prior cohorts seeded before term 0 as a warm start (default **0** — the default plan warm-starts via `initial_state` instead, see below) |
 | `initial_state` | `{occupancy: {code: seats}, standing: {Year2/3/4: count}}` — the admin-entered pre-existing student body (see `docs/technical_design.md`) |
-| `admit_interval_terms` | terms between admissions (3 = yearly under the Fall/Spring/Summer cycle) |
+| `admission_terms` | seasons that admit a new cohort — `["Fall"]` (yearly) or `["Fall", "Spring"]` (a second yearly intake); mandatory seasons only, never Summer |
+| `admission_sizes` | optional per-season intake size, e.g. `{"Spring": 40}` (a season absent uses `cohort_size`) |
 | `admission_targets` | health thresholds driving the intake recommendation |
 | `monte_carlo` | `{enabled, n_runs, base_seed}` for confidence intervals |
 

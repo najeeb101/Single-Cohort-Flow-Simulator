@@ -23,7 +23,7 @@ from dataclasses import dataclass
 
 from src.datasource import CohortSpec, DataSource, SyntheticDataSource
 from src.models.course import Course
-from src.models.semester import effective_admit_interval_terms, mandatory_horizon_end_term, term_season
+from src.models.semester import mandatory_horizon_end_term, term_season
 from src.models.student import Student
 from src.simulator import Simulator
 
@@ -140,13 +140,10 @@ class LiveRunner:
         rates/offerings), so this can be read directly off base_config without a replay.
         """
         config = self.base_config
-        num_cohorts = config.get("num_cohorts", 1)
-        num_incumbents = config.get("num_incumbent_cohorts", 0)
-        interval = effective_admit_interval_terms(config)
         max_terms = config["max_terms"]
-        entry_terms = [c * interval for c in range(num_cohorts)] + [
-            -k * interval for k in range(1, num_incumbents + 1)
-        ]
+        # Entry terms come from the one authoritative admission schedule (seasonal walk); none of
+        # the four edit knobs change a cohort's entry term or count, so base_config is enough.
+        entry_terms = [s.entry_term for s in SyntheticDataSource(config).cohort_specs()]
         start_term = min(entry_terms)
         end_term = max(mandatory_horizon_end_term(et, max_terms, config) for et in entry_terms)
         return start_term, end_term
