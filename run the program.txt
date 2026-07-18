@@ -1,0 +1,8 @@
+Terminal 1 — backend (FastAPI on port 8001):
+
+py -m uvicorn src.api:app --reload --port 8001
+
+Terminal 2 — frontend (Next.js dashboard on port 3000):
+
+cd web
+npm run dev
