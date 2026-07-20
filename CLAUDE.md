@@ -392,10 +392,10 @@ walkthrough instead. That full-horizon simulation still runs **invisibly in the 
 (`SimulationProvider`, from the dashboard layout, unchanged) purely so **Bottlenecks, Advisor,
 Auto-fill, Figures, and Student Trace keep working exactly as before** — none of those pages
 live at `/`, so none of them changed; they just lost their entry point from the old dashboard
-screen (reach them via the nav). The now-unused presentational components (`AnimationSection`,
-`AdmissionsRecommendation`, `HeadlineKpis`, `CohortsTable`, `PrerequisiteNetwork`,
-`CollapsibleSection`) were left in place rather than deleted, in case that view is wanted back
-on its own page later.
+screen (reach them via the nav). The old dashboard's now-unused presentational components
+(`AnimationSection`, `AdmissionsRecommendation`, `HeadlineKpis`, `CohortsTable`,
+`PrerequisiteNetwork`, `CollapsibleSection`) were deleted (zero remaining references,
+recoverable from git history if that static view is ever wanted back on its own page).
 
 - **Resumable engine** (`src/simulator.py`): `Simulator.step_one_mandatory_term()` runs terms
   one at a time, admitting any cohort due that term and sweeping through any intervening
