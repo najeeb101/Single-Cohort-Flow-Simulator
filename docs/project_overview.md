@@ -233,7 +233,9 @@ visualize.py                       service.py::run_simulation()
                                               ▼
                                         FastAPI backend
                                               ▼
-                                  Next.js dashboard: animated curriculum graph,
+                                  Next.js dashboard: Dashboard (Semester Checkpoint
+                                  Mode — advance one semester at a time, editing
+                                  capacity/pass rate/occupancy/intake between steps),
                                   Advisor (rules-based recommendations + grounded
                                   LLM chat with what-if Test/Apply on proposed
                                   changes), Bottlenecks (section recommendations +
