@@ -17,7 +17,8 @@ User ──< active_plan_id >── Plan ──< plan_id >── Course
   │                           └──< plan_id >── AppConfig  (1:1 — one config row per plan)
   │
   ├──< owner_user_id >── Scenario
-  └──< user_id >── Run
+  ├──< user_id >── Run
+  └──< user_id >── CheckpointSession  (plan_id kept for provenance only)
 ```
 
 ### `users`
@@ -96,6 +97,27 @@ summary).
 | `requested_at` | datetime | |
 | `overrides_json` | JSON | the `ScenarioRequest` that was sent |
 | `summary_json` | JSON | `{metrics, admissions_recommendation}` |
+
+### `checkpoint_sessions`
+One row per Semester Checkpoint Mode session (see CLAUDE.md's "Semester Checkpoint Mode" and
+`docs/api.md`'s `/checkpoint` routes) — a turn-based, resumable re-run of a plan. Unlike `runs`,
+this stores enough dynamic state to *resume* a partial simulation, not just a log of what was
+requested. `working_curriculum`/`working_config` are a frozen-at-creation **copy** of the plan's
+data (mutated only by `POST /checkpoint/edit`), so this table never touches `courses`/
+`app_config` directly and a concurrent Settings edit to the live plan can't reach into an
+in-progress session.
+
+| Column | Type | Notes |
+|---|---|---|
+| `id` | PK | |
+| `user_id` | FK → `users.id` | |
+| `plan_id` | FK → `plans.id` | provenance only — which plan this session started from |
+| `status` | string | `active` \| `completed` \| `discarded`; the resolver treats anything not `discarded` as "the caller's current session" |
+| `next_term` | int | the resume cursor, mirrored from the pickled snapshot for cheap reads without unpickling |
+| `snapshot` | binary (`LargeBinary`) | `Simulator.snapshot()`'s pickled dynamic state (students, `History`, cursor) — see `src/simulator.py` |
+| `working_curriculum` | JSON list | plan-export-shaped course list, mutated in place by edits |
+| `working_config` | JSON | full config dict, mutated in place by edits |
+| `created_at`, `updated_at` | datetime | |
 
 ## Migrations
 
