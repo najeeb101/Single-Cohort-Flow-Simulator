@@ -18,17 +18,40 @@ from src.datasource import (
 )
 from src.utils import grade_tier
 
+# Bumped whenever Simulator.snapshot()'s pickled payload shape changes, so a stale snapshot
+# (e.g. from a checkpoint session started before a deploy) fails loudly via from_snapshot
+# instead of unpickling into a shape the running code doesn't expect. See CLAUDE.md's
+# Semester Checkpoint Mode.
+_SNAPSHOT_VERSION = 1
+
+
+class SnapshotVersionError(Exception):
+    """Raised by Simulator.from_snapshot on a version mismatch — the caller (a checkpoint
+    session) should treat this as an invalidated session, not attempt to recover it."""
+
+
 # ------------------------------------------------------------------ #
 # History: accumulated statistics across all terms                   #
 # ------------------------------------------------------------------ #
 
+def _int_defaultdict() -> "defaultdict[str, int]":
+    return defaultdict(int)
+
+
+def _cohort_int_defaultdict() -> "defaultdict[int, defaultdict[str, int]]":
+    # A *named* nested factory (not a lambda) so History stays pickle-able — pickle can't
+    # serialize a lambda, and a resumable Simulator (see step_one_mandatory_term / snapshot)
+    # needs to pickle its History between checkpoint requests.
+    return defaultdict(_int_defaultdict)
+
+
 @dataclass
 class History:
     snapshots: list[dict] = field(default_factory=list)
-    fail_counts: dict[str, int] = field(default_factory=lambda: defaultdict(int))
-    offering_block_counts: dict[str, int] = field(default_factory=lambda: defaultdict(int))
-    capacity_block_counts: dict[str, int] = field(default_factory=lambda: defaultdict(int))
-    prereq_block_counts: dict[str, int] = field(default_factory=lambda: defaultdict(int))
+    fail_counts: dict[str, int] = field(default_factory=_int_defaultdict)
+    offering_block_counts: dict[str, int] = field(default_factory=_int_defaultdict)
+    capacity_block_counts: dict[str, int] = field(default_factory=_int_defaultdict)
+    prereq_block_counts: dict[str, int] = field(default_factory=_int_defaultdict)
     # MANDATORY (regular) term-only variants of the three *structural* block signals — the basis for
     # the capacity/offering/prereq bottleneck rankings (headline + bottlenecks + per-cohort). Optional
     # (Summer/Winter) terms are excluded: those seats are a deliberately small bonus pool
@@ -37,28 +60,24 @@ class History:
     # that are scarce by design instead of the regular-term gateways that delay students. The
     # unfiltered counters above still feed the timeline frames + utilization heatmap. (fail_counts is
     # deliberately NOT filtered: a fail is a real fail whenever it happens.)
-    capacity_block_counts_mandatory: dict[str, int] = field(default_factory=lambda: defaultdict(int))
-    offering_block_counts_mandatory: dict[str, int] = field(default_factory=lambda: defaultdict(int))
-    prereq_block_counts_mandatory: dict[str, int] = field(default_factory=lambda: defaultdict(int))
+    capacity_block_counts_mandatory: dict[str, int] = field(default_factory=_int_defaultdict)
+    offering_block_counts_mandatory: dict[str, int] = field(default_factory=_int_defaultdict)
+    prereq_block_counts_mandatory: dict[str, int] = field(default_factory=_int_defaultdict)
     graduation_times: list[int] = field(default_factory=list)  # personal semesters, study cohorts
 
     # Per-cohort-per-course block counters (cohort_id -> {course_code -> count})
-    fail_by_cohort: dict[int, dict[str, int]] = field(
-        default_factory=lambda: defaultdict(lambda: defaultdict(int)))
-    capacity_block_by_cohort: dict[int, dict[str, int]] = field(
-        default_factory=lambda: defaultdict(lambda: defaultdict(int)))
-    offering_block_by_cohort: dict[int, dict[str, int]] = field(
-        default_factory=lambda: defaultdict(lambda: defaultdict(int)))
-    prereq_block_by_cohort: dict[int, dict[str, int]] = field(
-        default_factory=lambda: defaultdict(lambda: defaultdict(int)))
+    fail_by_cohort: dict[int, dict[str, int]] = field(default_factory=_cohort_int_defaultdict)
+    capacity_block_by_cohort: dict[int, dict[str, int]] = field(default_factory=_cohort_int_defaultdict)
+    offering_block_by_cohort: dict[int, dict[str, int]] = field(default_factory=_cohort_int_defaultdict)
+    prereq_block_by_cohort: dict[int, dict[str, int]] = field(default_factory=_cohort_int_defaultdict)
     # Mandatory-terms-only variants (see capacity_block_counts_mandatory) — power the per-cohort
     # top_capacity_block / top_offering_block / top_prereq_block rankings.
     capacity_block_mandatory_by_cohort: dict[int, dict[str, int]] = field(
-        default_factory=lambda: defaultdict(lambda: defaultdict(int)))
+        default_factory=_cohort_int_defaultdict)
     offering_block_mandatory_by_cohort: dict[int, dict[str, int]] = field(
-        default_factory=lambda: defaultdict(lambda: defaultdict(int)))
+        default_factory=_cohort_int_defaultdict)
     prereq_block_mandatory_by_cohort: dict[int, dict[str, int]] = field(
-        default_factory=lambda: defaultdict(lambda: defaultdict(int)))
+        default_factory=_cohort_int_defaultdict)
 
     # Per-cohort, per-term ledger rows + frontend timeline frames
     cohort_snapshots: list[dict] = field(default_factory=list)
@@ -182,17 +201,44 @@ class Simulator:
         self.history = History()
         self.cohort_entry: dict[int, int] = {}  # filled as cohorts are admitted
 
-    def run(self) -> SimulationResult:
-        # Map entry_term -> [cohort_ids] for quick admission lookup.
-        by_entry: dict[int, list[int]] = defaultdict(list)
+        # Map entry_term -> [cohort_ids] for quick admission lookup, and the resume cursor a
+        # checkpoint session persists between requests (see step_one_mandatory_term/snapshot).
+        # Built once here since admission_schedule never changes over the object's lifetime —
+        # from_snapshot() rebuilds this fresh from the (possibly edited) config on every resume.
+        self._by_entry: dict[int, list[int]] = defaultdict(list)
         for cohort_id, entry_term in self.admission_schedule.items():
-            by_entry[entry_term].append(cohort_id)
+            self._by_entry[entry_term].append(cohort_id)
+        self._next_term: int = self.start_term
 
-        for term_idx in range(self.start_term, self.end_term):
-            for cohort_id in sorted(by_entry.get(term_idx, [])):
+    @property
+    def is_finished(self) -> bool:
+        """True once every term through the horizon has been run. A resumable checkpoint
+        session (CLAUDE.md's Semester Checkpoint Mode) advances by calling
+        step_one_mandatory_term() until this is True."""
+        return self._next_term >= self.end_term
+
+    def step_one_mandatory_term(self) -> None:
+        """Advance the simulation by exactly one MANDATORY (Fall/Spring) term, running any
+        intervening optional (Summer/Winter) term along the way in the same call — so a
+        resumable checkpoint session always pauses on a mandatory-term boundary, matching the
+        once-per-mandatory-term cadence Student.personal_semester itself advances on (see
+        CLAUDE.md's Term/Season Model). No-op once is_finished. `run()` below is just this
+        called in a loop, so a caller who never pauses gets identical behavior to the old
+        single-shot for-loop.
+        """
+        while not self.is_finished:
+            term_idx = self._next_term
+            for cohort_id in sorted(self._by_entry.get(term_idx, [])):
                 self._admit_cohort(cohort_id, term_idx)
             season = term_season(term_idx, self.config)
             self._run_term(term_idx, season)
+            self._next_term += 1
+            if season in get_mandatory_seasons(self.config):
+                break
+
+    def run(self) -> SimulationResult:
+        while not self.is_finished:
+            self.step_one_mandatory_term()
 
         # Safety net: anyone still active at the horizon is censored. (In practice every
         # student is already terminal by end_term - see the personal-semester check in
@@ -207,6 +253,53 @@ class Simulator:
             scenario=self.scenario,
             config=self.config,
         )
+
+    def snapshot(self) -> bytes:
+        """Serialize this engine's dynamic mid-run state (students, history, cohort_entry, the
+        resume cursor) so it can be persisted between checkpoint requests and restored later via
+        `from_snapshot`. curriculum/config/scenario are deliberately NOT included — the caller
+        supplies those fresh on restore, which is how a staged checkpoint edit takes effect on
+        the next step (see CLAUDE.md's Semester Checkpoint Mode). Pickle-based; this is why
+        History's per-cohort counters use named module-level factory functions instead of
+        lambdas (lambdas can't be pickled) — see _int_defaultdict/_cohort_int_defaultdict above.
+        """
+        import pickle
+        payload = (_SNAPSHOT_VERSION, self.students, self.history, self.cohort_entry, self._next_term)
+        return pickle.dumps(payload)
+
+    @classmethod
+    def from_snapshot(
+        cls,
+        curriculum: dict[str, Course],
+        config: dict,
+        scenario: dict,
+        blob: bytes,
+        data_source: DataSource | None = None,
+        record_traces: bool = False,
+    ) -> "Simulator":
+        """Rebuild a Simulator around previously-snapshotted dynamic state, with fresh
+        curriculum/config/scenario — so any capacity/pass_rate/occupancy/intake edit staged
+        since the snapshot takes effect starting with the next step_one_mandatory_term() call.
+        __init__ still runs in full (rebuilding _specs_by_id/admission_schedule/etc. from the
+        possibly-edited config); the restored students/history/cursor below then replace what
+        __init__ initialized empty, so already-admitted students and their history are carried
+        forward untouched while only NOT-yet-admitted cohorts pick up an intake edit (their
+        entry terms/specs come from the freshly-rebuilt schedule) — see CLAUDE.md's Semester
+        Checkpoint Mode for why this matters and its intake-edit caveat.
+        """
+        import pickle
+        version, students, history, cohort_entry, next_term = pickle.loads(blob)
+        if version != _SNAPSHOT_VERSION:
+            raise SnapshotVersionError(
+                f"checkpoint snapshot version {version} is incompatible with the running "
+                f"engine's version {_SNAPSHOT_VERSION}"
+            )
+        sim = cls(curriculum, config, scenario, data_source=data_source, record_traces=record_traces)
+        sim.students = students
+        sim.history = history
+        sim.cohort_entry = cohort_entry
+        sim._next_term = next_term
+        return sim
 
     # ------------------------------------------------------------------ #
     # Student creation                                                    #
