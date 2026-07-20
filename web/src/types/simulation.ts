@@ -402,63 +402,6 @@ export interface RunRecord {
   summary_json: { metrics: Headline; admissions_recommendation: AdmissionsRecommendation };
 }
 
-// Phase 3: Live stepwise simulation — a LiveSim advances one term at a time (rather than
-// running the whole horizon at once like /simulate), with per-advance edits applied going
-// forward only. Mirrors src/api.py's /livesim* endpoints (see CLAUDE.md "Phase 3").
-export interface LiveSim {
-  id: number;
-  name: string;
-  plan_id: number;
-  created_by_user_id: number;
-  current_term: number | null; // null = created, no term simulated yet
-  status: "active" | "finished";
-  total_terms: number; // horizon, for progress display
-  created_at: string;
-}
-
-// The four knobs an admin can tweak before advancing to the next term — applied going
-// forward only (never retroactive to already-simulated terms). All optional: only send
-// fields the user actually changed (diff-style, like scenarioBuilder.ts::buildOverrides).
-export interface LiveEdits {
-  pass_rate_overrides?: Record<string, number>; // 0..1
-  offering_overrides?: Record<string, string[]>; // e.g. ["Fall","Spring"]
-  cohort_size?: number; // admissions intake going forward
-  capacity_overrides?: Record<string, number>; // per-course seat multiplier (capacity lever)
-}
-
-export interface TermSnapshot {
-  term_index: number;
-  season: string;
-  label: string;
-  frame: Frame; // reuse existing Frame type (has .courses, .stages, .label …)
-  summary: Record<string, unknown> | null;
-  edits_applied: LiveEdits | Record<string, never>;
-}
-
-// One term of the live sim's baseline (no-edits) trajectory — same shape as a snapshot's
-// cheap running summary, keyed by term_index so it lines up with whichever term is being
-// viewed regardless of which edits have since been applied.
-export interface BaselineTrajectoryPoint {
-  term_index: number;
-  label: string;
-  active: number;
-  graduated: number;
-  dropped: number;
-  censored: number;
-}
-
-export interface LiveSimDetail {
-  live_sim: LiveSim;
-  meta: {
-    graph: Graph;
-    stage_nodes: string[];
-    cohorts: CohortInfo[];
-    initial_state: InitialState;
-    baseline_trajectory: BaselineTrajectoryPoint[];
-  };
-  snapshots: TermSnapshot[]; // in term order
-}
-
 // Per-student trace: "watch one synthetic student's term-by-term journey."
 // Mirrors src/api.py's /simulate/students/search + /simulate/students/{id}/trace and
 // src/analytics.py::find_students_matching / compute_student_trace.

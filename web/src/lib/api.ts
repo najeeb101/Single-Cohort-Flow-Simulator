@@ -5,11 +5,6 @@ import type {
   CourseCreate,
   CourseRecord,
   CourseUpdate,
-  InitialState,
-
-  LiveEdits,
-  LiveSim,
-  LiveSimDetail,
   MetaResponse,
   PlanExportPayload,
   PlanImportPayload,
@@ -21,7 +16,6 @@ import type {
   StudentProfileFilter,
   StudentSearchResult,
   StudentTrace,
-  TermSnapshot,
 } from "@/types/simulation";
 
 // Relative + same-origin: resolves to localhost:3000/api/backend/..., which
@@ -232,35 +226,4 @@ export function renamePlan(id: number, name: string): Promise<PlanRecord> {
 
 export function exportPlan(id: number): Promise<PlanExportPayload> {
   return fetch(`${API_BASE}/plans/${id}/export`).then((res) => asJson<PlanExportPayload>(res));
-}
-
-export function listLiveSims(): Promise<LiveSim[]> {
-  return fetch(`${API_BASE}/livesim`).then((res) => asJson<LiveSim[]>(res));
-}
-
-export function createLiveSim(name: string, initialState?: InitialState): Promise<LiveSim> {
-  return fetch(`${API_BASE}/livesim`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(initialState ? { name, initial_state: initialState } : { name }),
-  }).then((res) => asJson<LiveSim>(res));
-}
-
-export function getLiveSim(id: number): Promise<LiveSimDetail> {
-  return fetch(`${API_BASE}/livesim/${id}`).then((res) => asJson<LiveSimDetail>(res));
-}
-
-export function advanceLiveSim(
-  id: number,
-  edits?: LiveEdits
-): Promise<{ live_sim: LiveSim; snapshot: TermSnapshot }> {
-  return fetch(`${API_BASE}/livesim/${id}/advance`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(edits && Object.keys(edits).length ? { edits } : {}),
-  }).then((res) => asJson<{ live_sim: LiveSim; snapshot: TermSnapshot }>(res));
-}
-
-export function deleteLiveSim(id: number): Promise<{ ok: true }> {
-  return fetch(`${API_BASE}/livesim/${id}`, { method: "DELETE" }).then((res) => asJson<{ ok: true }>(res));
 }
