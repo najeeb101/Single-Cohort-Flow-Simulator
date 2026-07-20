@@ -54,7 +54,9 @@ Returns everything the dashboard needs before running a simulation, resolved fro
   "registration_tier_thresholds": [...],
   "enrollment_priority_tiers": [...],
   "admission_targets": { "target_grad_rate": 0.70, ... },
-  "llm_chat_enabled": false            // true iff LLM_API_KEY is set (Advisor chat available)
+  "llm_chat_enabled": false,           // true iff LLM_API_KEY is set (Advisor chat available)
+  "checkpoint_active": false,          // true iff the caller has an in-progress/completed session
+  "checkpoint_next_term": null         // that session's next_term, else null — see "Semester Checkpoint Mode"
 }
 ```
 
@@ -73,7 +75,7 @@ the plan's base config/scenario (all optional; omit a field to use the plan's va
 | `capacity_overrides` | `{code: multiplier}` | per-course capacity scale |
 | `offering_overrides` | `{code: [season, ...]}` | replace a course's offered seasons |
 | `pass_rate_overrides` | `{code: rate}` | replace a course's pass rate |
-| `cohort_size` | int | students per cohort |
+| `cohort_size` | int ≥ 1 | students per cohort |
 | `num_cohorts` | int ≥ 1 | study cohorts admitted |
 | `num_incumbent_cohorts` | int ≥ 0 | prior cohorts warm-started at negative terms |
 | `admission_terms` | `list[str]` | seasons that admit a new cohort (mandatory seasons only; Fall-only or Fall+Spring) |
@@ -98,9 +100,14 @@ Response:
 }
 ```
 
-`500` if the engine raises (e.g. a config combination that produces an invalid state). Every
-successful call is recorded as a `Run` row (`overrides_json`, `summary_json`) visible via
-`GET /runs`.
+`422` if the effective (post-override) config would be invalid: `admission_terms` naming a
+non-mandatory season, a non-positive `cohort_size`/`admission_sizes` value, a malformed
+`initial_state`, or `initial_state.occupancy` exceeding a course's `capacity` (`src/plan_
+validation.py::validate_plan_edits`/`validate_admissions`/`validate_initial_state` — the same
+guardrails a persisted `PUT /curriculum`/`PUT /config` edit is checked against, applied here too
+since `ScenarioRequest` overrides could otherwise bypass them entirely). `500` if the engine
+raises for any other reason. Every successful call is recorded as a `Run` row (`overrides_json`,
+`summary_json`) visible via `GET /runs`.
 
 ---
 
@@ -174,7 +181,12 @@ Body: `CourseCreate` (`code`, `title`, `credits` 0–6, `prerequisites`, `pass_r
 `409` if the code already exists in this plan; `422` if adding it creates a prerequisite cycle.
 
 ### `PUT /curriculum/{code}`
-Partial update — any subset of the `CourseCreate` fields. `404` if not found; `422` on a cycle.
+Partial update — any subset of the `CourseCreate` fields **except `prerequisites`/`rule_expr`**,
+which are write-once (settable only at creation, via `POST /curriculum` or Plan Builder) and
+permanently locked afterward — a patch that actually *changes* either 422s (diff-based: resending
+the same unchanged value is fine). `404` if not found; `422` on a prerequisite-lock violation, a
+cycle, or a value `src/plan_validation.py::validate_plan_edits` rejects (e.g. capacity dropped
+below existing `initial_state.occupancy` for that course).
 
 ### `DELETE /curriculum/{code}`
 `404` if not found. `422` if it's the plan's last remaining course, or if another course still
@@ -189,11 +201,16 @@ Returns the full raw config dict for the active plan (superset of what `/meta` s
 exposes).
 
 ### `PUT /config`
-Body: a partial dict, shallow-merged into the stored config. Validated fields:
-`registration_tier_thresholds` (must be a 5-int list), `optional_terms_enabled` (must be bool),
-`initial_state` (shape-checked: `occupancy` maps codes to non-negative ints, `standing` keys
-are a subset of `Year2|Year3|Year4` with non-negative int values — `422` otherwise). Everything
-else is stored as-is with no further validation.
+Body: a partial dict, shallow-merged into the stored config (a partial `initial_state` replaces
+the *whole* key, not a deep merge — round-trip the full object if only changing one field of it).
+Validated fields: `registration_tier_thresholds` (must be a 5-int list), `optional_terms_enabled`
+(must be bool), `initial_state` (shape-checked: `occupancy` maps codes to non-negative ints,
+`standing` keys are a subset of `Year2|Year3|Year4` with non-negative int values), `admission_
+terms`/`admission_sizes` (mandatory seasons only, positive sizes). Also runs the same
+cross-object guardrails as `PUT /curriculum` against the resulting (config, curriculum) pair:
+`cohort_size >= 1` and `initial_state.occupancy[code] <= capacity` for every course. `422` on any
+violation, nothing committed on failure. Everything else is stored as-is with no further
+validation.
 
 ---
 
@@ -219,6 +236,46 @@ Round-trips back to the same `{curriculum, config}` shape `POST /plans/import` a
 ### `DELETE /plans/{plan_id}`
 Owner only, and never the default plan. If it was the caller's active plan, the caller is
 reassigned to the default plan first.
+
+---
+
+## Semester Checkpoint Mode
+
+A turn-based, resumable re-run of the active plan — one mandatory term per `advance` call, with
+editable future-facing knobs in between. No `Run` row is written by any of these (this isn't the
+baseline `/simulate` path); one active-or-completed session exists per caller at a time. See
+CLAUDE.md's "Semester Checkpoint Mode" for the full design (the Dashboard *is* this feature —
+there's no separate baseline-only page).
+
+### `POST /checkpoint`
+Starts a new session from the caller's active plan (a frozen-at-creation copy of its curriculum
++ config). Discards any existing session for the caller first. Returns the session state (see
+below), with zero terms run.
+
+### `GET /checkpoint`
+Returns the current session: `id`, `status` (`active|completed|discarded`), `next_term`,
+`is_finished`, `working_curriculum` (plan-export shape), `working_config`, `frames` (same shape
+as `flow_timeline.frames`, one per term run so far), `meta` (`{graph, stage_nodes}`), and
+`counts_so_far` (`{active, delayed, graduated, dropped, censored}`). `404` if the caller has no
+session (the normal "none in progress" state, not an error).
+
+### `POST /checkpoint/edit`
+Body (all optional, only present fields change): `capacity` (`{code: int}`), `pass_rate`
+(`{code: float}`), `initial_state` (`{occupancy, standing}`), `cohort_size` (int ≥ 1),
+`admission_sizes` (`{season: int}`). No other field exists on this model — there is no way to
+edit prerequisites, offering, category, `admission_terms`, `num_cohorts`, `max_terms`, or `seed`
+through it. Validated the same way `PUT /curriculum`/`PUT /config` are; `422` on any violation,
+with the stored session left untouched (validated against a copy first). Does not advance any
+terms. `404` if no session exists.
+
+### `POST /checkpoint/advance`
+Steps the session forward exactly one mandatory term (sweeping through any intervening optional
+term in the same call), applying whatever edits were staged since the last advance. Marks the
+session `completed` once the horizon is reached; advancing a `completed` session 422s. `404` if
+no session exists.
+
+### `DELETE /checkpoint`
+Marks the session `discarded`. `404` if no session exists.
 
 ---
 

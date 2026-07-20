@@ -377,13 +377,25 @@ recommendation already uses.
 
 ## Semester Checkpoint Mode ("advance one term at a time")
 
-A turn-based, resumable re-run of the active plan, separate from the always-on `/simulate`
-baseline dashboard: a department head advances **one mandatory term at a time** and edits
-future-facing knobs (capacity, pass rate, occupancy/standing, next intake) between steps —
-never the courses already run. This is **not** a revival of the old, removed Live Simulation
-feature (which was continuous-tick/replay-based over an append-only edit log): a checkpoint
-session advances **only** on an explicit "Advance one term" click, and it freezes/resumes real
-mid-run engine state rather than replaying from term 0 each time.
+**The Dashboard (`/`) IS this feature** — there is no separate full-run landing page anymore. A
+department head advances **one mandatory term at a time** and edits future-facing knobs
+(capacity, pass rate, occupancy/standing, next intake) between steps — never the courses
+already run. This is **not** a revival of the old, removed Live Simulation feature (which was
+continuous-tick/replay-based over an append-only edit log): a checkpoint session advances
+**only** on an explicit "Advance one term" click, and it freezes/resumes real mid-run engine
+state rather than replaying from term 0 each time.
+
+The old static full-horizon dashboard (roadmap + admissions recommendation + headline results +
+per-cohort table + prerequisite network, all driven by one `/simulate` call on load) no longer
+has a page of its own — `web/src/app/(dashboard)/page.tsx` now renders the checkpoint
+walkthrough instead. That full-horizon simulation still runs **invisibly in the background**
+(`SimulationProvider`, from the dashboard layout, unchanged) purely so **Bottlenecks, Advisor,
+Auto-fill, Figures, and Student Trace keep working exactly as before** — none of those pages
+live at `/`, so none of them changed; they just lost their entry point from the old dashboard
+screen (reach them via the nav). The now-unused presentational components (`AnimationSection`,
+`AdmissionsRecommendation`, `HeadlineKpis`, `CohortsTable`, `PrerequisiteNetwork`,
+`CollapsibleSection`) were left in place rather than deleted, in case that view is wanted back
+on its own page later.
 
 - **Resumable engine** (`src/simulator.py`): `Simulator.step_one_mandatory_term()` runs terms
   one at a time, admitting any cohort due that term and sweeping through any intervening
@@ -421,10 +433,12 @@ mid-run engine state rather than replaying from term 0 each time.
   admissions recommendation, "finished cohort" health criteria) — it's a simple
   frames-so-far + per-status head-count summary instead, unambiguous at every partial step. A
   richer partial summary is a possible future follow-up.
-- **Frontend** (`web/src/lib/CheckpointContext.tsx`, `web/src/app/(dashboard)/checkpoint/
-  page.tsx`, `web/src/components/checkpoint/CheckpointEditPanel.tsx`): a new page, built like
-  `SimulationContext` but **with no auto-run** — it starts idle until "Start checkpoint
-  walkthrough" is clicked, and never touches the always-on baseline dashboard. The edit panel
+- **Frontend** (`web/src/lib/CheckpointContext.tsx`,
+  `web/src/app/(dashboard)/page.tsx`, `web/src/components/checkpoint/CheckpointEditPanel.tsx`):
+  `page.tsx` wraps its whole body in `CheckpointProvider`, built like `SimulationContext` but
+  **with no auto-run** — it starts idle until "Start checkpoint walkthrough" is clicked (the
+  dashboard's layout still wraps everything in `SimulationProvider` too, so the first-run setup
+  gate/onboarding intro and the invisible background baseline run are unaffected). The edit panel
   is composed entirely from existing pieces (`InitialStateEditor` for standing/occupancy,
   `CurriculumTable` for capacity/pass-rate/occupancy, a small custom next-intake control) rather
   than new form widgets. `CurriculumTable` gained a `structuralEditsDisabled` prop: it hides
