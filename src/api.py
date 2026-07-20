@@ -46,14 +46,17 @@ from src.db import (
     init_db,
     load_config_from_db,
     load_curriculum_from_db,
+    resolve_active_checkpoint_session,
     resolve_active_plan_id,
 )
 from src.db_models import AppConfig as AppConfigRow
+from src.db_models import CheckpointSession as CheckpointSessionRow
 from src.db_models import Course as CourseRow
 from src.db_models import Plan as PlanRow
 from src.db_models import Run, User
-from src.models.course import Course
+from src.models.course import Course, course_from_dict
 from src.models.semester import DEFAULT_TERMS, admission_seasons, get_mandatory_seasons
+from src.models.student import stage_node_names
 from src.montecarlo import run_monte_carlo
 from src.optimizer import DEFAULT_RUN_BUDGET, MAX_RUN_BUDGET, solve_for_targets
 from src.plan_validation import (
@@ -305,6 +308,7 @@ def advisor_chat(req: AdvisorChatRequest, db: Session = Depends(get_db)) -> dict
 @app.get("/meta")
 def meta(db: Session = Depends(get_db)) -> dict:
     curriculum, config, scenario = _load_plan_data(db)
+    checkpoint_session = resolve_active_checkpoint_session(db, get_current_user(db))
     return {
         "graph": build_curriculum_graph(curriculum),
         "course_pass_rates": {code: c.pass_rate for code, c in curriculum.items()},
@@ -362,6 +366,10 @@ def meta(db: Session = Depends(get_db)) -> dict:
             "max_seats_denied_per_student": 1.0,
             "min_throughput_stability": 0.85,
         }),
+        # Whether the caller has an in-progress Semester Checkpoint Mode session (see
+        # /checkpoint below) — lets the nav/dashboard reflect it without a separate request.
+        "checkpoint_active": checkpoint_session is not None,
+        "checkpoint_next_term": checkpoint_session.next_term if checkpoint_session else None,
     }
 
 
@@ -838,4 +846,198 @@ def export_plan(
         "curriculum": [_course_to_dict(c) for c in sorted(curriculum.values(), key=lambda c: c.study_plan_order)],
         "config": config,
     }
+
+
+# ---------------------------------------------------------------------------- #
+# Semester Checkpoint Mode: turn-based, resumable re-run of the active plan     #
+# ---------------------------------------------------------------------------- #
+# One step = one mandatory (Fall/Spring) term (see Simulator.step_one_mandatory_term). Between
+# steps, the department head may edit future-facing knobs only (capacity/pass_rate/occupancy/
+# intake) — never prerequisites/rule_expr/offering/category (locked, see the prereq-lock note
+# above) or admission_terms/num_cohorts/max_terms/seed (would change the horizon and break the
+# resume cursor). `working_curriculum`/`working_config` are a frozen-at-creation COPY of the
+# active plan, so this never touches the plan's own Course/AppConfig rows — no Run row is
+# written either, since this isn't the dashboard's baseline /simulate path.
+
+def _checkpoint_curriculum(row: CheckpointSessionRow) -> dict[str, Course]:
+    return {c["code"]: course_from_dict(c) for c in row.working_curriculum}
+
+
+def _checkpoint_summary_from_sim(row: CheckpointSessionRow, sim: Simulator) -> dict:
+    counts = {"active": 0, "delayed": 0, "graduated": 0, "dropped": 0, "censored": 0}
+    for s in sim.students:
+        counts[s.status.lower()] += 1
+    return {
+        "id": row.id,
+        "status": row.status,
+        "next_term": row.next_term,
+        "is_finished": sim.is_finished,
+        "working_curriculum": row.working_curriculum,
+        "working_config": row.working_config,
+        # Frames-so-far — same per-term shape as flow_timeline's `frames`, so the frontend can
+        # reuse the exact same rendering (CurriculumGraph etc.) as the baseline dashboard.
+        "frames": sim.history.timeline,
+        "meta": {
+            "graph": build_curriculum_graph(sim.curriculum),
+            "stage_nodes": stage_node_names(sim.config),
+        },
+        # Deliberately NOT the full compute_metrics/flow_timeline_payload pipeline: those are
+        # tuned for a COMPLETE run (admissions recommendation, confidence intervals, "finished
+        # cohort" health criteria) and reading them mid-run would either be misleading or hit an
+        # edge case never exercised on a partial population. A simple status-so-far count is
+        # unambiguous at every step; a richer partial summary is a possible follow-up.
+        "counts_so_far": counts,
+    }
+
+
+def _checkpoint_summary(row: CheckpointSessionRow) -> dict:
+    """Reconstruct the read-only view of a session from its persisted snapshot — used wherever
+    the caller doesn't already have a live Simulator in hand (GET, and after an edit that
+    doesn't itself advance any terms)."""
+    curriculum = _checkpoint_curriculum(row)
+    config = row.working_config
+    scenario = config["scenarios"][0]
+    sim = Simulator.from_snapshot(curriculum, config, scenario, row.snapshot)
+    return _checkpoint_summary_from_sim(row, sim)
+
+
+def _require_checkpoint_session(db: Session, user: User) -> CheckpointSessionRow:
+    row = resolve_active_checkpoint_session(db, user)
+    if row is None:
+        raise HTTPException(status_code=404, detail="No active checkpoint session")
+    return row
+
+
+@app.post("/checkpoint")
+def create_checkpoint(db: Session = Depends(get_db)) -> dict:
+    """Start a new Semester Checkpoint Mode walkthrough from the caller's active plan. Only one
+    active session per user — starting a new one discards any existing active session (the head
+    starts over rather than juggling two in parallel)."""
+    current_user = get_current_user(db)
+    plan_id = resolve_active_plan_id(db, current_user)
+    curriculum = load_curriculum_from_db(db, plan_id)
+    config = load_config_from_db(db, plan_id)
+    scenario = config["scenarios"][0]
+
+    existing = resolve_active_checkpoint_session(db, current_user)
+    if existing is not None:
+        existing.status = "discarded"
+
+    sim = Simulator(curriculum, config, scenario)
+    row = CheckpointSessionRow(
+        user_id=current_user.id,
+        plan_id=plan_id,
+        status="active",
+        next_term=sim._next_term,
+        snapshot=sim.snapshot(),
+        working_curriculum=[_course_to_dict(c) for c in curriculum.values()],
+        working_config=config,
+    )
+    db.add(row)
+    db.commit()
+    return _checkpoint_summary_from_sim(row, sim)
+
+
+@app.get("/checkpoint")
+def get_checkpoint(db: Session = Depends(get_db)) -> dict:
+    row = _require_checkpoint_session(db, get_current_user(db))
+    return _checkpoint_summary(row)
+
+
+class CheckpointEditRequest(BaseModel):
+    """Future-facing knobs only. Deliberately excludes prerequisites/rule_expr/offering/
+    category/study_plan_term (structural — locked, see the prereq-lock note above) and
+    admission_terms/num_cohorts/max_terms/seed (would change the horizon and break the resume
+    cursor) — there is no way to smuggle a structural edit through this endpoint since the
+    fields simply don't exist on this model."""
+    capacity: dict[str, int] = {}
+    pass_rate: dict[str, float] = {}
+    initial_state: dict | None = None
+    cohort_size: int | None = Field(default=None, ge=1)
+    admission_sizes: dict[str, int] | None = None
+
+
+@app.post("/checkpoint/edit")
+def edit_checkpoint(req: CheckpointEditRequest, db: Session = Depends(get_db)) -> dict:
+    """Stage an edit to the session's working curriculum/config. Does not advance any terms —
+    the edit takes effect starting with the next POST /checkpoint/advance. Validated the same
+    way a persisted PUT /curriculum or PUT /config edit is (validate_plan_edits +
+    validate_initial_state), against a COPY of the working state so a rejected edit never
+    touches the stored session."""
+    row = _require_checkpoint_session(db, get_current_user(db))
+    if row.status != "active":
+        raise HTTPException(status_code=422, detail=f"Checkpoint session is {row.status}, not active")
+
+    working_curriculum = copy.deepcopy(row.working_curriculum)
+    by_code = {c["code"]: c for c in working_curriculum}
+    for code, value in req.capacity.items():
+        if code not in by_code:
+            raise HTTPException(status_code=422, detail=f"Unknown course {code!r} in this session")
+        if value < 1:
+            raise HTTPException(status_code=422, detail=f"capacity for {code!r} must be at least 1")
+        by_code[code]["capacity"] = value
+    for code, value in req.pass_rate.items():
+        if code not in by_code:
+            raise HTTPException(status_code=422, detail=f"Unknown course {code!r} in this session")
+        if not (0.0 <= value <= 1.0):
+            raise HTTPException(status_code=422, detail=f"pass_rate for {code!r} must be between 0 and 1")
+        by_code[code]["pass_rate"] = value
+
+    working_config = copy.deepcopy(row.working_config)
+    if req.initial_state is not None:
+        working_config["initial_state"] = req.initial_state
+    if req.cohort_size is not None:
+        working_config["cohort_size"] = req.cohort_size
+    if req.admission_sizes is not None:
+        working_config["admission_sizes"] = req.admission_sizes
+
+    curriculum = {c["code"]: course_from_dict(c) for c in working_curriculum}
+    try:
+        if req.admission_sizes is not None:
+            validate_admissions({"admission_sizes": req.admission_sizes}, working_config)
+        if req.initial_state is not None:
+            validate_initial_state(req.initial_state, working_config)
+        validate_plan_edits(curriculum, working_config)
+    except PlanValidationError as exc:
+        _raise_plan_validation(exc)
+
+    row.working_curriculum = working_curriculum
+    row.working_config = working_config
+    db.commit()
+    return _checkpoint_summary(row)
+
+
+@app.post("/checkpoint/advance")
+def advance_checkpoint(db: Session = Depends(get_db)) -> dict:
+    """Advance the session by exactly one mandatory term, applying whatever edits have been
+    staged since the last advance. No-op (just returns the current state) if the session is
+    already finished."""
+    row = _require_checkpoint_session(db, get_current_user(db))
+    if row.status != "active":
+        raise HTTPException(status_code=422, detail=f"Checkpoint session is {row.status}, not active")
+
+    curriculum = _checkpoint_curriculum(row)
+    config = row.working_config
+    scenario = config["scenarios"][0]
+    sim = Simulator.from_snapshot(curriculum, config, scenario, row.snapshot)
+
+    if not sim.is_finished:
+        sim.step_one_mandatory_term()
+        row.snapshot = sim.snapshot()
+        row.next_term = sim._next_term
+
+    if sim.is_finished:
+        row.status = "completed"
+    db.commit()
+    return _checkpoint_summary_from_sim(row, sim)
+
+
+@app.delete("/checkpoint")
+def discard_checkpoint(db: Session = Depends(get_db)) -> dict:
+    """Discard the active session. The static full-horizon baseline dashboard is completely
+    unaffected — it never reads checkpoint state — so this just returns the head to it."""
+    row = _require_checkpoint_session(db, get_current_user(db))
+    row.status = "discarded"
+    db.commit()
+    return {"ok": True}
 

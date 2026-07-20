@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from sqlalchemy import JSON, DateTime, ForeignKey, String, UniqueConstraint
+from sqlalchemy import JSON, DateTime, ForeignKey, LargeBinary, String, UniqueConstraint
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 
@@ -97,5 +97,33 @@ class Run(Base):
     requested_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow)
     overrides_json: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
     summary_json: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+
+
+class CheckpointSession(Base):
+    """One in-progress "Semester Checkpoint Mode" walkthrough (see CLAUDE.md) — a resumable,
+    turn-based re-run of the active plan where a department head advances one mandatory term at
+    a time and can edit future-facing knobs (capacity/pass_rate/occupancy/intake) between steps.
+
+    `working_curriculum`/`working_config` are a frozen-at-creation COPY of the plan's data
+    (plan-export shape: a list of course dicts + the full config dict), mutated in place only by
+    `POST /checkpoint/edit` — never the live plan's own `Course`/`AppConfig` rows, so a
+    concurrent Settings/Plan edit can't reach into an in-progress session. `snapshot` is the
+    pickled dynamic engine state from `Simulator.snapshot()` (students/history/resume cursor);
+    `next_term` mirrors the same cursor in a queryable column for cheap reads without unpickling.
+    One active session per user, mirroring `User.active_plan_id` — see
+    `src/db.py::resolve_active_checkpoint_session`."""
+
+    __tablename__ = "checkpoint_sessions"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
+    plan_id: Mapped[int] = mapped_column(ForeignKey("plans.id"), nullable=False)  # provenance only
+    status: Mapped[str] = mapped_column(String, default="active")  # active | completed | discarded
+    next_term: Mapped[int] = mapped_column(nullable=False)
+    snapshot: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
+    working_curriculum: Mapped[list] = mapped_column(JSON, nullable=False)
+    working_config: Mapped[dict] = mapped_column(JSON, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow, onupdate=_utcnow)
 
 

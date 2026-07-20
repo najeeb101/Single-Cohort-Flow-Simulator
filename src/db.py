@@ -212,6 +212,25 @@ def resolve_active_plan_id(session: Session, user: db_models.User) -> int:
     return get_or_create_default_plan(session).id
 
 
+def resolve_active_checkpoint_session(
+    session: Session, user: db_models.User
+) -> db_models.CheckpointSession | None:
+    """The caller's current Semester Checkpoint Mode session, if any — "current" meaning not yet
+    discarded, whether it's still `active` (mid-walkthrough) or `completed` (reached the
+    horizon; the head can still view its final frames before discarding it). Unlike
+    `resolve_active_plan_id`, this has no fallback — "no session" is a normal, common state (the
+    dashboard just shows the static full-horizon baseline), not an error to recover from."""
+    return (
+        session.query(db_models.CheckpointSession)
+        .filter(
+            db_models.CheckpointSession.user_id == user.id,
+            db_models.CheckpointSession.status != "discarded",
+        )
+        .order_by(db_models.CheckpointSession.id.desc())
+        .first()
+    )
+
+
 def load_curriculum_from_db(session: Session, plan_id: int) -> dict[str, Course]:
     rows = session.query(db_models.Course).filter_by(plan_id=plan_id).all()
     courses = {

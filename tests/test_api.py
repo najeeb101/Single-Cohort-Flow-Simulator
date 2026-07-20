@@ -47,6 +47,7 @@ def test_meta_shape():
         "registration_tier_thresholds", "enrollment_priority_tiers",
         "year_standing_thresholds", "on_time_terms",
         "admission_targets", "llm_chat_enabled",
+        "checkpoint_active", "checkpoint_next_term",
     }
     assert len(body["graph"]["nodes"]) == len(CURRICULUM)
     assert set(body["course_pass_rates"]) == set(CURRICULUM)
