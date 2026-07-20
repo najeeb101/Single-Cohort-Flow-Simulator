@@ -67,11 +67,10 @@ src/
 ├── scenarios.py          # Persistent /scenarios + /runs endpoints, scoped to the demo user
 ├── curriculum_validation.py  # check_no_cycle() — networkx prerequisite-cycle check for Settings
 │                         # edits and Plan imports; PlanImportError for malformed/cyclic imports
-├── livesim.py             # LiveRunner — deterministic replay engine for stepwise Live Simulation
 ├── optimizer.py           # solve_for_targets() — Auto-fill solver: bounded greedy search for the
 │                         # smallest capacity additions meeting admission_targets at current intake
 ├── api.py                # FastAPI wrapper: /health, /meta, /simulate, /autofill, /scenarios, /runs,
-│                         # /curriculum (GET/POST/PUT/DELETE), /config, /plans, /livesim — no
+│                         # /curriculum (GET/POST/PUT/DELETE), /config, /plans — no
 │                         # login required (see auth.py); see docs/api.md for the full reference
 ├── montecarlo.py         # run_monte_carlo() — mean ± 95% CI over many seeds (parallel across
 │                         # seeds via src/parallel.py; results collected in seed order so they're
@@ -86,9 +85,8 @@ web/                   # Next.js/TypeScript dashboard — talks to src/api.py vi
                        # involved since auth was removed). Includes the animated curriculum graph,
                        # the static figures (ported as React/SVG), saved Scenarios + Run History,
                        # Settings (curriculum CRUD + baseline config editing), Plans (import/
-                       # activate/export/delete alternate curriculum+config combos), the Plan
-                       # Builder wizard (create a new plan from scratch or by cloning the default),
-                       # and the Live Simulation page (stepwise, term-by-term runs).
+                       # activate/export/delete alternate curriculum+config combos), and the Plan
+                       # Builder wizard (create a new plan from scratch or by cloning the default).
 ```
 
 **Dashboard start gate + roadmap layout** (`web/src/lib/SimulationContext.tsx`,
@@ -237,45 +235,6 @@ immediately, no server restart needed. See [Multi-Plan Model](#multi-plan-model)
 - Frontend: `web/src/app/(dashboard)/plans/page.tsx` — list, import (two JSON file uploads + name), activate, export, delete, and a **+ New plan** link into the Plan Builder. Settings' `CurriculumTable` now supports add/delete (not just per-course edits) via the shared `web/src/components/CourseFormFields.tsx`. In Settings it also renders **`pass_rate`, `capacity`, and initial `occupancy` as inline-editable columns** (deferred `NumberBox` edits, dirty-highlighted, persisted together on "Save as new baseline" — pass rate/capacity via per-course `PUT /curriculum`, occupancy via `PUT /config`); the structural edit form (title/prereqs/offering/rule/plan-term) opens as an **expansion row beneath** the course row so those inline cells stay visible while editing, and `CourseFormFields` hides its own pass-rate/capacity inputs there (`hidePassRate`/`hideCapacity`) to keep a single edit path.
 - **Plan Builder** (`web/src/app/(dashboard)/plan-builder/page.tsx`, `web/src/components/plan-builder/`): a 4-step wizard (name & seed → courses → config → review/save) for building a plan entirely client-side before the one and only network write (`POST /plans/import`, optionally followed by activate). "Seed" clones the default plan's `{curriculum, config}` via `GET /plans/{id}/export`, or starts blank (`web/src/lib/planBuilder.ts::BLANK_CONFIG`); the config step reuses the Scenario Builder's `AdmissionsTab`/`PassRatesDropoutTab`/`RegistrationPolicyTab` over a `BuilderState` built from the cloned/blank config (`metaFromPlanExport`).
 - Distinct from the Scenario Builder (ephemeral per-run overrides on top of whatever plan is active) and Settings (in-place edits to the *active* plan's curriculum/config, persisted immediately per edit).
-
-## Live Simulation Model (stepwise / "each term is a status")
-
-- Alongside the instant `/simulate` (which runs the whole window at once), a **live simulation**
-  runs **one term at a time**, persists each term as a reviewable snapshot, and is **advanced
-  manually**. It models the admin-department workflow: review a term, adjust knobs, advance.
-- **Persistence** (`src/db_models.py`): `LiveSimulation` (per `plan_id`, `created_by_user_id`,
-  `name`, `current_term` [None until the first advance], `status` active|finished, frozen
-  `base_config`/`base_scenario`, and an append-only `edits` list) + `LiveTermSnapshot` (one row
-  per advanced term: the `flow_timeline` `frame`, a cheap running `summary`, and the
-  `edits_applied` that took effect entering it). **Shared within a plan** — any user whose active
-  plan == the live sim's `plan_id` can view/advance it.
-- **Deterministic replay** (`src/livesim.py::LiveRunner`): no fragile engine-state
-  serialization. Each `edits` entry is `{effective_from_term, patch}` where patch holds the
-  editable knobs (`capacity_overrides`, `pass_rate_overrides`, `offering_overrides`,
-  `cohort_size`). `capacity_overrides` is a per-course seat multiplier on top of the course's
-  own `capacity` (`Simulator._effective_capacity`), sent diff-style — a course absent from it
-  is untouched. Advancing to term N **replays from term 0**, folding each patch only
-  from its `effective_from_term` onward, and takes the newly-reached term's frame. Because edits
-  apply forward-only, earlier terms reproduce byte-identically, so previously-saved snapshots stay
-  valid (the core correctness property, covered by `tests/test_livesim.py`). `cohort_size` edits
-  use `_TimeVaryingCohortDataSource` so only cohorts admitted at/after the edit term resize.
-- **Engine hook**: `Simulator.__init__` takes an optional `overlay_provider:
-  Callable[[int], (config_patch, scenario_patch)]` (default `None`). On `None` the engine is
-  byte-identical to before (all prior callers/tests unaffected); `LiveRunner` is the only real
-  caller, applying the cumulative patch per term via `Simulator._apply_overlay`.
-- **API** (`src/api.py`): `POST /livesim` (create, no term run yet), `GET /livesim` (list for the
-  active plan), `GET /livesim/{id}` (`{live_sim, meta:{graph,stage_nodes,cohorts,initial_state},
-  snapshots}`), `POST /livesim/{id}/advance` (`{edits?}` → simulate next term, returns
-  `{live_sim, snapshot}`; 409 at the horizon), `DELETE /livesim/{id}` (creator only). `frame` is
-  the same per-term shape `/simulate` emits, so the frontend renders snapshots with the existing
-  components unchanged.
-- **Frontend** (`web/src/app/live/`, `web/src/components/live/`): the **Live Simulation** page
-  (its own route group *outside* `(dashboard)` so it isn't behind the dashboard's Start gate) —
-  create/list sims, current-term status on the program roadmap (`CurriculumGraph`) + stage flow
-  (`StageOverview`), an "Advance to next term" button, a collapsible edits panel for the four
-  knobs (diff-only, like the Scenario Builder), a read-only history scrubber over saved terms, and
-  a "Live" nav link. Reached via `web/src/lib/api.ts`'s `listLiveSims`/`createLiveSim`/
-  `getLiveSim`/`advanceLiveSim`/`deleteLiveSim`.
 
 ## Per-Term Loop (three phases)
 

@@ -238,7 +238,7 @@ visualize.py                       service.py::run_simulation()
                                   LLM chat with what-if Test/Apply on proposed
                                   changes), Bottlenecks (section recommendations +
                                   Auto-fill solver), Student Trace, Settings
-                                  (curriculum + config editing), Live Simulation, Plans
+                                  (curriculum + config editing), Plans
 ```
 
 There is only **one** simulation engine. The offline batch run and the live web dashboard call the
@@ -388,10 +388,6 @@ identical seeds per student so the *differences* between scenarios are real even
   were ever on probation — and see their exact term-by-term path: courses taken and passed or
   failed, where they got stuck and by which of the four signals, and how their GPA moved. The
   individual complement to every other page's aggregates.
-- **Live Simulation** — advance the university one semester at a time instead of running the
-  whole window at once, reviewing each term's results and adjusting capacity/policy knobs before
-  advancing, useful for walking through the model's behavior term by term rather than reading one
-  instant report.
 - **Plans** — more than one full curriculum + configuration combination can exist at once (e.g.
   to compare the current 2024 study plan against a hypothetical revised one), each fully
   independent, importable/exportable via the Plan Builder.

@@ -375,11 +375,9 @@ src/
 │                         # analytics.py derivation, in memory, zero file I/O
 ├── optimizer.py          # solve_for_targets() — Auto-fill's bounded greedy capacity search
 │                         # (§11.10)
-├── livesim.py            # LiveRunner — deterministic term-by-term replay for Live Simulation
-│                         # (§11 does not cover this; see CLAUDE.md's "Live Simulation Model")
 ├── db.py / db_models.py  # SQLAlchemy engine/session + User/Plan/Course/AppConfig/
-│                         # Scenario/Run/LiveSimulation/LiveTermSnapshot tables (per-plan,
-│                         # multi-plan support) — see docs/database.md for the full schema
+│                         # Scenario/Run tables (per-plan, multi-plan support) — see
+│                         # docs/database.md for the full schema
 ├── auth.py               # get_current_user — a stub shared demo user today, not real
 │                         # login/JWT (that was built, then removed in a later simplification
 │                         # pass; the DB/route plumbing for it is gone from api.py)
@@ -389,7 +387,7 @@ src/
 │                         # presets), scoped to the demo user
 ├── api.py                # FastAPI wrapper: /health, /meta, /simulate,
 │                         # /simulate/students/search + /{id}/trace, /autofill, /curriculum,
-│                         # /config, /plans, /livesim — every route resolves the requester's
+│                         # /config, /plans — every route resolves the requester's
 │                         # active Plan fresh, no cached globals; see docs/api.md
 ├── montecarlo.py         # run_monte_carlo() — mean ± 95% CI over many seeds
 ├── visualize.py          # save_all_figures() + per-figure functions (offline `py run.py` path)
@@ -398,7 +396,7 @@ src/
 web/         Next.js/TypeScript dashboard — Dashboard, Advisor (grounded LLM chat + what-if
              Test/Apply on proposed changes), Bottlenecks (capacity recommendations + Auto-fill
              solver), Student Trace, Cohorts, Figures, Prerequisites, Settings (curriculum +
-             config editing), Plans/Plan Builder, Run History, Live Simulation
+             config editing), Plans/Plan Builder, Run History
 run.py       # entry point: load -> run_simulation() per scenario -> save figures + CSV
 ```
 
@@ -415,7 +413,7 @@ A single `baseline` scenario ships in `simulation_config.json` (renamed from an 
 `capacity_multiplier` field allows a future scenario to scale all capacities uniformly.
 Per-course overrides are supported via `capacity_overrides`, `offering_overrides`, and
 `pass_rate_overrides` in a scenario/override dict — these are the hooks the Advisor's what-if
-(Test on a proposed change) and Live Simulation's edits both build on.
+(Test on a proposed change) builds on.
 
 ---
 

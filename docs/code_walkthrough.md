@@ -21,7 +21,6 @@ every edit) — search for the quoted signature instead.
 | `src/analytics.py` | Every derived metric/report/JSON payload, no simulation logic |
 | `src/service.py` | `run_simulation()` — the in-memory, zero-file-I/O API boundary |
 | `src/optimizer.py` | `solve_for_targets()` — Auto-fill's bounded greedy capacity search |
-| `src/livesim.py` | `LiveRunner` — deterministic term-by-term replay for Live Simulation |
 | `src/montecarlo.py` | `run_monte_carlo()` — re-run across seeds for CIs |
 | `src/curriculum_validation.py` | `check_no_cycle()` — prerequisite-cycle guard |
 | `src/scenarios.py` | Persistent `/scenarios` + `/runs` endpoints, scoped to the demo user |
@@ -293,9 +292,8 @@ def create_students(self, spec: CohortSpec) -> list[Student]:
 ```
 
 This interface is why a hypothetical `RealDataSource` (reading a real SIS export) could plug in
-without touching `Simulator` at all — it's unbuilt today, but the seam is real and load-bearing:
-`LiveRunner`'s `_TimeVaryingCohortDataSource` (§7) is a second, real implementation already living
-in the codebase, proving the interface works for more than the one synthetic case.
+without touching `Simulator` at all — the seam exists specifically so population creation stays
+decoupled from the engine loop.
 
 Also defined here: the canonical `StudentRecord`/`EnrollmentRecord`/`OutcomeRecord` dataclasses —
 a portable schema deliberately leaner than the internal `Student` (no RNG stream, no ability
@@ -402,62 +400,7 @@ def run_monte_carlo(curriculum, config, scenario) -> dict:
 
 ---
 
-## 9. Live Simulation replay (`src/livesim.py`)
-
-The whole mechanism in one sentence: **advancing to term N replays the engine from term 0**,
-folding in every edit whose `effective_from_term <= N`, so earlier terms reproduce
-byte-identically no matter how many later edits are added.
-
-```python
-CONFIG_PATCH_KEYS = ("cohort_size",)
-SCENARIO_PATCH_KEYS = ("pass_rate_overrides", "offering_overrides", "capacity_overrides")
-
-def _cumulative_patch(edits: list[dict], term_idx: int) -> dict:
-    applicable = sorted(
-        (e for e in edits if e.get("effective_from_term", 0) <= term_idx),
-        key=lambda e: e.get("effective_from_term", 0),
-    )
-    merged: dict = {}
-    for edit in applicable:
-        merged.update(edit.get("patch") or {})
-    return merged
-```
-
-This cumulative patch is turned into an `OverlayProvider` — a plain closure matching
-`simulator.py`'s hook type (`Callable[[int], tuple[dict, dict]]`) — and handed to `Simulator`:
-
-```python
-sim = Simulator(
-    self.curriculum, config, scenario,
-    data_source=data_source, overlay_provider=overlay_provider,
-)
-```
-
-Inside `Simulator.run()`, that hook is invoked once per term via `_apply_overlay`, which
-recomputes `self.config`/`self.scenario` fresh from the **untouched base** every time (never
-compounding onto a previous term's already-patched dict):
-
-```python
-def _apply_overlay(self, term_idx: int) -> None:
-    if self.overlay_provider is None:
-        return
-    config_patch, scenario_patch = self.overlay_provider(term_idx)
-    self.config = {**self._base_config, **(config_patch or {})}
-    self.scenario = {**self._base_scenario, **(scenario_patch or {})}
-```
-
-When `overlay_provider` is `None` (every caller except `LiveRunner`), this is a no-op and
-`Simulator` behaves exactly as if the hook didn't exist — the entire Live Simulation feature is
-additive to the core engine, not a fork of it.
-
-`cohort_size` edits need special handling because it changes *population creation*, not a
-per-term config value — `_TimeVaryingCohortDataSource` looks up the cohort-size-in-effect at each
-cohort's own entry term, so a cohort admitted before an edit keeps the size it was actually
-admitted with even after a later edit changes `cohort_size` going forward.
-
----
-
-## 10. Persistence (`src/db_models.py`)
+## 9. Persistence (`src/db_models.py`)
 
 SQLAlchemy 2.0-style `Mapped[...]` models. The load-bearing relationship: `Course`/`AppConfig`
 are all scoped to a `plan_id`, not global rows —
@@ -474,14 +417,9 @@ class Course(Base):
 define their own course with the same code. `User.active_plan_id` is what makes "which plan am I
 looking at" a per-user setting rather than one shared mutable global.
 
-`LiveSimulation`/`LiveTermSnapshot` back Live Simulation: `base_config`/`base_scenario` are frozen
-at creation and never mutated in place; every forward change is an append-only row in `edits`,
-consumed by `LiveRunner.replay()` (§9) — never by editing the base dicts directly, which is what
-keeps earlier snapshots valid.
-
 ---
 
-## 11. API surface (`src/api.py`)
+## 10. API surface (`src/api.py`)
 
 Every route resolves `(curriculum, config)` fresh per request from the requesting user's *active*
 `Plan` — there is no module-level cache, so two users on two different active plans never share
@@ -495,9 +433,8 @@ mutable state or race each other.
 | `GET/POST/PUT/DELETE /curriculum[/{code}]` | curriculum CRUD on the active plan, cycle-checked |
 | `GET/PUT /config` | active plan's baseline `AppConfig` |
 | `GET /plans`, `POST /plans/import`, `POST /plans/{id}/activate`, `DELETE /plans/{id}`, `GET /plans/{id}/export` | multi-plan management |
-| `POST /livesim`, `GET /livesim[/{id}]`, `POST /livesim/{id}/advance`, `DELETE /livesim/{id}` | Live Simulation |
-| `POST /autofill` | Auto-fill solver (read-only; see §14) |
-| `POST /simulate/students/search`, `POST /simulate/students/{id}/trace` | per-student trace (§15) |
+| `POST /autofill` | Auto-fill solver (read-only; see §13) |
+| `POST /simulate/students/search`, `POST /simulate/students/{id}/trace` | per-student trace (§14) |
 
 `get_current_user` (`src/auth.py`) is a dependency on every route except `/health` — today it's a
 stub that gets-or-creates one shared `demo@local` user rather than checking a real
@@ -507,7 +444,7 @@ re-introducing real auth later would only mean swapping this one function's impl
 
 ---
 
-## 12. Analytics (`src/analytics.py`)
+## 11. Analytics (`src/analytics.py`)
 
 No simulation logic lives here — every function is a pure derivation over a finished
 `SimulationResult`:
@@ -518,17 +455,17 @@ No simulation logic lives here — every function is a pure derivation over a fi
 | `compute_cohort_metrics(result)` | the same, per `cohort_id` |
 | `compute_historical_transcripts(result, incumbents_only=True)` | canonical `StudentRecord`/`EnrollmentRecord`/`OutcomeRecord` export |
 | `compute_admissions_recommendation(result)` | binding-constraint intake-scaling heuristic |
-| `evaluate_health_criteria(result)` | the four admission-health criteria + slack, shared by the admissions recommendation, Advisor, and Auto-fill (§14) |
+| `evaluate_health_criteria(result)` | the four admission-health criteria + slack, shared by the admissions recommendation, Advisor, and Auto-fill (§13) |
 | `build_course_utilization(result)` | per-course seat utilization for the heatmap |
 | `build_curriculum_graph(curriculum)` | node/edge graph for the prerequisite network + roadmap |
 | `flow_timeline_payload(result, curriculum)` | the full frontend contract (`meta`/`frames`/`summary`) |
-| `find_students_matching(result, ...)` | candidate summaries for the per-student trace picker (§15) |
-| `compute_student_trace(result, curriculum, student_id)` | one student's full term-by-term journey (§15) |
+| `find_students_matching(result, ...)` | candidate summaries for the per-student trace picker (§14) |
+| `compute_student_trace(result, curriculum, student_id)` | one student's full term-by-term journey (§14) |
 | `build_summary_csv` / `build_cohort_flow_csv` / `build_cohort_summary_csv` / `build_course_utilization_csv` / `build_monte_carlo_csv` | the offline `outputs/reports/*.csv` writers |
 
 ---
 
-## 13. End-to-end data flow
+## 12. End-to-end data flow
 
 ```
 data/curriculum.json, simulation_config.json
@@ -539,8 +476,8 @@ data/app.db (SQLite)  ── per-plan Course/AppConfig rows
         ├─ py run.py:  load from disk → run_simulation() per scenario
         │              → analytics.py CSV/JSON writers + visualize.py figures → outputs/
         │
-        └─ src/api.py: resolve active Plan → run_simulation() (or LiveRunner.replay()
-                        for /livesim) → flow_timeline dict → JSON response
+        └─ src/api.py: resolve active Plan → run_simulation()
+                        → flow_timeline dict → JSON response
                                               │
                                               ▼
                                    web/ (Next.js) renders the same
@@ -548,15 +485,14 @@ data/app.db (SQLite)  ── per-plan Course/AppConfig rows
 ```
 
 There is exactly **one** simulation engine (`Simulator`); everything above and below it is
-either population supply (`DataSource`), replay orchestration (`LiveRunner`), or reporting
-(`analytics.py`/`visualize.py`/`api.py`).
+either population supply (`DataSource`) or reporting (`analytics.py`/`visualize.py`/`api.py`).
 
 ---
 
-## 14. Advisor + Auto-fill (`src/optimizer.py`)
+## 13. Advisor + Auto-fill (`src/optimizer.py`)
 
 Both read the same admission-health slack, `evaluate_health_criteria` (`src/analytics.py`,
-§12) computed against `config['admission_targets']` — the same four criteria the admissions
+§11) computed against `config['admission_targets']` — the same four criteria the admissions
 recommendation scores.
 
 **Advisor** is frontend-only: `web/src/components/AdvisorPanel.tsx` derives its prioritized
@@ -576,12 +512,12 @@ for iteration in range(run_budget):
 (Illustrative — see the real function for the exact loop and bookkeeping.) It targets only
 `seats_denied_per_stud` — the one criterion capacity actually fixes — and reports any other
 breach (grad rate, time-to-degree, throughput stability) as non-capacity rather than papering
-over it with more seats. `POST /autofill` (§11) is read-only; the frontend panel applies the
+over it with more seats. `POST /autofill` (§10) is read-only; the frontend panel applies the
 winning capacities itself via the existing `PUT /curriculum/{code}` + `PUT /config` writes.
 
 ---
 
-## 15. Per-student trace (`src/analytics.py`, `src/api.py`)
+## 14. Per-student trace (`src/analytics.py`, `src/api.py`)
 
 Inverts every other section in this document: instead of a population aggregate, one student's
 exact term-by-term path.
@@ -612,7 +548,7 @@ if self.record_traces:
 status, ever-probation) — no trace recording needed, so it's an ordinary cheap run.
 `compute_student_trace(result, curriculum, student_id)` re-runs with `record_traces=True` and
 zips `transcript`/`block_events`/`student_term_states` together by `term`, keyed off one
-`student_id`. Both endpoints (§11) re-run the deterministic engine from the request's overrides
+`student_id`. Both endpoints (§10) re-run the deterministic engine from the request's overrides
 rather than reading anything persisted — CRN (§4) makes the reproduction exact, and a run is
 cheap enough (~0.4s at the shipped cohort sizes) that this costs less than keeping a per-run
 cache correct would.

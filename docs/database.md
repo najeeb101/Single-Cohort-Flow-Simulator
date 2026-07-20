@@ -17,10 +17,7 @@ User ──< active_plan_id >── Plan ──< plan_id >── Course
   │                           └──< plan_id >── AppConfig  (1:1 — one config row per plan)
   │
   ├──< owner_user_id >── Scenario
-  ├──< user_id >── Run
-  └──< created_by_user_id >── LiveSimulation ──< live_sim_id >── LiveTermSnapshot
-                                  │
-                                  └── plan_id (FK to Plan — shared within a plan, not owner-scoped)
+  └──< user_id >── Run
 ```
 
 ### `users`
@@ -99,38 +96,6 @@ summary).
 | `requested_at` | datetime | |
 | `overrides_json` | JSON | the `ScenarioRequest` that was sent |
 | `summary_json` | JSON | `{metrics, admissions_recommendation}` |
-
-### `live_simulations`
-A stepwise, term-by-term simulation run — see `docs/technical_design.md`'s Live Simulation Model
-for the deterministic-replay design this supports. **Shared within a plan**, not owner-scoped:
-any request whose active plan matches `plan_id` can view/advance it.
-
-| Column | Type | Notes |
-|---|---|---|
-| `id` | PK | |
-| `plan_id` | FK → `plans.id` | |
-| `created_by_user_id` | FK → `users.id` | only this user may `DELETE` it |
-| `name` | string | |
-| `current_term` | int, nullable | `null` until the first `/advance` call |
-| `status` | string | `active` \| `finished` |
-| `base_config`, `base_scenario` | JSON | frozen at creation; **never mutated** — forward changes go through `edits` instead |
-| `edits` | JSON list | append-only `{effective_from_term, patch}` entries consumed by `LiveRunner.replay` |
-| `created_at` | datetime | |
-
-### `live_term_snapshots`
-One row per term the sim has advanced through. Unique on `(live_sim_id, term_index)` since
-`/advance` only ever appends the next term in order.
-
-| Column | Type | Notes |
-|---|---|---|
-| `id` | PK | |
-| `live_sim_id` | FK → `live_simulations.id` | |
-| `term_index` | int | |
-| `season`, `label` | string | e.g. `"Fall"`, `"Fall 2027"` |
-| `frame` | JSON | the same per-term shape `/simulate`'s `flow_timeline.frames[i]` uses |
-| `summary` | JSON, nullable | cheap running counts (active/graduated/dropped/censored) off `frame` alone |
-| `edits_applied` | JSON | exactly which edit patch (if any) took effect entering this term |
-| `created_at` | datetime | |
 
 ## Migrations
 

@@ -63,8 +63,8 @@ Returns everything the dashboard needs before running a simulation, resolved fro
 ## Run a simulation
 
 ### `POST /simulate`
-Runs the engine once (full window, not stepwise — see Live Simulation below for term-by-term)
-against the active plan's curriculum, with any of the following fields in the body overriding
+Runs the engine once (full window) against the active plan's curriculum, with any of the
+following fields in the body overriding
 the plan's base config/scenario (all optional; omit a field to use the plan's value):
 
 | Field | Type | Meaning |
@@ -219,36 +219,6 @@ Round-trips back to the same `{curriculum, config}` shape `POST /plans/import` a
 ### `DELETE /plans/{plan_id}`
 Owner only, and never the default plan. If it was the caller's active plan, the caller is
 reassigned to the default plan first.
-
----
-
-## Live Simulation (stepwise)
-
-See `docs/technical_design.md`'s Live Simulation Model for the replay design this is built on.
-Shared within a plan — any request against the plan currently active is allowed to view/advance.
-
-### `POST /livesim`
-Body: `{name, initial_state?}`. Freezes the active plan's `(config, scenario)` as
-`base_config`/`base_scenario` at creation time; `current_term` starts `null` (nothing simulated
-yet).
-
-### `GET /livesim`
-List live sims for the active plan, each with `total_terms` (the full horizon, precomputed).
-
-### `GET /livesim/{id}`
-Returns `{live_sim, meta: {graph, stage_nodes, cohorts, initial_state, baseline_trajectory},
-snapshots}` — `baseline_trajectory` is what an unedited replay looks like, for comparison against
-the actually-edited snapshots.
-
-### `POST /livesim/{id}/advance`
-Body: `{edits?: {pass_rate_overrides?, offering_overrides?, cohort_size?, capacity_overrides?}}`.
-Appends the edit (tagged `effective_from_term`) and replays from term 0 through the next term,
-persisting one `LiveTermSnapshot`. `409` if the sim already finished or the next term is past its
-horizon. `500` if replay doesn't land on the expected term (an engine-invariant violation, not a
-normal user error).
-
-### `DELETE /livesim/{id}`
-Creator only — `403` otherwise.
 
 ---
 
