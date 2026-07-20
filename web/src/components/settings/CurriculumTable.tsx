@@ -41,6 +41,13 @@ interface RowProps {
   occupancy?: DeferredCol;
   passRate?: DeferredCol; // when set, Pass rate is inline-editable (and dropped from the edit form)
   capacity?: DeferredCol; // when set, Capacity is inline-editable (and dropped from the edit form)
+  // Hides the Edit/Delete buttons and the structural expansion row entirely — not just a UI
+  // nicety: that expansion form's Save/Delete call updateCourse/deleteCourse (PUT/DELETE
+  // /curriculum), which write straight to the ACTIVE PLAN. A caller composing this table over
+  // a Semester Checkpoint Mode session's working_curriculum (not the live plan) must set this,
+  // or a click there would silently mutate the wrong thing. Only the deferred inline columns
+  // above (still owned by the parent's onChange callbacks) stay available.
+  structuralEditsDisabled?: boolean;
   onSaved: (updated: CourseRecord) => void;
   onDeleted: (code: string) => void;
 }
@@ -86,7 +93,7 @@ function CapacityCell({ cap }: { cap: DeferredCol }) {
   );
 }
 
-function CurriculumRow({ course, allCourseCodes, knownCategories, seasons, colSpan, occupancy, passRate, capacity, onSaved, onDeleted }: RowProps) {
+function CurriculumRow({ course, allCourseCodes, knownCategories, seasons, colSpan, occupancy, passRate, capacity, structuralEditsDisabled, onSaved, onDeleted }: RowProps) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState<CourseRecord>(course);
   const [error, setError] = useState<string | null>(null);
@@ -153,24 +160,26 @@ function CurriculumRow({ course, allCourseCodes, knownCategories, seasons, colSp
         {capacity ? <CapacityCell cap={capacity} /> : <td className="border-b border-border px-3 py-2 tabular-nums text-muted">{course.capacity}</td>}
         {occupancy && <OccupancyCells capacity={capacity ? capacity.value : course.capacity} occ={occupancy} />}
         <td className="border-b border-border px-3 py-2">
-          <div className="flex justify-end gap-3">
-            <button
-              type="button"
-              onClick={editing ? () => setEditing(false) : startEdit}
-              disabled={busy}
-              className="font-semibold text-accent disabled:opacity-50"
-            >
-              {editing ? "Close" : "Edit"}
-            </button>
-            <button type="button" onClick={remove} disabled={busy} className="font-semibold text-bad disabled:opacity-50">
-              Delete
-            </button>
-          </div>
+          {!structuralEditsDisabled && (
+            <div className="flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={editing ? () => setEditing(false) : startEdit}
+                disabled={busy}
+                className="font-semibold text-accent disabled:opacity-50"
+              >
+                {editing ? "Close" : "Edit"}
+              </button>
+              <button type="button" onClick={remove} disabled={busy} className="font-semibold text-bad disabled:opacity-50">
+                Delete
+              </button>
+            </div>
+          )}
           {error && !editing && <p className="mt-1 text-right text-sm text-bad">{error}</p>}
         </td>
       </tr>
 
-      {editing && (
+      {editing && !structuralEditsDisabled && (
         <tr>
           <td colSpan={colSpan} className="border-b border-border bg-surface-2 px-3 py-3">
             <CourseFormFields value={draft} allCourseCodes={allCourseCodes} knownCategories={knownCategories} seasons={seasons} onChange={setDraft} hidePassRate={!!passRate} hideCapacity={!!capacity} lockPrerequisites />
@@ -303,6 +312,7 @@ export default function CurriculumTable({
   capacities,
   baselineCapacities,
   onCapacityChange,
+  structuralEditsDisabled,
 }: {
   courses: CourseRecord[];
   onChange: (next: CourseRecord[]) => void;
@@ -319,6 +329,11 @@ export default function CurriculumTable({
   capacities?: Record<string, number>;
   baselineCapacities?: Record<string, number>;
   onCapacityChange?: (code: string, value: number) => void;
+  // Hides Add/Delete and the structural edit form everywhere in the table (see CurriculumRow's
+  // prop doc) — required when composing this table over a Semester Checkpoint Mode session's
+  // working_curriculum instead of the live plan, since those actions write straight to
+  // PUT/POST/DELETE /curriculum on the active plan.
+  structuralEditsDisabled?: boolean;
 }) {
   const knownCategories = Array.from(new Set(courses.map((c) => c.category))).filter(Boolean).sort();
   const hasOccupancy = onOccupancyChange !== undefined;
@@ -392,11 +407,14 @@ export default function CurriculumTable({
                     }
                   : undefined
               }
+              structuralEditsDisabled={structuralEditsDisabled}
               onSaved={handleSaved}
               onDeleted={handleDeleted}
             />
           ))}
-          <AddCourseRow allCourseCodes={courses.map((c) => c.code)} knownCategories={knownCategories} seasons={seasons} colSpan={colSpan} onAdded={handleAdded} />
+          {!structuralEditsDisabled && (
+            <AddCourseRow allCourseCodes={courses.map((c) => c.code)} knownCategories={knownCategories} seasons={seasons} colSpan={colSpan} onAdded={handleAdded} />
+          )}
         </tbody>
       </table>
     </div>

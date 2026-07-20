@@ -274,6 +274,43 @@ export interface MetaResponse {
   };
   // Phase B: whether the optional LLM advisor chat is configured on the backend (LLM_API_KEY set).
   llm_chat_enabled?: boolean;
+  // Whether the caller has an in-progress Semester Checkpoint Mode session — see CheckpointState.
+  checkpoint_active?: boolean;
+  checkpoint_next_term?: number | null;
+}
+
+// Semester Checkpoint Mode (see CLAUDE.md): a turn-based, resumable re-run of the active plan.
+// One step = one mandatory term; between steps the department head may edit future-facing
+// knobs only (capacity/pass_rate/occupancy/intake) via checkpointEdit(). Mirrors
+// src/api.py's _checkpoint_summary_from_sim payload shape.
+export interface CheckpointCounts {
+  active: number;
+  delayed: number;
+  graduated: number;
+  dropped: number;
+  censored: number;
+}
+
+export interface CheckpointState {
+  id: number;
+  status: "active" | "completed" | "discarded";
+  next_term: number;
+  is_finished: boolean;
+  working_curriculum: CourseRecord[];
+  working_config: Record<string, unknown> & { initial_state?: InitialState };
+  frames: Frame[];
+  meta: { graph: Graph; stage_nodes: string[] };
+  counts_so_far: CheckpointCounts;
+}
+
+// Whitelisted future-facing edit — mirrors src/api.py's CheckpointEditRequest. Every field is
+// optional; only the ones present are changed.
+export interface CheckpointEdit {
+  capacity?: Record<string, number>;
+  pass_rate?: Record<string, number>;
+  initial_state?: InitialState;
+  cohort_size?: number;
+  admission_sizes?: Record<string, number>;
 }
 
 export interface AdvisorChatMessage {

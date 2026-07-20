@@ -2,6 +2,8 @@ import type {
   AdvisorChatMessage,
   AdvisorChatResponse,
   AutofillResult,
+  CheckpointEdit,
+  CheckpointState,
   CourseCreate,
   CourseRecord,
   CourseUpdate,
@@ -226,4 +228,30 @@ export function renamePlan(id: number, name: string): Promise<PlanRecord> {
 
 export function exportPlan(id: number): Promise<PlanExportPayload> {
   return fetch(`${API_BASE}/plans/${id}/export`).then((res) => asJson<PlanExportPayload>(res));
+}
+
+// Semester Checkpoint Mode (see CLAUDE.md): a turn-based, resumable re-run of the active plan,
+// separate from the baseline /simulate path (no Run row is written for any of these).
+export function getCheckpoint(): Promise<CheckpointState> {
+  return fetch(`${API_BASE}/checkpoint`).then((res) => asJson<CheckpointState>(res));
+}
+
+export function createCheckpoint(): Promise<CheckpointState> {
+  return fetch(`${API_BASE}/checkpoint`, { method: "POST" }).then((res) => asJson<CheckpointState>(res));
+}
+
+export function editCheckpoint(patch: CheckpointEdit): Promise<CheckpointState> {
+  return fetch(`${API_BASE}/checkpoint/edit`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(patch),
+  }).then((res) => asJson<CheckpointState>(res));
+}
+
+export function advanceCheckpoint(): Promise<CheckpointState> {
+  return fetch(`${API_BASE}/checkpoint/advance`, { method: "POST" }).then((res) => asJson<CheckpointState>(res));
+}
+
+export function discardCheckpoint(): Promise<void> {
+  return fetch(`${API_BASE}/checkpoint`, { method: "DELETE" }).then((res) => asJson<void>(res));
 }

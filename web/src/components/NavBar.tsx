@@ -14,6 +14,7 @@ type NavLink = { href: string; label: string };
 const PRIMARY_LINKS: NavLink[] = [
   { href: "/", label: "Dashboard" },
   { href: "/bottlenecks", label: "Bottlenecks" },
+  { href: "/checkpoint", label: "Checkpoint" },
 ];
 
 const GROUPS: { label: string; links: NavLink[] }[] = [
