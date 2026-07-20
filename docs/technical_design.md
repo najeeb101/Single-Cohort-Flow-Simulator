@@ -393,10 +393,11 @@ src/
 ├── visualize.py          # save_all_figures() + per-figure functions (offline `py run.py` path)
 └── utils.py              # load_json(), grade_tier()
 
-web/         Next.js/TypeScript dashboard — Dashboard, Advisor (grounded LLM chat + what-if
-             Test/Apply on proposed changes), Bottlenecks (capacity recommendations + Auto-fill
-             solver), Student Trace, Cohorts, Figures, Prerequisites, Settings (curriculum +
-             config editing), Plans/Plan Builder, Run History
+web/         Next.js/TypeScript dashboard — Dashboard (Semester Checkpoint Mode: advance one
+             semester at a time, editing capacity/pass rate/occupancy/intake between steps),
+             Advisor (grounded LLM chat + what-if Test/Apply on proposed changes), Bottlenecks
+             (capacity recommendations + Auto-fill solver), Student Trace, Figures, Settings
+             (curriculum + config editing), Plans/Plan Builder, Run History
 run.py       # entry point: load -> run_simulation() per scenario -> save figures + CSV
 ```
 
