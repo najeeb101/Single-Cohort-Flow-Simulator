@@ -110,7 +110,7 @@ export default function InitialStateGate({ meta, onComplete }: Props) {
         </button>
         <span className="mt-1 max-w-lg text-xs leading-relaxed text-muted">
           Change these anytime in <span className="font-medium text-ink/80">Settings</span> ·
-          step through it term-by-term in <span className="font-medium text-ink/80">Live</span> ·
+          step through it term-by-term on the <span className="font-medium text-ink/80">Dashboard</span> ·
           find &amp; fix delays in <span className="font-medium text-ink/80">Bottlenecks</span>.
         </span>
         {error && <span className="text-xs text-bad">{error}</span>}

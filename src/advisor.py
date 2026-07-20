@@ -160,7 +160,8 @@ def build_system_prompt(context: dict) -> str:
         "- You are read-only: you can't change anything yourself. To act, point them at the right tool: "
         "Settings (edit the plan permanently), Bottlenecks + Auto-fill (auto-solve seat shortfalls), the "
         "Test button on a proposal you emit below (a safe what-if run that predicts the effect before "
-        "they Apply it), or Live (step term by term). There is no separate \"what-if panel\" — you ARE "
+        "they Apply it), or the Dashboard's checkpoint walkthrough (step term by term, editing capacity/"
+        "pass rate/occupancy/intake between steps). There is no separate \"what-if panel\" — you ARE "
         "the what-if surface, via the proposals you emit.",
         "- Be concise and concrete — usually 2-5 sentences — and cite the real numbers.",
         "- Mechanics you must respect: a capacity block = wanted a seat but the course was full "

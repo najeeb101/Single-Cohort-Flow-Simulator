@@ -4,7 +4,7 @@ import type { CourseRecord, RuleExpr } from "@/types/simulation";
 import RuleExprEditor from "./settings/RuleExprEditor";
 
 // The seasons a course may be offered in default to the legacy Fall/Spring cycle; callers that
-// know the plan's real calendar pass its `terms_per_year` (Settings/Live via `/meta`, Plan
+// know the plan's real calendar pass its `terms_per_year` (Settings via `/meta`, Plan
 // Builder via the plan being composed) so this list is never hardcoded to one season set.
 const DEFAULT_SEASONS = ["Fall", "Spring"];
 
