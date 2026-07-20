@@ -54,9 +54,15 @@ from src.db_models import Plan as PlanRow
 from src.db_models import Run, User
 from src.models.course import Course
 from src.models.semester import DEFAULT_TERMS, admission_seasons, get_mandatory_seasons
-from src.models.student import standing_levels
 from src.montecarlo import run_monte_carlo
 from src.optimizer import DEFAULT_RUN_BUDGET, MAX_RUN_BUDGET, solve_for_targets
+from src.plan_validation import (
+    PlanValidationError,
+    validate_admissions,
+    validate_initial_state,
+    validate_plan_edits,
+    validate_prerequisites_locked,
+)
 from src.rules import gate_edges
 from src.scenarios import router as scenarios_router
 from src.service import run_simulation
@@ -98,7 +104,7 @@ class ScenarioRequest(BaseModel):
     capacity_overrides: dict[str, float] = {}
     offering_overrides: dict[str, list[str]] = {}
     pass_rate_overrides: dict[str, float] = {}
-    cohort_size: int | None = None        # config override, not a scenario hook
+    cohort_size: int | None = Field(default=None, ge=1)   # config override, not a scenario hook
     num_cohorts: int | None = Field(default=None, ge=1)
     num_incumbent_cohorts: int | None = Field(default=None, ge=0)
     admission_terms: list[str] | None = None      # which seasons admit (Fall-only / Fall+Spring)
@@ -144,52 +150,8 @@ def _check_category(value: str) -> str:
     return value
 
 
-def _validate_initial_state(value: object, config: dict) -> None:
-    """Shape-check the initial-state warm start: {occupancy: {code: int>=0}, standing:
-    {<year-band>: int>=0}}. Both keys optional; raises HTTP 422 on a bad shape. The valid
-    standing keys are the plan's own year bands above Year1 (`standing_levels(config)`), not a
-    hardcoded Year2/3/4 set, so a program that isn't 4 years long validates correctly."""
-    if not isinstance(value, dict):
-        raise HTTPException(status_code=422, detail="initial_state must be an object")
-    occupancy = value.get("occupancy", {})
-    if not isinstance(occupancy, dict) or not all(
-        isinstance(v, int) and not isinstance(v, bool) and v >= 0 for v in occupancy.values()
-    ):
-        raise HTTPException(status_code=422, detail="initial_state.occupancy must map course codes to non-negative integers")
-    valid_standing = set(standing_levels(config))
-    standing = value.get("standing", {})
-    if not isinstance(standing, dict) or not set(standing) <= valid_standing or not all(
-        isinstance(v, int) and not isinstance(v, bool) and v >= 0 for v in standing.values()
-    ):
-        raise HTTPException(
-            status_code=422,
-            detail=f"initial_state.standing keys must be a subset of {sorted(valid_standing)} with non-negative integer values",
-        )
-
-
-def _validate_admissions(patch: dict, config: dict) -> None:
-    """Guard the seasonal-admission knobs against the plan's *mandatory* seasons. Admission is
-    only ever allowed in a mandatory season (Fall/Spring by default) — an optional intersession
-    (Summer/Winter) is a deliberately-scarce bonus pool and must never take in a cohort, so a
-    request naming one is a 422 rather than silently filtered. Sizes must be positive."""
-    if "admission_terms" in patch:
-        terms = patch["admission_terms"]
-        mandatory = set(get_mandatory_seasons(config))
-        if not (isinstance(terms, list) and terms and all(isinstance(s, str) for s in terms)):
-            raise HTTPException(status_code=422, detail="admission_terms must be a non-empty list of season names")
-        bad = [s for s in terms if s not in mandatory]
-        if bad:
-            raise HTTPException(
-                status_code=422,
-                detail=f"admission_terms must be mandatory seasons {sorted(mandatory)}; "
-                       f"optional seasons cannot admit a cohort. Got {bad}",
-            )
-    if "admission_sizes" in patch:
-        sizes = patch["admission_sizes"]
-        if not isinstance(sizes, dict) or not all(
-            isinstance(v, int) and not isinstance(v, bool) and v >= 1 for v in sizes.values()
-        ):
-            raise HTTPException(status_code=422, detail="admission_sizes must map season names to positive integers")
+def _raise_plan_validation(exc: PlanValidationError) -> None:
+    raise HTTPException(status_code=422, detail=str(exc)) from exc
 
 
 def _check_offering(value: list[str]) -> list[str]:
@@ -454,6 +416,28 @@ def _apply_scenario_overrides(
     return config, scenario
 
 
+def _validate_scenario_overrides(req: ScenarioRequest, curriculum: dict, config: dict) -> None:
+    """Guard an ephemeral /simulate-family override the same way `PUT /config` guards a
+    persisted edit. Without this, `POST /simulate` (and `/simulate/students/search` +
+    `/simulate/students/{id}/trace`, which share `_apply_scenario_overrides`) could run against
+    an out-of-season `admission_terms`, a malformed `initial_state`, or an occupancy that
+    exceeds a course's capacity with no validation at all — `ScenarioRequest`'s pydantic
+    `Field`s can't see across config keys or the plan's curriculum, so this is the same
+    cross-object check `validate_plan_edits` runs on a persisted write, applied here too."""
+    patch: dict = {}
+    if req.admission_terms is not None:
+        patch["admission_terms"] = req.admission_terms
+    if req.admission_sizes is not None:
+        patch["admission_sizes"] = req.admission_sizes
+    try:
+        validate_admissions(patch, config)
+        if req.initial_state is not None:
+            validate_initial_state(req.initial_state, config)
+        validate_plan_edits(curriculum, config)
+    except PlanValidationError as exc:
+        _raise_plan_validation(exc)
+
+
 @app.post("/simulate")
 def simulate(
     req: ScenarioRequest,
@@ -464,6 +448,7 @@ def simulate(
     plan_id = resolve_active_plan_id(db, current_user)
 
     config, scenario = _apply_scenario_overrides(req, base_config, base_scenario)
+    _validate_scenario_overrides(req, curriculum, config)
 
     try:
         run = run_simulation(curriculum, config, scenario)
@@ -522,6 +507,7 @@ def search_students(req: StudentSearchRequest, db: Session = Depends(get_db)) ->
     recording, so it stays a cheap single run. See src/analytics.py::find_students_matching."""
     curriculum, base_config, base_scenario = _load_plan_data(db)
     config, scenario = _apply_scenario_overrides(req, base_config, base_scenario)
+    _validate_scenario_overrides(req, curriculum, config)
     try:
         result = Simulator(curriculum, config, scenario).run()
     except Exception as exc:
@@ -545,6 +531,7 @@ def student_trace(
     See src/analytics.py::compute_student_trace."""
     curriculum, base_config, base_scenario = _load_plan_data(db)
     config, scenario = _apply_scenario_overrides(req, base_config, base_scenario)
+    _validate_scenario_overrides(req, curriculum, config)
     try:
         result = Simulator(curriculum, config, scenario, record_traces=True).run()
     except Exception as exc:
@@ -596,7 +583,8 @@ def create_course(
     if req.code in curriculum:
         raise HTTPException(status_code=409, detail=f"Course {req.code!r} already exists in this plan")
 
-    _validate_offering_seasons(req.offering, load_config_from_db(db, plan_id))
+    config = load_config_from_db(db, plan_id)
+    _validate_offering_seasons(req.offering, config)
 
     new_course = Course(
         code=req.code,
@@ -618,6 +606,10 @@ def create_course(
         check_no_cycle(hypothetical)
     except CycleError as exc:
         raise HTTPException(status_code=422, detail={"message": str(exc), "cycle": exc.cycle}) from exc
+    try:
+        validate_plan_edits(hypothetical, config)
+    except PlanValidationError as exc:
+        _raise_plan_validation(exc)
 
     db.add(_course_to_row(new_course, plan_id))
     try:
@@ -683,12 +675,17 @@ def update_curriculum(
         raise HTTPException(status_code=404, detail=f"Course {code!r} not found")
 
     current = curriculum[code]
+    config = load_config_from_db(db, plan_id)
     patch_fields = patch.model_dump(exclude_none=True)
     if "prerequisites" in patch_fields:
         patch_fields["prerequisites"] = tuple(patch_fields["prerequisites"])
     if "offering" in patch_fields:
-        _validate_offering_seasons(patch_fields["offering"], load_config_from_db(db, plan_id))
+        _validate_offering_seasons(patch_fields["offering"], config)
         patch_fields["offering"] = tuple(patch_fields["offering"])
+    try:
+        validate_prerequisites_locked(current, patch_fields)
+    except PlanValidationError as exc:
+        _raise_plan_validation(exc)
     updated_course = dataclasses.replace(current, **patch_fields)
 
     hypothetical = dict(curriculum)
@@ -697,6 +694,10 @@ def update_curriculum(
         check_no_cycle(hypothetical)
     except CycleError as exc:
         raise HTTPException(status_code=422, detail={"message": str(exc), "cycle": exc.cycle}) from exc
+    try:
+        validate_plan_edits(hypothetical, config)
+    except PlanValidationError as exc:
+        _raise_plan_validation(exc)
 
     for field, value in patch.model_dump(exclude_none=True).items():
         setattr(row, field, value)
@@ -726,17 +727,26 @@ def update_config(
 
     plan_id = resolve_active_plan_id(db, get_current_user(db))
     row = db.query(AppConfigRow).filter_by(plan_id=plan_id).first()
+    merged_config = {**row.data, **patch}
 
-    # Judge admission seasons against the POST-patch config so a request changing mandatory_terms
-    # and admission_terms together is validated against the new season set.
-    _validate_admissions(patch, {**row.data, **patch})
+    try:
+        # Judge admission seasons against the POST-patch config so a request changing
+        # mandatory_terms and admission_terms together is validated against the new season set.
+        validate_admissions(patch, merged_config)
 
-    if "initial_state" in patch:
-        # Validate standing against the POST-patch config, so a request that changes
-        # year_standing_thresholds and standing together is judged against the new year bands.
-        _validate_initial_state(patch["initial_state"], {**row.data, **patch})
+        if "initial_state" in patch:
+            # Validate standing against the POST-patch config, so a request that changes
+            # year_standing_thresholds and standing together is judged against the new year bands.
+            validate_initial_state(patch["initial_state"], merged_config)
 
-    row.data = {**row.data, **patch}
+        # Cross-object guardrails (cohort_size positivity, capacity-vs-occupancy) against the
+        # POST-patch config and this plan's curriculum.
+        curriculum = load_curriculum_from_db(db, plan_id)
+        validate_plan_edits(curriculum, merged_config)
+    except PlanValidationError as exc:
+        _raise_plan_validation(exc)
+
+    row.data = merged_config
     db.commit()
 
     return row.data

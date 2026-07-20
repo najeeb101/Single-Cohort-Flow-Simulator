@@ -17,12 +17,20 @@ interface Props {
   editableCode?: boolean; // true when creating a new course (code not yet fixed)
   hidePassRate?: boolean; // Settings edits pass rate inline in the curriculum table instead
   hideCapacity?: boolean; // Settings edits capacity inline in the curriculum table instead
+  // Prerequisites/rule_expr are write-once: set only when a course is first created (here with
+  // editableCode, or in Plan Builder's course step), then immutable — they define eligibility,
+  // which drives the whole deterministic trajectory, so changing them on an existing course
+  // would silently invalidate any run built on the old graph. When true, this renders the
+  // current prerequisites/rule as read-only instead of editable checkboxes/rule builder. The
+  // backend enforces the same lock independently (PUT /curriculum/{code} rejects a diff to
+  // either field) — this prop is the UI-side mirror of that, not the only guard.
+  lockPrerequisites?: boolean;
 }
 
 // Controlled course-field form shared by the Settings curriculum editor (editing/adding a
 // row in the active plan) and the Plan Builder wizard (composing a brand-new plan client-side
 // before anything is saved) — no server calls here, just `value`/`onChange`.
-export default function CourseFormFields({ value, allCourseCodes, knownCategories, seasons, onChange, editableCode, hidePassRate, hideCapacity }: Props) {
+export default function CourseFormFields({ value, allCourseCodes, knownCategories, seasons, onChange, editableCode, hidePassRate, hideCapacity, lockPrerequisites }: Props) {
   const offerings = seasons && seasons.length ? seasons : DEFAULT_SEASONS;
   const toggleOffering = (season: string) => {
     const has = value.offering.includes(season);
@@ -146,43 +154,66 @@ export default function CourseFormFields({ value, allCourseCodes, knownCategorie
 
         <div className="flex flex-col gap-1">
           <span className="text-muted">Prerequisites</span>
-          <div className="flex max-w-md flex-wrap gap-1.5">
-            {allCourseCodes.map((c) => (
-              <label key={c} className="flex items-center gap-1 text-ink">
-                <input
-                  type="checkbox"
-                  checked={value.prerequisites.includes(c)}
-                  onChange={() => togglePrereq(c)}
-                  className="accent-[var(--accent)]"
-                />
-                {c}
-              </label>
-            ))}
-          </div>
+          {lockPrerequisites ? (
+            <div className="flex max-w-md flex-wrap gap-1.5">
+              {value.prerequisites.length ? (
+                value.prerequisites.map((c) => (
+                  <span key={c} className="rounded-md border border-border-2 bg-surface-2 px-2 py-0.5 text-ink">
+                    {c}
+                  </span>
+                ))
+              ) : (
+                <span className="text-muted">None</span>
+              )}
+            </div>
+          ) : (
+            <div className="flex max-w-md flex-wrap gap-1.5">
+              {allCourseCodes.map((c) => (
+                <label key={c} className="flex items-center gap-1 text-ink">
+                  <input
+                    type="checkbox"
+                    checked={value.prerequisites.includes(c)}
+                    onChange={() => togglePrereq(c)}
+                    className="accent-[var(--accent)]"
+                  />
+                  {c}
+                </label>
+              ))}
+            </div>
+          )}
+          {lockPrerequisites && (
+            <span className="text-xs text-muted">Locked — set when a course is first created, not editable afterward.</span>
+          )}
         </div>
       </div>
 
       <div>
         <div className="flex items-center gap-2">
           <span className="text-muted">Compound eligibility rule</span>
-          {value.rule_expr === null ? (
-            <button type="button" onClick={addRule} className="text-xs font-semibold text-accent hover:underline">
-              + Add rule
-            </button>
-          ) : (
-            <button type="button" onClick={removeRule} className="text-xs font-semibold text-bad hover:underline">
-              Remove rule
-            </button>
+          {!lockPrerequisites && (
+            value.rule_expr === null ? (
+              <button type="button" onClick={addRule} className="text-xs font-semibold text-accent hover:underline">
+                + Add rule
+              </button>
+            ) : (
+              <button type="button" onClick={removeRule} className="text-xs font-semibold text-bad hover:underline">
+                Remove rule
+              </button>
+            )
           )}
         </div>
         {value.rule_expr !== null && (
-          <div className="mt-1 rounded-lg border border-border bg-surface p-3">
-            <RuleExprEditor
-              expr={value.rule_expr as RuleExpr}
-              allCourseCodes={allCourseCodes}
-              onChange={(next) => onChange({ ...value, rule_expr: next })}
-            />
-          </div>
+          lockPrerequisites ? (
+            <p className="mt-1 text-xs text-muted">Uses a compound eligibility rule (locked — not editable).</p>
+          ) : (
+            <div className="mt-1 rounded-lg border border-border bg-surface p-3">
+              <RuleExprEditor
+                expr={value.rule_expr as RuleExpr}
+                allCourseCodes={allCourseCodes}
+                onChange={(next) => onChange({ ...value, rule_expr: next })}
+              />
+            </div>
+          )
         )}
       </div>
     </div>

@@ -101,13 +101,14 @@ function CurriculumRow({ course, allCourseCodes, knownCategories, seasons, colSp
   const save = async () => {
     setBusy(true);
     setError(null);
+    // prerequisites/rule_expr are write-once (set only at course creation) — the backend
+    // rejects a PUT that changes either, so they're never included in an edit patch here. The
+    // edit form renders them read-only (CourseFormFields' lockPrerequisites) to match.
     const patch: CourseUpdate = {
       title: draft.title,
       credits: draft.credits,
-      prerequisites: draft.prerequisites,
       offering: draft.offering,
       category: draft.category,
-      rule_expr: draft.rule_expr,
       study_plan_order: draft.study_plan_order,
     };
     // Pass rate and capacity each have their own inline (deferred) column when set, so the edit
@@ -172,7 +173,7 @@ function CurriculumRow({ course, allCourseCodes, knownCategories, seasons, colSp
       {editing && (
         <tr>
           <td colSpan={colSpan} className="border-b border-border bg-surface-2 px-3 py-3">
-            <CourseFormFields value={draft} allCourseCodes={allCourseCodes} knownCategories={knownCategories} seasons={seasons} onChange={setDraft} hidePassRate={!!passRate} hideCapacity={!!capacity} />
+            <CourseFormFields value={draft} allCourseCodes={allCourseCodes} knownCategories={knownCategories} seasons={seasons} onChange={setDraft} hidePassRate={!!passRate} hideCapacity={!!capacity} lockPrerequisites />
             {(passRate || capacity) && (
               <p className="mt-1 text-xs text-muted">
                 {[passRate && "Pass rate", capacity && "Capacity"].filter(Boolean).join(" and ")} {passRate && capacity ? "are" : "is"} edited in{" "}

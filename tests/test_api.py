@@ -75,6 +75,75 @@ def test_update_config_rejects_malformed_initial_state():
     assert resp.status_code == 422
 
 
+def test_update_config_rejects_non_positive_cohort_size():
+    resp = client.put("/config", json={"cohort_size": 0})
+    assert resp.status_code == 422
+
+
+def test_update_config_rejects_occupancy_exceeding_capacity():
+    # update_config does a shallow {**row.data, **patch} merge (pre-existing behavior, not
+    # introduced here) — a partial `initial_state` patch replaces the WHOLE key, so every
+    # write in these tests must round-trip the full initial_state, not just the one field
+    # under test, or it silently drops the seeded baseline's real occupancy/standing data.
+    code = next(iter(CURRICULUM))
+    capacity = CURRICULUM[code].capacity
+    original_initial_state = client.get("/config").json()["initial_state"]
+    resp = client.put("/config", json={
+        "initial_state": {
+            **original_initial_state,
+            "occupancy": {**original_initial_state["occupancy"], code: capacity + 1},
+        },
+    })
+    assert resp.status_code == 422
+
+
+def test_update_curriculum_rejects_capacity_below_existing_occupancy():
+    code = next(iter(CURRICULUM))
+    original_capacity = CURRICULUM[code].capacity
+    original_initial_state = client.get("/config").json()["initial_state"]
+    over = client.put("/config", json={
+        "initial_state": {
+            **original_initial_state,
+            "occupancy": {**original_initial_state["occupancy"], code: 5},
+        },
+    })
+    assert over.status_code == 200
+    try:
+        resp = client.put(f"/curriculum/{code}", json={"capacity": 4})
+        assert resp.status_code == 422
+        # The rejected edit must not have been committed.
+        current = next(c for c in client.get("/curriculum").json() if c["code"] == code)
+        assert current["capacity"] == original_capacity
+    finally:
+        client.put("/config", json={"initial_state": original_initial_state})
+
+
+def test_simulate_rejects_non_positive_cohort_size():
+    resp = client.post("/simulate", json={"cohort_size": 0})
+    assert resp.status_code == 422
+
+
+def test_simulate_rejects_admission_in_optional_season():
+    # Same guardrail PUT /config already enforces (test_config_rejects_admission_in_optional_
+    # season below) — POST /simulate's ephemeral ScenarioRequest overrides previously bypassed
+    # it entirely, since _apply_scenario_overrides just copies admission_terms straight into
+    # the config with no validation.
+    resp = client.post("/simulate", json={"admission_terms": ["Fall", "Summer"]})
+    assert resp.status_code == 422
+
+
+def test_simulate_rejects_malformed_initial_state():
+    resp = client.post("/simulate", json={"initial_state": {"standing": {"Year9": 5}}})
+    assert resp.status_code == 422
+
+
+def test_simulate_rejects_occupancy_exceeding_capacity():
+    code = next(iter(CURRICULUM))
+    capacity = CURRICULUM[code].capacity
+    resp = client.post("/simulate", json={"initial_state": {"occupancy": {code: capacity + 1}}})
+    assert resp.status_code == 422
+
+
 def test_plan_rename_updates_private_and_default_plans():
     default_plan = next(p for p in client.get("/plans").json() if p["is_default"])
     original_default_name = default_plan["name"]
@@ -213,6 +282,17 @@ def test_search_students_status_filter():
 
 def test_search_students_rejects_bad_status():
     resp = client.post("/simulate/students/search", json={"filter_final_status": "nonsense"})
+    assert resp.status_code == 422
+
+
+def test_search_students_rejects_admission_in_optional_season():
+    # Search shares _apply_scenario_overrides with /simulate, so the same guardrail applies.
+    resp = client.post("/simulate/students/search", json={"admission_terms": ["Fall", "Summer"]})
+    assert resp.status_code == 422
+
+
+def test_student_trace_rejects_admission_in_optional_season():
+    resp = client.post("/simulate/students/1/trace", json={"admission_terms": ["Fall", "Summer"]})
     assert resp.status_code == 422
 
 
