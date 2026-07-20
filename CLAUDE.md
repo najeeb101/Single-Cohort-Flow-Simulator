@@ -65,8 +65,13 @@ src/
 │                         # demo user on every call (no token/cookie check); kept only so
 │                         # every endpoint's Depends() signature is unchanged
 ├── scenarios.py          # Persistent /scenarios + /runs endpoints, scoped to the demo user
-├── curriculum_validation.py  # check_no_cycle() — networkx prerequisite-cycle check for Settings
-│                         # edits and Plan imports; PlanImportError for malformed/cyclic imports
+├── curriculum_validation.py  # check_no_cycle() — networkx prerequisite-cycle check, now only
+│                         # reachable from course *creation* (Plan Builder / POST /curriculum),
+│                         # never a PUT edit — see "Prerequisite Lock" below
+├── plan_validation.py    # validate_plan_edits() etc. — single entry point for cross-object
+│                         # guardrails (cohort_size positivity, capacity-vs-occupancy, admission
+│                         # season/size shape) called by every write/simulate path; also
+│                         # validate_prerequisites_locked() for the write-once prereq guard
 ├── optimizer.py           # solve_for_targets() — Auto-fill solver: bounded greedy search for the
 │                         # smallest capacity additions meeting admission_targets at current intake
 ├── api.py                # FastAPI wrapper: /health, /meta, /simulate, /autofill, /scenarios, /runs,
@@ -231,8 +236,10 @@ immediately, no server restart needed. See [Multi-Plan Model](#multi-plan-model)
 - A **Plan** (`src/db_models.py::Plan`) is a distinct `(curriculum, config)` pair, stored as its own rows in `Course`/`AppConfig` (`Course.code` is unique per-plan, not globally — multiple plans can each define their own "CMPS151"). One shared **default plan** (`owner_user_id is None`) is seeded from the JSON files for everyone; any other plan is private to the user who imported it.
 - `User.active_plan_id` selects which plan that user's `/meta`, `/simulate`, `/curriculum`, `/config` calls resolve against (`src/db.py::resolve_active_plan_id` falls back to the default plan if the active one was deleted). This makes plan selection per-user, not a single global mutable baseline.
 - `POST /plans/import` validates an uploaded `{name, curriculum, config}` payload — rejects an empty curriculum, a prerequisite cycle (`check_no_cycle`), or a config missing any of `src/db.py::REQUIRED_CONFIG_KEYS` (the keys the engine reads unconditionally: `seed`, `cohort_size`, `max_terms`, `scenarios`, `normal_load_ch`, `probation_load_ch`, `probation_min_ch`, `dropout_fails_threshold`, `dropout_prob_on_repeated_fail`, `enrollment_priority_tiers`, `grade_tiers`; guarded/defaulted keys like `terms_per_year`/`mandatory_terms` are *not* required) — as `PlanImportError` → HTTP 422, with nothing committed on failure. Catching the incomplete config here avoids an opaque `KeyError` 500 at the first `/simulate`. `POST /plans/{id}/activate` switches the caller's active plan; `GET /plans/{id}/export` round-trips back to the same `{curriculum, config}` shape; `DELETE /plans/{id}` (owner only, not the default) reassigns the caller to the default plan if it was active.
-- **Curriculum CRUD on the active plan**: `POST /curriculum` adds a course (409 on a duplicate code within the plan, 422 on a prerequisite cycle); `DELETE /curriculum/{code}` removes one (404 if absent, 422 if another course's `prerequisites`/`rule_expr` still references it — checked via `src/rules.py::gate_edges`). `PUT /curriculum/{code}` (pre-existing) edits one course's fields in place. All three operate on whichever plan `resolve_active_plan_id` resolves to.
+- **Curriculum CRUD on the active plan**: `POST /curriculum` adds a course (409 on a duplicate code within the plan, 422 on a prerequisite cycle); `DELETE /curriculum/{code}` removes one (404 if absent, 422 if another course's `prerequisites`/`rule_expr` still references it — checked via `src/rules.py::gate_edges`). `PUT /curriculum/{code}` (pre-existing) edits one course's fields in place **except `prerequisites`/`rule_expr`** — see "Prerequisite Lock" below. All three operate on whichever plan `resolve_active_plan_id` resolves to.
 - Frontend: `web/src/app/(dashboard)/plans/page.tsx` — list, import (two JSON file uploads + name), activate, export, delete, and a **+ New plan** link into the Plan Builder. Settings' `CurriculumTable` now supports add/delete (not just per-course edits) via the shared `web/src/components/CourseFormFields.tsx`. In Settings it also renders **`pass_rate`, `capacity`, and initial `occupancy` as inline-editable columns** (deferred `NumberBox` edits, dirty-highlighted, persisted together on "Save as new baseline" — pass rate/capacity via per-course `PUT /curriculum`, occupancy via `PUT /config`); the structural edit form (title/prereqs/offering/rule/plan-term) opens as an **expansion row beneath** the course row so those inline cells stay visible while editing, and `CourseFormFields` hides its own pass-rate/capacity inputs there (`hidePassRate`/`hideCapacity`) to keep a single edit path.
+- **Prerequisite lock**: `prerequisites`/`rule_expr` are **write-once**, settable only at course creation (Plan Builder's course step, or `POST /curriculum` for a course added later to an existing plan — both still cycle-checked by `check_no_cycle`) and permanently immutable afterward. They define eligibility, which drives the whole deterministic trajectory, so editing them mid-life would silently invalidate what any run built on the old graph means. `src/plan_validation.py::validate_prerequisites_locked` diffs a `PUT /curriculum/{code}` patch against the stored course and 422s **only on an actual change** to either field (not merely their presence, since the Settings edit form used to always round-trip both) — capacity/title/offering-only saves are unaffected. `CourseFormFields.tsx`'s new `lockPrerequisites` prop (same pattern as `hidePassRate`/`hideCapacity`) renders them read-only in Settings' edit form while Plan Builder's course step keeps them fully editable. The lock is permanent from creation, not "until first run" — the baseline auto-run already writes a `Run` row on every dashboard load, so "never run" is effectively never true.
+- **Cross-object guardrails** (`src/plan_validation.py::validate_plan_edits`, called by `PUT /curriculum`, `POST /curriculum`, `PUT /config`, and every `/simulate`-family endpoint): `cohort_size >= 1` and `initial_state.occupancy[code] <= capacity` for every course — `Simulator._effective_capacity` otherwise silently floors `capacity - occupancy` at 0, which can quietly stall a required gateway into mass `CENSORED` instead of erroring up front. The same module also holds `validate_initial_state`/`validate_admissions` (moved here from `src/api.py`, same behavior) so there is one place cross-object plan invariants live, not one per endpoint.
 - **Plan Builder** (`web/src/app/(dashboard)/plan-builder/page.tsx`, `web/src/components/plan-builder/`): a 4-step wizard (name & seed → courses → config → review/save) for building a plan entirely client-side before the one and only network write (`POST /plans/import`, optionally followed by activate). "Seed" clones the default plan's `{curriculum, config}` via `GET /plans/{id}/export`, or starts blank (`web/src/lib/planBuilder.ts::BLANK_CONFIG`); the config step reuses the Scenario Builder's `AdmissionsTab`/`PassRatesDropoutTab`/`RegistrationPolicyTab` over a `BuilderState` built from the cloned/blank config (`metaFromPlanExport`).
 - Distinct from the Scenario Builder (ephemeral per-run overrides on top of whatever plan is active) and Settings (in-place edits to the *active* plan's curriculum/config, persisted immediately per edit).
 
@@ -367,6 +374,68 @@ recommendation already uses.
   term-by-term timeline with grade chips, block chips, a status pill per term, and an inline SVG
   GPA sparkline) on the **`/students`** dashboard page (`Analytics → Student Trace` in the nav).
   Covered by `tests/test_student_trace.py` + trace cases in `tests/test_api.py`.
+
+## Semester Checkpoint Mode ("advance one term at a time")
+
+A turn-based, resumable re-run of the active plan, separate from the always-on `/simulate`
+baseline dashboard: a department head advances **one mandatory term at a time** and edits
+future-facing knobs (capacity, pass rate, occupancy/standing, next intake) between steps —
+never the courses already run. This is **not** a revival of the old, removed Live Simulation
+feature (which was continuous-tick/replay-based over an append-only edit log): a checkpoint
+session advances **only** on an explicit "Advance one term" click, and it freezes/resumes real
+mid-run engine state rather than replaying from term 0 each time.
+
+- **Resumable engine** (`src/simulator.py`): `Simulator.step_one_mandatory_term()` runs terms
+  one at a time, admitting any cohort due that term and sweeping through any intervening
+  optional (Summer/Winter) term in the same call, then stopping right after the first mandatory
+  term it processes. `run()` is now just `while not self.is_finished:
+  self.step_one_mandatory_term()` — byte-identical to the old single-shot for-loop (verified:
+  the full test suite's many fixed-value assertions all still pass unchanged).
+  `Simulator.snapshot()`/`from_snapshot(curriculum, config, scenario, blob)` pickle/restore the
+  dynamic state (students, `History`, the resume cursor) so a session can pause after one
+  request and resume in a **brand-new** `Simulator` instance on the next — curriculum/config/
+  scenario are supplied fresh on restore, which is how a staged edit takes effect starting with
+  the next step. `History`'s per-cohort counters use named module-level factory functions
+  (`_int_defaultdict`/`_cohort_int_defaultdict`) instead of lambdas specifically so `History`
+  stays picklable. Covered by `tests/test_checkpoint_engine.py`, most importantly a
+  snapshot→restore→finish run producing byte-identical results to a straight-through run.
+- **Persistence** (`src/db_models.py::CheckpointSession`, `src/db.py::
+  resolve_active_checkpoint_session`): one row per in-progress session, one active-or-completed
+  session per user (mirrors `User.active_plan_id`). `working_curriculum` (plan-export shape,
+  a list of course dicts) and `working_config` are a **frozen-at-creation copy** of the active
+  plan's data, mutated only by `POST /checkpoint/edit` — never the plan's own `Course`/
+  `AppConfig` rows, so a concurrent Settings/Plan edit can't reach into an in-progress session.
+  `status` is `active | completed | discarded`; the resolver returns anything not `discarded`
+  (so a `completed` session's final frames stay viewable until explicitly discarded, not 404).
+- **API** (`src/api.py`, no `Run` row is ever written — this isn't the baseline `/simulate`
+  path): `POST /checkpoint` starts one (404-then-create is the normal "no session yet" flow);
+  `GET /checkpoint` reads the current state; `POST /checkpoint/edit` stages a whitelisted patch
+  (`capacity`, `pass_rate`, `initial_state`, `cohort_size`, `admission_sizes` — there is
+  deliberately no field for prerequisites/offering/category/admission_terms/num_cohorts/
+  max_terms/seed, so there's no way to smuggle a structural or horizon-changing edit through it
+  even by accident) validated through the same `plan_validation.py` guardrails as a persisted
+  `PUT /curriculum`/`PUT /config`; `POST /checkpoint/advance` steps the session forward exactly
+  one mandatory term; `DELETE /checkpoint` discards it. `GET /meta` reports
+  `checkpoint_active`/`checkpoint_next_term`. The response payload deliberately does **not** run
+  the full `compute_metrics`/`flow_timeline_payload` pipeline (tuned for a *complete* run —
+  admissions recommendation, "finished cohort" health criteria) — it's a simple
+  frames-so-far + per-status head-count summary instead, unambiguous at every partial step. A
+  richer partial summary is a possible future follow-up.
+- **Frontend** (`web/src/lib/CheckpointContext.tsx`, `web/src/app/(dashboard)/checkpoint/
+  page.tsx`, `web/src/components/checkpoint/CheckpointEditPanel.tsx`): a new page, built like
+  `SimulationContext` but **with no auto-run** — it starts idle until "Start checkpoint
+  walkthrough" is clicked, and never touches the always-on baseline dashboard. The edit panel
+  is composed entirely from existing pieces (`InitialStateEditor` for standing/occupancy,
+  `CurriculumTable` for capacity/pass-rate/occupancy, a small custom next-intake control) rather
+  than new form widgets. `CurriculumTable` gained a `structuralEditsDisabled` prop: it hides
+  Add/Delete and the structural edit-expansion row, since those call `updateCourse`/
+  `createCourse`/`deleteCourse` (`PUT`/`POST`/`DELETE /curriculum`) against the **live plan**,
+  not a checkpoint session's `working_curriculum` — only the deferred inline capacity/pass-rate/
+  occupancy columns (already owned by the parent's `onChange`) stay available. `AdmissionsTab`
+  was deliberately **not** reused for the intake control: its `BuilderState` coupling and
+  `mode="simple"/"advanced"` split doesn't cleanly hide exactly `num_cohorts`/`max_terms`/`seed`
+  while keeping `cohort_size`/`admission_sizes`/initial state, so a small purpose-built control
+  was simpler and safer than forcing that fit.
 
 ## Parallel Workloads
 
