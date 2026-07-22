@@ -336,9 +336,8 @@ recommendation already uses.
   `False`, `/meta.llm_chat_enabled` reports it, and the chat box shows a "how to enable" note —
   Phase A is untouched and needs no key. Covered by `tests/test_advisor.py` (enabled path mocks
   `httpx.post`, so no network; proposal extraction/validation covered offline) and
-  `tests/test_predictive_analytics.py` (`predict_next_terms_demand`'s forecast/warning shape,
-  `src/plan_validation.py::validate_administrative_proposals`'s course/value filtering). Uses
-  `httpx` (already a dep) — no new package, no `claude-api` skill needed since it's not
+  `tests/test_predictive_analytics.py` (`predict_next_terms_demand`'s forecast/warning shape).
+  Uses `httpx` (already a dep) — no new package, no `claude-api` skill needed since it's not
   Anthropic-specific.
 - **Auto-fill** (`src/optimizer.py::solve_for_targets`, `POST /autofill`, panel
   `web/src/components/AutofillPanel.tsx` on the Bottlenecks page) — a bounded **greedy** solver:
