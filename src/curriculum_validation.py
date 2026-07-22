@@ -41,3 +41,49 @@ def check_no_cycle(curriculum: dict[str, Course]) -> None:
     if not nx.is_directed_acyclic_graph(graph):
         cycle = nx.find_cycle(graph)
         raise CycleError(cycle)
+
+
+def validate_missing_prerequisites(curriculum: dict[str, Course]) -> None:
+    """Raise PlanImportError if any course references a prerequisite that doesn't exist."""
+    for code, course in curriculum.items():
+        prereqs = list(course.prerequisites)
+        if course.rule_expr is not None:
+            prereqs.extend(p_code for p_code, _ in gate_edges(course.rule_expr))
+        missing = [p for p in prereqs if p not in curriculum]
+        if missing:
+            raise PlanImportError(
+                f"Course {code} references non-existent prerequisite(s): {', '.join(missing)}"
+            )
+
+
+def validate_unreachable_prereq_depth(curriculum: dict[str, Course], config: dict | None = None) -> None:
+    """Raise PlanImportError if the longest prerequisite path exceeds max_terms."""
+    import networkx as nx
+
+    max_terms = (config or {}).get("max_terms", 12)
+    graph = nx.DiGraph()
+    for course in curriculum.values():
+        graph.add_node(course.code)
+        for p in course.prerequisites:
+            if p in curriculum:
+                graph.add_edge(p, course.code)
+
+    if nx.is_directed_acyclic_graph(graph):
+        # Only the path-length computation itself is defensive here (e.g. an empty graph) —
+        # the threshold check must run outside the try so its raise isn't swallowed by it.
+        try:
+            depth = len(nx.dag_longest_path(graph)) - 1
+        except Exception:
+            return
+        if depth > max_terms:
+            raise PlanImportError(
+                f"Prerequisite path depth ({depth}) exceeds max_terms ({max_terms})"
+            )
+
+
+def validate_curriculum_topology(curriculum: dict[str, Course], config: dict | None = None) -> None:
+    """Run all curriculum topology guardrails (missing prereqs, cycles, path depth)."""
+    validate_missing_prerequisites(curriculum)
+    check_no_cycle(curriculum)
+    validate_unreachable_prereq_depth(curriculum, config)
+
