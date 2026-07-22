@@ -4,7 +4,6 @@ import { useEffect, useState } from "react";
 import type { CourseRecord, MetaResponse } from "@/types/simulation";
 import { ApiError, listCurriculum, updateConfig } from "@/lib/api";
 import InitialStateEditor from "@/components/scenario-builder/InitialStateEditor";
-import { standingLevelsFromThresholds } from "@/components/scenario-builder/InitialStateImportModal";
 
 interface Props {
   meta: MetaResponse;
@@ -12,15 +11,8 @@ interface Props {
 }
 
 export default function InitialStateGate({ meta, onComplete }: Props) {
-  // The plan's own year bands above Year1 (Year2..Year(K+1)), so the standing editor shows the
-  // right number of levels for a program that isn't 4 years long.
-  const standingNodes = standingLevelsFromThresholds(meta.year_standing_thresholds);
   const [courses, setCourses] = useState<CourseRecord[] | null>(null);
   const [occupancy, setOccupancy] = useState<Record<string, number>>({ ...(meta.initial_state?.occupancy ?? {}) });
-  const [standing, setStanding] = useState<Record<string, number>>({
-    ...Object.fromEntries(standingNodes.map((n) => [n, 0])),
-    ...(meta.initial_state?.standing ?? {}),
-  });
   const [saving, setSaving] = useState(false);
   const [skipping, setSkipping] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -31,7 +23,7 @@ export default function InitialStateGate({ meta, onComplete }: Props) {
   }, []);
 
   const persistAndContinue = async (
-    state: { occupancy: Record<string, number>; standing: Record<string, number> },
+    state: { occupancy: Record<string, number> },
     setBusy: (v: boolean) => void,
   ) => {
     setBusy(true);
@@ -45,10 +37,10 @@ export default function InitialStateGate({ meta, onComplete }: Props) {
     }
   };
 
-  const handleContinue = () => persistAndContinue({ occupancy, standing }, setSaving);
+  const handleContinue = () => persistAndContinue({ occupancy }, setSaving);
   // Escape hatch: a department without the numbers yet can start empty and fill them in later
   // from Settings. Persists a blank state so the run has a clean, zeroed warm start.
-  const handleSkip = () => persistAndContinue({ occupancy: {}, standing: {} }, setSkipping);
+  const handleSkip = () => persistAndContinue({ occupancy: {} }, setSkipping);
 
   return (
     <main className="mx-auto w-full max-w-[1600px] px-5 pb-10 sm:px-7">
@@ -66,9 +58,9 @@ export default function InitialStateGate({ meta, onComplete }: Props) {
             </h1>
             <p className="mt-1.5 text-[13px] leading-5 text-muted sm:text-[14px]">
               Before the first simulation runs, enter the university this new cohort actually walks
-              into: seats already taken in each course, and how many students are already at each
-              year-standing. If the department is genuinely starting from zero, leave everything as
-              0 and continue.
+              into: how many seats are already taken in each course by students who aren&apos;t part
+              of this simulation. If the department is genuinely starting from zero, leave
+              everything as 0 and continue.
             </p>
           </div>
         </div>
@@ -81,12 +73,8 @@ export default function InitialStateGate({ meta, onComplete }: Props) {
           <InitialStateEditor
             courses={courses}
             occupancy={occupancy}
-            standing={standing}
-            standingNodes={standingNodes}
             onOccupancyChange={(code, v) => setOccupancy((prev) => ({ ...prev, [code]: v }))}
             onOccupancyBulkChange={(patch) => setOccupancy((prev) => ({ ...prev, ...patch }))}
-            onStandingChange={(node, v) => setStanding((prev) => ({ ...prev, [node]: v }))}
-            onStandingBulkChange={(patch) => setStanding((prev) => ({ ...prev, ...patch }))}
           />
         )}
       </div>

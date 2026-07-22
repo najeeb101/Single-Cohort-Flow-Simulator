@@ -4,26 +4,12 @@ import { useMemo, useRef, useState } from "react";
 import type { CourseRecord } from "@/types/simulation";
 import Modal from "@/components/Modal";
 
-// Default year-standing keys (a 4-year program). Callers with a plan's real
-// `year_standing_thresholds` pass its own bands via `standingLevelsFromThresholds`, so a
-// program that isn't 4 years long recognizes the right standing keys (Year2..Year(K+1)).
-export const STANDING_NODES = ["Year2", "Year3", "Year4"] as const;
-
-// Valid standing keys for a plan = every year band above Year1 (Year1 is the incoming cohort,
-// not warm-start standing). K thresholds -> K+1 year bands -> Year2..Year(K+1). Falls back to
-// the default when thresholds are missing/empty.
-export function standingLevelsFromThresholds(thresholds: number[] | undefined): string[] {
-  if (!thresholds || thresholds.length === 0) return [...STANDING_NODES];
-  return Array.from({ length: thresholds.length }, (_, i) => `Year${i + 2}`);
-}
-
-// Per-row classification for the import preview table. A row is either applied (occupancy or
-// standing), superseded by a later row for the same key (duplicate — last write wins), or
-// skipped with a reason. Purely additive to the result: existing consumers read only
-// occupancy/standing/skipped and are unaffected by the new `rows`.
+// Per-row classification for the import preview table. A row is either applied (occupancy),
+// superseded by a later row for the same course (duplicate — last write wins), or skipped with
+// a reason. Purely additive to the result: existing consumers read only occupancy/skipped and
+// are unaffected by the new `rows`.
 export type PreviewStatus =
   | "occupancy"
-  | "standing"
   | "duplicate"
   | "malformed"
   | "non-numeric"
@@ -33,13 +19,12 @@ export type PreviewStatus =
 export interface PreviewRow {
   key: string; // first cell, trimmed
   value: string; // second cell as typed (shown verbatim in the preview)
-  target: string; // canonical course code / standing node when resolved, else ""
+  target: string; // canonical course code when resolved, else ""
   status: PreviewStatus;
 }
 
 export interface InitialStateImportResult {
   occupancy: Record<string, number>;
-  standing: Record<string, number>;
   skipped: { row: string; reason: string }[];
   rows: PreviewRow[];
 }
@@ -55,21 +40,17 @@ function stripQuotes(cell: string): string {
   return cell.replace(/^"(.*)"$/, "$1").trim();
 }
 
-// Shared, pure row -> {occupancy, standing, skipped} mapper used by BOTH the CSV parser and
-// the spreadsheet (.xlsx) reader, so the two formats converge on one set of rules. Two columns
-// `key,value`: `key` first tries a standing node (Year2/Year3/Year4), then a course code —
-// both case-insensitively — so one file can set occupancy and standing head-counts at once. A
-// header row is auto-detected. Never aborts on a bad row; each row is applied or skipped with a
-// reason.
+// Shared, pure row -> {occupancy, skipped} mapper used by BOTH the CSV parser and the
+// spreadsheet (.xlsx) reader, so the two formats converge on one set of rules. Two columns
+// `key,value`: `key` is a course code (case-insensitively matched). A header row is
+// auto-detected. Never aborts on a bad row; each row is applied or skipped with a reason.
 export function mapRowsToInitialState(
   rows: string[][],
   courses: CourseRecord[],
-  standingNodes: readonly string[] = STANDING_NODES,
 ): InitialStateImportResult {
-  const result: InitialStateImportResult = { occupancy: {}, standing: {}, skipped: [], rows: [] };
+  const result: InitialStateImportResult = { occupancy: {}, skipped: [], rows: [] };
   if (rows.length === 0) return result;
 
-  const standingByUpper = new Map(standingNodes.map((n) => [n.toUpperCase(), n]));
   const courseByUpper = new Map(courses.map((c) => [c.code.toUpperCase(), c.code]));
 
   // Treat the first row as a header (labels) when its second cell isn't a number.
@@ -86,8 +67,6 @@ export function mapRowsToInitialState(
     const value = Number(cells[1]);
     if (!Number.isFinite(value)) return { key, value: rawValue, target: "", status: "non-numeric" };
     if (value < 0) return { key, value: rawValue, target: "", status: "negative" };
-    const node = standingByUpper.get(key.toUpperCase());
-    if (node) return { key, value: rawValue, target: node, status: "standing" };
     const code = courseByUpper.get(key.toUpperCase());
     if (code) return { key, value: rawValue, target: code, status: "occupancy" };
     return { key, value: rawValue, target: "", status: "unknown" };
@@ -97,18 +76,17 @@ export function mapRowsToInitialState(
   // behavior is unchanged) — flag every earlier occurrence as a duplicate so the preview shows it.
   const lastIndexByTarget = new Map<string, number>();
   preview.forEach((row, i) => {
-    if (row.status === "occupancy" || row.status === "standing") lastIndexByTarget.set(row.target, i);
+    if (row.status === "occupancy") lastIndexByTarget.set(row.target, i);
   });
   preview.forEach((row, i) => {
-    if ((row.status === "occupancy" || row.status === "standing") && lastIndexByTarget.get(row.target) !== i) {
+    if (row.status === "occupancy" && lastIndexByTarget.get(row.target) !== i) {
       row.status = "duplicate";
     }
   });
 
   // Aggregate the surviving rows; keep `skipped` populated exactly as before for back-compat.
   for (const row of preview) {
-    if (row.status === "standing") result.standing[row.target] = Number(row.value);
-    else if (row.status === "occupancy") result.occupancy[row.target] = Number(row.value);
+    if (row.status === "occupancy") result.occupancy[row.target] = Number(row.value);
     else if (row.status !== "duplicate") result.skipped.push({ row: `${row.key},${row.value}`, reason: skipReason(row.status) });
   }
 
@@ -117,7 +95,7 @@ export function mapRowsToInitialState(
 }
 
 function statusColor(status: PreviewStatus): string {
-  if (status === "occupancy" || status === "standing") return "text-good";
+  if (status === "occupancy") return "text-good";
   if (status === "duplicate") return "text-warn";
   return "text-bad";
 }
@@ -126,8 +104,6 @@ function statusLabel(row: PreviewRow): string {
   switch (row.status) {
     case "occupancy":
       return `Occupancy → ${row.target}`;
-    case "standing":
-      return `Standing → ${row.target}`;
     case "duplicate":
       return `Duplicate of ${row.target} (overwritten)`;
     case "malformed":
@@ -143,28 +119,23 @@ function statusLabel(row: PreviewRow): string {
 
 // CSV adapter: split text into rows of cells, then hand off to the shared mapper. Public
 // signature/behavior unchanged, so the reactive textarea preview keeps working as before.
-export function parseInitialStateCsv(
-  raw: string,
-  courses: CourseRecord[],
-  standingNodes: readonly string[] = STANDING_NODES,
-): InitialStateImportResult {
+export function parseInitialStateCsv(raw: string, courses: CourseRecord[]): InitialStateImportResult {
   const rows = raw
     .split(/\r\n|\r|\n/)
     .map((l) => l.trim())
     .filter((l) => l.length > 0)
     .map((line) => line.split(",").map(stripQuotes));
-  return mapRowsToInitialState(rows, courses, standingNodes);
+  return mapRowsToInitialState(rows, courses);
 }
 
 interface Props {
   open: boolean;
   onClose: () => void;
   courses: CourseRecord[];
-  standingNodes?: readonly string[]; // the plan's year bands above Year1; defaults to Year2/3/4
-  onApply: (result: { occupancy: Record<string, number>; standing: Record<string, number> }) => void;
+  onApply: (result: { occupancy: Record<string, number> }) => void;
 }
 
-export default function InitialStateImportModal({ open, onClose, courses, standingNodes = STANDING_NODES, onApply }: Props) {
+export default function InitialStateImportModal({ open, onClose, courses, onApply }: Props) {
   const [text, setText] = useState("");
   // A binary spreadsheet can't live in the textarea, so its parsed result is held separately
   // and takes precedence over the pasted/CSV text. The two sources are kept mutually exclusive:
@@ -174,23 +145,21 @@ export default function InitialStateImportModal({ open, onClose, courses, standi
   const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const textResult = useMemo(() => parseInitialStateCsv(text, courses, standingNodes), [text, courses, standingNodes]);
+  const textResult = useMemo(() => parseInitialStateCsv(text, courses), [text, courses]);
   const result = fileResult ?? textResult;
   const occupancyCount = Object.keys(result.occupancy).length;
-  const standingCount = Object.keys(result.standing).length;
   const duplicateCount = result.rows.filter((r) => r.status === "duplicate").length;
-  const hasAnything = occupancyCount > 0 || standingCount > 0;
+  const hasAnything = occupancyCount > 0;
 
-  // A ready-to-import example built from this plan's own first standing band + earliest courses,
-  // so the downloaded file always maps to real codes (importing it produces no "unknown code").
+  // A ready-to-import example built from this plan's own earliest courses, so the downloaded
+  // file always maps to real codes (importing it produces no "unknown code").
   const sampleCsv = useMemo(() => {
     const early = [...courses].sort((a, b) => a.study_plan_term - b.study_plan_term);
     const lines = ["code,value"];
-    if (standingNodes.length > 0) lines.push(`${standingNodes[0]},10`);
     if (early[0]) lines.push(`${early[0].code},5`);
     if (early[1]) lines.push(`${early[1].code},0`);
     return lines.join("\n") + "\n";
-  }, [courses, standingNodes]);
+  }, [courses]);
 
   const downloadSample = () => {
     const url = URL.createObjectURL(new Blob([sampleCsv], { type: "text/csv;charset=utf-8" }));
@@ -248,7 +217,7 @@ export default function InitialStateImportModal({ open, onClose, courses, standi
       setText("");
       setError(null);
       setFileName(file.name);
-      setFileResult(mapRowsToInitialState(rows, courses, standingNodes));
+      setFileResult(mapRowsToInitialState(rows, courses));
     } catch {
       clearFile();
       setError("Couldn't read that spreadsheet. Make sure it's a valid .xlsx or .xls file.");
@@ -263,17 +232,15 @@ export default function InitialStateImportModal({ open, onClose, courses, standi
   };
 
   const handleApply = () => {
-    onApply({ occupancy: result.occupancy, standing: result.standing });
+    onApply({ occupancy: result.occupancy });
     handleClose();
   };
 
   return (
-    <Modal open={open} onClose={handleClose} title="Import initial state from a file">
+    <Modal open={open} onClose={handleClose} title="Import initial occupancy from a file">
       <p className="mb-2.5 text-xs text-muted">
-        Two columns: <code className="rounded bg-black/20 px-1 py-0.5">code,value</code>. A header row is
-        auto-detected. Rows use either a course code (occupancy) or a year-standing key ({standingNodes.map((n, i) => (
-          <span key={n}>{i > 0 ? "/" : ""}<code className="rounded bg-black/20 px-1 py-0.5">{n}</code></span>
-        ))}) for standing.
+        Two columns: <code className="rounded bg-black/20 px-1 py-0.5">code,value</code> — a course code and
+        its already-occupied seat count. A header row is auto-detected.
         Paste below, or upload a <code className="rounded bg-black/20 px-1 py-0.5">.csv</code> or Excel{" "}
         <code className="rounded bg-black/20 px-1 py-0.5">.xlsx</code>/<code className="rounded bg-black/20 px-1 py-0.5">.xls</code> file.
         Its first sheet&apos;s first two columns are read the same way.
@@ -282,7 +249,7 @@ export default function InitialStateImportModal({ open, onClose, courses, standi
       <textarea
         value={text}
         onChange={(e) => handleTextChange(e.target.value)}
-        placeholder={"code,value\nYear2,40\nCOURSE101,30"}
+        placeholder={"code,value\nCOURSE101,30"}
         className="h-32 w-full resize-y rounded-lg border border-border-2 bg-surface-2 px-2.5 py-1.5 font-mono text-sm text-ink focus:outline-none focus:ring-1 focus:ring-accent"
       />
 
@@ -330,9 +297,6 @@ export default function InitialStateImportModal({ open, onClose, courses, standi
               <div className="flex flex-wrap gap-x-3 gap-y-0.5 px-3 py-1.5 text-xs">
                 <span className="text-good">
                   <b>{occupancyCount}</b> occupancy
-                </span>
-                <span className="text-good">
-                  <b>{standingCount}</b> standing
                 </span>
                 {duplicateCount > 0 && (
                   <span className="text-warn">

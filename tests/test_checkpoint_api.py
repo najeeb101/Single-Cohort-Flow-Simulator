@@ -51,6 +51,35 @@ def test_create_checkpoint_discards_previous_session():
     _discard_any_session()
 
 
+def test_checkpoint_summary_carries_flow_timeline_shaped_data():
+    # Bottlenecks/HeadlineKpis/AdmissionsRecommendation/CohortsTable read the checkpoint
+    # session the same way they read a completed /simulate's flow_timeline — this locks in
+    # that the field exists and is well-formed even before any term has run.
+    _discard_any_session()
+    created = client.post("/checkpoint").json()
+    ft = created["flow_timeline"]
+    assert set(ft) == {"meta", "frames", "summary"}
+    assert set(ft["summary"]) == {
+        "headline",
+        "per_cohort",
+        "admissions_recommendation",
+        "top_bottlenecks",
+        "predictive_demand",
+    }
+
+    assert ft["frames"] == []
+    assert ft["summary"]["per_cohort"] == []
+    # No study cohorts have been admitted yet, so there's nothing to recommend from.
+    assert ft["summary"]["admissions_recommendation"] == {}
+
+    client.post("/checkpoint/advance")
+    after = client.get("/checkpoint").json()
+    ft_after = after["flow_timeline"]
+    assert len(ft_after["frames"]) >= 1
+    assert 0.0 <= ft_after["summary"]["headline"]["graduation_rate"] <= 1.0
+    _discard_any_session()
+
+
 def test_advance_runs_exactly_one_mandatory_term():
     _discard_any_session()
     client.post("/checkpoint")
@@ -80,6 +109,26 @@ def test_advance_to_completion_marks_session_completed():
     # Advancing a completed session is rejected, not silently accepted.
     resp = client.post("/checkpoint/advance")
     assert resp.status_code == 422
+    _discard_any_session()
+
+
+def test_autofill_scoped_to_working_config_not_live_plan():
+    # Bumping a course's staged capacity in the session should change what the session-scoped
+    # solver sees (fewer/no seat shortfalls to fix for that course) without touching the live
+    # plan at all — proving it reads working_curriculum/working_config, not the DB plan.
+    _discard_any_session()
+    created = client.post("/checkpoint").json()
+    code = created["working_curriculum"][0]["code"]
+    live_capacity_before = next(c["capacity"] for c in client.get("/curriculum").json() if c["code"] == code)
+
+    resp = client.post("/checkpoint/autofill", json={"run_budget": 2})
+    assert resp.status_code == 200
+    body = resp.json()
+    assert set(body) >= {"feasible", "recommended", "final_metrics", "criteria", "trace", "runs"}
+
+    # The live plan's own capacity is untouched by a read-only solve.
+    live_capacity_after = next(c["capacity"] for c in client.get("/curriculum").json() if c["code"] == code)
+    assert live_capacity_after == live_capacity_before
     _discard_any_session()
 
 
@@ -134,7 +183,7 @@ def test_edit_rejects_occupancy_exceeding_capacity():
     code = created["working_curriculum"][0]["code"]
     capacity = created["working_curriculum"][0]["capacity"]
     resp = client.post("/checkpoint/edit", json={
-        "initial_state": {"occupancy": {code: capacity + 1}, "standing": {}},
+        "initial_state": {"occupancy": {code: capacity + 1}},
     })
     assert resp.status_code == 422
     _discard_any_session()

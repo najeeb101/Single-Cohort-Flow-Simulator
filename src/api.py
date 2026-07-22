@@ -34,7 +34,12 @@ from src.advisor import (
     summarize_plan,
     validate_proposals,
 )
-from src.analytics import build_curriculum_graph, compute_student_trace, find_students_matching
+from src.analytics import (
+    build_curriculum_graph,
+    compute_student_trace,
+    find_students_matching,
+    flow_timeline_payload,
+)
 from src.auth import get_current_user
 from src.curriculum_validation import CycleError, PlanImportError, check_no_cycle
 from src.db import (
@@ -114,7 +119,7 @@ class ScenarioRequest(BaseModel):
     admission_sizes: dict[str, int] | None = None  # per-season cohort size override (e.g. Spring)
     max_terms: int | None = Field(default=None, ge=1)
     seed: int | None = None
-    initial_state: dict | None = None      # {occupancy: {code: seats}, standing: {Year2/3/4: n}}
+    initial_state: dict | None = None      # {occupancy: {code: seats}}
     dropout_gpa_floor: float | None = Field(default=None, ge=0, le=4)
     dropout_base_hazard: float | None = Field(default=None, ge=0, le=1)
     dropout_early_multiplier: float | None = Field(default=None, ge=0, le=10)
@@ -316,9 +321,9 @@ def meta(db: Session = Depends(get_db)) -> dict:
         "cohort_size": config["cohort_size"],
         "num_cohorts": config.get("num_cohorts"),
         "num_incumbent_cohorts": config.get("num_incumbent_cohorts", 0),
-        # Initial-state warm start (replaces incumbent cohorts) — per-course occupied seats +
-        # year-standing head-counts. See src/simulator.py::_effective_capacity / CLAUDE.md.
-        "initial_state": config.get("initial_state", {"occupancy": {}, "standing": {}}),
+        # Initial-state warm start (replaces incumbent cohorts) — per-course occupied seats.
+        # See src/simulator.py::_effective_capacity / CLAUDE.md.
+        "initial_state": config.get("initial_state", {"occupancy": {}}),
         # Which seasons admit a new study cohort (Fall-only by default; add Spring for a second
         # yearly intake). Replaces the old admit_interval_terms knob — admission cadence is now a
         # choice of seasons, not an opaque term count. admission_sizes lets the department set a
@@ -743,8 +748,6 @@ def update_config(
         validate_admissions(patch, merged_config)
 
         if "initial_state" in patch:
-            # Validate standing against the POST-patch config, so a request that changes
-            # year_standing_thresholds and standing together is judged against the new year bands.
             validate_initial_state(patch["initial_state"], merged_config)
 
         # Cross-object guardrails (cohort_size positivity, capacity-vs-occupancy) against the
@@ -881,12 +884,18 @@ def _checkpoint_summary_from_sim(row: CheckpointSessionRow, sim: Simulator) -> d
             "graph": build_curriculum_graph(sim.curriculum),
             "stage_nodes": stage_node_names(sim.config),
         },
-        # Deliberately NOT the full compute_metrics/flow_timeline_payload pipeline: those are
-        # tuned for a COMPLETE run (admissions recommendation, confidence intervals, "finished
-        # cohort" health criteria) and reading them mid-run would either be misleading or hit an
-        # edge case never exercised on a partial population. A simple status-so-far count is
-        # unambiguous at every step; a richer partial summary is a possible follow-up.
         "counts_so_far": counts,
+        # The exact {meta, frames, summary} shape a completed /simulate produces — every field
+        # in compute_metrics/compute_cohort_metrics/compute_admissions_recommendation only reads
+        # .history/.config/.students, all present on a Simulator mid-run, so this is safe to
+        # call on a partial population (ratios guard their own zero-student/zero-graduate case;
+        # the admissions "representative cohort" degrades to "mean across cohorts so far" until
+        # one has actually finished its horizon). Lets Bottlenecks/HeadlineKpis/
+        # AdmissionsRecommendation/CohortsTable read a checkpoint session exactly like the
+        # baseline dashboard's flow_timeline — the frontend must still treat it as partial
+        # (fewer terms run = less reliable), which is why it's a distinct field rather than the
+        # baseline's own flow_timeline.
+        "flow_timeline": flow_timeline_payload(sim, sim.curriculum),
     }
 
 
@@ -1005,6 +1014,28 @@ def edit_checkpoint(req: CheckpointEditRequest, db: Session = Depends(get_db)) -
     row.working_config = working_config
     db.commit()
     return _checkpoint_summary(row)
+
+
+@app.post("/checkpoint/autofill")
+def autofill_checkpoint(req: AutofillRequest, db: Session = Depends(get_db)) -> dict:
+    """Auto-fill solver scoped to the session's staged (working) curriculum/config rather than
+    the live plan — so it answers "what capacity would meet targets given the settings I've
+    staged so far" without writing anything to the plan first. Each candidate is still a fresh
+    full-horizon simulation (solve_for_targets doesn't use the session's resumed/partial engine
+    state — a capacity search needs to see the whole horizon play out per candidate). Read-only;
+    the caller applies the result via POST /checkpoint/edit, exactly like the plan-scoped
+    /autofill applies via PUT /curriculum + PUT /config."""
+    row = _require_checkpoint_session(db, get_current_user(db))
+    curriculum = _checkpoint_curriculum(row)
+    config = row.working_config
+    try:
+        return solve_for_targets(
+            curriculum, config,
+            run_budget=req.run_budget,
+            tune_intake_fallback=req.tune_intake_fallback,
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
 @app.post("/checkpoint/advance")

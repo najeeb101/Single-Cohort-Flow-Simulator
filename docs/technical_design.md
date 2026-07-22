@@ -502,9 +502,10 @@ The model layers a **steady-state university** on top of the single-student mech
 - **Warm start, current default: initial state, not simulated incumbents.** Rather than admitting
   `num_incumbent_cohorts` prior cohorts at negative terms, the shipped config instead defines
   `initial_state.occupancy` (seats already taken per course by the existing, un-simulated student
-  body) and `initial_state.standing` (a head-count already at each year standing). Occupancy is
-  subtracted from every course's free seats on every mandatory term; standing is folded into the
-  aggregate stage-node counts for display. `num_incumbent_cohorts` still exists as a lower-level
+  body), subtracted from every course's free seats on every mandatory term. The starting student
+  body is driven entirely by occupancy — an earlier `initial_state.standing` head-count (folded
+  into the aggregate stage-node counts for display) was removed; occupancy alone was judged
+  sufficient. `num_incumbent_cohorts` still exists as a lower-level
   engine knob (admitting cohorts at negative terms, fully simulated from their negative entry
   forward — walked backward from term −1 along the same `admission_terms` rhythm — so the global
   loop's `start_term` is the earliest such negative entry) but defaults to 0 in the shipped config.

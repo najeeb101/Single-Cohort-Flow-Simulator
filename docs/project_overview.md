@@ -60,9 +60,8 @@ single-cohort model can't represent that competition at all. This simulator runs
 at once, all drawing from the exact same per-course seat pool, term after term. Rather than
 simulating a separate set of "incumbent" cohorts before the study window starts, the university
 is warm-started from an admin-entered **initial state**: how many seats in each course are
-already occupied by the existing student body, and how many students are already sitting at each
-year standing (Year 2/3/4). That occupancy is subtracted from every course's free seats on every
-mandatory term, so gateway courses are realistically full from the very first simulated term
+already occupied by the existing student body. That occupancy is subtracted from every course's
+free seats on every mandatory term, so gateway courses are realistically full from the very first simulated term
 without the engine having to simulate years of pre-history to get there. (The engine still
 supports seeding literal incumbent cohorts at negative terms as a lower-level option, but the
 shipped configuration doesn't use it — that knob defaults to zero.)
@@ -96,7 +95,7 @@ during those term-by-term loops.
 
 There's a single **global clock** shared by the whole university (term 0, term 1, term 2, ...,
 which only runs negative if incumbent cohorts are explicitly configured; the shipped
-configuration instead warm-starts via the initial-state occupancy/standing numbers described in
+configuration instead warm-starts via the initial-state occupancy numbers described in
 §2). But a student's own graduation deadline is judged on their **personal clock** — their own semester count
 since *their* admission, which only ticks forward on a mandatory term. A student admitted years
 into the simulation still gets a full personal budget of semesters, exactly like the first cohort
@@ -365,11 +364,10 @@ identical seeds per student so the *differences* between scenarios are real even
 ## 7. How a curriculum committee actually uses this
 
 - **Initial-state setup (first run)** — before the simulation panel unlocks at all, a required
-  screen asks for today's real department state: seats already taken in each course, and how
-  many students already sit at each year-standing (zero is an accepted answer for a from-scratch
-  university). A CSV paste/upload fills in a batch of courses and year-standing counts at once,
-  so this is realistically a five-minute step rather than hand-typing every course. The same
-  editor stays reachable afterward from Settings, for whenever those numbers change.
+  screen asks for today's real department state: seats already taken in each course (zero is an
+  accepted answer for a from-scratch university). A CSV paste/upload fills in a batch of courses
+  at once, so this is realistically a five-minute step rather than hand-typing every course. The
+  same editor stays reachable afterward from Settings, for whenever those numbers change.
 - **Settings** — edit the curriculum (courses, prerequisites, offerings, pass rates) and the
   baseline configuration in place, covering the same admissions/pass-rate/dropout/registration
   knobs a one-off scenario would, but as a *persistent* change rather than a per-run override.
@@ -385,7 +383,10 @@ identical seeds per student so the *differences* between scenarios are real even
   four-signal breakdown by course, per-course section recommendations (estimated relief from
   adding a section), and an Auto-fill solver that searches for the smallest capacity additions that
   meet the committee's own admission targets and applies them with one click. (What-if testing of a
-  specific change moved to the Advisor.)
+  specific change moved to the Advisor.) When a Dashboard checkpoint walkthrough is in progress,
+  this page and Auto-fill read that session's own (partial) numbers live instead of the full
+  12-semester baseline — an explicit banner says how many terms have run so far — so testing a
+  capacity fix reflects the decisions actually being staged, not a frozen earlier run.
 - **Student Trace** — pick one (synthetic) student by profile — a cohort, an outcome, whether they
   were ever on probation — and see their exact term-by-term path: courses taken and passed or
   failed, where they got stuck and by which of the four signals, and how their GPA moved. The

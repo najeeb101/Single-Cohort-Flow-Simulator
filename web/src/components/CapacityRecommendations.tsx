@@ -4,6 +4,11 @@ import Link from "next/link";
 import { useMemo, type ReactNode } from "react";
 import type { Frame, MetaResponse } from "@/types/simulation";
 
+// Only these two fields are actually read below — narrowed so callers can pass either the
+// baseline MetaResponse or a lightweight stand-in built from an in-progress checkpoint session
+// (see web/src/app/(dashboard)/bottlenecks/page.tsx).
+type CapacityMeta = Pick<MetaResponse, "graph" | "mandatory_terms">;
+
 interface CourseRec {
   code: string;
   currentCapacity: number;
@@ -13,7 +18,7 @@ interface CourseRec {
   recommendedCapacity: number;
 }
 
-function buildRecommendations(frames: Frame[], meta: MetaResponse): CourseRec[] {
+function buildRecommendations(frames: Frame[], meta: CapacityMeta): CourseRec[] {
   const capacityByCode: Record<string, number> = {};
   for (const node of meta.graph.nodes) capacityByCode[node.code] = node.capacity;
 
@@ -60,7 +65,7 @@ export default function CapacityRecommendations({
   children,
 }: {
   frames: Frame[];
-  meta: MetaResponse;
+  meta: CapacityMeta;
   // Optional slot rendered under a divider at the bottom of the section — used on the
   // Bottlenecks page to group the Auto-fill solver together with these recommendations,
   // since both are capacity tools.

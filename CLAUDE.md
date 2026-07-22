@@ -221,15 +221,15 @@ immediately, no server restart needed. See [Multi-Plan Model](#multi-plan-model)
 
 ## Initial-State Model
 
-- Replaces the old simulated-incumbent warm start: instead of admitting cohorts at negative terms, the admin enters an **initial state** describing the university the first simulated cohort walks into. It lives in `config["initial_state"]` (per-plan, in `AppConfig.data`) with two parts:
+- Replaces the old simulated-incumbent warm start: instead of admitting cohorts at negative terms, the admin enters an **initial state** describing the university the first simulated cohort walks into. It lives in `config["initial_state"]` (per-plan, in `AppConfig.data`) with a single part:
   - **`occupancy`** (`{course_code: seats}`) — seats in each course already taken by the existing, un-simulated student body. `src/simulator.py::_effective_capacity` subtracts this from a course's free seats on **every mandatory term** (steady-state background load, not just term 0; floored at 0). Optional (Summer/Winter) terms are left alone — their separate, much smaller capacity model shouldn't be zeroed out by it. A course whose seats are fully consumed reports `full` even with no requesters.
-  - **`standing`** (`{Year2..YearN: count}`) — a head-count of pre-existing students at each year-standing above Year1, folded into the **aggregate** (`stages.totals`) stage nodes (and exposed per-frame as `frame["background"]`) so the flow chart starts non-empty. Display-only and constant every term; per-cohort node counts stay exactly the simulated population, and headline metrics are unaffected. The valid standing keys and the flow-chart stage nodes are **derived from `year_standing_thresholds`**, not hardcoded to a 4-year `Year1..Year4` — a K-threshold plan yields `Year1..Year(K+1)` bands (`src/models/student.py::stage_node_names`/`standing_levels`), so a program that isn't 4 years long works end-to-end (validation, engine, and the flow chart all scale). `frontend` derives the same via `meta.year_standing_thresholds`.
-- Wired through `/meta` (read), `POST /simulate` (`ScenarioRequest.initial_state` override), and `PUT /config` (persist, validated by `src/api.py::_validate_initial_state`). `meta.flow_timeline.meta.initial_state` carries it to the dashboard.
+  - The starting student body is driven **entirely** by occupancy — there is no separate year-standing head-count (an earlier `initial_state.standing` field, folded into the aggregate stage nodes as `frame["background"]`, was removed; occupancy alone was judged sufficient to represent the existing population). `year_standing_thresholds` still exists and is unrelated to this: it's the CH-band config that classifies *simulated* students into `Year1..Year(K+1)` flow-chart stages (`src/models/student.py::stage_node_names`/`curriculum_stage`), not a warm-start count.
+- Wired through `/meta` (read), `POST /simulate` (`ScenarioRequest.initial_state` override), and `PUT /config` (persist, validated by `src/plan_validation.py::validate_initial_state`). `meta.flow_timeline.meta.initial_state` carries it to the dashboard.
 - `num_incumbent_cohorts` and `initial_state` are independent and *can* coexist, but the default QU plan uses only `initial_state`.
-- **Frontend editing surfaces** — two entry points share one editor, `web/src/components/scenario-builder/InitialStateEditor.tsx` (year-standing number-boxes + `InitialOccupancyTable.tsx`'s per-course occupancy table, sorted by `study_plan_term`), so there is one implementation, not two:
-  - **Required first-run setup gate** (`web/src/components/InitialStateGate.tsx`, wired into `web/src/lib/SimulationContext.tsx`'s render waterfall, between the loading/error checks and the auto-run): whenever `meta.initial_state` is fully empty (no occupancy rows *and* every standing count zero) and a `localStorage` flag (`initial-state-setup-done`) isn't already `"1"`, the admin sees this screen before anything else — occupancy/standing must be reviewed (zero is an accepted answer) and "Continue" clicked (`PUT /config`, sets the flag) before the baseline auto-run becomes reachable at all. This makes entering today's real department state a mandatory first step, not an optional Settings tab an admin could skip past.
+- **Frontend editing surfaces** — two entry points share one editor, `web/src/components/scenario-builder/InitialStateEditor.tsx` (a header + `InitialOccupancyTable.tsx`'s per-course occupancy table, sorted by `study_plan_term`), so there is one implementation, not two:
+  - **Required first-run setup gate** (`web/src/components/InitialStateGate.tsx`, wired into `web/src/lib/SimulationContext.tsx`'s render waterfall, between the loading/error checks and the auto-run): whenever `meta.initial_state.occupancy` is fully empty and a `localStorage` flag (`initial-state-setup-done`) isn't already `"1"`, the admin sees this screen before anything else — occupancy must be reviewed (zero is an accepted answer) and "Continue" clicked (`PUT /config`, sets the flag) before the baseline auto-run becomes reachable at all. This makes entering today's real department state a mandatory first step, not an optional Settings tab an admin could skip past.
   - **`AdmissionsTab.tsx`** (Settings, Plan Builder's Config step) — the same editor, for revisiting the values any time after the gate.
-  - **CSV import** (`InitialStateImportModal.tsx`, launched from a header button on either surface): paste or upload a two-column `code,value` CSV — `code` matches a course code (→ occupancy) or `Year2`/`Year3`/`Year4` (→ standing), case-insensitively; a header row is auto-detected; unknown codes or non-numeric values are skipped with a reason shown in a preview, never fatal to the rest of the batch. Lets a department head bulk-load real numbers instead of hand-typing ~41 rows.
+  - **CSV import** (`InitialStateImportModal.tsx`, launched from a header button on either surface): paste or upload a two-column `code,value` CSV — `code` matches a course code, case-insensitively; a header row is auto-detected; unknown codes or non-numeric values are skipped with a reason shown in a preview, never fatal to the rest of the batch. Lets a department head bulk-load real numbers instead of hand-typing ~41 rows.
 
 ## Multi-Plan Model
 
@@ -379,23 +379,19 @@ recommendation already uses.
 
 **The Dashboard (`/`) IS this feature** — there is no separate full-run landing page anymore. A
 department head advances **one mandatory term at a time** and edits future-facing knobs
-(capacity, pass rate, occupancy/standing, next intake) between steps — never the courses
-already run. This is **not** a revival of the old, removed Live Simulation feature (which was
+(capacity, pass rate, occupancy, next intake) between steps — never the courses already run.
+This is **not** a revival of the old, removed Live Simulation feature (which was
 continuous-tick/replay-based over an append-only edit log): a checkpoint session advances
 **only** on an explicit "Advance one term" click, and it freezes/resumes real mid-run engine
 state rather than replaying from term 0 each time.
 
-The old static full-horizon dashboard (roadmap + admissions recommendation + headline results +
-per-cohort table + prerequisite network, all driven by one `/simulate` call on load) no longer
-has a page of its own — `web/src/app/(dashboard)/page.tsx` now renders the checkpoint
-walkthrough instead. That full-horizon simulation still runs **invisibly in the background**
-(`SimulationProvider`, from the dashboard layout, unchanged) purely so **Bottlenecks, Advisor,
-Auto-fill, Figures, and Student Trace keep working exactly as before** — none of those pages
-live at `/`, so none of them changed; they just lost their entry point from the old dashboard
-screen (reach them via the nav). The old dashboard's now-unused presentational components
-(`AnimationSection`, `AdmissionsRecommendation`, `HeadlineKpis`, `CohortsTable`,
-`PrerequisiteNetwork`, `CollapsibleSection`) were deleted (zero remaining references,
-recoverable from git history if that static view is ever wanted back on its own page).
+The old static full-horizon dashboard's presentational sections (roadmap, admissions
+recommendation, headline results, per-cohort table, prerequisite network) are back on `/`, but
+now driven by the **checkpoint session's own partial run** instead of a single complete
+`/simulate` call — see "Live-synced analytics" below. `web/src/app/(dashboard)/page.tsx` renders
+the checkpoint walkthrough; the full-horizon baseline simulation still runs invisibly in the
+background (`SimulationProvider`, from the dashboard layout, unchanged) purely so Advisor,
+Figures, and Student Trace keep working exactly as before.
 
 - **Resumable engine** (`src/simulator.py`): `Simulator.step_one_mandatory_term()` runs terms
   one at a time, admitting any cohort due that term and sweeping through any intervening
@@ -428,28 +424,54 @@ recoverable from git history if that static view is ever wanted back on its own 
   even by accident) validated through the same `plan_validation.py` guardrails as a persisted
   `PUT /curriculum`/`PUT /config`; `POST /checkpoint/advance` steps the session forward exactly
   one mandatory term; `DELETE /checkpoint` discards it. `GET /meta` reports
-  `checkpoint_active`/`checkpoint_next_term`. The response payload deliberately does **not** run
-  the full `compute_metrics`/`flow_timeline_payload` pipeline (tuned for a *complete* run —
-  admissions recommendation, "finished cohort" health criteria) — it's a simple
-  frames-so-far + per-status head-count summary instead, unambiguous at every partial step. A
-  richer partial summary is a possible future follow-up.
+  `checkpoint_active`/`checkpoint_next_term`.
+- **Live-synced analytics**: `_checkpoint_summary_from_sim` includes a `flow_timeline` field —
+  the *exact* `{meta, frames, summary}` shape `analytics.flow_timeline_payload` builds for a
+  completed `/simulate` run, computed straight off the mid-run `Simulator` (`compute_metrics`/
+  `compute_cohort_metrics`/`compute_admissions_recommendation` only ever read `.history`/
+  `.config`/`.students`, all present on a `Simulator` whether it's finished or not — every ratio
+  already guards its own zero-student/zero-graduate case, and the admissions "representative
+  cohort" degrades to "mean across cohorts so far" until one has actually finished its horizon).
+  This lets the Dashboard's restored `HeadlineKpis`/`AdmissionsRecommendation`/`CohortsTable`/
+  `PrerequisiteNetwork` (each wrapped in a `CollapsibleSection`, collapsed by default) and the
+  Bottlenecks page's `BottlenecksPanel`/`CapacityRecommendations` read a checkpoint session
+  exactly like they'd read the baseline's `flow_timeline` — always **explicitly framed as
+  partial** (a note above the sections / a banner on Bottlenecks: "N terms run so far, not the
+  full horizon"), since fewer terms run means less reliable numbers, especially before any
+  cohort has finished. `CheckpointProvider` therefore lives at the **dashboard layout level**
+  (`web/src/app/(dashboard)/layout.tsx`, nested inside `SimulationProvider`), not just on the
+  Dashboard page, so Bottlenecks can reach it too; unlike `SimulationProvider` it does **not**
+  block rendering while its initial `GET /checkpoint` resolves (`loading` is exposed for the one
+  place — the Dashboard's own start/session branch — that needs to avoid flashing the wrong
+  screen; every other page just falls back to the baseline until the near-instant fetch settles).
+  **Auto-fill also has a session-scoped variant**: `POST /checkpoint/autofill` runs
+  `optimizer.solve_for_targets` against the session's `working_curriculum`/`working_config`
+  instead of the live plan (each candidate is still a fresh full-horizon simulation — the solver
+  doesn't use the session's own resumed/partial engine state, a capacity search needs to see a
+  whole horizon play out per candidate) — read-only, exactly like the baseline `/autofill`; "Apply"
+  routes through `POST /checkpoint/edit` instead of `PUT /curriculum`/`PUT /config`, so it takes
+  effect on the next Advance rather than immediately. `AutofillPanel`/`CapacityRecommendations`
+  pick whichever mode matches whether a checkpoint session is active, with copy reflecting which.
+  Falls back to the baseline (full-horizon, immediate-write) path the moment there's no active
+  session. Bottlenecks page: `tests/test_checkpoint_api.py::test_checkpoint_summary_carries_flow_timeline_shaped_data` and `test_autofill_scoped_to_working_config_not_live_plan`.
 - **Frontend** (`web/src/lib/CheckpointContext.tsx`,
   `web/src/app/(dashboard)/page.tsx`, `web/src/components/checkpoint/CheckpointEditPanel.tsx`):
-  `page.tsx` wraps its whole body in `CheckpointProvider`, built like `SimulationContext` but
-  **with no auto-run** — it starts idle until "Start checkpoint walkthrough" is clicked (the
-  dashboard's layout still wraps everything in `SimulationProvider` too, so the first-run setup
-  gate/onboarding intro and the invisible background baseline run are unaffected). The edit panel
-  is composed entirely from existing pieces (`InitialStateEditor` for standing/occupancy,
-  `CurriculumTable` for capacity/pass-rate/occupancy, a small custom next-intake control) rather
-  than new form widgets. `CurriculumTable` gained a `structuralEditsDisabled` prop: it hides
-  Add/Delete and the structural edit-expansion row, since those call `updateCourse`/
-  `createCourse`/`deleteCourse` (`PUT`/`POST`/`DELETE /curriculum`) against the **live plan**,
-  not a checkpoint session's `working_curriculum` — only the deferred inline capacity/pass-rate/
-  occupancy columns (already owned by the parent's `onChange`) stay available. `AdmissionsTab`
-  was deliberately **not** reused for the intake control: its `BuilderState` coupling and
-  `mode="simple"/"advanced"` split doesn't cleanly hide exactly `num_cohorts`/`max_terms`/`seed`
-  while keeping `cohort_size`/`admission_sizes`/initial state, so a small purpose-built control
-  was simpler and safer than forcing that fit.
+  built like `SimulationContext` but **with no auto-run** — it starts idle until "Start checkpoint
+  walkthrough" is clicked. The edit panel (`CheckpointEditPanel`, composed entirely from existing
+  pieces — `InitialStateEditor` for occupancy, `CurriculumTable` for capacity/pass-rate/occupancy,
+  a small custom next-intake control, no new form widgets) is no longer rendered inline: an "Edit
+  term settings" button in the session's status bar opens it inside `web/src/components/Modal.tsx`
+  (given a new `size="wide"` variant so a full `CurriculumTable` fits and scrolls inside the modal
+  instead of overflowing it), and a successful save (`onSaved` callback) auto-closes the modal.
+  `CurriculumTable` gained a `structuralEditsDisabled` prop: it hides Add/Delete and the structural
+  edit-expansion row, since those call `updateCourse`/`createCourse`/`deleteCourse`
+  (`PUT`/`POST`/`DELETE /curriculum`) against the **live plan**, not a checkpoint session's
+  `working_curriculum` — only the deferred inline capacity/pass-rate/occupancy columns (already
+  owned by the parent's `onChange`) stay available. `AdmissionsTab` was deliberately **not** reused
+  for the intake control: its `BuilderState` coupling and `mode="simple"/"advanced"` split doesn't
+  cleanly hide exactly `num_cohorts`/`max_terms`/`seed` while keeping `cohort_size`/
+  `admission_sizes`/initial state, so a small purpose-built control was simpler and safer than
+  forcing that fit.
 
 ## Parallel Workloads
 

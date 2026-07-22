@@ -40,7 +40,7 @@ Next.js 16 dev mode blocks cross-origin dev requests from origins not in `allowe
   does (a) for you; a fresh Playwright context gives (b) automatically.
   ```bash
   curl -s -X PUT http://localhost:8001/config -H "Content-Type: application/json" \
-    -d '{"initial_state":{"occupancy":{},"standing":{}}}'
+    -d '{"initial_state":{"occupancy":{}}}'
   ```
 - **Isolate the DB when testing** so you never mutate `data/app.db`: start the backend with
   `DATABASE_URL="sqlite:///<abs-temp-path>.db"` — it seeds fresh from the JSON files.

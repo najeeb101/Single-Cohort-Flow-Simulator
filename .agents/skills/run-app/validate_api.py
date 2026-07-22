@@ -33,7 +33,7 @@ def check(name, cond, detail=""):
 
 # meta
 meta = client.get("/meta").json()
-check("meta has initial_state", set(meta.get("initial_state", {})) >= {"occupancy", "standing"})
+check("meta has initial_state", set(meta.get("initial_state", {})) >= {"occupancy"})
 check("meta has graph nodes", bool(meta.get("graph", {}).get("nodes")))
 
 # Advisor data source: /simulate payload
@@ -51,11 +51,10 @@ for code, rec in (af.get("recommended") or {}).items():
     check(f"autofill rec {code} is an increase", rec["recommended"] > rec["current"])
 
 # Initial-state persist + reject
-r = client.put("/config", json={"initial_state": {"occupancy": {"CMPS151": 5}, "standing": {"Year2": 30}}})
+r = client.put("/config", json={"initial_state": {"occupancy": {"CMPS151": 5}}})
 check("PUT /config initial_state 200", r.status_code == 200)
 persisted = client.get("/meta").json()["initial_state"]
-check("initial_state persisted", persisted["occupancy"].get("CMPS151") == 5 and persisted["standing"].get("Year2") == 30)
-check("bad standing -> 422", client.put("/config", json={"initial_state": {"standing": {"Year9": 1}}}).status_code == 422)
+check("initial_state persisted", persisted["occupancy"].get("CMPS151") == 5)
 check("negative occupancy -> 422", client.put("/config", json={"initial_state": {"occupancy": {"CMPS151": -3}}}).status_code == 422)
 
 
@@ -63,10 +62,14 @@ def total_denied(payload):
     return sum(st.get("denied", 0) for f in payload["flow_timeline"]["frames"] for st in f.get("courses", {}).values())
 
 
-client.put("/config", json={"initial_state": {"occupancy": {}, "standing": {}}})
+client.put("/config", json={"initial_state": {"occupancy": {}}})
 base = client.post("/simulate", json={}).json()
-gateways = [n["code"] for n in meta["graph"]["nodes"]][:8]
-heavy = client.post("/simulate", json={"initial_state": {"occupancy": {c: 999 for c in gateways}, "standing": {}}}).json()
+gateway_nodes = meta["graph"]["nodes"][:8]
+# occupancy must not exceed a course's own capacity (validate_capacity_vs_occupancy) — use
+# capacity - 1 per course (the heaviest allowed load) rather than a fixed value that could
+# exceed a smaller course's capacity and 422 instead of reaching the engine.
+heavy_occupancy = {n["code"]: max(0, n["capacity"] - 1) for n in gateway_nodes}
+heavy = client.post("/simulate", json={"initial_state": {"occupancy": heavy_occupancy}}).json()
 check("initial_state reaches engine (heavy occupancy raises denials)", total_denied(heavy) > total_denied(base),
       f"base={total_denied(base)} heavy={total_denied(heavy)}")
 

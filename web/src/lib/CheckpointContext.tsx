@@ -85,10 +85,12 @@ export function CheckpointProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  if (loading) {
-    return <main className="mx-auto max-w-xl px-7 py-16 text-muted">Loading checkpoint session…</main>;
-  }
-
+  // Deliberately does NOT block rendering while loading (unlike SimulationProvider) — this
+  // provider now lives at the dashboard layout level (see layout.tsx) so every page can read
+  // it, and most pages (Bottlenecks, etc.) just fall back to their baseline data until the
+  // (typically near-instant) GET /checkpoint resolves, no full-page flash needed. The Dashboard
+  // page itself reads `loading` directly to avoid flashing its "Start walkthrough" screen before
+  // an existing session is found.
   return (
     <CheckpointContext.Provider value={{ session, loading, busy, error, start, advance, edit, discard }}>
       {children}

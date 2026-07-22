@@ -613,7 +613,7 @@ def flow_timeline_payload(
             "max_terms": result.config.get("max_terms"),
             "num_cohorts": result.config.get("num_cohorts"),
             "num_incumbent_cohorts": result.config.get("num_incumbent_cohorts", 0),
-            "initial_state": result.config.get("initial_state", {"occupancy": {}, "standing": {}}),
+            "initial_state": result.config.get("initial_state", {"occupancy": {}}),
         },
         "frames": history.timeline,
         "summary": {

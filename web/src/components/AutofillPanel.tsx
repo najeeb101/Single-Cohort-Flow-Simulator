@@ -1,16 +1,19 @@
 "use client";
 
 import { useState } from "react";
-import { ApiError, autofill, updateConfig, updateCourse } from "@/lib/api";
+import { ApiError, autofill, autofillCheckpoint, updateConfig, updateCourse } from "@/lib/api";
 import { useSimulation } from "@/lib/SimulationContext";
+import { useCheckpoint } from "@/lib/CheckpointContext";
 import { formatCriterionValue, pct } from "@/lib/format";
-import type { AutofillResult } from "@/types/simulation";
+import type { AutofillResult, CheckpointEdit } from "@/types/simulation";
 
-// Auto-fill to targets: one click runs the backend solver (POST /autofill), which searches the
-// smallest capacity additions that meet the admission health targets at the current intake, then
-// lets the admin apply the result. "Apply" reuses the existing per-course PUT /curriculum + PUT
-// /config writes and then refreshBaseline(), so there is no new persistence path — the whole app
-// picks up the change immediately, same as a Settings edit.
+// Auto-fill to targets: one click runs a backend solver, which searches the smallest capacity
+// additions that meet the admission health targets at the current intake, then lets the admin
+// apply the result. When a checkpoint walkthrough is in progress this scopes both the search and
+// the apply to that session's staged settings (POST /checkpoint/autofill + POST /checkpoint/edit)
+// instead of the live plan (POST /autofill + PUT /curriculum + PUT /config) — so it answers
+// "what would fix this given what I've already staged" without writing to the live plan first,
+// and "Apply" takes effect on the session's next Advance rather than immediately.
 
 const CRITERION_LABEL: Record<string, string> = {
   graduation_rate: "Graduation rate",
@@ -21,6 +24,7 @@ const CRITERION_LABEL: Record<string, string> = {
 
 export default function AutofillPanel() {
   const { refreshBaseline } = useSimulation();
+  const { session, edit: applyCheckpointEdit } = useCheckpoint();
   const [running, setRunning] = useState(false);
   const [result, setResult] = useState<AutofillResult | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -35,7 +39,7 @@ export default function AutofillPanel() {
     setApplied(false);
     setResult(null);
     try {
-      const res = await autofill();
+      const res = session ? await autofillCheckpoint() : await autofill();
       setResult(res);
       setApplyIntake(false);
     } catch (e) {
@@ -50,16 +54,24 @@ export default function AutofillPanel() {
     setApplying(true);
     setError(null);
     try {
-      await Promise.all(
-        Object.entries(result.recommended).map(([code, rec]) =>
-          updateCourse(code, { capacity: rec.recommended })
-        )
-      );
       const intake = result.intake_suggestion?.recommended_intake;
-      if (applyIntake && intake != null) {
-        await updateConfig({ cohort_size: intake });
+      if (session) {
+        const patch: CheckpointEdit = {
+          capacity: Object.fromEntries(Object.entries(result.recommended).map(([code, rec]) => [code, rec.recommended])),
+        };
+        if (applyIntake && intake != null) patch.cohort_size = intake;
+        await applyCheckpointEdit(patch);
+      } else {
+        await Promise.all(
+          Object.entries(result.recommended).map(([code, rec]) =>
+            updateCourse(code, { capacity: rec.recommended })
+          )
+        );
+        if (applyIntake && intake != null) {
+          await updateConfig({ cohort_size: intake });
+        }
+        await refreshBaseline();
       }
-      await refreshBaseline();
       setApplied(true);
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "Could not apply the changes");
@@ -80,6 +92,12 @@ export default function AutofillPanel() {
       <p className="mb-4 max-w-3xl text-sm text-muted">
         Searches the smallest capacity additions that meet every admission health target at the current
         intake. Runs a series of simulations (a few seconds), then lets you apply the result.
+        {session && (
+          <>
+            {" "}Scoped to your in-progress checkpoint walkthrough&apos;s current settings — applying
+            takes effect on the next Advance, not immediately.
+          </>
+        )}
       </p>
 
       <div className="flex items-center gap-3">
@@ -212,7 +230,11 @@ export default function AutofillPanel() {
             >
               {applying ? "Applying…" : "Apply these changes"}
             </button>
-            {applied && <span className="text-sm font-semibold text-good">Applied — new baseline in effect</span>}
+            {applied && (
+              <span className="text-sm font-semibold text-good">
+                {session ? "Applied — takes effect on the next Advance" : "Applied — new baseline in effect"}
+              </span>
+            )}
             <button
               type="button"
               onClick={() => setShowTrace((v) => !v)}

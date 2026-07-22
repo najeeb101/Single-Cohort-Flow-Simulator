@@ -22,7 +22,7 @@ if (TEST_GATE) {
   const r = await fetch(`${API}/config`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ initial_state: { occupancy: {}, standing: {} } }),
+    body: JSON.stringify({ initial_state: { occupancy: {} } }),
   });
   ok("blanked initial_state for gate test", r.ok, `http ${r.status}`);
 }

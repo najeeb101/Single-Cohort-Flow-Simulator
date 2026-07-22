@@ -14,22 +14,28 @@ from __future__ import annotations
 
 from src.models.course import Course
 from src.models.semester import get_mandatory_seasons
-from src.models.student import standing_levels
 
 
 class PlanValidationError(Exception):
     """Raised on a guardrail violation. Callers (src/api.py) map this to HTTP 422."""
 
 
+# Intake bounds — realistic institutional limits.
+_COHORT_SIZE_MIN = 10
+_COHORT_SIZE_MAX = 1000
+
+
 def validate_cohort_size(config: dict) -> None:
-    """cohort_size must be a positive integer. Closes a real gap: neither
-    `ScenarioRequest.cohort_size` nor `PUT /config` enforced this before, so `cohort_size: 0`
-    could reach `SyntheticDataSource` and produce degenerate (empty) cohorts."""
+    """cohort_size must be a positive integer within institutional bounds."""
     size = config.get("cohort_size")
     if size is None:
         return
     if not isinstance(size, int) or isinstance(size, bool) or size < 1:
         raise PlanValidationError("cohort_size must be a positive integer")
+    if size < _COHORT_SIZE_MIN or size > _COHORT_SIZE_MAX:
+        raise PlanValidationError(
+            f"cohort_size must be between {_COHORT_SIZE_MIN} and {_COHORT_SIZE_MAX} (got {size})"
+        )
 
 
 def validate_capacity_vs_occupancy(curriculum: dict[str, Course], config: dict) -> None:
@@ -75,13 +81,18 @@ def validate_plan_edits(curriculum: dict[str, Course], config: dict) -> None:
     `POST /curriculum`, and `PUT /config`."""
     validate_cohort_size(config)
     validate_capacity_vs_occupancy(curriculum, config)
+    # Curriculum topology guardrails (missing prereqs, cycles, unreachable depth).
+    from src.curriculum_validation import validate_curriculum_topology
+    try:
+        validate_curriculum_topology(curriculum, config)
+    except Exception as e:
+        raise PlanValidationError(str(e)) from e
 
 
 def validate_initial_state(value: object, config: dict) -> None:
-    """Shape-check the initial-state warm start: {occupancy: {code: int>=0}, standing:
-    {<year-band>: int>=0}}. Both keys optional; raises PlanValidationError on a bad shape. The
-    valid standing keys are the plan's own year bands above Year1 (`standing_levels(config)`),
-    not a hardcoded Year2/3/4 set, so a program that isn't 4 years long validates correctly."""
+    """Shape-check the initial-state warm start: {occupancy: {code: int>=0}}. The starting
+    student body is driven entirely by per-course occupancy now — there is no separate
+    year-standing head-count (see CLAUDE.md's "Initial-State Model")."""
     if not isinstance(value, dict):
         raise PlanValidationError("initial_state must be an object")
     occupancy = value.get("occupancy", {})
@@ -89,14 +100,6 @@ def validate_initial_state(value: object, config: dict) -> None:
         isinstance(v, int) and not isinstance(v, bool) and v >= 0 for v in occupancy.values()
     ):
         raise PlanValidationError("initial_state.occupancy must map course codes to non-negative integers")
-    valid_standing = set(standing_levels(config))
-    standing = value.get("standing", {})
-    if not isinstance(standing, dict) or not set(standing) <= valid_standing or not all(
-        isinstance(v, int) and not isinstance(v, bool) and v >= 0 for v in standing.values()
-    ):
-        raise PlanValidationError(
-            f"initial_state.standing keys must be a subset of {sorted(valid_standing)} with non-negative integer values"
-        )
 
 
 def validate_admissions(patch: dict, config: dict) -> None:
@@ -121,3 +124,42 @@ def validate_admissions(patch: dict, config: dict) -> None:
             isinstance(v, int) and not isinstance(v, bool) and v >= 1 for v in sizes.values()
         ):
             raise PlanValidationError("admission_sizes must map season names to positive integers")
+
+
+def validate_administrative_proposals(proposals: list[dict], curriculum: dict[str, Course], config: dict) -> list[dict]:
+    """Validate administrative change proposals (capacity, offering, pass_rate, cohort_size).
+
+    Filters and validates raw LLM/solver proposals against valid course codes, season names, and numeric bounds.
+    Returns the list of clean, validated proposal objects.
+    """
+    if not isinstance(proposals, list):
+        return []
+
+    valid_proposals = []
+    for prop in proposals:
+        if not isinstance(prop, dict):
+            continue
+        ptype = prop.get("type")
+        reason = prop.get("reason", "")
+
+        if ptype == "cohort_size":
+            val = prop.get("value")
+            if isinstance(val, int) and val > 0:
+                valid_proposals.append({"type": "cohort_size", "value": val, "reason": reason})
+        elif ptype in ("capacity", "offering", "pass_rate"):
+            code = prop.get("code")
+            if not code or code not in curriculum:
+                continue
+            val = prop.get("value")
+            if ptype == "capacity":
+                if isinstance(val, int) and val > 0:
+                    valid_proposals.append({"type": "capacity", "code": code, "value": val, "reason": reason})
+            elif ptype == "pass_rate":
+                if isinstance(val, (int, float)) and 0.0 <= float(val) <= 1.0:
+                    valid_proposals.append({"type": "pass_rate", "code": code, "value": float(val), "reason": reason})
+            elif ptype == "offering":
+                if isinstance(val, list) and all(isinstance(s, str) for s in val):
+                    valid_proposals.append({"type": "offering", "code": code, "value": val, "reason": reason})
+
+    return valid_proposals
+

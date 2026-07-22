@@ -1,12 +1,12 @@
-"""The flow-chart stage nodes and initial-state standing levels are derived from
-`year_standing_thresholds`, not hardcoded to a 4-year Year1..Year4 structure — so a program
-that isn't 4 years long produces matching stage nodes (and doesn't crash when a student reaches
-a year band beyond Year4). See src/models/student.py::stage_node_names / standing_levels.
+"""The flow-chart stage nodes are derived from `year_standing_thresholds`, not hardcoded to a
+4-year Year1..Year4 structure — so a program that isn't 4 years long produces matching stage
+nodes (and doesn't crash when a student reaches a year band beyond Year4).
+See src/models/student.py::stage_node_names.
 """
 from __future__ import annotations
 
 from src.models.course import load_curriculum
-from src.models.student import stage_node_names, standing_levels
+from src.models.student import stage_node_names
 from src.simulator import Simulator
 from src.utils import load_json
 
@@ -26,12 +26,6 @@ def test_stage_node_names_scale_with_thresholds():
     ]
     # No config -> the default bands
     assert "Year4" in stage_node_names() and "Year5" not in stage_node_names()
-
-
-def test_standing_levels_exclude_year1_and_scale():
-    assert standing_levels({"year_standing_thresholds": [30, 60, 90]}) == ["Year2", "Year3", "Year4"]
-    assert standing_levels({"year_standing_thresholds": [24, 48, 72, 96]}) == ["Year2", "Year3", "Year4", "Year5"]
-    assert standing_levels({"year_standing_thresholds": [30]}) == ["Year2"]
 
 
 def test_non_four_year_program_runs_and_uses_year5_nodes():

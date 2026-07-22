@@ -17,8 +17,7 @@ const ONBOARDING_INTRO_DONE_KEY = "onboarding-intro-done";
 
 function isInitialStateUnset(meta: MetaResponse): boolean {
   const occupancy = meta.initial_state?.occupancy ?? {};
-  const standing = meta.initial_state?.standing ?? {};
-  return Object.keys(occupancy).length === 0 && Object.values(standing).every((v) => v === 0);
+  return Object.keys(occupancy).length === 0;
 }
 
 type Phase = "loading" | "ready" | "error";

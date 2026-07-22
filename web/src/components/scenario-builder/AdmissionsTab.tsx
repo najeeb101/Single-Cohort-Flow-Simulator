@@ -9,13 +9,11 @@ interface Props {
   baseline: BuilderState;
   courses: CourseRecord[];
   setField: <K extends keyof BuilderState>(key: K, value: BuilderState[K]) => void;
-  setRecordField: (key: "standing" | "initialOccupancy", code: string, value: number) => void;
+  setRecordField: (key: "initialOccupancy", code: string, value: number) => void;
   // Settings renders the initial-state editor as its own prominent top section, so it opts out
   // of the inline copy here to avoid two editors of the same state on one page. Defaults on for
   // every other caller (Scenario Builder, Plan Builder).
   showInitialState?: boolean;
-  // The plan's year bands above Year1 for the standing editor; defaults to Year2/3/4.
-  standingNodes?: string[];
   // The plan's mandatory seasons (which seasons may admit). The first is the always-on
   // admission season (Fall); a second, if present, is the optional Spring intake. Defaults to
   // the QU Fall/Spring for a plan whose meta predates the field.
@@ -24,7 +22,7 @@ interface Props {
 
 export default function AdmissionsTab({
   mode, state, baseline, courses, setField, setRecordField,
-  showInitialState = true, standingNodes, mandatoryTerms = ["Fall", "Spring"],
+  showInitialState = true, mandatoryTerms = ["Fall", "Spring"],
 }: Props) {
   const dirty = (key: keyof BuilderState) => state[key] !== baseline[key];
 
@@ -99,14 +97,9 @@ export default function AdmissionsTab({
         <InitialStateEditor
           courses={courses}
           occupancy={state.initialOccupancy}
-          standing={state.standing}
-          standingNodes={standingNodes}
           baselineOccupancy={baseline.initialOccupancy}
-          baselineStanding={baseline.standing}
           onOccupancyChange={(code, v) => setRecordField("initialOccupancy", code, v)}
           onOccupancyBulkChange={(patch) => setField("initialOccupancy", { ...state.initialOccupancy, ...patch })}
-          onStandingChange={(node, v) => setRecordField("standing", node, v)}
-          onStandingBulkChange={(patch) => setField("standing", { ...state.standing, ...patch })}
         />
       )}
     </div>

@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { useCheckpoint } from "@/lib/CheckpointContext";
-import { standingLevelsFromThresholds } from "@/components/scenario-builder/InitialStateImportModal";
 import InitialStateEditor from "@/components/scenario-builder/InitialStateEditor";
 import { FieldRow, NumberBox, SectionCard } from "@/components/scenario-builder/fields";
 import CurriculumTable from "@/components/settings/CurriculumTable";
@@ -10,7 +9,7 @@ import type { CheckpointEdit, CheckpointState } from "@/types/simulation";
 
 // The checkpoint editor, composed entirely from existing Settings/Scenario Builder pieces —
 // no new form widgets. Deliberately narrower than either of those: only future-facing knobs
-// (capacity, pass rate, occupancy/standing, next intake) are editable here. Prerequisites,
+// (capacity, pass rate, occupancy, next intake) are editable here. Prerequisites,
 // offering, category, admission_terms, num_cohorts, max_terms, and seed are NOT exposed —
 // structural/horizon knobs stay off this page entirely (CurriculumTable's
 // structuralEditsDisabled hides Add/Delete/structural-edit; there is simply no field for the
@@ -22,10 +21,10 @@ import type { CheckpointEdit, CheckpointState } from "@/types/simulation";
 // `key={session.id}` gets a fresh local state whenever a new session starts.
 export default function CheckpointEditPanel({
   session,
-  yearStandingThresholds,
+  onSaved,
 }: {
   session: CheckpointState;
-  yearStandingThresholds?: number[];
+  onSaved?: () => void;
 }) {
   const { edit, busy, error } = useCheckpoint();
   const courses = session.working_curriculum;
@@ -38,15 +37,12 @@ export default function CheckpointEditPanel({
   const baselineCohortSize = (config.cohort_size as number | undefined) ?? 100;
   const baselineAdmissionSizes = (config.admission_sizes as Record<string, number> | undefined) ?? {};
   const baselineOccupancy = config.initial_state?.occupancy ?? {};
-  const baselineStanding = config.initial_state?.standing ?? {};
   const baselineCapacities = Object.fromEntries(courses.map((c) => [c.code, c.capacity]));
   const baselinePassRates = Object.fromEntries(courses.map((c) => [c.code, c.pass_rate]));
-  const standingNodes = standingLevelsFromThresholds(yearStandingThresholds);
 
   const [cohortSize, setCohortSize] = useState(baselineCohortSize);
   const [admissionSizes, setAdmissionSizes] = useState(baselineAdmissionSizes);
   const [occupancy, setOccupancy] = useState(baselineOccupancy);
-  const [standing, setStanding] = useState(baselineStanding);
   const [capacities, setCapacities] = useState<Record<string, number>>(baselineCapacities);
   const [passRates, setPassRates] = useState<Record<string, number>>(baselinePassRates);
   const [saved, setSaved] = useState(false);
@@ -54,11 +50,10 @@ export default function CheckpointEditPanel({
   const capacityChanges = Object.entries(capacities).filter(([code, v]) => v !== baselineCapacities[code]);
   const passRateChanges = Object.entries(passRates).filter(([code, v]) => v !== baselinePassRates[code]);
   const occupancyChanged = JSON.stringify(occupancy) !== JSON.stringify(baselineOccupancy);
-  const standingChanged = JSON.stringify(standing) !== JSON.stringify(baselineStanding);
   const cohortSizeChanged = cohortSize !== baselineCohortSize;
   const admissionSizesChanged = JSON.stringify(admissionSizes) !== JSON.stringify(baselineAdmissionSizes);
   const isDirty =
-    capacityChanges.length > 0 || passRateChanges.length > 0 || occupancyChanged || standingChanged ||
+    capacityChanges.length > 0 || passRateChanges.length > 0 || occupancyChanged ||
     cohortSizeChanged || admissionSizesChanged;
 
   const secondarySize = secondary !== undefined ? admissionSizes[secondary] ?? cohortSize : cohortSize;
@@ -70,12 +65,13 @@ export default function CheckpointEditPanel({
     const patch: CheckpointEdit = {};
     if (capacityChanges.length > 0) patch.capacity = Object.fromEntries(capacityChanges);
     if (passRateChanges.length > 0) patch.pass_rate = Object.fromEntries(passRateChanges);
-    if (occupancyChanged || standingChanged) patch.initial_state = { occupancy, standing };
+    if (occupancyChanged) patch.initial_state = { occupancy };
     if (cohortSizeChanged) patch.cohort_size = cohortSize;
     if (admissionSizesChanged) patch.admission_sizes = admissionSizes;
     try {
       await edit(patch);
       setSaved(true);
+      onSaved?.();
     } catch {
       // Failure is surfaced via the shared `error` from useCheckpoint(); edits stay pending
       // (not cleared) so the head doesn't lose them and can retry.
@@ -86,7 +82,6 @@ export default function CheckpointEditPanel({
     setCohortSize(baselineCohortSize);
     setAdmissionSizes(baselineAdmissionSizes);
     setOccupancy(baselineOccupancy);
-    setStanding(baselineStanding);
     setCapacities(baselineCapacities);
     setPassRates(baselinePassRates);
     setSaved(false);
@@ -110,15 +105,10 @@ export default function CheckpointEditPanel({
       <InitialStateEditor
         courses={courses}
         occupancy={occupancy}
-        standing={standing}
-        standingNodes={standingNodes}
         baselineOccupancy={baselineOccupancy}
-        baselineStanding={baselineStanding}
         showOccupancyTable={false}
         onOccupancyChange={(code, v) => setOccupancy((prev) => ({ ...prev, [code]: v }))}
         onOccupancyBulkChange={(p) => setOccupancy((prev) => ({ ...prev, ...p }))}
-        onStandingChange={(node, v) => setStanding((prev) => ({ ...prev, [node]: v }))}
-        onStandingBulkChange={(p) => setStanding((prev) => ({ ...prev, ...p }))}
       />
 
       <SectionCard title="Curriculum — capacity, pass rate & occupancy">

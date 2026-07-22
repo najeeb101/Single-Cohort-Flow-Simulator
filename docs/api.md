@@ -38,7 +38,7 @@ Returns everything the dashboard needs before running a simulation, resolved fro
   "cohort_size": 100,
   "num_cohorts": 8,
   "num_incumbent_cohorts": 0,
-  "initial_state": {"occupancy": {...}, "standing": {...}},
+  "initial_state": {"occupancy": {...}},
   "admission_terms": ["Fall"],                // seasons that admit a cohort (Fall-only / Fall+Spring)
   "admission_sizes": {},                      // optional per-season intake size, e.g. {"Spring": 40}
   "optional_terms_enabled": true,
@@ -82,7 +82,7 @@ the plan's base config/scenario (all optional; omit a field to use the plan's va
 | `admission_sizes` | `{season: int}` | per-season intake size override (season absent → `cohort_size`) |
 | `max_terms` | int ≥ 1 | personal semester budget before CENSORED |
 | `seed` | int | RNG base seed |
-| `initial_state` | `{occupancy, standing}` | admin-entered warm-start state (validated shape) |
+| `initial_state` | `{occupancy}` | admin-entered warm-start state (validated shape) |
 | `dropout_gpa_floor` / `dropout_base_hazard` / `dropout_early_multiplier` / `dropout_early_sem_cutoff` / `dropout_fails_threshold` / `dropout_prob_on_repeated_fail` | number | dropout-hazard knobs |
 | `registration_tier_thresholds` | `list[int]` (len 5) | CH bands for registration priority |
 | `enrollment_priority_tiers` | `list[dict]` | category-priority tier definitions |
@@ -204,9 +204,8 @@ exposes).
 Body: a partial dict, shallow-merged into the stored config (a partial `initial_state` replaces
 the *whole* key, not a deep merge — round-trip the full object if only changing one field of it).
 Validated fields: `registration_tier_thresholds` (must be a 5-int list), `optional_terms_enabled`
-(must be bool), `initial_state` (shape-checked: `occupancy` maps codes to non-negative ints,
-`standing` keys are a subset of `Year2|Year3|Year4` with non-negative int values), `admission_
-terms`/`admission_sizes` (mandatory seasons only, positive sizes). Also runs the same
+(must be bool), `initial_state` (shape-checked: `occupancy` maps codes to non-negative ints),
+`admission_terms`/`admission_sizes` (mandatory seasons only, positive sizes). Also runs the same
 cross-object guardrails as `PUT /curriculum` against the resulting (config, curriculum) pair:
 `cohort_size >= 1` and `initial_state.occupancy[code] <= capacity` for every course. `422` on any
 violation, nothing committed on failure. Everything else is stored as-is with no further
@@ -255,13 +254,19 @@ below), with zero terms run.
 ### `GET /checkpoint`
 Returns the current session: `id`, `status` (`active|completed|discarded`), `next_term`,
 `is_finished`, `working_curriculum` (plan-export shape), `working_config`, `frames` (same shape
-as `flow_timeline.frames`, one per term run so far), `meta` (`{graph, stage_nodes}`), and
-`counts_so_far` (`{active, delayed, graduated, dropped, censored}`). `404` if the caller has no
-session (the normal "none in progress" state, not an error).
+as `flow_timeline.frames`, one per term run so far), `meta` (`{graph, stage_nodes}`),
+`counts_so_far` (`{active, delayed, graduated, dropped, censored}`), and `flow_timeline` — the
+*exact* `{meta, frames, summary}` shape a completed `POST /simulate` returns, computed live off
+the session's partial run (`summary.headline`, `summary.per_cohort`,
+`summary.admissions_recommendation`, `summary.top_bottlenecks`). Safe to read at any point,
+including zero terms run, but always **partial**: fewer terms means less reliable numbers,
+especially before any cohort has finished — callers should frame it as such (the Dashboard and
+Bottlenecks pages both show an explicit "N terms run so far" note when reading from a session).
+`404` if the caller has no session (the normal "none in progress" state, not an error).
 
 ### `POST /checkpoint/edit`
 Body (all optional, only present fields change): `capacity` (`{code: int}`), `pass_rate`
-(`{code: float}`), `initial_state` (`{occupancy, standing}`), `cohort_size` (int ≥ 1),
+(`{code: float}`), `initial_state` (`{occupancy}`), `cohort_size` (int ≥ 1),
 `admission_sizes` (`{season: int}`). No other field exists on this model — there is no way to
 edit prerequisites, offering, category, `admission_terms`, `num_cohorts`, `max_terms`, or `seed`
 through it. Validated the same way `PUT /curriculum`/`PUT /config` are; `422` on any violation,
@@ -273,6 +278,15 @@ Steps the session forward exactly one mandatory term (sweeping through any inter
 term in the same call), applying whatever edits were staged since the last advance. Marks the
 session `completed` once the horizon is reached; advancing a `completed` session 422s. `404` if
 no session exists.
+
+### `POST /checkpoint/autofill`
+Same request/response shape as `POST /autofill` (`src/optimizer.py::solve_for_targets` — searches
+the smallest capacity additions that meet the admission health targets at the current intake;
+body: optional `run_budget` int and `tune_intake_fallback` bool), but the solver runs against the
+session's `working_curriculum`/`working_config` instead of the live plan — answers "what capacity
+would meet targets given what I've staged so far" without writing to the live plan first.
+Read-only; apply the result via `POST /checkpoint/edit` (not `PUT /curriculum`/`PUT /config`) so
+it takes effect on the next advance. `404` if no session exists.
 
 ### `DELETE /checkpoint`
 Marks the session `discarded`. `404` if no session exists.

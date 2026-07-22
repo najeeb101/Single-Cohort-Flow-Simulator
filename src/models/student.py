@@ -76,16 +76,6 @@ def stage_node_names(config: dict | None = None) -> list[str]:
     return ["Admitted", *years, *TERMINAL_STAGES]
 
 
-def standing_levels(config: dict | None = None) -> list[str]:
-    """Valid ``initial_state.standing`` keys for a plan: every year band above Year1
-    (``Year2..Year(K+1)``). Year1 is the incoming simulated cohort, so the pre-existing
-    warm-start student body is counted from Year2 up. Derived from the same
-    ``year_standing_thresholds`` as ``stage_node_names``, so a non-4-year plan works.
-    """
-    thresholds = (config or {}).get("year_standing_thresholds", DEFAULT_YEAR_STANDING_THRESHOLDS)
-    return [f"Year{i}" for i in range(2, len(thresholds) + 2)]
-
-
 class Student:
     def __init__(
         self,

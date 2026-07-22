@@ -51,13 +51,13 @@ def test_meta_shape():
     }
     assert len(body["graph"]["nodes"]) == len(CURRICULUM)
     assert set(body["course_pass_rates"]) == set(CURRICULUM)
-    assert set(body["initial_state"]) == {"occupancy", "standing"}
+    assert set(body["initial_state"]) == {"occupancy"}
 
 
-def test_simulate_initial_state_override_changes_capacity_and_background():
+def test_simulate_initial_state_override_changes_capacity():
     code = next(iter(CURRICULUM))
     capacity = CURRICULUM[code].capacity
-    overridden = {"occupancy": {code: 7}, "standing": {"Year3": 123}}
+    overridden = {"occupancy": {code: 7}}
 
     resp = client.post("/simulate", json={"initial_state": overridden})
     assert resp.status_code == 200
@@ -66,13 +66,10 @@ def test_simulate_initial_state_override_changes_capacity_and_background():
 
     # Occupancy reduced the course's free seats by exactly 7 on this mandatory term.
     assert frame0["courses"][code]["capacity"] == capacity - 7
-    # Standing flowed into the aggregate stage nodes / background.
-    assert frame0["background"] == {"Year3": 123}
-    assert frame0["stages"]["totals"]["nodes"]["Year3"] >= 123
 
 
 def test_update_config_rejects_malformed_initial_state():
-    resp = client.put("/config", json={"initial_state": {"standing": {"Year9": 5}}})
+    resp = client.put("/config", json={"initial_state": {"occupancy": "not-a-dict"}})
     assert resp.status_code == 422
 
 
@@ -85,7 +82,7 @@ def test_update_config_rejects_occupancy_exceeding_capacity():
     # update_config does a shallow {**row.data, **patch} merge (pre-existing behavior, not
     # introduced here) — a partial `initial_state` patch replaces the WHOLE key, so every
     # write in these tests must round-trip the full initial_state, not just the one field
-    # under test, or it silently drops the seeded baseline's real occupancy/standing data.
+    # under test, or it silently drops the seeded baseline's real occupancy data.
     code = next(iter(CURRICULUM))
     capacity = CURRICULUM[code].capacity
     original_initial_state = client.get("/config").json()["initial_state"]
@@ -134,7 +131,7 @@ def test_simulate_rejects_admission_in_optional_season():
 
 
 def test_simulate_rejects_malformed_initial_state():
-    resp = client.post("/simulate", json={"initial_state": {"standing": {"Year9": 5}}})
+    resp = client.post("/simulate", json={"initial_state": {"occupancy": "not-a-dict"}})
     assert resp.status_code == 422
 
 

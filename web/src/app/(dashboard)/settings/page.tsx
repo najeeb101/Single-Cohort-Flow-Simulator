@@ -9,7 +9,6 @@ import type { CourseRecord, PlanRecord } from "@/types/simulation";
 import CurriculumTable from "@/components/settings/CurriculumTable";
 import AdmissionsTab from "@/components/scenario-builder/AdmissionsTab";
 import InitialStateEditor from "@/components/scenario-builder/InitialStateEditor";
-import { standingLevelsFromThresholds } from "@/components/scenario-builder/InitialStateImportModal";
 import PassRatesDropoutTab from "@/components/scenario-builder/PassRatesDropoutTab";
 import RegistrationPolicyTab from "@/components/scenario-builder/RegistrationPolicyTab";
 
@@ -85,7 +84,7 @@ export default function SettingsPage() {
   const setField = <K extends keyof BuilderState>(key: K, value: BuilderState[K]) =>
     setState((prev) => ({ ...prev, [key]: value }));
 
-  const setRecordField = (key: "passRates" | "standing" | "initialOccupancy", code: string, value: number) =>
+  const setRecordField = (key: "passRates" | "initialOccupancy", code: string, value: number) =>
     setState((prev) => ({ ...prev, [key]: { ...prev[key], [code]: value } }));
 
   const saveConfig = async () => {
@@ -215,24 +214,19 @@ export default function SettingsPage() {
       <section id="initial-state" className="border-b border-border py-6">
         <h2 className="mb-1 text-[15px] font-bold">Initial state</h2>
         <p className="mb-3 max-w-2xl text-sm text-muted">
-          The existing student body the first simulated cohort walks into: how many students are already at each
-          year-standing, plus per-course occupied seats (edited in the{" "}
-          <b className="font-semibold text-ink">Occupancy</b> column of the Curriculum table below). Use{" "}
-          <b className="font-semibold text-ink">Import from file</b> to bulk-load either from a CSV or Excel sheet
-          instead of typing each row. Saved with &ldquo;Save as new baseline&rdquo; below.
+          The existing student body the first simulated cohort walks into: per-course occupied seats
+          (edited in the <b className="font-semibold text-ink">Occupancy</b> column of the Curriculum
+          table below). Use <b className="font-semibold text-ink">Import from file</b> to bulk-load
+          from a CSV or Excel sheet instead of typing each row. Saved with &ldquo;Save as new
+          baseline&rdquo; below.
         </p>
         <InitialStateEditor
           courses={courses ?? []}
           occupancy={state.initialOccupancy}
-          standing={state.standing}
-          standingNodes={standingLevelsFromThresholds(meta.year_standing_thresholds)}
           baselineOccupancy={baseline.initialOccupancy}
-          baselineStanding={baseline.standing}
           showOccupancyTable={false}
           onOccupancyChange={(code, v) => setRecordField("initialOccupancy", code, v)}
           onOccupancyBulkChange={(patch) => setField("initialOccupancy", { ...state.initialOccupancy, ...patch })}
-          onStandingChange={(node, v) => setRecordField("standing", node, v)}
-          onStandingBulkChange={(patch) => setField("standing", { ...state.standing, ...patch })}
         />
       </section>
 

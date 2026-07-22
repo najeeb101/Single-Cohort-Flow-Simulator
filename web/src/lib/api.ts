@@ -252,6 +252,16 @@ export function advanceCheckpoint(): Promise<CheckpointState> {
   return fetch(`${API_BASE}/checkpoint/advance`, { method: "POST" }).then((res) => asJson<CheckpointState>(res));
 }
 
+// Auto-fill solver scoped to the session's staged curriculum/config rather than the live plan —
+// see src/api.py::autofill_checkpoint. Read-only; apply via editCheckpoint (POST /checkpoint/edit).
+export function autofillCheckpoint(runBudget?: number): Promise<AutofillResult> {
+  return fetch(`${API_BASE}/checkpoint/autofill`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(runBudget ? { run_budget: runBudget } : {}),
+  }).then((res) => asJson<AutofillResult>(res));
+}
+
 export function discardCheckpoint(): Promise<void> {
   return fetch(`${API_BASE}/checkpoint`, { method: "DELETE" }).then((res) => asJson<void>(res));
 }

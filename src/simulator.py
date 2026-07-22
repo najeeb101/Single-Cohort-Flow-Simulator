@@ -417,6 +417,19 @@ class Simulator:
                 else:
                     course_stats[course.code]["passed"] += 1
 
+        # ── Max course attempt cap (hard guardrail) ────────────────── #
+        # Deterministic: if a student has exhausted max_course_attempts on any
+        # single course, they are immediately dropped. This complements the
+        # probabilistic dropout_fails_threshold mechanism below.
+        max_attempts = self.config.get("max_course_attempts", 3)
+        for student in active:
+            if not student.is_active():
+                continue
+            for _code, attempts in student.failed_attempts.items():
+                if attempts >= max_attempts:
+                    self._record_outcome(student, "DROPPED", term_idx)
+                    break
+
         # ── Academic dropout checks ───────────────────────────────── #
         # Two independent causes, both calibrated to QU's ~72% / 12-sem
         # graduation rate:
@@ -580,21 +593,10 @@ class Simulator:
             for n, v in per_cohort_nodes[cid].items():
                 total_nodes[n] += v
 
-        # Background standing: the admin-entered count of pre-existing students at each
-        # year-standing (initial_state.standing), added as a constant to the aggregate
-        # ("totals") stage nodes so the university flow chart starts non-empty rather than
-        # filling in only as the simulated cohorts age. Steady-state (same every term), and
-        # only on totals — per-cohort node counts stay exactly the simulated population.
-        standing: dict[str, int] = self.config.get("initial_state", {}).get("standing", {})
-        background = {n: int(standing.get(n, 0)) for n in self.stage_nodes if standing.get(n)}
-        for n, v in background.items():
-            total_nodes[n] += v
-
         frame = {
             "term": term_idx,
             "season": season,
             "label": term_label(term_idx, self.config),
-            "background": background,
             "courses": course_stats,
             "stages": {
                 "cohorts": {

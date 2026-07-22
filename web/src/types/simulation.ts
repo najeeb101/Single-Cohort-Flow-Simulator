@@ -64,18 +64,14 @@ export interface Frame {
   term: number;
   season: string;
   label: string;
-  // Constant pre-existing-student head-counts (initial_state.standing) folded into the
-  // aggregate stage nodes so the flow chart starts non-empty. Display-only.
-  background?: Record<string, number>;
   courses: Record<string, CourseFrameStat>;
   stages: FrameStages;
 }
 
 // Admin-entered warm start that replaces the old simulated incumbent cohorts: per-course
-// seats already taken by the existing student body + a year-standing head-count.
+// seats already taken by the existing student body.
 export interface InitialState {
   occupancy: Record<string, number>;
-  standing: Record<string, number>;
 }
 
 export interface Criterion {
@@ -301,6 +297,12 @@ export interface CheckpointState {
   frames: Frame[];
   meta: { graph: Graph; stage_nodes: string[] };
   counts_so_far: CheckpointCounts;
+  // Same {meta, frames, summary} shape a completed /simulate produces (src/api.py's
+  // _checkpoint_summary_from_sim), computed live off the session's partial run — lets
+  // Bottlenecks/HeadlineKpis/AdmissionsRecommendation/CohortsTable read a checkpoint session
+  // exactly like the baseline dashboard's flow_timeline. Always partial: fewer terms run so far
+  // means less reliable headline/admissions numbers, especially before any cohort has finished.
+  flow_timeline: FlowTimeline;
 }
 
 // Whitelisted future-facing edit — mirrors src/api.py's CheckpointEditRequest. Every field is

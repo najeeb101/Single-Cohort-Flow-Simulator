@@ -1,27 +1,32 @@
 "use client";
 
+import { useState } from "react";
 import { useSimulation } from "@/lib/SimulationContext";
-import { CheckpointProvider, useCheckpoint } from "@/lib/CheckpointContext";
+import { useCheckpoint } from "@/lib/CheckpointContext";
 import CheckpointEditPanel from "@/components/checkpoint/CheckpointEditPanel";
 import CurriculumGraph from "@/components/CurriculumGraph";
+import CollapsibleSection from "@/components/CollapsibleSection";
+import HeadlineKpis from "@/components/HeadlineKpis";
+import AdmissionsRecommendation from "@/components/AdmissionsRecommendation";
+import CohortsTable from "@/components/CohortsTable";
+import PrerequisiteNetwork from "@/components/PrerequisiteNetwork";
+import Modal from "@/components/Modal";
 import type { CheckpointState } from "@/types/simulation";
 
 // The Dashboard IS the Semester Checkpoint walkthrough: a turn-based, resumable re-run of the
 // active plan, advanced one semester at a time with editable future-facing knobs in between —
 // not a one-shot static run. The full-horizon baseline simulation still runs invisibly in the
-// background (SimulationProvider, from the layout) purely so Bottlenecks/Advisor/Auto-fill/
-// Figures/Student Trace keep working unchanged; it's just no longer shown as its own page.
+// background (SimulationProvider, from the layout) so Advisor/Figures/Student Trace keep
+// working unchanged; Bottlenecks/Auto-fill/Capacity recommendations instead prefer the
+// checkpoint session's own (partial, live) data when one is in progress — see those pages.
+// CheckpointProvider itself lives in layout.tsx, not here, so other pages can reach it too.
 export default function Home() {
-  return (
-    <CheckpointProvider>
-      <DashboardBody />
-    </CheckpointProvider>
-  );
+  return <DashboardBody />;
 }
 
 function DashboardBody() {
   const { meta } = useSimulation();
-  const { session, busy, error, start, advance, discard } = useCheckpoint();
+  const { session, loading, busy, error, start, advance, discard } = useCheckpoint();
 
   return (
     <main className="mx-auto w-full max-w-[1600px] px-7 pb-16">
@@ -34,7 +39,7 @@ function DashboardBody() {
           <a href="/about" className="font-semibold text-accent hover:underline">About</a>{" "}
           for an overview of what this tool does, or{" "}
           <a href="/bottlenecks" className="font-semibold text-accent hover:underline">Bottlenecks</a>{" "}
-          to identify and test fixes on a full-horizon run.
+          to identify and test fixes.
         </p>
       </header>
 
@@ -44,7 +49,9 @@ function DashboardBody() {
         </div>
       )}
 
-      {!session ? (
+      {loading ? (
+        <p className="mt-10 text-center text-sm text-muted">Checking for an in-progress walkthrough…</p>
+      ) : !session ? (
         <StartScreen busy={busy} onStart={start} />
       ) : (
         <SessionView
@@ -52,7 +59,7 @@ function DashboardBody() {
           busy={busy}
           onAdvance={advance}
           onDiscard={discard}
-          yearStandingThresholds={meta.year_standing_thresholds}
+          onTimeTerms={meta.on_time_terms}
         />
       )}
     </main>
@@ -83,16 +90,19 @@ function SessionView({
   busy,
   onAdvance,
   onDiscard,
-  yearStandingThresholds,
+  onTimeTerms,
 }: {
   session: CheckpointState;
   busy: boolean;
   onAdvance: () => Promise<void>;
   onDiscard: () => Promise<void>;
-  yearStandingThresholds?: number[];
+  onTimeTerms: number;
 }) {
+  const [editOpen, setEditOpen] = useState(false);
   const lastFrame = session.frames[session.frames.length - 1];
   const counts = session.counts_so_far;
+  const summary = session.flow_timeline.summary;
+  const termsRun = session.frames.length;
 
   const handleDiscard = () => {
     if (!window.confirm("Discard this checkpoint walkthrough? This cannot be undone.")) return;
@@ -112,6 +122,14 @@ function SessionView({
           </span>
         </div>
         <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={() => setEditOpen(true)}
+            disabled={busy}
+            className="rounded-xl border border-border-2 bg-surface px-4 py-2 text-sm font-semibold text-ink disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            Edit term settings
+          </button>
           <button
             type="button"
             onClick={onAdvance}
@@ -135,21 +153,48 @@ function SessionView({
         <div className="flex items-baseline justify-between gap-3 border-b border-border px-4 py-2.5 text-sm font-semibold">
           <span>Results so far</span>
           <span className="text-xs font-normal text-muted">
-            {session.frames.length} term{session.frames.length === 1 ? "" : "s"} run
+            {termsRun} term{termsRun === 1 ? "" : "s"} run
           </span>
         </div>
         <CurriculumGraph graph={session.meta.graph} courses={lastFrame?.courses ?? {}} />
       </section>
 
-      <section>
-        <h2 className="mb-1 text-[15px] font-bold">Edit future terms</h2>
+      <p className="rounded-xl border border-border-2 bg-surface-2 px-4 py-2.5 text-xs text-muted">
+        The sections below reflect only the {termsRun} term{termsRun === 1 ? "" : "s"} run so far in
+        this walkthrough, not the full {session.is_finished ? "" : "eventual "}horizon — treat them as
+        early signal, not a final result. They&apos;ll keep updating as you advance.
+      </p>
+
+      <CollapsibleSection title="Admissions recommendation" subtitle="heuristic, edit targets in Settings">
+        <AdmissionsRecommendation rec={summary.admissions_recommendation} showHeading={false} />
+      </CollapsibleSection>
+
+      <CollapsibleSection title="Headline results">
+        <HeadlineKpis headline={summary.headline} onTimeTerms={onTimeTerms} showHeading={false} />
+      </CollapsibleSection>
+
+      <CollapsibleSection title="Per-cohort outcomes">
+        <CohortsTable cohorts={summary.per_cohort} showHeading={false} />
+      </CollapsibleSection>
+
+      <CollapsibleSection title="Prerequisites" subtitle="who's waiting on what">
+        <p className="mb-4 max-w-3xl text-sm text-muted">
+          The prerequisite dependency graph — each arrow means &quot;must pass this before taking that.&quot;
+          Courses with many outgoing arrows (high out-degree) are gateways: failing or being blocked on
+          them delays every course downstream. Node colour reflects how often students were blocked on
+          that course so far.
+        </p>
+        <PrerequisiteNetwork graph={session.meta.graph} frames={session.frames} />
+      </CollapsibleSection>
+
+      <Modal open={editOpen} onClose={() => setEditOpen(false)} title="Edit future terms" size="wide">
         <p className="mb-3 max-w-2xl text-sm text-muted">
-          Only capacity, pass rate, occupancy/standing, and next intake are editable here — course
+          Only capacity, pass rate, occupancy, and next intake are editable here — course
           structure and prerequisites are fixed once a plan is authored. Saved edits take effect
           starting with the next Advance; already-run terms never change.
         </p>
-        <CheckpointEditPanel key={session.id} session={session} yearStandingThresholds={yearStandingThresholds} />
-      </section>
+        <CheckpointEditPanel key={session.id} session={session} onSaved={() => setEditOpen(false)} />
+      </Modal>
     </div>
   );
 }

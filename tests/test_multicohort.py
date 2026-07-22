@@ -130,12 +130,11 @@ def test_fall_plus_spring_admission_adds_a_second_yearly_intake():
     assert len(result.students) == 3 * 100 + 3 * 40
 
 
-# ── Warm start: initial-state occupancy + standing (replaces incumbents) ── #
+# ── Warm start: initial-state occupancy (replaces incumbents) ── #
 
-def test_initial_state_occupancy_reduces_capacity_and_standing_populates_totals():
+def test_initial_state_occupancy_reduces_capacity():
     result, config, curriculum = _run()
     occupancy = config["initial_state"]["occupancy"]
-    standing = config["initial_state"]["standing"]
 
     # A course with occupancy has its free seats reduced by exactly that many on a
     # mandatory term: free = capacity - occupied.
@@ -143,13 +142,6 @@ def test_initial_state_occupancy_reduces_capacity_and_standing_populates_totals(
     code = "CMPS151"
     expected = curriculum[code].capacity - occupancy[code]
     assert sim._effective_capacity(curriculum[code]) == expected
-
-    # Standing head-counts are folded into the aggregate stage nodes (and exposed as
-    # `background`) so the flow chart isn't empty at term 0.
-    frame0 = next(f for f in result.history.timeline if f["term"] == 0)
-    assert frame0["background"] == {k: v for k, v in standing.items() if v}
-    for node, count in standing.items():
-        assert frame0["stages"]["totals"]["nodes"][node] >= count
 
 
 def test_effective_capacity_is_course_capacity():
