@@ -626,8 +626,72 @@ def flow_timeline_payload(
                 "offering": _top3(history.offering_block_counts_mandatory),
                 "prereq":   _top3(history.prereq_block_counts_mandatory),
             },
+            "predictive_demand": predict_next_terms_demand(result),
         },
     }
+
+
+def predict_next_terms_demand(result: "SimulationResult") -> dict:
+    """Predict term-by-term cohort-wide seat demands, upcoming bottlenecks, and pressure warnings.
+
+    Analyzes timeline frames across all simulated terms to output per-term capacity shortfalls,
+    offering blocks, and prioritized administrative warnings for future planning.
+    """
+    history = result.history
+    timeline = history.timeline or []
+    term_forecasts = []
+    warnings = []
+
+    for frame in timeline:
+        term_num = frame.get("term", 0)
+        season = frame.get("season", "")
+        courses_stat = frame.get("courses", {})
+        
+        term_shortfalls = {}
+        term_offering_blocks = {}
+        
+        for code, stat in courses_stat.items():
+            denied = stat.get("denied", 0)
+            offering_blocked = stat.get("offering_blocked", 0)
+            if denied > 0:
+                term_shortfalls[code] = denied
+            if offering_blocked > 0:
+                term_offering_blocks[code] = offering_blocked
+
+        if term_shortfalls or term_offering_blocks:
+            term_forecasts.append({
+                "term": term_num,
+                "season": season,
+                "capacity_shortfalls": term_shortfalls,
+                "offering_blocks": term_offering_blocks,
+            })
+            
+            for code, count in term_shortfalls.items():
+                if count >= 5:
+                    warnings.append({
+                        "term": term_num,
+                        "season": season,
+                        "course": code,
+                        "type": "capacity_shortfall",
+                        "severity": "high" if count >= 15 else "medium",
+                        "message": f"Term {term_num} ({season}): High seat shortage of {count} seats expected for {code}."
+                    })
+            for code, count in term_offering_blocks.items():
+                if count >= 5:
+                    warnings.append({
+                        "term": term_num,
+                        "season": season,
+                        "course": code,
+                        "type": "offering_block",
+                        "severity": "medium",
+                        "message": f"Term {term_num} ({season}): {count} eligible students blocked due to {code} not being offered."
+                    })
+
+    return {
+        "term_forecasts": term_forecasts,
+        "warnings": sorted(warnings, key=lambda w: (w["term"], -1 if w["severity"] == "high" else 0)),
+    }
+
 
 
 def build_flow_timeline_json(

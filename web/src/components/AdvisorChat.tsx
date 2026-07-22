@@ -105,6 +105,7 @@ export default function AdvisorChat({
       criteria: summary.admissions_recommendation.criteria ?? [],
       bottlenecks: summary.top_bottlenecks,
       course_stats: aggregateCourseStats(frames, mandatorySeasons),
+      predictive_demand: summary.predictive_demand,
     };
   }, [summary, scenario, frames, mandatorySeasons]);
 

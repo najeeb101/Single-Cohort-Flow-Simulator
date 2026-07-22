@@ -178,6 +178,22 @@ class Simulator:
         self.seed: int = config["seed"]
         self.max_terms: int = config["max_terms"]
 
+        # Fail fast on an out-of-bounds credit-load ceiling / retake cap. This is the same
+        # check `PUT /config` runs via plan_validation.validate_plan_edits, re-run here so a
+        # caller that builds a Simulator directly (scripts, tests, a hand-edited config file
+        # bypassing the API) can't silently run a whole simulation on a config that would hand
+        # students a physically-impossible course load or an unbounded retake allowance.
+        from src.plan_validation import (
+            PlanValidationError,
+            validate_credit_load_bounds,
+            validate_max_course_attempts,
+        )
+        try:
+            validate_credit_load_bounds(config)
+            validate_max_course_attempts(config)
+        except PlanValidationError as exc:
+            raise ValueError(str(exc)) from exc
+
         # Population enters through the DataSource seam (synthetic by default; a future
         # RealDataSource plugs in here unchanged). The engine never builds students itself.
         self.data_source: DataSource = data_source or SyntheticDataSource(config)
@@ -418,17 +434,16 @@ class Simulator:
                     course_stats[course.code]["passed"] += 1
 
         # ── Max course attempt cap (hard guardrail) ────────────────── #
-        # Deterministic: if a student has exhausted max_course_attempts on any
-        # single course, they are immediately dropped. This complements the
-        # probabilistic dropout_fails_threshold mechanism below.
-        max_attempts = self.config.get("max_course_attempts", 3)
+        # Deterministic: if a student has exhausted max_course_attempts on any single course,
+        # they are immediately dropped. This complements the probabilistic
+        # dropout_fails_threshold mechanism below. Student.has_exhausted_attempts is the single
+        # source of truth for the threshold (also used defensively in get_desired_courses so a
+        # student is never offered a course they've already exhausted).
         for student in active:
             if not student.is_active():
                 continue
-            for _code, attempts in student.failed_attempts.items():
-                if attempts >= max_attempts:
-                    self._record_outcome(student, "DROPPED", term_idx)
-                    break
+            if any(student.has_exhausted_attempts(code, self.config) for code in student.failed_attempts):
+                self._record_outcome(student, "DROPPED", term_idx)
 
         # ── Academic dropout checks ───────────────────────────────── #
         # Two independent causes, both calibrated to QU's ~72% / 12-sem

@@ -148,6 +148,26 @@ class Student:
         return code in self.completed_courses and self.completed_courses[code] in PASSING_GRADES
 
     # ------------------------------------------------------------------ #
+    # Attempt tracking (retake-cap guardrail)                            #
+    # ------------------------------------------------------------------ #
+
+    DEFAULT_MAX_COURSE_ATTEMPTS: int = 3
+
+    def attempts_used(self, code: str) -> int:
+        """Failed-attempt count on `code` so far (0 once passed — record_grade pops the entry
+        on a pass, since grade replacement means only the live streak of fails matters)."""
+        return self.failed_attempts.get(code, 0)
+
+    def has_exhausted_attempts(self, code: str, config: dict) -> bool:
+        """True once `code` has hit `max_course_attempts` (default 3) failed attempts — the
+        single source of truth for the retake cap, shared by the hard end-of-term drop
+        (Simulator._run_term) and the desired-course guardrail below (defense in depth: a
+        student who has already exhausted a course's attempts is never offered it again, even
+        in the narrow window before the simulator's own drop takes effect)."""
+        cap = config.get("max_course_attempts", self.DEFAULT_MAX_COURSE_ATTEMPTS)
+        return self.attempts_used(code) >= cap
+
+    # ------------------------------------------------------------------ #
     # Pass-rate & eligibility                                             #
     # ------------------------------------------------------------------ #
 
@@ -197,6 +217,8 @@ class Student:
 
         def can_enroll(c: Course) -> bool:
             if self.has_passed(c.code):
+                return False
+            if self.has_exhausted_attempts(c.code, config):
                 return False
             return self.is_eligible_for(c, curriculum)
 

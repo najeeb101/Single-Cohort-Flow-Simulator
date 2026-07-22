@@ -116,7 +116,21 @@ function buildAdvice(summary: FlowTimelineSummary): Advice[] {
     });
   }
 
+  // --- Future Term Predictive Forecast Warnings ---
+  const predWarnings = summary.predictive_demand?.warnings ?? [];
+  if (predWarnings.length > 0) {
+    const topWarn = predWarnings[0];
+    advice.push({
+      id: "predictive-forecast",
+      severity: topWarn.severity === "high" ? "warning" : "info",
+      title: `Predictive Bottleneck: Term ${topWarn.term} (${topWarn.season})`,
+      body: topWarn.message + ` Future-term forecasting predicts this course will bottleneck as cohorts move forward. Address capacity early before student progression delays compound.`,
+      action: { label: "Auto-fill capacities →", href: "/bottlenecks" },
+    });
+  }
+
   const fail = h.top_fail_courses?.[0];
+
   if (fail && fail[1] > 0) {
     advice.push({
       id: "fail",

@@ -24,6 +24,16 @@ class PlanValidationError(Exception):
 _COHORT_SIZE_MIN = 10
 _COHORT_SIZE_MAX = 1000
 
+# Credit-load ceilings — realistic per-term load bounds (a 6-course, 4-credit overload tops
+# out around 24 CH; below 1 CH a student could never make progress at all).
+_LOAD_CH_MIN = 1
+_LOAD_CH_MAX = 24
+
+# Retake-attempt bounds — must allow at least one attempt, and stay within a realistic
+# institutional repeat-course policy (no program lets a student retake indefinitely).
+_MAX_COURSE_ATTEMPTS_MIN = 1
+_MAX_COURSE_ATTEMPTS_MAX = 10
+
 
 def validate_cohort_size(config: dict) -> None:
     """cohort_size must be a positive integer within institutional bounds."""
@@ -35,6 +45,47 @@ def validate_cohort_size(config: dict) -> None:
     if size < _COHORT_SIZE_MIN or size > _COHORT_SIZE_MAX:
         raise PlanValidationError(
             f"cohort_size must be between {_COHORT_SIZE_MIN} and {_COHORT_SIZE_MAX} (got {size})"
+        )
+
+
+def validate_credit_load_bounds(config: dict) -> None:
+    """normal_load_ch/probation_load_ch must each be positive integers within a realistic
+    per-term ceiling, and probation_load_ch must not exceed normal_load_ch — otherwise a
+    misconfigured plan could hand a probation student a *higher* course load than a student in
+    good standing, or let either load cap climb to a value no real term of course offerings
+    could satisfy. Only checked when present, so a minimal engine-level config that doesn't set
+    them is untouched (Simulator.__init__ re-runs this same check as a fail-fast guard for
+    direct/non-API callers — see src/simulator.py)."""
+    normal = config.get("normal_load_ch")
+    probation = config.get("probation_load_ch")
+    for name, value in (("normal_load_ch", normal), ("probation_load_ch", probation)):
+        if value is None:
+            continue
+        if not isinstance(value, int) or isinstance(value, bool) or value < 1:
+            raise PlanValidationError(f"{name} must be a positive integer")
+        if value < _LOAD_CH_MIN or value > _LOAD_CH_MAX:
+            raise PlanValidationError(
+                f"{name} must be between {_LOAD_CH_MIN} and {_LOAD_CH_MAX} (got {value})"
+            )
+    if isinstance(normal, int) and isinstance(probation, int) and probation > normal:
+        raise PlanValidationError(
+            f"probation_load_ch ({probation}) must not exceed normal_load_ch ({normal})"
+        )
+
+
+def validate_max_course_attempts(config: dict) -> None:
+    """max_course_attempts (the hard per-course retake cap Simulator/Student enforce) must be a
+    positive integer within a realistic institutional bound. Only checked when present — the
+    engine defaults to 3 when the key is absent (see Student.has_exhausted_attempts)."""
+    value = config.get("max_course_attempts")
+    if value is None:
+        return
+    if not isinstance(value, int) or isinstance(value, bool) or value < 1:
+        raise PlanValidationError("max_course_attempts must be a positive integer")
+    if value < _MAX_COURSE_ATTEMPTS_MIN or value > _MAX_COURSE_ATTEMPTS_MAX:
+        raise PlanValidationError(
+            f"max_course_attempts must be between {_MAX_COURSE_ATTEMPTS_MIN} and "
+            f"{_MAX_COURSE_ATTEMPTS_MAX} (got {value})"
         )
 
 
@@ -81,6 +132,8 @@ def validate_plan_edits(curriculum: dict[str, Course], config: dict) -> None:
     `POST /curriculum`, and `PUT /config`."""
     validate_cohort_size(config)
     validate_capacity_vs_occupancy(curriculum, config)
+    validate_credit_load_bounds(config)
+    validate_max_course_attempts(config)
     # Curriculum topology guardrails (missing prereqs, cycles, unreachable depth).
     from src.curriculum_validation import validate_curriculum_topology
     try:

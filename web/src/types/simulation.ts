@@ -191,11 +191,33 @@ export interface TopBottlenecks {
   prereq: TopList;
 }
 
+export interface TermForecast {
+  term: number;
+  season: string;
+  capacity_shortfalls: Record<string, number>;
+  offering_blocks: Record<string, number>;
+}
+
+export interface PredictiveWarning {
+  term: number;
+  season: string;
+  course: string;
+  type: "capacity_shortfall" | "offering_block";
+  severity: "high" | "medium";
+  message: string;
+}
+
+export interface PredictiveDemand {
+  term_forecasts: TermForecast[];
+  warnings: PredictiveWarning[];
+}
+
 export interface FlowTimelineSummary {
   headline: Headline;
   per_cohort: CohortMetric[];
   admissions_recommendation: AdmissionsRecommendation;
   top_bottlenecks: TopBottlenecks;
+  predictive_demand: PredictiveDemand;
 }
 
 export interface CohortInfo {

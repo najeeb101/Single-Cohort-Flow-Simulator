@@ -220,7 +220,15 @@ def build_system_prompt(context: dict) -> str:
     _top("offering", "offering blocks")
     _top("prereq", "prerequisite blocks")
 
+    pred = ctx.get("predictive_demand") or {}
+    warnings = pred.get("warnings") or []
+    if warnings:
+        lines.append("- PREDICTED FUTURE TERM BOTTLENECKS:")
+        for w in warnings[:6]:
+            lines.append(f"    * {w.get('message')}")
+
     if plan:
+
         lines.append("")
         lines.append("CURRENT PLAN & SETTINGS:")
         admit_terms = plan.get("admission_terms") or ["Fall"]
@@ -290,6 +298,8 @@ def run_chat(messages: list[dict], context: dict, *, timeout: float = 30.0) -> s
 _FENCE_RE = re.compile(r"```(?:json)?\s*(.*?)\s*```", re.DOTALL)
 _TRAILING_COMMA_RE = re.compile(r",(\s*[}\]])")
 _PROPOSAL_TYPES = ("capacity", "offering", "pass_rate", "cohort_size")
+# Max pass-rate increase per proposal — prevents unrealistic 40% → 100% jumps.
+_MAX_PASS_RATE_DELTA = 0.15
 
 
 def _loads_lenient(s: str) -> object:
@@ -338,6 +348,21 @@ def _as_float(v: object) -> float | None:
         return None
 
 
+def _deduplicate_proposals(raw: list) -> list:
+    """Keep only the first proposal per (type, code) pair to prevent conflicting changes."""
+    seen: set[tuple] = set()
+    result = []
+    for p in raw:
+        if not isinstance(p, dict):
+            continue
+        key = (p.get("type"), p.get("code", "__no_code__"))
+        if key in seen:
+            continue
+        seen.add(key)
+        result.append(p)
+    return result
+
+
 def validate_proposals(raw: list, curriculum: dict, config: dict) -> list[dict]:
     """Whitelist + normalize the model's raw proposals against the real active plan.
 
@@ -345,10 +370,15 @@ def validate_proposals(raw: list, curriculum: dict, config: dict) -> list[dict]:
     ``{type, code?, value, current, reason, label}``. Anything with an unknown type, a course code
     that doesn't exist, or an out-of-range value is dropped (never raised) — the endpoint that
     actually applies the change is the final gate. Capped at 3.
+
+    Guardrails applied:
+    - Deduplicate conflicting proposals (first-wins per type+code).
+    - Cap pass_rate increases to +0.15 over the course's current pass rate.
     """
     seasons = set(config.get("terms_per_year") or []) or {"Fall", "Spring"}
+    deduped = _deduplicate_proposals(raw or [])
     out: list[dict] = []
-    for p in (raw or [])[:6]:
+    for p in deduped[:6]:
         if not isinstance(p, dict) or p.get("type") not in _PROPOSAL_TYPES:
             continue
         t = p["type"]
@@ -380,6 +410,9 @@ def validate_proposals(raw: list, curriculum: dict, config: dict) -> list[dict]:
             if v is None or not (0.0 <= v <= 1.0):
                 continue
             cur = getattr(course, "pass_rate", None)
+            # Cap pass-rate increase to _MAX_PASS_RATE_DELTA over the current rate.
+            if isinstance(cur, (int, float)) and v > cur + _MAX_PASS_RATE_DELTA:
+                v = round(cur + _MAX_PASS_RATE_DELTA, 2)
             cur_txt = f" (from {cur:.0%})" if isinstance(cur, (int, float)) else ""
             out.append({"type": t, "code": code, "value": v, "current": cur, "reason": reason,
                         "label": f"Set {code} pass rate to {v:.0%}" + cur_txt})
@@ -397,3 +430,4 @@ def validate_proposals(raw: list, curriculum: dict, config: dict) -> list[dict]:
         if len(out) >= 3:
             break
     return out[:3]
+
