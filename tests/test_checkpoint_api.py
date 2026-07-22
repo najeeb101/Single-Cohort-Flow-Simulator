@@ -64,7 +64,7 @@ def test_checkpoint_summary_carries_flow_timeline_shaped_data():
         "per_cohort",
         "admissions_recommendation",
         "top_bottlenecks",
-        "predictive_demand",
+        "severe_terms",
     }
 
     assert ft["frames"] == []

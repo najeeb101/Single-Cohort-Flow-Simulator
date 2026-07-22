@@ -116,15 +116,15 @@ function buildAdvice(summary: FlowTimelineSummary): Advice[] {
     });
   }
 
-  // --- Future Term Predictive Forecast Warnings ---
-  const predWarnings = summary.predictive_demand?.warnings ?? [];
-  if (predWarnings.length > 0) {
-    const topWarn = predWarnings[0];
+  // --- Worst term-level bottleneck already seen in this run's own history (not a forecast) ---
+  const severeWarnings = summary.severe_terms?.warnings ?? [];
+  if (severeWarnings.length > 0) {
+    const worst = severeWarnings[0];
     advice.push({
-      id: "predictive-forecast",
-      severity: topWarn.severity === "high" ? "warning" : "info",
-      title: `Predictive Bottleneck: Term ${topWarn.term} (${topWarn.season})`,
-      body: topWarn.message + ` Future-term forecasting predicts this course will bottleneck as cohorts move forward. Address capacity early before student progression delays compound.`,
+      id: "severe-term",
+      severity: worst.severity === "high" ? "warning" : "info",
+      title: `Worst term-level bottleneck: Term ${worst.term} (${worst.season})`,
+      body: worst.message + ` This is the most severe shortfall found across the simulated run.`,
       action: { label: "Auto-fill capacities →", href: "/bottlenecks" },
     });
   }

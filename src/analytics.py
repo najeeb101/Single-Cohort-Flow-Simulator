@@ -22,7 +22,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from src.datasource import StudentRecord
-from src.models.semester import mandatory_horizon_end_term, term_label, term_season
+from src.models.semester import get_mandatory_seasons, mandatory_horizon_end_term, term_label, term_season
 from src.models.student import stage_node_names
 from src.rules import gate_edges
 
@@ -626,72 +626,85 @@ def flow_timeline_payload(
                 "offering": _top3(history.offering_block_counts_mandatory),
                 "prereq":   _top3(history.prereq_block_counts_mandatory),
             },
-            "predictive_demand": predict_next_terms_demand(result),
+            "severe_terms": summarize_severe_terms(result),
         },
     }
 
 
-def predict_next_terms_demand(result: "SimulationResult") -> dict:
-    """Predict term-by-term cohort-wide seat demands, upcoming bottlenecks, and pressure warnings.
+# Thresholds for summarize_severe_terms below — not derived from config (cohort_size etc.);
+# a fixed, curated cut so the list stays a short "look here first" pointer rather than flagging
+# every course that ever lost a single seat.
+_CAPACITY_SHORTFALL_WARNING_THRESHOLD = 5
+_CAPACITY_SHORTFALL_HIGH_THRESHOLD = 15
+_OFFERING_BLOCK_WARNING_THRESHOLD = 5
+_MAX_SEVERE_TERM_WARNINGS = 10
 
-    Analyzes timeline frames across all simulated terms to output per-term capacity shortfalls,
-    offering blocks, and prioritized administrative warnings for future planning.
+
+def summarize_severe_terms(result: "SimulationResult") -> dict:
+    """Per-mandatory-term courses with the worst seat shortfalls / offering blocks that
+    *already occurred* in this run's own timeline.
+
+    This is a retrospective severity ranking, not a forecast: by the time this is called the
+    run has already executed every term it reports on (even mid-checkpoint — `history.timeline`
+    only ever holds terms already stepped through, never ones still ahead). Optional
+    (Summer/Winter) terms are excluded, matching every other structural bottleneck ranking in
+    this module (see CLAUDE.md's "Four Block Signals": that bonus-seat pool is scarce by
+    design, and counting it just points admins at the wrong courses). `warnings` is capped and
+    sorted worst-first (severity, then shortfall size, then earliest term as a tiebreak) — not
+    term order — so the single loudest entry a caller reads off index 0 really is the worst one.
     """
-    history = result.history
-    timeline = history.timeline or []
-    term_forecasts = []
+    mandatory = get_mandatory_seasons(result.config)
+    timeline = result.history.timeline or []
+    term_summaries = []
     warnings = []
 
     for frame in timeline:
-        term_num = frame.get("term", 0)
         season = frame.get("season", "")
+        if season not in mandatory:
+            continue
+        term_num = frame.get("term", 0)
         courses_stat = frame.get("courses", {})
-        
-        term_shortfalls = {}
-        term_offering_blocks = {}
-        
-        for code, stat in courses_stat.items():
-            denied = stat.get("denied", 0)
-            offering_blocked = stat.get("offering_blocked", 0)
-            if denied > 0:
-                term_shortfalls[code] = denied
-            if offering_blocked > 0:
-                term_offering_blocks[code] = offering_blocked
 
-        if term_shortfalls or term_offering_blocks:
-            term_forecasts.append({
-                "term": term_num,
-                "season": season,
-                "capacity_shortfalls": term_shortfalls,
-                "offering_blocks": term_offering_blocks,
-            })
-            
-            for code, count in term_shortfalls.items():
-                if count >= 5:
-                    warnings.append({
-                        "term": term_num,
-                        "season": season,
-                        "course": code,
-                        "type": "capacity_shortfall",
-                        "severity": "high" if count >= 15 else "medium",
-                        "message": f"Term {term_num} ({season}): High seat shortage of {count} seats expected for {code}."
-                    })
-            for code, count in term_offering_blocks.items():
-                if count >= 5:
-                    warnings.append({
-                        "term": term_num,
-                        "season": season,
-                        "course": code,
-                        "type": "offering_block",
-                        "severity": "medium",
-                        "message": f"Term {term_num} ({season}): {count} eligible students blocked due to {code} not being offered."
-                    })
+        capacity_shortfalls = {
+            code: stat["denied"] for code, stat in courses_stat.items() if stat.get("denied", 0) > 0
+        }
+        offering_blocks = {
+            code: stat["offering_blocked"] for code, stat in courses_stat.items()
+            if stat.get("offering_blocked", 0) > 0
+        }
+        if not capacity_shortfalls and not offering_blocks:
+            continue
+
+        term_summaries.append({
+            "term": term_num,
+            "season": season,
+            "capacity_shortfalls": capacity_shortfalls,
+            "offering_blocks": offering_blocks,
+        })
+
+        for code, count in capacity_shortfalls.items():
+            if count >= _CAPACITY_SHORTFALL_WARNING_THRESHOLD:
+                warnings.append({
+                    "term": term_num, "season": season, "course": code,
+                    "type": "capacity_shortfall", "count": count,
+                    "severity": "high" if count >= _CAPACITY_SHORTFALL_HIGH_THRESHOLD else "medium",
+                    "message": f"Term {term_num} ({season}): {count} students were denied a seat in {code}.",
+                })
+        for code, count in offering_blocks.items():
+            if count >= _OFFERING_BLOCK_WARNING_THRESHOLD:
+                warnings.append({
+                    "term": term_num, "season": season, "course": code,
+                    "type": "offering_block", "count": count, "severity": "medium",
+                    "message": f"Term {term_num} ({season}): {count} eligible students were blocked "
+                               f"because {code} wasn't offered.",
+                })
+
+    warnings.sort(key=lambda w: (0 if w["severity"] == "high" else 1, -w["count"], w["term"]))
 
     return {
-        "term_forecasts": term_forecasts,
-        "warnings": sorted(warnings, key=lambda w: (w["term"], -1 if w["severity"] == "high" else 0)),
+        "term_summaries": term_summaries,
+        "warnings": warnings[:_MAX_SEVERE_TERM_WARNINGS],
     }
-
 
 
 def build_flow_timeline_json(

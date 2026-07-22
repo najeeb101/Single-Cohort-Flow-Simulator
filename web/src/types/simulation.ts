@@ -191,14 +191,14 @@ export interface TopBottlenecks {
   prereq: TopList;
 }
 
-export interface TermForecast {
+export interface TermSummary {
   term: number;
   season: string;
   capacity_shortfalls: Record<string, number>;
   offering_blocks: Record<string, number>;
 }
 
-export interface PredictiveWarning {
+export interface TermWarning {
   term: number;
   season: string;
   course: string;
@@ -207,9 +207,11 @@ export interface PredictiveWarning {
   message: string;
 }
 
-export interface PredictiveDemand {
-  term_forecasts: TermForecast[];
-  warnings: PredictiveWarning[];
+/** Worst-terms-so-far in this run's own history — retrospective, not a forecast. See
+ * src/analytics.py::summarize_severe_terms. */
+export interface SevereTermsSummary {
+  term_summaries: TermSummary[];
+  warnings: TermWarning[];
 }
 
 export interface FlowTimelineSummary {
@@ -217,7 +219,7 @@ export interface FlowTimelineSummary {
   per_cohort: CohortMetric[];
   admissions_recommendation: AdmissionsRecommendation;
   top_bottlenecks: TopBottlenecks;
-  predictive_demand: PredictiveDemand;
+  severe_terms: SevereTermsSummary;
 }
 
 export interface CohortInfo {

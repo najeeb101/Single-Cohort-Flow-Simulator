@@ -220,10 +220,10 @@ def build_system_prompt(context: dict) -> str:
     _top("offering", "offering blocks")
     _top("prereq", "prerequisite blocks")
 
-    pred = ctx.get("predictive_demand") or {}
-    warnings = pred.get("warnings") or []
+    severe = ctx.get("severe_terms") or {}
+    warnings = severe.get("warnings") or []
     if warnings:
-        lines.append("- PREDICTED FUTURE TERM BOTTLENECKS:")
+        lines.append("- NOTABLE TERM-LEVEL BOTTLENECKS (already occurred in this run, worst first):")
         for w in warnings[:6]:
             lines.append(f"    * {w.get('message')}")
 

@@ -324,21 +324,26 @@ recommendation already uses.
   `validate_proposals` also deduplicates conflicting proposals (first-wins per `(type, code)` pair)
   and caps a `pass_rate` increase to +0.15 over the course's current rate, so the model can't
   round-trip an unrealistic 40% → 100% jump into an applyable card.
-  **Predictive-demand forecast**: `src/analytics.py::predict_next_terms_demand(result)` walks every
-  already-simulated timeline frame and surfaces per-term seat shortfalls/offering blocks as a
-  `{term_forecasts, warnings}` structure (a `warning` fires once a single term's shortfall/block count
-  hits 5, `severity: "high"` at 15+) — a forward-looking read of the *same* run's frames, not a new
-  simulation. It rides along for free as `summary.predictive_demand` in every `/simulate` /
-  `flow_timeline` payload (`src/analytics.py::flow_timeline_payload`), so `AdvisorPanel.tsx` surfaces
-  the loudest warning as an advice card, and `AdvisorChat.tsx` forwards it into the chat `context` so
-  `build_system_prompt` can ground answers about upcoming (not just current) bottlenecks.
+  **Severe-terms summary**: `src/analytics.py::summarize_severe_terms(result)` is a
+  *retrospective* ranking, not a forecast — by the time it's called the run has already executed
+  every term it reports on (true even mid-checkpoint: `history.timeline` only ever holds terms
+  already stepped through). It walks the mandatory-term frames only (Summer/Winter excluded, same
+  reasoning as the block-signal rankings above) and surfaces the worst seat shortfalls/offering
+  blocks as a `{term_summaries, warnings}` structure — a `warning` fires once a single term's
+  shortfall/block count hits 5, `severity: "high"` at 15+, sorted worst-first (severity, then
+  shortfall size, then earliest term as a tiebreak, capped at 10) so index 0 really is the worst
+  entry. It rides along for free as `summary.severe_terms` in every `/simulate`/`flow_timeline`
+  payload (`src/analytics.py::flow_timeline_payload`), so `AdvisorPanel.tsx` surfaces the worst
+  entry as an advice card ("Worst term-level bottleneck: Term N"), and `AdvisorChat.tsx` forwards
+  it into the chat `context` so `build_system_prompt` can ground answers about bottlenecks that
+  already showed up in the run — never phrased as a prediction of terms yet to come.
   **Graceful degradation**: with no `LLM_API_KEY`, `chat_enabled()` is
   `False`, `/meta.llm_chat_enabled` reports it, and the chat box shows a "how to enable" note —
   Phase A is untouched and needs no key. Covered by `tests/test_advisor.py` (enabled path mocks
   `httpx.post`, so no network; proposal extraction/validation covered offline) and
-  `tests/test_predictive_analytics.py` (`predict_next_terms_demand`'s forecast/warning shape).
-  Uses `httpx` (already a dep) — no new package, no `claude-api` skill needed since it's not
-  Anthropic-specific.
+  `tests/test_severe_terms.py` (`summarize_severe_terms`'s shape, worst-first sort, and
+  mandatory-terms-only filtering). Uses `httpx` (already a dep) — no new package, no `claude-api`
+  skill needed since it's not Anthropic-specific.
 - **Auto-fill** (`src/optimizer.py::solve_for_targets`, `POST /autofill`, panel
   `web/src/components/AutofillPanel.tsx` on the Bottlenecks page) — a bounded **greedy** solver:
   each iteration runs one simulation, finds the course with the worst single-(mandatory-)term
