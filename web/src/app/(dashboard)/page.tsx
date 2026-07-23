@@ -7,11 +7,12 @@ import CheckpointEditPanel from "@/components/checkpoint/CheckpointEditPanel";
 import CurriculumGraph from "@/components/CurriculumGraph";
 import CollapsibleSection from "@/components/CollapsibleSection";
 import HeadlineKpis from "@/components/HeadlineKpis";
+import KpiStrip from "@/components/KpiStrip";
 import AdmissionsRecommendation from "@/components/AdmissionsRecommendation";
 import CohortsTable from "@/components/CohortsTable";
 import PrerequisiteNetwork from "@/components/PrerequisiteNetwork";
 import Modal from "@/components/Modal";
-import type { CheckpointState } from "@/types/simulation";
+import type { CheckpointState, Headline } from "@/types/simulation";
 
 // The Dashboard IS the Semester Checkpoint walkthrough: a turn-based, resumable re-run of the
 // active plan, advanced one semester at a time with editable future-facing knobs in between —
@@ -25,7 +26,7 @@ export default function Home() {
 }
 
 function DashboardBody() {
-  const { meta } = useSimulation();
+  const { meta, data } = useSimulation();
   const { session, viewing, loading, busy, error, start, advance, rewind, peek, returnToCurrent, discard } =
     useCheckpoint();
 
@@ -65,6 +66,7 @@ function DashboardBody() {
           onReturnToCurrent={returnToCurrent}
           onDiscard={discard}
           onTimeTerms={meta.on_time_terms}
+          baselineHeadline={data.flow_timeline.summary.headline}
         />
       )}
     </main>
@@ -100,6 +102,7 @@ function SessionView({
   onReturnToCurrent,
   onDiscard,
   onTimeTerms,
+  baselineHeadline,
 }: {
   session: CheckpointState;
   viewing: CheckpointState | null;
@@ -110,6 +113,7 @@ function SessionView({
   onReturnToCurrent: () => void;
   onDiscard: () => Promise<void>;
   onTimeTerms: number;
+  baselineHeadline: Headline;
 }) {
   const [editOpen, setEditOpen] = useState(false);
   const isPreviewing = viewing !== null;
@@ -229,6 +233,12 @@ function SessionView({
           after it), or <strong>Return to current</strong> to keep going from where you left off.
         </p>
       )}
+
+      <KpiStrip
+        current={summary.headline}
+        baseline={baselineHeadline}
+        graduatedSoFar={counts.graduated}
+      />
 
       <TermHistoryStrip
         history={session.history}
