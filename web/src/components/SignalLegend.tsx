@@ -5,7 +5,7 @@ import { SIGNAL_META, SIGNAL_ORDER, type SignalKey } from "@/lib/signalMeta";
 // Compact legend for the four block signals. Renders each as a coloured pill with its one-line
 // unit explanation, and — when `active`/`onToggle` are supplied — the pills double as filter
 // toggles (an inactive signal is dimmed). Consumes the shared SIGNAL_META so its colours/labels
-// always match the Student Trace pills and the Bottlenecks cards. Reusable across pages.
+// always match the Bottlenecks cards. Reusable across pages.
 interface Props {
   signals?: SignalKey[];
   active?: Set<SignalKey>; // when provided, pills act as toggles

@@ -8,7 +8,7 @@ import Modal from "@/components/Modal";
 
 // Card header + description per signal (a fuller register than the inline pill labels), plus the
 // key into TopBottlenecks. Colours/fills/fields come from the shared SIGNAL_META so the cards,
-// the legend, the Details charts, and the Student Trace pills can never drift apart.
+// the legend, and the Details charts can never drift apart.
 const CARD: Record<SignalKey, { title: string; desc: string; list: keyof TopBottlenecks }> = {
   fail: { title: "Failures", desc: "Times a student sat the course and did not pass.", list: "fail" },
   capacity: { title: "Capacity blocks", desc: "Times a student requested a seat and was denied because the course was full.", list: "capacity" },

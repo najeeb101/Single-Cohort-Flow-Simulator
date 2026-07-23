@@ -41,8 +41,8 @@ const HOW_IT_WORKS = [
 const PAGE_GROUPS = [
   {
     label: "Explore",
-    desc: "Walk the plan forward one semester at a time, inspect one student, or review past runs.",
-    pages: "Dashboard, Student Trace, Run History",
+    desc: "Walk the plan forward one semester at a time, or review past runs.",
+    pages: "Dashboard, Run History",
   },
   {
     label: "Analyze",

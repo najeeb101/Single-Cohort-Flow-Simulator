@@ -36,8 +36,6 @@ from src.advisor import (
 )
 from src.analytics import (
     build_curriculum_graph,
-    compute_student_trace,
-    find_students_matching,
     flow_timeline_payload,
 )
 from src.auth import get_current_user
@@ -431,13 +429,12 @@ def _apply_scenario_overrides(
 
 
 def _validate_scenario_overrides(req: ScenarioRequest, curriculum: dict, config: dict) -> None:
-    """Guard an ephemeral /simulate-family override the same way `PUT /config` guards a
-    persisted edit. Without this, `POST /simulate` (and `/simulate/students/search` +
-    `/simulate/students/{id}/trace`, which share `_apply_scenario_overrides`) could run against
-    an out-of-season `admission_terms`, a malformed `initial_state`, or an occupancy that
-    exceeds a course's capacity with no validation at all — `ScenarioRequest`'s pydantic
-    `Field`s can't see across config keys or the plan's curriculum, so this is the same
-    cross-object check `validate_plan_edits` runs on a persisted write, applied here too."""
+    """Guard an ephemeral /simulate override the same way `PUT /config` guards a persisted
+    edit. Without this, `POST /simulate` could run against an out-of-season `admission_terms`,
+    a malformed `initial_state`, or an occupancy that exceeds a course's capacity with no
+    validation at all — `ScenarioRequest`'s pydantic `Field`s can't see across config keys or
+    the plan's curriculum, so this is the same cross-object check `validate_plan_edits` runs on
+    a persisted write, applied here too."""
     patch: dict = {}
     if req.admission_terms is not None:
         patch["admission_terms"] = req.admission_terms
@@ -488,72 +485,6 @@ def simulate(
         "admissions_recommendation": run["admissions_recommendation"],
         "flow_timeline": flow_timeline,
     }
-
-
-# ---------------------------------------------------------------------------- #
-# Per-student trace: "watch one synthetic student's term-by-term journey"       #
-# ---------------------------------------------------------------------------- #
-# Because the engine is fully deterministic (CRN: seed + student_id), both endpoints just
-# re-run it from the same overrides the dashboard used — no per-run persistence needed. Search
-# runs cheaply (no trace recording); trace flips on record_traces to also capture per-student
-# block events + per-term state, then extracts one student's slice.
-
-class StudentSearchRequest(ScenarioRequest):
-    filter_cohort_id: int | None = None
-    filter_final_status: str | None = None      # graduated | dropped | censored (case-insensitive)
-    filter_ever_probation: bool | None = None
-    limit: int = Field(default=8, ge=1, le=50)
-
-    @field_validator("filter_final_status")
-    @classmethod
-    def _validate_status(cls, v: str | None) -> str | None:
-        if v is None:
-            return v
-        if v.lower() not in {"graduated", "dropped", "censored"}:
-            raise ValueError("filter_final_status must be graduated, dropped, or censored")
-        return v
-
-
-@app.post("/simulate/students/search")
-def search_students(req: StudentSearchRequest, db: Session = Depends(get_db)) -> dict:
-    """Find a few representative students matching a profile, for the trace picker. Re-runs the
-    baseline (or the supplied overrides) and filters the finished population — no block-event
-    recording, so it stays a cheap single run. See src/analytics.py::find_students_matching."""
-    curriculum, base_config, base_scenario = _load_plan_data(db)
-    config, scenario = _apply_scenario_overrides(req, base_config, base_scenario)
-    _validate_scenario_overrides(req, curriculum, config)
-    try:
-        result = Simulator(curriculum, config, scenario).run()
-    except Exception as exc:
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
-    return find_students_matching(
-        result,
-        cohort_id=req.filter_cohort_id,
-        final_status=req.filter_final_status,
-        ever_probation=req.filter_ever_probation,
-        limit=req.limit,
-    )
-
-
-@app.post("/simulate/students/{student_id}/trace")
-def student_trace(
-    student_id: int, req: ScenarioRequest, db: Session = Depends(get_db)
-) -> dict:
-    """One student's full term-by-term journey (courses taken + pass/fail, blocked-and-why,
-    GPA/probation/status per term, final outcome). Re-runs the engine with record_traces=True
-    against the same overrides, so the trace matches what the dashboard shows for that run.
-    See src/analytics.py::compute_student_trace."""
-    curriculum, base_config, base_scenario = _load_plan_data(db)
-    config, scenario = _apply_scenario_overrides(req, base_config, base_scenario)
-    _validate_scenario_overrides(req, curriculum, config)
-    try:
-        result = Simulator(curriculum, config, scenario, record_traces=True).run()
-    except Exception as exc:
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
-    trace = compute_student_trace(result, curriculum, student_id)
-    if trace is None:
-        raise HTTPException(status_code=404, detail=f"No student {student_id} in this run")
-    return trace
 
 
 class AutofillRequest(BaseModel):

@@ -358,41 +358,6 @@ recommendation already uses.
   candidate (deterministic) — Monte-Carlo-verify the final pick before committing. Covered by
   `tests/test_optimizer.py`.
 
-## Per-Student Trace Model ("watch one synthetic student")
-
-- Turns the population aggregates into an individual view: pick a student by profile and see
-  their **term-by-term** path — courses attempted (pass/fail), where they were blocked and why,
-  GPA/probation/status trajectory, and final outcome. The per-student data mostly *already
-  existed*: `History.transcript` is a full per-student-per-term course log and
-  `History.outcomes` is one terminal record each. The one real gap was the four block signals,
-  which the aggregate counters (`capacity_block_counts` etc.) discard per-student at increment
-  time.
-- **Engine capture is opt-in and default-off.** `Simulator(record_traces=False)` (every existing
-  caller + the hot `/simulate` baseline) is byte-identical and pays nothing. When `True` (the
-  trace endpoints only), the engine also records `History.block_events` (`BlockEvent{student_id,
-  term, course_code, signal}` for capacity/offering/prereq — `fail` is derivable from a
-  transcript row with `grade == "F"`) and `History.student_term_states`
-  (`StudentTermState{student_id, term, personal_semester, gpa, completed_ch, on_probation,
-  status}`, snapshotted from the pre-outcome `active` list so a terminal-transition term shows
-  its post-transition status). Both live in `src/datasource.py`, stay **out of the
-  `flow_timeline.json` contract** (exactly like `transcript`/`outcomes`), and only feed the
-  trace.
-- **Extraction** (`src/analytics.py`): `find_students_matching(result, *, cohort_id,
-  final_status, ever_probation, limit)` → cheap candidate summaries (study cohorts only, most-
-  delayed/most-failed first, no block recording needed); `compute_student_trace(result,
-  curriculum, student_id)` → the full journey dict (or `None`). Prereq blocks sweep the whole
-  remaining curriculum every term, so the **frontend** collapses them into a count and shows
-  capacity/offering blocks (the actionable "eligible but stuck" signals) as chips.
-- **API** (`src/api.py`, no persistence — deterministic re-run from the same overrides
-  `/simulate` takes, default `{}` = dashboard baseline): `POST /simulate/students/search`
-  (`ScenarioRequest` + profile filters → candidates) and `POST /simulate/students/{id}/trace`
-  (`ScenarioRequest` → one student's trace; runs with `record_traces=True`; 404 if absent).
-  Neither writes a `Run` row. See `docs/api.md`.
-- **Frontend**: `web/src/components/StudentTracePanel.tsx` (profile picker → candidate cards →
-  term-by-term timeline with grade chips, block chips, a status pill per term, and an inline SVG
-  GPA sparkline) on the **`/students`** dashboard page (`Analytics → Student Trace` in the nav).
-  Covered by `tests/test_student_trace.py` + trace cases in `tests/test_api.py`.
-
 ## Semester Checkpoint Mode ("advance one term at a time")
 
 **The Dashboard (`/`) IS this feature** — there is no separate full-run landing page anymore. A
@@ -409,8 +374,8 @@ recommendation, headline results, per-cohort table, prerequisite network) are ba
 now driven by the **checkpoint session's own partial run** instead of a single complete
 `/simulate` call — see "Live-synced analytics" below. `web/src/app/(dashboard)/page.tsx` renders
 the checkpoint walkthrough; the full-horizon baseline simulation still runs invisibly in the
-background (`SimulationProvider`, from the dashboard layout, unchanged) purely so Advisor,
-Figures, and Student Trace keep working exactly as before.
+background (`SimulationProvider`, from the dashboard layout, unchanged) purely so Advisor and
+Figures keep working exactly as before.
 
 - **Resumable engine** (`src/simulator.py`): both stepping methods share a private
   `_advance_one_calendar_term()` (admit any cohort due that term, run it, advance the cursor —

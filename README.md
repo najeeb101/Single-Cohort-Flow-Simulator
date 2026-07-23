@@ -20,8 +20,8 @@ An included **Next.js dashboard** (`web/`) lets you advance the active plan one 
 time from the main Dashboard page — editing capacity, pass rates, occupancy, and next intake
 between steps (Semester Checkpoint Mode), with headline KPIs/per-cohort outcomes/admissions
 recommendation and the Bottlenecks page updating live off that in-progress walkthrough — while a
-full 12-semester baseline run powers Advisor, Figures, and Student Trace (and Bottlenecks/
-Auto-fill before any walkthrough has been started).
+full 12-semester baseline run powers Advisor and Figures (and Bottlenecks/Auto-fill before any
+walkthrough has been started).
 
 ---
 

@@ -359,17 +359,13 @@ src/
 ├── datasource.py        # DataSource seam: CohortSpec + SyntheticDataSource (population
 │                         # creation, decoupled from the engine so a future real-data source
 │                         # can plug in without touching Simulator); also the canonical
-│                         # EnrollmentRecord/OutcomeRecord/BlockEvent/StudentTermState record
-│                         # types (the last two power the per-student trace, §11.11)
+│                         # EnrollmentRecord/OutcomeRecord record types
 ├── rules.py             # evaluate_rule()/gate_edges() — generic compound prerequisite
 │                         # expressions (how CMPS493's rule is expressed, not hardcoded)
 ├── simulator.py         # Simulator (staggered admission + 3-phase per-term loop) + History
-│                         # (the four block signals + snapshots) + SimulationResult; an
-│                         # opt-in, default-off record_traces flag additionally captures
-│                         # per-student block events + per-term state (§11.11)
+│                         # (the four block signals + snapshots) + SimulationResult
 ├── analytics.py         # compute_metrics(), per-cohort metrics, admissions recommendation,
-│                         # curriculum graph, flow_timeline JSON, CSV writers,
-│                         # find_students_matching()/compute_student_trace() (§11.11)
+│                         # curriculum graph, flow_timeline JSON, CSV writers
 ├── service.py           # run_simulation(curriculum, config, scenario, data_source=None)
 │                         # -> dict — the engine-as-a-service boundary: Simulator + every
 │                         # analytics.py derivation, in memory, zero file I/O
@@ -385,8 +381,7 @@ src/
 │                         # edits and Plan imports
 ├── scenarios.py          # persistent /scenarios + /runs endpoints (saved scenario-builder
 │                         # presets), scoped to the demo user
-├── api.py                # FastAPI wrapper: /health, /meta, /simulate,
-│                         # /simulate/students/search + /{id}/trace, /autofill, /curriculum,
+├── api.py                # FastAPI wrapper: /health, /meta, /simulate, /autofill, /curriculum,
 │                         # /config, /plans — every route resolves the requester's
 │                         # active Plan fresh, no cached globals; see docs/api.md
 ├── montecarlo.py         # run_monte_carlo() — mean ± 95% CI over many seeds
@@ -396,7 +391,7 @@ src/
 web/         Next.js/TypeScript dashboard — Dashboard (Semester Checkpoint Mode: advance one
              semester at a time, editing capacity/pass rate/occupancy/intake between steps),
              Advisor (grounded LLM chat + what-if Test/Apply on proposed changes), Bottlenecks
-             (capacity recommendations + Auto-fill solver), Student Trace, Figures, Settings
+             (capacity recommendations + Auto-fill solver), Figures, Settings
              (curriculum + config editing), Plans/Plan Builder, Run History
 run.py       # entry point: load -> run_simulation() per scenario -> save figures + CSV
 ```
@@ -587,27 +582,3 @@ throughput stability).
   reporting grad-rate/time-to-degree/throughput-stability breaches as non-capacity so it never
   overstates the seats needed. `POST /autofill` is read-only; the frontend panel applies the
   winning capacities itself via the existing `PUT /curriculum/{code}` + `PUT /config` writes.
-
-### 11.11 Per-Student Trace
-
-Everything above (and everywhere else in this document) reports population aggregates. The
-per-student trace inverts that: pick one student and see their exact term-by-term path.
-
-Most of the needed data already existed — `History.transcript` is a full per-student-per-term
-course log and `History.outcomes` one terminal record per student (§9's
-`compute_historical_transcripts` already extracts these). The one real gap was the four block
-signals (§4.11/§5.5), which the aggregate `*_block_counts` discard per-student identity at
-increment time. `Simulator(record_traces=True)` (opt-in, default off — every existing caller and
-the hot `/simulate` baseline are unaffected) additionally records `History.block_events`
-(`BlockEvent{student_id, term, course_code, signal}`) and `History.student_term_states`
-(`StudentTermState{student_id, term, personal_semester, gpa, completed_ch, on_probation,
-status}`). Neither is part of the `flow_timeline.json` contract (§11.7).
-
-`src/analytics.py::find_students_matching` filters the finished population by profile (cohort,
-final outcome, ever-probation) into a few representative candidates — no block recording needed,
-so it's a cheap ordinary run. `compute_student_trace` re-runs with `record_traces=True` and
-assembles one student's full journey. Both endpoints (`POST /simulate/students/search`,
-`POST /simulate/students/{id}/trace`) re-run the deterministic engine from the same overrides
-`/simulate` takes rather than persisting anything — CRN (§4.2/§11.5) makes that reproduction
-exact and cheap (~0.4s per run at the shipped cohort sizes). See `docs/api.md` and CLAUDE.md's
-"Per-Student Trace Model".

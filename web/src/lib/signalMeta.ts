@@ -2,12 +2,11 @@ import type { BlockSignal } from "@/types/simulation";
 
 // The four "why a student got stuck" signals, kept SEPARATE by design (they use different units
 // and must never be summed — see CLAUDE.md "Four Block Signals"). This is the single source of
-// truth for how each signal is labelled and coloured across the dashboard: the Student Trace
-// pills, the Bottlenecks legend + cards, and the Details mini-charts all read it, so they can
-// never drift apart.
+// truth for how each signal is labelled and coloured across the dashboard: the Bottlenecks
+// legend + cards and the Details mini-charts all read it, so they can never drift apart.
 //
-// `fail` isn't a per-term BlockSignal in the trace (a failed course is a transcript row, not a
-// block), but it's part of the same conceptual family, so the legend includes it.
+// `fail` isn't a per-term BlockSignal (a failed course is a transcript row, not a block), but
+// it's part of the same conceptual family, so the legend includes it.
 export type SignalKey = BlockSignal | "fail";
 
 // The matching per-term field in Frame.courses[code] (CourseFrameStat), so a signal's timeline

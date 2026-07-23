@@ -297,10 +297,7 @@ decoupled from the engine loop.
 
 Also defined here: the canonical `StudentRecord`/`EnrollmentRecord`/`OutcomeRecord` dataclasses —
 a portable schema deliberately leaner than the internal `Student` (no RNG stream, no ability
-score), consumed by `analytics.compute_historical_transcripts()`. Alongside them, `BlockEvent`
-(`student_id, term, course_code, signal`) and `StudentTermState` (`student_id, term,
-personal_semester, gpa, completed_ch, on_probation, status`) power the per-student trace
-(§15) — recorded only when `Simulator(record_traces=True)`.
+score), consumed by `analytics.compute_historical_transcripts()`.
 
 ---
 
@@ -434,7 +431,6 @@ mutable state or race each other.
 | `GET/PUT /config` | active plan's baseline `AppConfig` |
 | `GET /plans`, `POST /plans/import`, `POST /plans/{id}/activate`, `DELETE /plans/{id}`, `GET /plans/{id}/export` | multi-plan management |
 | `POST /autofill` | Auto-fill solver (read-only; see §13) |
-| `POST /simulate/students/search`, `POST /simulate/students/{id}/trace` | per-student trace (§14) |
 
 `get_current_user` (`src/auth.py`) is a dependency on every route except `/health` — today it's a
 stub that gets-or-creates one shared `demo@local` user rather than checking a real
@@ -459,8 +455,6 @@ No simulation logic lives here — every function is a pure derivation over a fi
 | `build_course_utilization(result)` | per-course seat utilization for the heatmap |
 | `build_curriculum_graph(curriculum)` | node/edge graph for the prerequisite network + roadmap |
 | `flow_timeline_payload(result, curriculum)` | the full frontend contract (`meta`/`frames`/`summary`) |
-| `find_students_matching(result, ...)` | candidate summaries for the per-student trace picker (§14) |
-| `compute_student_trace(result, curriculum, student_id)` | one student's full term-by-term journey (§14) |
 | `build_summary_csv` / `build_cohort_flow_csv` / `build_cohort_summary_csv` / `build_course_utilization_csv` / `build_monte_carlo_csv` | the offline `outputs/reports/*.csv` writers |
 
 ---
@@ -514,41 +508,3 @@ for iteration in range(run_budget):
 breach (grad rate, time-to-degree, throughput stability) as non-capacity rather than papering
 over it with more seats. `POST /autofill` (§10) is read-only; the frontend panel applies the
 winning capacities itself via the existing `PUT /curriculum/{code}` + `PUT /config` writes.
-
----
-
-## 14. Per-student trace (`src/analytics.py`, `src/api.py`)
-
-Inverts every other section in this document: instead of a population aggregate, one student's
-exact term-by-term path.
-
-The transcript/outcome data already existed (§5's `EnrollmentRecord`/`OutcomeRecord`). The one
-gap was the four block signals (§3's block-classification snippet) discarding student identity
-at increment time. `Simulator(record_traces=True)` — opt-in, default `False`, so every existing
-caller and the hot `/simulate` baseline are byte-identical — additionally appends to two new
-`History` lists at the same call sites:
-
-```python
-# Phase 2, seat allocation losers:
-if self.record_traces:
-    self.history.block_events.append(BlockEvent(s.student_id, term_idx, code, "capacity"))
-
-# _record_blocks, offering/prereq branches: same pattern with "offering"/"prereq"
-
-# once per term, per active student:
-if self.record_traces:
-    self.history.student_term_states.append(StudentTermState(
-        student_id=s.student_id, term=term_idx, personal_semester=s.personal_semester,
-        gpa=round(s.gpa, 4), completed_ch=s.completed_ch, on_probation=s.on_probation,
-        status=s.status,
-    ))
-```
-
-`find_students_matching(result, ...)` filters the finished population by profile (cohort, final
-status, ever-probation) — no trace recording needed, so it's an ordinary cheap run.
-`compute_student_trace(result, curriculum, student_id)` re-runs with `record_traces=True` and
-zips `transcript`/`block_events`/`student_term_states` together by `term`, keyed off one
-`student_id`. Both endpoints (§10) re-run the deterministic engine from the request's overrides
-rather than reading anything persisted — CRN (§4) makes the reproduction exact, and a run is
-cheap enough (~0.4s at the shipped cohort sizes) that this costs less than keeping a per-run
-cache correct would.

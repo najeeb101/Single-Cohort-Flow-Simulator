@@ -74,8 +74,7 @@ export default function SettingsPage() {
 
   // CurriculumTable saves each add/edit/delete immediately (independent of the "Save as new
   // baseline" button below) — refresh the shared context the same way so those edits show up
-  // on the Dashboard/Bottlenecks/Advisor/Student Trace/Figures pages right away instead of
-  // after a reload.
+  // on the Dashboard/Bottlenecks/Advisor/Figures pages right away instead of after a reload.
   const handleCoursesChange = (next: CourseRecord[]) => {
     setCourses(next);
     refreshBaseline().catch(() => {});
@@ -162,8 +161,8 @@ export default function SettingsPage() {
     }
 
     // The saved rows above are the source of truth; re-fetch meta + re-run the baseline
-    // simulation so the shared SimulationContext (Bottlenecks, Advisor, Student Trace, Figures)
-    // reflects the new baseline immediately instead of only after a hard reload.
+    // simulation so the shared SimulationContext (Bottlenecks, Advisor, Figures) reflects the
+    // new baseline immediately instead of only after a hard reload.
     try {
       await refreshBaseline();
     } catch {

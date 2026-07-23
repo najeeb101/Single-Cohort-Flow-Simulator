@@ -16,8 +16,8 @@ import type { CheckpointState } from "@/types/simulation";
 // The Dashboard IS the Semester Checkpoint walkthrough: a turn-based, resumable re-run of the
 // active plan, advanced one semester at a time with editable future-facing knobs in between —
 // not a one-shot static run. The full-horizon baseline simulation still runs invisibly in the
-// background (SimulationProvider, from the layout) so Advisor/Figures/Student Trace keep
-// working unchanged; Bottlenecks/Auto-fill/Capacity recommendations instead prefer the
+// background (SimulationProvider, from the layout) so Advisor/Figures keep working unchanged;
+// Bottlenecks/Auto-fill/Capacity recommendations instead prefer the
 // checkpoint session's own (partial, live) data when one is in progress — see those pages.
 // CheckpointProvider itself lives in layout.tsx, not here, so other pages can reach it too.
 export default function Home() {
