@@ -1079,17 +1079,27 @@ def advance_checkpoint(db: Session = Depends(get_db)) -> dict:
     scenario = config["scenarios"][0]
     sim = Simulator.from_snapshot(curriculum, config, scenario, row.snapshot)
 
+    existing_steps = (
+        db.query(CheckpointSnapshotRow)
+        .filter(CheckpointSnapshotRow.session_id == row.id)
+        .count()
+    )
+    if existing_steps == 0:
+        # This session predates the per-step history table (created before this feature
+        # shipped, or otherwise never got its seq=0 row) — back-fill its CURRENT (pre-advance)
+        # state as seq=0 before stepping, so "go back to the start" means the earliest state we
+        # actually have a snapshot for, not "one step past wherever it already was."
+        db.add(CheckpointSnapshotRow(
+            session_id=row.id, seq=0, next_term=row.next_term, snapshot=row.snapshot,
+        ))
+        existing_steps = 1
+
     if not sim.is_finished:
         sim.step_one_mandatory_term()
         row.snapshot = sim.snapshot()
         row.next_term = sim._next_term
-        next_seq = (
-            db.query(CheckpointSnapshotRow)
-            .filter(CheckpointSnapshotRow.session_id == row.id)
-            .count()
-        )
         db.add(CheckpointSnapshotRow(
-            session_id=row.id, seq=next_seq, next_term=row.next_term, snapshot=row.snapshot,
+            session_id=row.id, seq=existing_steps, next_term=row.next_term, snapshot=row.snapshot,
         ))
 
     if sim.is_finished:

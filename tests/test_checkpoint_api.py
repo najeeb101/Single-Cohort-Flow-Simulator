@@ -319,6 +319,39 @@ def test_rewind_rejects_unknown_step():
     _discard_any_session()
 
 
+def test_advance_backfills_history_for_a_pre_existing_session():
+    # Simulates a session created before the per-step history table existed (or one that
+    # otherwise lost its seq=0 row): it has zero CheckpointSnapshot rows even though it's
+    # already partway through the walkthrough. The next advance must back-fill the CURRENT
+    # (pre-advance) state as seq=0 rather than mislabeling "one step past where it already was"
+    # as the start.
+    from src.db import SessionLocal
+    from src.db_models import CheckpointSnapshot
+
+    _discard_any_session()
+    client.post("/checkpoint")
+    client.post("/checkpoint/advance")
+    before = client.get("/checkpoint").json()
+    session_id = before["id"]
+    next_term_before = before["next_term"]
+
+    with SessionLocal() as session:
+        session.query(CheckpointSnapshot).filter_by(session_id=session_id).delete()
+        session.commit()
+    assert client.get("/checkpoint").json()["history"] == []
+
+    after = client.post("/checkpoint/advance").json()
+    assert after["history"] == [
+        {"seq": 0, "next_term": next_term_before},
+        {"seq": 1, "next_term": after["next_term"]},
+    ]
+
+    # And rewinding to the backfilled seq=0 restores that pre-advance state correctly.
+    rewound = client.post("/checkpoint/rewind", json={"seq": 0}).json()
+    assert rewound["next_term"] == next_term_before
+    _discard_any_session()
+
+
 def test_discard_purges_snapshot_history():
     from src.db import SessionLocal
     from src.db_models import CheckpointSnapshot
