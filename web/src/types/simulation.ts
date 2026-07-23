@@ -321,6 +321,9 @@ export interface CheckpointState {
   frames: Frame[];
   meta: { graph: Graph; stage_nodes: string[] };
   counts_so_far: CheckpointCounts;
+  // Every step recorded so far (seq 0 = session creation, seq N = after the Nth advance) — lets
+  // the UI offer "go back to an earlier term" (POST /checkpoint/rewind) without a separate call.
+  history: { seq: number; next_term: number }[];
   // Same {meta, frames, summary} shape a completed /simulate produces (src/api.py's
   // _checkpoint_summary_from_sim), computed live off the session's partial run — lets
   // Bottlenecks/HeadlineKpis/AdmissionsRecommendation/CohortsTable read a checkpoint session

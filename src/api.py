@@ -56,6 +56,7 @@ from src.db import (
 )
 from src.db_models import AppConfig as AppConfigRow
 from src.db_models import CheckpointSession as CheckpointSessionRow
+from src.db_models import CheckpointSnapshot as CheckpointSnapshotRow
 from src.db_models import Course as CourseRow
 from src.db_models import Plan as PlanRow
 from src.db_models import Run, User
@@ -866,7 +867,27 @@ def _checkpoint_curriculum(row: CheckpointSessionRow) -> dict[str, Course]:
     return {c["code"]: course_from_dict(c) for c in row.working_curriculum}
 
 
-def _checkpoint_summary_from_sim(row: CheckpointSessionRow, sim: Simulator) -> dict:
+def _checkpoint_history(db: Session, session_id: int) -> list[dict]:
+    """Cheap {seq, next_term} listing of every step recorded for this session, so the frontend
+    can render a "go back to an earlier term" step list without ever unpickling a snapshot blob
+    just to build labels. See POST /checkpoint/rewind."""
+    rows = (
+        db.query(CheckpointSnapshotRow)
+        .filter(CheckpointSnapshotRow.session_id == session_id)
+        .order_by(CheckpointSnapshotRow.seq)
+        .all()
+    )
+    return [{"seq": r.seq, "next_term": r.next_term} for r in rows]
+
+
+def _purge_checkpoint_snapshots(db: Session, session_id: int) -> None:
+    """Delete every per-step snapshot row for a session — called when a session is discarded
+    (explicitly, or superseded by a new POST /checkpoint), since those blobs have no further use
+    once the session they belong to is gone."""
+    db.query(CheckpointSnapshotRow).filter(CheckpointSnapshotRow.session_id == session_id).delete()
+
+
+def _checkpoint_summary_from_sim(db: Session, row: CheckpointSessionRow, sim: Simulator) -> dict:
     counts = {"active": 0, "delayed": 0, "graduated": 0, "dropped": 0, "censored": 0}
     for s in sim.students:
         counts[s.status.lower()] += 1
@@ -885,6 +906,9 @@ def _checkpoint_summary_from_sim(row: CheckpointSessionRow, sim: Simulator) -> d
             "stage_nodes": stage_node_names(sim.config),
         },
         "counts_so_far": counts,
+        # Every step recorded so far (see POST /checkpoint/rewind) — lets the frontend offer
+        # "go back to an earlier term" without a separate request.
+        "history": _checkpoint_history(db, row.id),
         # The exact {meta, frames, summary} shape a completed /simulate produces — every field
         # in compute_metrics/compute_cohort_metrics/compute_admissions_recommendation only reads
         # .history/.config/.students, all present on a Simulator mid-run, so this is safe to
@@ -899,7 +923,7 @@ def _checkpoint_summary_from_sim(row: CheckpointSessionRow, sim: Simulator) -> d
     }
 
 
-def _checkpoint_summary(row: CheckpointSessionRow) -> dict:
+def _checkpoint_summary(db: Session, row: CheckpointSessionRow) -> dict:
     """Reconstruct the read-only view of a session from its persisted snapshot — used wherever
     the caller doesn't already have a live Simulator in hand (GET, and after an edit that
     doesn't itself advance any terms)."""
@@ -907,7 +931,7 @@ def _checkpoint_summary(row: CheckpointSessionRow) -> dict:
     config = row.working_config
     scenario = config["scenarios"][0]
     sim = Simulator.from_snapshot(curriculum, config, scenario, row.snapshot)
-    return _checkpoint_summary_from_sim(row, sim)
+    return _checkpoint_summary_from_sim(db, row, sim)
 
 
 def _require_checkpoint_session(db: Session, user: User) -> CheckpointSessionRow:
@@ -931,6 +955,7 @@ def create_checkpoint(db: Session = Depends(get_db)) -> dict:
     existing = resolve_active_checkpoint_session(db, current_user)
     if existing is not None:
         existing.status = "discarded"
+        _purge_checkpoint_snapshots(db, existing.id)
 
     sim = Simulator(curriculum, config, scenario)
     row = CheckpointSessionRow(
@@ -944,13 +969,15 @@ def create_checkpoint(db: Session = Depends(get_db)) -> dict:
     )
     db.add(row)
     db.commit()
-    return _checkpoint_summary_from_sim(row, sim)
+    db.add(CheckpointSnapshotRow(session_id=row.id, seq=0, next_term=row.next_term, snapshot=row.snapshot))
+    db.commit()
+    return _checkpoint_summary_from_sim(db, row, sim)
 
 
 @app.get("/checkpoint")
 def get_checkpoint(db: Session = Depends(get_db)) -> dict:
     row = _require_checkpoint_session(db, get_current_user(db))
-    return _checkpoint_summary(row)
+    return _checkpoint_summary(db, row)
 
 
 class CheckpointEditRequest(BaseModel):
@@ -1013,7 +1040,7 @@ def edit_checkpoint(req: CheckpointEditRequest, db: Session = Depends(get_db)) -
     row.working_curriculum = working_curriculum
     row.working_config = working_config
     db.commit()
-    return _checkpoint_summary(row)
+    return _checkpoint_summary(db, row)
 
 
 @app.post("/checkpoint/autofill")
@@ -1056,11 +1083,60 @@ def advance_checkpoint(db: Session = Depends(get_db)) -> dict:
         sim.step_one_mandatory_term()
         row.snapshot = sim.snapshot()
         row.next_term = sim._next_term
+        next_seq = (
+            db.query(CheckpointSnapshotRow)
+            .filter(CheckpointSnapshotRow.session_id == row.id)
+            .count()
+        )
+        db.add(CheckpointSnapshotRow(
+            session_id=row.id, seq=next_seq, next_term=row.next_term, snapshot=row.snapshot,
+        ))
 
     if sim.is_finished:
         row.status = "completed"
     db.commit()
-    return _checkpoint_summary_from_sim(row, sim)
+    return _checkpoint_summary_from_sim(db, row, sim)
+
+
+class CheckpointRewindRequest(BaseModel):
+    seq: int = Field(ge=0)
+
+
+@app.post("/checkpoint/rewind")
+def rewind_checkpoint(req: CheckpointRewindRequest, db: Session = Depends(get_db)) -> dict:
+    """Roll the session's simulated terms back to an earlier step (`seq`, from the `history` list
+    every checkpoint response includes) — a linear undo: every step recorded after the target is
+    discarded, and advancing again afterward records a new forward path starting from there
+    (no branching/redo). Allowed on a "completed" session too (rewinding a finished walkthrough
+    to try something different is the point) — reactivates it to "active" unless the target step
+    itself was already the end of the horizon. Deliberately does NOT touch working_curriculum/
+    working_config: staged capacity/pass_rate/occupancy/intake edits stay staged and apply
+    starting with the next advance from the rewound point, exactly like any other edit (see
+    POST /checkpoint/edit) — that's what makes "go back, then try a different number" useful."""
+    row = _require_checkpoint_session(db, get_current_user(db))
+    target = (
+        db.query(CheckpointSnapshotRow)
+        .filter(CheckpointSnapshotRow.session_id == row.id, CheckpointSnapshotRow.seq == req.seq)
+        .one_or_none()
+    )
+    if target is None:
+        raise HTTPException(status_code=422, detail=f"No step {req.seq} in this session")
+
+    db.query(CheckpointSnapshotRow).filter(
+        CheckpointSnapshotRow.session_id == row.id,
+        CheckpointSnapshotRow.seq > req.seq,
+    ).delete()
+
+    curriculum = _checkpoint_curriculum(row)
+    config = row.working_config
+    scenario = config["scenarios"][0]
+    sim = Simulator.from_snapshot(curriculum, config, scenario, target.snapshot)
+
+    row.snapshot = target.snapshot
+    row.next_term = target.next_term
+    row.status = "completed" if sim.is_finished else "active"
+    db.commit()
+    return _checkpoint_summary_from_sim(db, row, sim)
 
 
 @app.delete("/checkpoint")
@@ -1069,6 +1145,7 @@ def discard_checkpoint(db: Session = Depends(get_db)) -> dict:
     unaffected — it never reads checkpoint state — so this just returns the head to it."""
     row = _require_checkpoint_session(db, get_current_user(db))
     row.status = "discarded"
+    _purge_checkpoint_snapshots(db, row.id)
     db.commit()
     return {"ok": True}
 

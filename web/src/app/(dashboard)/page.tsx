@@ -26,7 +26,7 @@ export default function Home() {
 
 function DashboardBody() {
   const { meta } = useSimulation();
-  const { session, loading, busy, error, start, advance, discard } = useCheckpoint();
+  const { session, loading, busy, error, start, advance, rewind, discard } = useCheckpoint();
 
   return (
     <main className="mx-auto w-full max-w-[1600px] px-7 pb-16">
@@ -58,6 +58,7 @@ function DashboardBody() {
           session={session}
           busy={busy}
           onAdvance={advance}
+          onRewind={rewind}
           onDiscard={discard}
           onTimeTerms={meta.on_time_terms}
         />
@@ -89,12 +90,14 @@ function SessionView({
   session,
   busy,
   onAdvance,
+  onRewind,
   onDiscard,
   onTimeTerms,
 }: {
   session: CheckpointState;
   busy: boolean;
   onAdvance: () => Promise<void>;
+  onRewind: (seq: number) => Promise<void>;
   onDiscard: () => Promise<void>;
   onTimeTerms: number;
 }) {
@@ -149,6 +152,8 @@ function SessionView({
         </div>
       </div>
 
+      <TermHistoryStrip history={session.history} busy={busy} onRewind={onRewind} />
+
       <section className="rounded-2xl border border-border bg-surface">
         <div className="flex items-baseline justify-between gap-3 border-b border-border px-4 py-2.5 text-sm font-semibold">
           <span>Results so far</span>
@@ -195,6 +200,58 @@ function SessionView({
         </p>
         <CheckpointEditPanel key={session.id} session={session} onSaved={() => setEditOpen(false)} />
       </Modal>
+    </div>
+  );
+}
+
+// Jump back to any earlier point in the walkthrough (POST /checkpoint/rewind). Rendered only
+// once there's more than one recorded step (nothing to go back to on term one). The current step
+// is always the last entry in `history` — it mirrors the session's own `next_term`/`frames`.
+function TermHistoryStrip({
+  history,
+  busy,
+  onRewind,
+}: {
+  history: CheckpointState["history"];
+  busy: boolean;
+  onRewind: (seq: number) => Promise<void>;
+}) {
+  if (history.length <= 1) return null;
+  const currentSeq = history[history.length - 1].seq;
+
+  const handleClick = (seq: number, label: string) => {
+    if (busy || seq === currentSeq) return;
+    const confirmed = window.confirm(
+      `Go back to ${label}? Terms simulated after this point will be discarded. Any staged ` +
+        "capacity/pass-rate/occupancy/intake edits are kept and will apply again from here. " +
+        "This cannot be undone."
+    );
+    if (confirmed) onRewind(seq);
+  };
+
+  return (
+    <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-border bg-surface px-4 py-3">
+      <span className="text-xs font-semibold text-muted">Term history:</span>
+      {history.map((step) => {
+        const label = step.seq === 0 ? "Start" : `Term ${step.next_term}`;
+        const isCurrent = step.seq === currentSeq;
+        return (
+          <button
+            key={step.seq}
+            type="button"
+            onClick={() => handleClick(step.seq, label)}
+            disabled={busy || isCurrent}
+            title={isCurrent ? "Current point in the walkthrough" : `Go back to ${label}`}
+            className={
+              isCurrent
+                ? "rounded-full bg-accent px-3 py-1 text-xs font-semibold text-white disabled:cursor-not-allowed"
+                : "rounded-full border border-border-2 bg-surface px-3 py-1 text-xs font-semibold text-ink hover:border-accent disabled:cursor-not-allowed disabled:opacity-50"
+            }
+          >
+            {label}
+          </button>
+        );
+      })}
     </div>
   );
 }

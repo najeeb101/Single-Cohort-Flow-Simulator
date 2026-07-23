@@ -127,3 +127,22 @@ class CheckpointSession(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow, onupdate=_utcnow)
 
 
+class CheckpointSnapshot(Base):
+    """One per-step engine snapshot within a `CheckpointSession` walkthrough — `seq=0` captures
+    the state at session creation, `seq=N` the state right after the Nth successful
+    `POST /checkpoint/advance`. Kept separate from `CheckpointSession.snapshot` (which still
+    tracks "the current/latest" blob for the existing advance/edit code paths) so
+    `POST /checkpoint/rewind` can restore an earlier step by deleting every row past the target
+    `seq` — a linear undo with no branching/redo. `next_term` mirrors the engine's resume cursor
+    as of this step, stored alongside so the frontend can list/label steps without unpickling."""
+
+    __tablename__ = "checkpoint_snapshots"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    session_id: Mapped[int] = mapped_column(ForeignKey("checkpoint_sessions.id"), nullable=False)
+    seq: Mapped[int] = mapped_column(nullable=False)
+    next_term: Mapped[int] = mapped_column(nullable=False)
+    snapshot: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow)
+
+

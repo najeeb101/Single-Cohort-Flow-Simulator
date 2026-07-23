@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
-import { advanceCheckpoint, ApiError, createCheckpoint, discardCheckpoint, editCheckpoint, getCheckpoint } from "@/lib/api";
+import { advanceCheckpoint, ApiError, createCheckpoint, discardCheckpoint, editCheckpoint, getCheckpoint, rewindCheckpoint } from "@/lib/api";
 import type { CheckpointEdit, CheckpointState } from "@/types/simulation";
 
 // Semester Checkpoint Mode's provider (see CLAUDE.md). Unlike SimulationProvider, this does
@@ -17,6 +17,7 @@ interface CheckpointContextValue {
   start: () => Promise<void>;
   advance: () => Promise<void>;
   edit: (patch: CheckpointEdit) => Promise<void>;
+  rewind: (seq: number) => Promise<void>;
   discard: () => Promise<void>;
 }
 
@@ -72,6 +73,18 @@ export function CheckpointProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  const rewind = useCallback(async (seq: number) => {
+    setBusy(true);
+    setError(null);
+    try {
+      setSession(await rewindCheckpoint(seq));
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "Could not go back to that term");
+    } finally {
+      setBusy(false);
+    }
+  }, []);
+
   const discard = useCallback(async () => {
     setBusy(true);
     setError(null);
@@ -92,7 +105,7 @@ export function CheckpointProvider({ children }: { children: ReactNode }) {
   // page itself reads `loading` directly to avoid flashing its "Start walkthrough" screen before
   // an existing session is found.
   return (
-    <CheckpointContext.Provider value={{ session, loading, busy, error, start, advance, edit, discard }}>
+    <CheckpointContext.Provider value={{ session, loading, busy, error, start, advance, edit, rewind, discard }}>
       {children}
     </CheckpointContext.Provider>
   );

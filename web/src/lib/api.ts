@@ -252,6 +252,17 @@ export function advanceCheckpoint(): Promise<CheckpointState> {
   return fetch(`${API_BASE}/checkpoint/advance`, { method: "POST" }).then((res) => asJson<CheckpointState>(res));
 }
 
+// Roll the session's simulated terms back to an earlier step (see the `history` field on
+// CheckpointState) — staged capacity/pass_rate/occupancy/intake edits are kept as-is; only the
+// already-run terms are undone. See src/api.py::rewind_checkpoint.
+export function rewindCheckpoint(seq: number): Promise<CheckpointState> {
+  return fetch(`${API_BASE}/checkpoint/rewind`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ seq }),
+  }).then((res) => asJson<CheckpointState>(res));
+}
+
 // Auto-fill solver scoped to the session's staged curriculum/config rather than the live plan —
 // see src/api.py::autofill_checkpoint. Read-only; apply via editCheckpoint (POST /checkpoint/edit).
 export function autofillCheckpoint(runBudget?: number): Promise<AutofillResult> {

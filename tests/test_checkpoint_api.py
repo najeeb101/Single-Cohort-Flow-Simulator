@@ -223,3 +223,115 @@ def test_discard_leaves_baseline_dashboard_working():
 
     baseline = client.post("/simulate", json={})
     assert baseline.status_code == 200
+
+
+def test_create_checkpoint_records_initial_history_step():
+    _discard_any_session()
+    created = client.post("/checkpoint").json()
+    assert created["history"] == [{"seq": 0, "next_term": created["next_term"]}]
+    _discard_any_session()
+
+
+def test_rewind_restores_earlier_step_and_truncates_future():
+    _discard_any_session()
+    client.post("/checkpoint")
+    client.post("/checkpoint/advance")
+    after_first = client.get("/checkpoint").json()
+    client.post("/checkpoint/advance")
+    client.post("/checkpoint/advance")
+    latest = client.get("/checkpoint").json()
+    assert len(latest["history"]) == 4  # seq 0 (start) + 3 advances
+    assert latest["next_term"] > after_first["next_term"]
+
+    resp = client.post("/checkpoint/rewind", json={"seq": 1})
+    assert resp.status_code == 200
+    rewound = resp.json()
+    assert rewound["next_term"] == after_first["next_term"]
+    assert rewound["frames"] == after_first["frames"]
+    assert rewound["history"] == [{"seq": 0, "next_term": rewound["history"][0]["next_term"]}, {"seq": 1, "next_term": rewound["next_term"]}]
+    _discard_any_session()
+
+
+def test_advance_after_rewind_continues_from_rewound_point():
+    # After going back to seq=1 and advancing again, the walkthrough should record a fresh
+    # forward path from there (linear undo, no branching/redo) rather than restoring whatever
+    # used to be at seq=2.
+    _discard_any_session()
+    client.post("/checkpoint")
+    client.post("/checkpoint/advance")
+    step1 = client.get("/checkpoint").json()
+    client.post("/checkpoint/advance")
+    client.post("/checkpoint/advance")
+
+    client.post("/checkpoint/rewind", json={"seq": 1})
+    resp = client.post("/checkpoint/advance")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert [s["seq"] for s in body["history"]] == [0, 1, 2]
+    assert body["next_term"] > step1["next_term"]
+    _discard_any_session()
+
+
+def test_rewind_reactivates_completed_session():
+    _discard_any_session()
+    client.post("/checkpoint")
+    state = client.get("/checkpoint").json()
+    guard = 0
+    while not state["is_finished"] and guard < 50:
+        state = client.post("/checkpoint/advance").json()
+        guard += 1
+    assert state["status"] == "completed"
+    assert len(state["history"]) >= 2
+
+    resp = client.post("/checkpoint/rewind", json={"seq": 1})
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["status"] == "active"
+    assert body["is_finished"] is False
+
+    # And the reactivated session can advance again.
+    assert client.post("/checkpoint/advance").status_code == 200
+    _discard_any_session()
+
+
+def test_rewind_keeps_staged_edits():
+    # Rewinding rolls back simulated terms only — staged capacity/pass_rate/etc. edits are
+    # deliberately left alone, so trying a different number "from an earlier point" works.
+    _discard_any_session()
+    created = client.post("/checkpoint").json()
+    code = created["working_curriculum"][0]["code"]
+    original_capacity = created["working_curriculum"][0]["capacity"]
+    client.post("/checkpoint/advance")
+    client.post("/checkpoint/edit", json={"capacity": {code: original_capacity + 7}})
+
+    resp = client.post("/checkpoint/rewind", json={"seq": 0})
+    assert resp.status_code == 200
+    updated = next(c for c in resp.json()["working_curriculum"] if c["code"] == code)
+    assert updated["capacity"] == original_capacity + 7
+    _discard_any_session()
+
+
+def test_rewind_rejects_unknown_step():
+    _discard_any_session()
+    client.post("/checkpoint")
+    resp = client.post("/checkpoint/rewind", json={"seq": 99})
+    assert resp.status_code == 422
+    _discard_any_session()
+
+
+def test_discard_purges_snapshot_history():
+    from src.db import SessionLocal
+    from src.db_models import CheckpointSnapshot
+
+    _discard_any_session()
+    created = client.post("/checkpoint").json()
+    session_id = created["id"]
+    client.post("/checkpoint/advance")
+
+    with SessionLocal() as session:
+        assert session.query(CheckpointSnapshot).filter_by(session_id=session_id).count() > 0
+
+    client.delete("/checkpoint")
+
+    with SessionLocal() as session:
+        assert session.query(CheckpointSnapshot).filter_by(session_id=session_id).count() == 0
