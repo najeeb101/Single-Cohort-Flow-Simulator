@@ -235,6 +235,13 @@ export function rewindCheckpoint(seq: number): Promise<CheckpointState> {
   }).then((res) => asJson<CheckpointState>(res));
 }
 
+// Read-only view of an earlier step — unlike rewindCheckpoint, this never truncates history or
+// changes the live session; it's purely for previewing what a past term looked like before
+// deciding whether to commit to it (via rewindCheckpoint). See src/api.py::peek_checkpoint.
+export function peekCheckpoint(seq: number): Promise<CheckpointState> {
+  return fetch(`${API_BASE}/checkpoint/peek/${seq}`).then((res) => asJson<CheckpointState>(res));
+}
+
 // Auto-fill solver scoped to the session's staged curriculum/config rather than the live plan —
 // see src/api.py::autofill_checkpoint. Read-only; apply via editCheckpoint (POST /checkpoint/edit).
 export function autofillCheckpoint(runBudget?: number): Promise<AutofillResult> {

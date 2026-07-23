@@ -1057,6 +1057,38 @@ def advance_checkpoint(db: Session = Depends(get_db)) -> dict:
     return _checkpoint_summary_from_sim(db, row, sim)
 
 
+@app.get("/checkpoint/peek/{seq}")
+def peek_checkpoint(seq: int, db: Session = Depends(get_db)) -> dict:
+    """Read-only view of an earlier step (from the `history` list every checkpoint response
+    includes) — unlike POST /checkpoint/rewind, this never mutates the session row or deletes any
+    CheckpointSnapshot rows, so looking at a past term costs nothing. Lets the frontend show what
+    an earlier term looked like before the user commits to abandoning anything simulated after
+    it (that commit is still POST /checkpoint/rewind, unchanged)."""
+    row = _require_checkpoint_session(db, get_current_user(db))
+    target = (
+        db.query(CheckpointSnapshotRow)
+        .filter(CheckpointSnapshotRow.session_id == row.id, CheckpointSnapshotRow.seq == seq)
+        .one_or_none()
+    )
+    if target is None:
+        raise HTTPException(status_code=422, detail=f"No step {seq} in this session")
+
+    curriculum = _checkpoint_curriculum(row)
+    config = row.working_config
+    scenario = config["scenarios"][0]
+    sim = Simulator.from_snapshot(curriculum, config, scenario, target.snapshot)
+
+    # _checkpoint_summary_from_sim reads next_term/next_term_label off `row`, which still holds
+    # the LIVE position since we never mutate it here — override with the peeked step's own
+    # values so the preview reads as "if you were sitting at this point," not the live session.
+    payload = _checkpoint_summary_from_sim(db, row, sim)
+    payload["next_term"] = target.next_term
+    payload["next_term_label"] = None if sim.is_finished else term_label(target.next_term, sim.config)
+    payload["status"] = "completed" if sim.is_finished else "active"
+    payload["viewed_seq"] = seq
+    return payload
+
+
 class CheckpointRewindRequest(BaseModel):
     seq: int = Field(ge=0)
 

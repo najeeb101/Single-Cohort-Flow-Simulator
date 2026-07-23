@@ -335,6 +335,9 @@ export interface CheckpointState {
   // exactly like the baseline dashboard's flow_timeline. Always partial: fewer terms run so far
   // means less reliable headline/admissions numbers, especially before any cohort has finished.
   flow_timeline: FlowTimeline;
+  // Present only on a GET /checkpoint/peek/{seq} response — marks this payload as a read-only
+  // preview of an earlier step, not the live session (see CheckpointContext's `viewing`).
+  viewed_seq?: number;
 }
 
 // Whitelisted future-facing edit — mirrors src/api.py's CheckpointEditRequest. Every field is

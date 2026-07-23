@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
-import { advanceCheckpoint, ApiError, createCheckpoint, discardCheckpoint, editCheckpoint, getCheckpoint, rewindCheckpoint } from "@/lib/api";
+import { advanceCheckpoint, ApiError, createCheckpoint, discardCheckpoint, editCheckpoint, getCheckpoint, peekCheckpoint, rewindCheckpoint } from "@/lib/api";
 import type { CheckpointEdit, CheckpointState } from "@/types/simulation";
 
 // Semester Checkpoint Mode's provider (see CLAUDE.md). Unlike SimulationProvider, this does
@@ -11,6 +11,11 @@ import type { CheckpointEdit, CheckpointState } from "@/types/simulation";
 // (SimulationContext) is completely unaffected by anything in here.
 interface CheckpointContextValue {
   session: CheckpointState | null;
+  // A read-only preview of an earlier step (GET /checkpoint/peek), separate from `session` (the
+  // live/current state). Non-null while the user is "looking but not touching" an earlier term —
+  // see `peek`/`returnToCurrent` below. Other pages (Bottlenecks etc.) never read this and so are
+  // unaffected by whatever the Dashboard happens to be previewing.
+  viewing: CheckpointState | null;
   loading: boolean;
   busy: boolean;
   error: string | null;
@@ -18,6 +23,8 @@ interface CheckpointContextValue {
   advance: () => Promise<void>;
   edit: (patch: CheckpointEdit) => Promise<void>;
   rewind: (seq: number) => Promise<void>;
+  peek: (seq: number) => Promise<void>;
+  returnToCurrent: () => void;
   discard: () => Promise<void>;
 }
 
@@ -25,6 +32,7 @@ const CheckpointContext = createContext<CheckpointContextValue | null>(null);
 
 export function CheckpointProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<CheckpointState | null>(null);
+  const [viewing, setViewing] = useState<CheckpointState | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -41,6 +49,7 @@ export function CheckpointProvider({ children }: { children: ReactNode }) {
     setError(null);
     try {
       setSession(await createCheckpoint());
+      setViewing(null);
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "Could not start a checkpoint session");
     } finally {
@@ -53,6 +62,7 @@ export function CheckpointProvider({ children }: { children: ReactNode }) {
     setError(null);
     try {
       setSession(await advanceCheckpoint());
+      setViewing(null);
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "Could not advance the session");
     } finally {
@@ -65,6 +75,7 @@ export function CheckpointProvider({ children }: { children: ReactNode }) {
     setError(null);
     try {
       setSession(await editCheckpoint(patch));
+      setViewing(null);
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "Could not save the edit");
       throw e; // let the caller keep its pending (unsaved) local edits rather than clearing them
@@ -78,11 +89,33 @@ export function CheckpointProvider({ children }: { children: ReactNode }) {
     setError(null);
     try {
       setSession(await rewindCheckpoint(seq));
+      // The live session now IS this point, so there's nothing left to "preview" separately.
+      setViewing(null);
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "Could not go back to that term");
     } finally {
       setBusy(false);
     }
+  }, []);
+
+  // Non-destructive: fetches an earlier step's data into `viewing` without touching `session` or
+  // any recorded history — the whole point is that just looking costs nothing. Switching to a
+  // different past step (or back to the current one) is just another peek/clear, no confirmation
+  // needed since nothing on the server has changed yet.
+  const peek = useCallback(async (seq: number) => {
+    setBusy(true);
+    setError(null);
+    try {
+      setViewing(await peekCheckpoint(seq));
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "Could not preview that term");
+    } finally {
+      setBusy(false);
+    }
+  }, []);
+
+  const returnToCurrent = useCallback(() => {
+    setViewing(null);
   }, []);
 
   const discard = useCallback(async () => {
@@ -91,6 +124,7 @@ export function CheckpointProvider({ children }: { children: ReactNode }) {
     try {
       await discardCheckpoint();
       setSession(null);
+      setViewing(null);
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "Could not discard the session");
     } finally {
@@ -105,7 +139,9 @@ export function CheckpointProvider({ children }: { children: ReactNode }) {
   // page itself reads `loading` directly to avoid flashing its "Start walkthrough" screen before
   // an existing session is found.
   return (
-    <CheckpointContext.Provider value={{ session, loading, busy, error, start, advance, edit, rewind, discard }}>
+    <CheckpointContext.Provider
+      value={{ session, viewing, loading, busy, error, start, advance, edit, rewind, peek, returnToCurrent, discard }}
+    >
       {children}
     </CheckpointContext.Provider>
   );

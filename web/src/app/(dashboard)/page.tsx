@@ -26,7 +26,8 @@ export default function Home() {
 
 function DashboardBody() {
   const { meta } = useSimulation();
-  const { session, loading, busy, error, start, advance, rewind, discard } = useCheckpoint();
+  const { session, viewing, loading, busy, error, start, advance, rewind, peek, returnToCurrent, discard } =
+    useCheckpoint();
 
   return (
     <main className="mx-auto w-full max-w-[1600px] px-7 pb-16">
@@ -56,9 +57,12 @@ function DashboardBody() {
       ) : (
         <SessionView
           session={session}
+          viewing={viewing}
           busy={busy}
           onAdvance={advance}
           onRewind={rewind}
+          onPeek={peek}
+          onReturnToCurrent={returnToCurrent}
           onDiscard={discard}
           onTimeTerms={meta.on_time_terms}
         />
@@ -88,28 +92,67 @@ function StartScreen({ busy, onStart }: { busy: boolean; onStart: () => Promise<
 
 function SessionView({
   session,
+  viewing,
   busy,
   onAdvance,
   onRewind,
+  onPeek,
+  onReturnToCurrent,
   onDiscard,
   onTimeTerms,
 }: {
   session: CheckpointState;
+  viewing: CheckpointState | null;
   busy: boolean;
   onAdvance: () => Promise<void>;
   onRewind: (seq: number) => Promise<void>;
+  onPeek: (seq: number) => Promise<void>;
+  onReturnToCurrent: () => void;
   onDiscard: () => Promise<void>;
   onTimeTerms: number;
 }) {
   const [editOpen, setEditOpen] = useState(false);
-  const lastFrame = session.frames[session.frames.length - 1];
-  const counts = session.counts_so_far;
-  const summary = session.flow_timeline.summary;
-  const termsRun = session.frames.length;
+  const isPreviewing = viewing !== null;
+  // `display` drives every read-only section below — the live session by default, or the
+  // previewed step's own data while the user is just looking. `session` itself stays untouched
+  // throughout, since it's what other pages (Bottlenecks, etc.) still read as "the real state."
+  const display = viewing ?? session;
+  const lastFrame = display.frames[display.frames.length - 1];
+  const counts = display.counts_so_far;
+  const summary = display.flow_timeline.summary;
+  const termsRun = display.frames.length;
+  const currentSeq = session.history[session.history.length - 1]?.seq ?? 0;
+  const viewingLabel = isPreviewing
+    ? session.history.find((h) => h.seq === viewing.viewed_seq)?.label ?? `term ${viewing.viewed_seq}`
+    : null;
 
   const handleDiscard = () => {
     if (!window.confirm("Discard this checkpoint walkthrough? This cannot be undone.")) return;
     onDiscard();
+  };
+
+  const handleContinueFromHere = () => {
+    if (viewing === null || viewing.viewed_seq === undefined) return;
+    const confirmed = window.confirm(
+      `Go back to ${viewingLabel}? Terms simulated after this point will be discarded. Any staged ` +
+        "capacity/pass-rate/occupancy/intake edits are kept and will apply again from here. " +
+        "This cannot be undone."
+    );
+    if (confirmed) onRewind(viewing.viewed_seq);
+  };
+
+  // A previewed term can never be safely edited/advanced in place — those actions always act on
+  // the live session, not whatever's being previewed — so close the edit modal at the moment a
+  // preview starts, right in the handlers that start one, rather than let it sit open showing
+  // stale data next to live-mutating actions.
+  const handlePeek = (seq: number) => {
+    setEditOpen(false);
+    return onPeek(seq);
+  };
+
+  const handleReturnToCurrent = () => {
+    setEditOpen(false);
+    onReturnToCurrent();
   };
 
   return (
@@ -117,7 +160,9 @@ function SessionView({
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border bg-surface px-4 py-3">
         <div className="flex items-center gap-4 text-sm">
           <span className="font-semibold text-ink">
-            {session.is_finished
+            {isPreviewing
+              ? `Previewing: ${viewingLabel} (read-only)`
+              : session.is_finished
               ? "Walkthrough finished"
               : `Next up: ${session.next_term_label ?? `term ${session.next_term}`}`}
           </span>
@@ -127,22 +172,45 @@ function SessionView({
           </span>
         </div>
         <div className="flex gap-2">
-          <button
-            type="button"
-            onClick={() => setEditOpen(true)}
-            disabled={busy}
-            className="rounded-xl border border-border-2 bg-surface px-4 py-2 text-sm font-semibold text-ink disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            Edit term settings
-          </button>
-          <button
-            type="button"
-            onClick={onAdvance}
-            disabled={busy || session.is_finished}
-            className="rounded-xl bg-accent px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {busy ? "Advancing…" : "Advance one term"}
-          </button>
+          {isPreviewing ? (
+            <>
+              <button
+                type="button"
+                onClick={handleReturnToCurrent}
+                disabled={busy}
+                className="rounded-xl border border-border-2 bg-surface px-4 py-2 text-sm font-semibold text-ink disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Return to current
+              </button>
+              <button
+                type="button"
+                onClick={handleContinueFromHere}
+                disabled={busy}
+                className="rounded-xl bg-accent px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Continue from here
+              </button>
+            </>
+          ) : (
+            <>
+              <button
+                type="button"
+                onClick={() => setEditOpen(true)}
+                disabled={busy}
+                className="rounded-xl border border-border-2 bg-surface px-4 py-2 text-sm font-semibold text-ink disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Edit term settings
+              </button>
+              <button
+                type="button"
+                onClick={onAdvance}
+                disabled={busy || session.is_finished}
+                className="rounded-xl bg-accent px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {busy ? "Advancing…" : "Advance one term"}
+              </button>
+            </>
+          )}
           <button
             type="button"
             onClick={handleDiscard}
@@ -154,7 +222,22 @@ function SessionView({
         </div>
       </div>
 
-      <TermHistoryStrip history={session.history} busy={busy} onRewind={onRewind} />
+      {isPreviewing && (
+        <p className="rounded-xl border border-accent/40 bg-accent/10 px-4 py-2.5 text-xs text-ink">
+          You&apos;re previewing an earlier term — nothing has changed yet. Pick{" "}
+          <strong>Continue from here</strong> to actually go back (this discards terms simulated
+          after it), or <strong>Return to current</strong> to keep going from where you left off.
+        </p>
+      )}
+
+      <TermHistoryStrip
+        history={session.history}
+        currentSeq={currentSeq}
+        viewingSeq={viewing?.viewed_seq ?? null}
+        busy={busy}
+        onPeek={handlePeek}
+        onReturnToCurrent={handleReturnToCurrent}
+      />
 
       <section className="rounded-2xl border border-border bg-surface">
         <div className="flex items-baseline justify-between gap-3 border-b border-border px-4 py-2.5 text-sm font-semibold">
@@ -163,12 +246,12 @@ function SessionView({
             {termsRun} term{termsRun === 1 ? "" : "s"} run
           </span>
         </div>
-        <CurriculumGraph graph={session.meta.graph} courses={lastFrame?.courses ?? {}} />
+        <CurriculumGraph graph={display.meta.graph} courses={lastFrame?.courses ?? {}} />
       </section>
 
       <p className="rounded-xl border border-border-2 bg-surface-2 px-4 py-2.5 text-xs text-muted">
         The sections below reflect only the {termsRun} term{termsRun === 1 ? "" : "s"} run so far in
-        this walkthrough, not the full {session.is_finished ? "" : "eventual "}horizon — treat them as
+        this walkthrough, not the full {display.is_finished ? "" : "eventual "}horizon — treat them as
         early signal, not a final result. They&apos;ll keep updating as you advance.
       </p>
 
@@ -191,7 +274,7 @@ function SessionView({
           them delays every course downstream. Node colour reflects how often students were blocked on
           that course so far.
         </p>
-        <PrerequisiteNetwork graph={session.meta.graph} frames={session.frames} />
+        <PrerequisiteNetwork graph={display.meta.graph} frames={display.frames} />
       </CollapsibleSection>
 
       <Modal open={editOpen} onClose={() => setEditOpen(false)} title="Edit future terms" size="wide">
@@ -206,29 +289,37 @@ function SessionView({
   );
 }
 
-// Jump back to any earlier point in the walkthrough (POST /checkpoint/rewind). Rendered only
-// once there's more than one recorded step (nothing to go back to on term one). The current step
-// is always the last entry in `history` — it mirrors the session's own `next_term`/`frames`.
+// Look at any earlier point in the walkthrough (GET /checkpoint/peek) — read-only, costs nothing.
+// Rendered only once there's more than one recorded step (nothing to go back to on term one).
+// `currentSeq` is always the last entry in `history` — it mirrors the live session's own
+// `next_term`/`frames`. `viewingSeq` (non-null while a past step is being previewed) is separate
+// from `currentSeq`: it's tracked by the parent so both can be highlighted distinctly at once.
+// Actually committing to an earlier point (discarding recorded steps after it) only happens via
+// the "Continue from here" action in the status bar above, never from clicking a chip directly.
 function TermHistoryStrip({
   history,
+  currentSeq,
+  viewingSeq,
   busy,
-  onRewind,
+  onPeek,
+  onReturnToCurrent,
 }: {
   history: CheckpointState["history"];
+  currentSeq: number;
+  viewingSeq: number | null;
   busy: boolean;
-  onRewind: (seq: number) => Promise<void>;
+  onPeek: (seq: number) => Promise<void>;
+  onReturnToCurrent: () => void;
 }) {
   if (history.length <= 1) return null;
-  const currentSeq = history[history.length - 1].seq;
 
-  const handleClick = (seq: number, label: string) => {
-    if (busy || seq === currentSeq) return;
-    const confirmed = window.confirm(
-      `Go back to ${label}? Terms simulated after this point will be discarded. Any staged ` +
-        "capacity/pass-rate/occupancy/intake edits are kept and will apply again from here. " +
-        "This cannot be undone."
-    );
-    if (confirmed) onRewind(seq);
+  const handleClick = (seq: number) => {
+    if (busy || seq === viewingSeq) return;
+    if (seq === currentSeq) {
+      if (viewingSeq !== null) onReturnToCurrent();
+      return;
+    }
+    onPeek(seq);
   };
 
   return (
@@ -237,15 +328,24 @@ function TermHistoryStrip({
       {history.map((step) => {
         const label = step.label;
         const isCurrent = step.seq === currentSeq;
+        const isViewing = step.seq === viewingSeq;
+        const disabled = busy || isViewing || (isCurrent && viewingSeq === null);
+        const title = isViewing
+          ? "Currently previewing this term"
+          : isCurrent
+          ? "Current point in the walkthrough"
+          : `Preview ${label}`;
         return (
           <button
             key={step.seq}
             type="button"
-            onClick={() => handleClick(step.seq, label)}
-            disabled={busy || isCurrent}
-            title={isCurrent ? "Current point in the walkthrough" : `Go back to ${label}`}
+            onClick={() => handleClick(step.seq)}
+            disabled={disabled}
+            title={title}
             className={
-              isCurrent
+              isViewing
+                ? "rounded-full border-2 border-accent bg-surface px-3 py-1 text-xs font-semibold text-accent disabled:cursor-not-allowed"
+                : isCurrent
                 ? "rounded-full bg-accent px-3 py-1 text-xs font-semibold text-white disabled:cursor-not-allowed"
                 : "rounded-full border border-border-2 bg-surface px-3 py-1 text-xs font-semibold text-ink hover:border-accent disabled:cursor-not-allowed disabled:opacity-50"
             }

@@ -320,6 +320,58 @@ def test_rewind_rejects_unknown_step():
     _discard_any_session()
 
 
+def test_peek_returns_earlier_step_without_mutating_session():
+    _discard_any_session()
+    client.post("/checkpoint")
+    client.post("/checkpoint/advance")
+    after_first = client.get("/checkpoint").json()
+    client.post("/checkpoint/advance")
+    client.post("/checkpoint/advance")
+    live = client.get("/checkpoint").json()
+    assert len(live["history"]) == 4  # seq 0 (start) + 3 advances
+
+    resp = client.get("/checkpoint/peek/1")
+    assert resp.status_code == 200
+    peeked = resp.json()
+    assert peeked["viewed_seq"] == 1
+    assert peeked["next_term"] == after_first["next_term"]
+    assert peeked["frames"] == after_first["frames"]
+
+    # Nothing about the live session moved — same position, same full history, still active.
+    still_live = client.get("/checkpoint").json()
+    assert still_live["next_term"] == live["next_term"]
+    assert still_live["frames"] == live["frames"]
+    assert len(still_live["history"]) == 4
+    _discard_any_session()
+
+
+def test_peek_rejects_unknown_step():
+    _discard_any_session()
+    client.post("/checkpoint")
+    resp = client.get("/checkpoint/peek/99")
+    assert resp.status_code == 422
+    _discard_any_session()
+
+
+def test_rewind_after_peek_still_truncates():
+    # Peeking at an earlier step first must not change what a subsequent real rewind does.
+    _discard_any_session()
+    client.post("/checkpoint")
+    client.post("/checkpoint/advance")
+    after_first = client.get("/checkpoint").json()
+    client.post("/checkpoint/advance")
+    client.post("/checkpoint/advance")
+
+    assert client.get("/checkpoint/peek/1").status_code == 200
+
+    resp = client.post("/checkpoint/rewind", json={"seq": 1})
+    assert resp.status_code == 200
+    rewound = resp.json()
+    assert rewound["next_term"] == after_first["next_term"]
+    assert [s["seq"] for s in rewound["history"]] == [0, 1]
+    _discard_any_session()
+
+
 def test_advance_backfills_history_for_a_pre_existing_session():
     # Simulates a session created before the per-step history table existed (or one that
     # otherwise lost its seq=0 row): it has zero CheckpointSnapshot rows even though it's

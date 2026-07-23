@@ -445,6 +445,22 @@ Figures keep working exactly as before.
   `tests/test_checkpoint_api.py` (rewind restores/truncates correctly, edits survive a rewind, a
   completed session reactivates, an out-of-range `seq` 422s, the backfill scenario, discard
   purges history).
+- **Preview before committing** (`GET /checkpoint/peek/{seq}`): clicking a Term-history chip no
+  longer rewinds immediately — it calls this read-only sibling of `POST /checkpoint/rewind`
+  instead, which looks up the same `CheckpointSnapshot` row but **never mutates
+  `CheckpointSession` or deletes anything**; it just returns a `_checkpoint_summary_from_sim`
+  payload for that step (with `next_term`/`next_term_label`/`status` overridden to reflect the
+  *peeked* point, since those three normally come from the live `row` this endpoint deliberately
+  leaves untouched), plus a `viewed_seq` marker so the frontend knows it's a preview and not the
+  live session. `CheckpointContext`'s `viewing` state holds this separately from `session` (the
+  real, current state every other page still reads) — the Dashboard renders whichever the head is
+  looking at, but "Edit term settings"/"Advance one term" are hidden while `viewing` is set, since
+  those always act on the live session. Only the explicit **"Continue from here"** action (shown
+  in place of Edit/Advance while previewing) calls the actual `POST /checkpoint/rewind` — same
+  confirm dialog and truncation behavior as before, just moved one click later so "go back to look"
+  and "go back and change something" are no longer the same action. Covered by
+  `tests/test_checkpoint_api.py` (peek returns an earlier step's data without touching session
+  status/`next_term`/history length; a peek doesn't affect a subsequent rewind's behavior).
 - **Live-synced analytics**: `_checkpoint_summary_from_sim` includes a `flow_timeline` field —
   the *exact* `{meta, frames, summary}` shape `analytics.flow_timeline_payload` builds for a
   completed `/simulate` run, computed straight off the mid-run `Simulator` (`compute_metrics`/
