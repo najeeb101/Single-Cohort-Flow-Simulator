@@ -229,28 +229,46 @@ class Simulator:
     @property
     def is_finished(self) -> bool:
         """True once every term through the horizon has been run. A resumable checkpoint
-        session (CLAUDE.md's Semester Checkpoint Mode) advances by calling
-        step_one_mandatory_term() until this is True."""
+        session (CLAUDE.md's Semester Checkpoint Mode) advances by calling step_one_term()
+        (or, for a full/batch run, step_one_mandatory_term()) until this is True."""
         return self._next_term >= self.end_term
+
+    def _advance_one_calendar_term(self) -> str:
+        """Admit any cohort due, run exactly one calendar term (whatever season it is), and
+        move the resume cursor past it. Returns the season just processed. Shared by
+        step_one_mandatory_term (which loops this until a mandatory season) and step_one_term
+        (which calls it exactly once) — the actual per-term work is identical either way; only
+        how many terms get bundled into one caller-visible "step" differs."""
+        term_idx = self._next_term
+        for cohort_id in sorted(self._by_entry.get(term_idx, [])):
+            self._admit_cohort(cohort_id, term_idx)
+        season = term_season(term_idx, self.config)
+        self._run_term(term_idx, season)
+        self._next_term += 1
+        return season
 
     def step_one_mandatory_term(self) -> None:
         """Advance the simulation by exactly one MANDATORY (Fall/Spring) term, running any
-        intervening optional (Summer/Winter) term along the way in the same call — so a
-        resumable checkpoint session always pauses on a mandatory-term boundary, matching the
-        once-per-mandatory-term cadence Student.personal_semester itself advances on (see
-        CLAUDE.md's Term/Season Model). No-op once is_finished. `run()` below is just this
-        called in a loop, so a caller who never pauses gets identical behavior to the old
-        single-shot for-loop.
+        intervening optional (Summer/Winter) term along the way in the same call — so a caller
+        that only wants mandatory-term boundaries (full/batch runs via `run()` below) always
+        lands on one. No-op once is_finished. `run()` is just this called in a loop, so a
+        caller who never pauses gets identical behavior to the old single-shot for-loop.
         """
         while not self.is_finished:
-            term_idx = self._next_term
-            for cohort_id in sorted(self._by_entry.get(term_idx, [])):
-                self._admit_cohort(cohort_id, term_idx)
-            season = term_season(term_idx, self.config)
-            self._run_term(term_idx, season)
-            self._next_term += 1
+            season = self._advance_one_calendar_term()
             if season in get_mandatory_seasons(self.config):
                 break
+
+    def step_one_term(self) -> None:
+        """Advance the simulation by exactly one calendar term, mandatory OR optional — used by
+        Semester Checkpoint Mode so a session can pause (and edit future-facing knobs) at every
+        term boundary, including Summer/Winter, not just Fall/Spring. Never sweeps more than one
+        term per call, unlike step_one_mandatory_term. No-op once is_finished. Doesn't change
+        Student.personal_semester semantics (still mandatory-terms-only, handled inside
+        _run_term) — this only changes how finely a *caller* can pause, not what happens inside
+        any given term."""
+        if not self.is_finished:
+            self._advance_one_calendar_term()
 
     def run(self) -> SimulationResult:
         while not self.is_finished:

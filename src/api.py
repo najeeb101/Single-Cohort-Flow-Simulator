@@ -61,7 +61,7 @@ from src.db_models import Course as CourseRow
 from src.db_models import Plan as PlanRow
 from src.db_models import Run, User
 from src.models.course import Course, course_from_dict
-from src.models.semester import DEFAULT_TERMS, admission_seasons, get_mandatory_seasons
+from src.models.semester import DEFAULT_TERMS, admission_seasons, get_mandatory_seasons, term_label
 from src.models.student import stage_node_names
 from src.montecarlo import run_monte_carlo
 from src.optimizer import DEFAULT_RUN_BUDGET, MAX_RUN_BUDGET, solve_for_targets
@@ -867,17 +867,29 @@ def _checkpoint_curriculum(row: CheckpointSessionRow) -> dict[str, Course]:
     return {c["code"]: course_from_dict(c) for c in row.working_curriculum}
 
 
-def _checkpoint_history(db: Session, session_id: int) -> list[dict]:
-    """Cheap {seq, next_term} listing of every step recorded for this session, so the frontend
-    can render a "go back to an earlier term" step list without ever unpickling a snapshot blob
-    just to build labels. See POST /checkpoint/rewind."""
+def _checkpoint_history(db: Session, session_id: int, config: dict) -> list[dict]:
+    """Cheap {seq, next_term, label} listing of every step recorded for this session, so the
+    frontend can render a "go back to an earlier term" step list without ever unpickling a
+    snapshot blob just to build labels. Since Semester Checkpoint Mode now steps one calendar
+    term at a time — including optional Summer/Winter terms, not just Fall/Spring (see
+    Simulator.step_one_term) — `label` names the season/year actually completed at each step
+    (e.g. "Summer Y2"), not just a bare term index, so an optional-term step reads as
+    distinctly as a mandatory one. seq=0 is always "Start" (the state before any term ran).
+    See POST /checkpoint/rewind."""
     rows = (
         db.query(CheckpointSnapshotRow)
         .filter(CheckpointSnapshotRow.session_id == session_id)
         .order_by(CheckpointSnapshotRow.seq)
         .all()
     )
-    return [{"seq": r.seq, "next_term": r.next_term} for r in rows]
+    return [
+        {
+            "seq": r.seq,
+            "next_term": r.next_term,
+            "label": "Start" if r.seq == 0 else term_label(r.next_term - 1, config),
+        }
+        for r in rows
+    ]
 
 
 def _purge_checkpoint_snapshots(db: Session, session_id: int) -> None:
@@ -895,6 +907,10 @@ def _checkpoint_summary_from_sim(db: Session, row: CheckpointSessionRow, sim: Si
         "id": row.id,
         "status": row.status,
         "next_term": row.next_term,
+        # Season/year label for the upcoming term (e.g. "Summer Y2") — None once finished. Lets
+        # the frontend show which season is next now that Summer/Winter are steppable too, not
+        # just a bare calendar-term index.
+        "next_term_label": None if sim.is_finished else term_label(row.next_term, sim.config),
         "is_finished": sim.is_finished,
         "working_curriculum": row.working_curriculum,
         "working_config": row.working_config,
@@ -908,7 +924,7 @@ def _checkpoint_summary_from_sim(db: Session, row: CheckpointSessionRow, sim: Si
         "counts_so_far": counts,
         # Every step recorded so far (see POST /checkpoint/rewind) — lets the frontend offer
         # "go back to an earlier term" without a separate request.
-        "history": _checkpoint_history(db, row.id),
+        "history": _checkpoint_history(db, row.id, sim.config),
         # The exact {meta, frames, summary} shape a completed /simulate produces — every field
         # in compute_metrics/compute_cohort_metrics/compute_admissions_recommendation only reads
         # .history/.config/.students, all present on a Simulator mid-run, so this is safe to
@@ -1067,9 +1083,11 @@ def autofill_checkpoint(req: AutofillRequest, db: Session = Depends(get_db)) -> 
 
 @app.post("/checkpoint/advance")
 def advance_checkpoint(db: Session = Depends(get_db)) -> dict:
-    """Advance the session by exactly one mandatory term, applying whatever edits have been
-    staged since the last advance. No-op (just returns the current state) if the session is
-    already finished."""
+    """Advance the session by exactly one calendar term — mandatory (Fall/Spring) OR optional
+    (Summer/Winter), via Simulator.step_one_term — applying whatever edits have been staged
+    since the last advance. Every term is its own step now, so a department head can pause and
+    edit at a Summer boundary too, not just Fall/Spring. No-op (just returns the current state)
+    if the session is already finished."""
     row = _require_checkpoint_session(db, get_current_user(db))
     if row.status != "active":
         raise HTTPException(status_code=422, detail=f"Checkpoint session is {row.status}, not active")
@@ -1095,7 +1113,7 @@ def advance_checkpoint(db: Session = Depends(get_db)) -> dict:
         existing_steps = 1
 
     if not sim.is_finished:
-        sim.step_one_mandatory_term()
+        sim.step_one_term()
         row.snapshot = sim.snapshot()
         row.next_term = sim._next_term
         db.add(CheckpointSnapshotRow(

@@ -315,6 +315,10 @@ export interface CheckpointState {
   id: number;
   status: "active" | "completed" | "discarded";
   next_term: number;
+  // Season/year label for the upcoming term (e.g. "Summer Y2") — null once finished. Every
+  // calendar term is its own step now (see `history`), including optional Summer/Winter terms,
+  // so this disambiguates which kind of term is coming up next.
+  next_term_label: string | null;
   is_finished: boolean;
   working_curriculum: CourseRecord[];
   working_config: Record<string, unknown> & { initial_state?: InitialState };
@@ -323,7 +327,8 @@ export interface CheckpointState {
   counts_so_far: CheckpointCounts;
   // Every step recorded so far (seq 0 = session creation, seq N = after the Nth advance) — lets
   // the UI offer "go back to an earlier term" (POST /checkpoint/rewind) without a separate call.
-  history: { seq: number; next_term: number }[];
+  // `label` names the season/year completed at that step (e.g. "Summer Y2"), or "Start" for seq 0.
+  history: { seq: number; next_term: number; label: string }[];
   // Same {meta, frames, summary} shape a completed /simulate produces (src/api.py's
   // _checkpoint_summary_from_sim), computed live off the session's partial run — lets
   // Bottlenecks/HeadlineKpis/AdmissionsRecommendation/CohortsTable read a checkpoint session

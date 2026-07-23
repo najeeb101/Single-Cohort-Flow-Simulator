@@ -228,7 +228,7 @@ def test_discard_leaves_baseline_dashboard_working():
 def test_create_checkpoint_records_initial_history_step():
     _discard_any_session()
     created = client.post("/checkpoint").json()
-    assert created["history"] == [{"seq": 0, "next_term": created["next_term"]}]
+    assert created["history"] == [{"seq": 0, "next_term": created["next_term"], "label": "Start"}]
     _discard_any_session()
 
 
@@ -248,7 +248,8 @@ def test_rewind_restores_earlier_step_and_truncates_future():
     rewound = resp.json()
     assert rewound["next_term"] == after_first["next_term"]
     assert rewound["frames"] == after_first["frames"]
-    assert rewound["history"] == [{"seq": 0, "next_term": rewound["history"][0]["next_term"]}, {"seq": 1, "next_term": rewound["next_term"]}]
+    assert [s["seq"] for s in rewound["history"]] == [0, 1]
+    assert rewound["history"][1]["next_term"] == rewound["next_term"]
     _discard_any_session()
 
 
@@ -341,10 +342,11 @@ def test_advance_backfills_history_for_a_pre_existing_session():
     assert client.get("/checkpoint").json()["history"] == []
 
     after = client.post("/checkpoint/advance").json()
-    assert after["history"] == [
-        {"seq": 0, "next_term": next_term_before},
-        {"seq": 1, "next_term": after["next_term"]},
+    assert [(s["seq"], s["next_term"]) for s in after["history"]] == [
+        (0, next_term_before),
+        (1, after["next_term"]),
     ]
+    assert after["history"][0]["label"] == "Start"
 
     # And rewinding to the backfilled seq=0 restores that pre-advance state correctly.
     rewound = client.post("/checkpoint/rewind", json={"seq": 0}).json()

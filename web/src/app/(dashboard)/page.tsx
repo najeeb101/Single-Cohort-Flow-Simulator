@@ -117,7 +117,9 @@ function SessionView({
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border bg-surface px-4 py-3">
         <div className="flex items-center gap-4 text-sm">
           <span className="font-semibold text-ink">
-            {session.is_finished ? "Walkthrough finished" : `Next up: term ${session.next_term}`}
+            {session.is_finished
+              ? "Walkthrough finished"
+              : `Next up: ${session.next_term_label ?? `term ${session.next_term}`}`}
           </span>
           <span className="text-muted">
             Active {counts.active} · Delayed {counts.delayed} · Graduated {counts.graduated} · Dropped{" "}
@@ -233,7 +235,7 @@ function TermHistoryStrip({
     <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-border bg-surface px-4 py-3">
       <span className="text-xs font-semibold text-muted">Term history:</span>
       {history.map((step) => {
-        const label = step.seq === 0 ? "Start" : `Term ${step.next_term}`;
+        const label = step.label;
         const isCurrent = step.seq === currentSeq;
         return (
           <button

@@ -240,11 +240,12 @@ reassigned to the default plan first.
 
 ## Semester Checkpoint Mode
 
-A turn-based, resumable re-run of the active plan — one mandatory term per `advance` call, with
-editable future-facing knobs in between. No `Run` row is written by any of these (this isn't the
-baseline `/simulate` path); one active-or-completed session exists per caller at a time. See
-CLAUDE.md's "Semester Checkpoint Mode" for the full design (the Dashboard *is* this feature —
-there's no separate baseline-only page).
+A turn-based, resumable re-run of the active plan — one calendar term (mandatory *or* optional —
+Summer/Winter are their own steps too) per `advance` call, with editable future-facing knobs in
+between, and a `rewind` call to go back to any earlier step. No `Run` row is written by any of
+these (this isn't the baseline `/simulate` path); one active-or-completed session exists per
+caller at a time. See CLAUDE.md's "Semester Checkpoint Mode" for the full design (the Dashboard
+*is* this feature — there's no separate baseline-only page).
 
 ### `POST /checkpoint`
 Starts a new session from the caller's active plan (a frozen-at-creation copy of its curriculum
@@ -253,16 +254,20 @@ below), with zero terms run.
 
 ### `GET /checkpoint`
 Returns the current session: `id`, `status` (`active|completed|discarded`), `next_term`,
+`next_term_label` (season/year of the upcoming term, e.g. `"Summer Y2"` — `null` once finished),
 `is_finished`, `working_curriculum` (plan-export shape), `working_config`, `frames` (same shape
 as `flow_timeline.frames`, one per term run so far), `meta` (`{graph, stage_nodes}`),
-`counts_so_far` (`{active, delayed, graduated, dropped, censored}`), and `flow_timeline` — the
-*exact* `{meta, frames, summary}` shape a completed `POST /simulate` returns, computed live off
-the session's partial run (`summary.headline`, `summary.per_cohort`,
-`summary.admissions_recommendation`, `summary.top_bottlenecks`). Safe to read at any point,
-including zero terms run, but always **partial**: fewer terms means less reliable numbers,
-especially before any cohort has finished — callers should frame it as such (the Dashboard and
-Bottlenecks pages both show an explicit "N terms run so far" note when reading from a session).
-`404` if the caller has no session (the normal "none in progress" state, not an error).
+`counts_so_far` (`{active, delayed, graduated, dropped, censored}`), `history` (every step
+recorded so far — `[{seq, next_term, label}]`, `seq=0` labeled `"Start"`, otherwise the
+season/year just completed, e.g. `"Fall Y1"`; feed a `seq` from here into `POST
+/checkpoint/rewind`), and `flow_timeline` — the *exact* `{meta, frames, summary}` shape a
+completed `POST /simulate` returns, computed live off the session's partial run
+(`summary.headline`, `summary.per_cohort`, `summary.admissions_recommendation`,
+`summary.top_bottlenecks`). Safe to read at any point, including zero terms run, but always
+**partial**: fewer terms means less reliable numbers, especially before any cohort has
+finished — callers should frame it as such (the Dashboard and Bottlenecks pages both show an
+explicit "N terms run so far" note when reading from a session). `404` if the caller has no
+session (the normal "none in progress" state, not an error).
 
 ### `POST /checkpoint/edit`
 Body (all optional, only present fields change): `capacity` (`{code: int}`), `pass_rate`
@@ -274,10 +279,20 @@ with the stored session left untouched (validated against a copy first). Does no
 terms. `404` if no session exists.
 
 ### `POST /checkpoint/advance`
-Steps the session forward exactly one mandatory term (sweeping through any intervening optional
-term in the same call), applying whatever edits were staged since the last advance. Marks the
-session `completed` once the horizon is reached; advancing a `completed` session 422s. `404` if
-no session exists.
+Steps the session forward exactly one calendar term — mandatory *or* optional, never more than
+one per call — applying whatever edits were staged since the last advance. Marks the session
+`completed` once the horizon is reached; advancing a `completed` session 422s. `404` if no
+session exists.
+
+### `POST /checkpoint/rewind`
+Body: `{"seq": int}` — a step number from `history` (see `GET /checkpoint`). Restores the
+session's simulated terms to that step and **discards every step recorded after it** (a linear
+undo: advancing again afterward starts a fresh forward path from there, not a redo of whatever
+used to come next). Reactivates a `completed` session back to `active` unless the target step is
+itself the horizon's end. Deliberately leaves `working_curriculum`/`working_config` untouched —
+staged capacity/pass-rate/occupancy/intake edits survive a rewind and apply starting from the
+rewound point forward. `422` if `seq` doesn't match any recorded step. `404` if no session
+exists.
 
 ### `POST /checkpoint/autofill`
 Same request/response shape as `POST /autofill` (`src/optimizer.py::solve_for_targets` — searches

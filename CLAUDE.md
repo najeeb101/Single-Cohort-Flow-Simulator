@@ -396,12 +396,13 @@ recommendation already uses.
 ## Semester Checkpoint Mode ("advance one term at a time")
 
 **The Dashboard (`/`) IS this feature** — there is no separate full-run landing page anymore. A
-department head advances **one mandatory term at a time** and edits future-facing knobs
-(capacity, pass rate, occupancy, next intake) between steps — never the courses already run.
-This is **not** a revival of the old, removed Live Simulation feature (which was
-continuous-tick/replay-based over an append-only edit log): a checkpoint session advances
-**only** on an explicit "Advance one term" click, and it freezes/resumes real mid-run engine
-state rather than replaying from term 0 each time.
+department head advances **one calendar term at a time — including optional Summer/Winter
+terms, not just Fall/Spring** — and edits future-facing knobs (capacity, pass rate, occupancy,
+next intake) between steps — never the courses already run. This is **not** a revival of the
+old, removed Live Simulation feature (which was continuous-tick/replay-based over an
+append-only edit log): a checkpoint session advances **only** on an explicit "Advance one
+term" click, and it freezes/resumes real mid-run engine state rather than replaying from term 0
+each time.
 
 The old static full-horizon dashboard's presentational sections (roadmap, admissions
 recommendation, headline results, per-cohort table, prerequisite network) are back on `/`, but
@@ -411,20 +412,29 @@ the checkpoint walkthrough; the full-horizon baseline simulation still runs invi
 background (`SimulationProvider`, from the dashboard layout, unchanged) purely so Advisor,
 Figures, and Student Trace keep working exactly as before.
 
-- **Resumable engine** (`src/simulator.py`): `Simulator.step_one_mandatory_term()` runs terms
-  one at a time, admitting any cohort due that term and sweeping through any intervening
-  optional (Summer/Winter) term in the same call, then stopping right after the first mandatory
-  term it processes. `run()` is now just `while not self.is_finished:
-  self.step_one_mandatory_term()` — byte-identical to the old single-shot for-loop (verified:
-  the full test suite's many fixed-value assertions all still pass unchanged).
-  `Simulator.snapshot()`/`from_snapshot(curriculum, config, scenario, blob)` pickle/restore the
-  dynamic state (students, `History`, the resume cursor) so a session can pause after one
-  request and resume in a **brand-new** `Simulator` instance on the next — curriculum/config/
-  scenario are supplied fresh on restore, which is how a staged edit takes effect starting with
-  the next step. `History`'s per-cohort counters use named module-level factory functions
-  (`_int_defaultdict`/`_cohort_int_defaultdict`) instead of lambdas specifically so `History`
-  stays picklable. Covered by `tests/test_checkpoint_engine.py`, most importantly a
-  snapshot→restore→finish run producing byte-identical results to a straight-through run.
+- **Resumable engine** (`src/simulator.py`): both stepping methods share a private
+  `_advance_one_calendar_term()` (admit any cohort due that term, run it, advance the cursor —
+  returns the season processed). `Simulator.step_one_mandatory_term()` loops that until it hits
+  a MANDATORY (Fall/Spring) term, sweeping through any intervening optional (Summer/Winter) term
+  in the same call — this is what `run()` uses (`while not self.is_finished:
+  self.step_one_mandatory_term()`, byte-identical to the old single-shot for-loop; the full test
+  suite's many fixed-value assertions all still pass unchanged). **`Simulator.step_one_term()`**
+  calls `_advance_one_calendar_term()` exactly once, mandatory or optional — this is what the
+  Semester Checkpoint Mode session actually calls, so a department head can pause (and edit) at
+  a Summer/Winter boundary too, not just Fall/Spring. Neither method changes
+  `Student.personal_semester` semantics (still mandatory-terms-only, handled inside
+  `_run_term`) — pausing more often never changes what happens inside any given term, only how
+  finely a caller can stop between terms. `Simulator.snapshot()`/
+  `from_snapshot(curriculum, config, scenario, blob)` pickle/restore the dynamic state (students,
+  `History`, the resume cursor) so a session can pause after one request and resume in a
+  **brand-new** `Simulator` instance on the next — curriculum/config/scenario are supplied fresh
+  on restore, which is how a staged edit takes effect starting with the next step. `History`'s
+  per-cohort counters use named module-level factory functions (`_int_defaultdict`/
+  `_cohort_int_defaultdict`) instead of lambdas specifically so `History` stays picklable.
+  Covered by `tests/test_checkpoint_engine.py`, most importantly a snapshot→restore→finish run
+  producing byte-identical results to a straight-through run, and (for `step_one_term`) that
+  stepping one calendar term at a time all the way to completion matches a straight `run()`
+  exactly even with optional terms enabled.
 - **Persistence** (`src/db_models.py::CheckpointSession`, `src/db.py::
   resolve_active_checkpoint_session`): one row per in-progress session, one active-or-completed
   session per user (mirrors `User.active_plan_id`). `working_curriculum` (plan-export shape,
@@ -441,8 +451,35 @@ Figures, and Student Trace keep working exactly as before.
   max_terms/seed, so there's no way to smuggle a structural or horizon-changing edit through it
   even by accident) validated through the same `plan_validation.py` guardrails as a persisted
   `PUT /curriculum`/`PUT /config`; `POST /checkpoint/advance` steps the session forward exactly
-  one mandatory term; `DELETE /checkpoint` discards it. `GET /meta` reports
+  one calendar term (`Simulator.step_one_term()` — mandatory or optional, see "Resumable engine"
+  above); `DELETE /checkpoint` discards it. `GET /meta` reports
   `checkpoint_active`/`checkpoint_next_term`.
+- **Go back to a previous term** (`src/db_models.py::CheckpointSnapshot`, `POST
+  /checkpoint/rewind`): a second table holds one engine snapshot **per step** (`seq=0` at
+  session creation, `seq=N` after the Nth successful advance) instead of the single
+  overwritten blob `CheckpointSession.snapshot` still tracks as "the current/latest" (for the
+  existing advance/edit code paths, unchanged). `_checkpoint_summary_from_sim` exposes this as
+  `history: [{seq, next_term, label}]` (`label` is "Start" for `seq=0`, otherwise
+  `term_label(next_term - 1, config)` — the season/year just completed, e.g. "Summer Y2" — so an
+  optional-term step reads as distinctly as a mandatory one) and a top-level `next_term_label`
+  (the *upcoming* term's season/year, `None` once finished) so the frontend never has to do its
+  own season arithmetic. `POST /checkpoint/rewind {seq}` looks up that step's snapshot, **deletes
+  every recorded step after it** (a linear undo, no branching/redo — advancing again after a
+  rewind records a fresh forward path from there, overwriting what would have been the old
+  future), restores the engine from that blob, and reactivates a `completed` session back to
+  `active` if the target isn't the horizon's end. **Deliberately does NOT touch
+  `working_curriculum`/`working_config`**: staged capacity/pass-rate/occupancy/intake edits
+  survive a rewind and apply starting from the rewound point forward — that's what makes "go
+  back, then try a different number from here" actually useful, and it matches the existing
+  edits-are-always-forward-looking architecture. A session created *before* this feature shipped
+  (or one that otherwise lost its `seq=0` row) self-heals on its next advance:
+  `advance_checkpoint` back-fills the CURRENT pre-advance state as `seq=0` first if it finds zero
+  recorded steps, rather than mislabeling "one step further along" as the start. `DELETE
+  /checkpoint` and starting a new session both purge the old session's `CheckpointSnapshot` rows
+  (`_purge_checkpoint_snapshots`) — they have no value once their session is gone. Covered by
+  `tests/test_checkpoint_api.py` (rewind restores/truncates correctly, edits survive a rewind, a
+  completed session reactivates, an out-of-range `seq` 422s, the backfill scenario, discard
+  purges history).
 - **Live-synced analytics**: `_checkpoint_summary_from_sim` includes a `flow_timeline` field —
   the *exact* `{meta, frames, summary}` shape `analytics.flow_timeline_payload` builds for a
   completed `/simulate` run, computed straight off the mid-run `Simulator` (`compute_metrics`/
@@ -475,7 +512,12 @@ Figures, and Student Trace keep working exactly as before.
 - **Frontend** (`web/src/lib/CheckpointContext.tsx`,
   `web/src/app/(dashboard)/page.tsx`, `web/src/components/checkpoint/CheckpointEditPanel.tsx`):
   built like `SimulationContext` but **with no auto-run** — it starts idle until "Start checkpoint
-  walkthrough" is clicked. The edit panel (`CheckpointEditPanel`, composed entirely from existing
+  walkthrough" is clicked. A "Term history" chip strip (`page.tsx::TermHistoryStrip`, rendered
+  once `session.history` has more than one entry) lists every recorded step by its `label` (from
+  the API, e.g. "Start", "Fall Y1", "Summer Y2"); clicking an earlier chip confirms via
+  `window.confirm` (same pattern as Discard) and calls `useCheckpoint().rewind(seq)` — the
+  current step's chip is visually marked and disabled. The status bar's "Next up: …" line prefers
+  `session.next_term_label` over the bare `next_term` number. The edit panel (`CheckpointEditPanel`, composed entirely from existing
   pieces — `InitialStateEditor` for occupancy, `CurriculumTable` for capacity/pass-rate/occupancy,
   a small custom next-intake control, no new form widgets) is no longer rendered inline: an "Edit
   term settings" button in the session's status bar opens it inside `web/src/components/Modal.tsx`

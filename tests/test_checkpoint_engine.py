@@ -116,3 +116,56 @@ def test_snapshot_rejects_version_mismatch():
 
     with pytest.raises(SnapshotVersionError):
         Simulator.from_snapshot(curriculum, config, scenario, tampered)
+
+
+def _optional_terms_fixture():
+    """Same curriculum/config as _fixture(), but with optional_terms_enabled flipped on so
+    Summer is a real (non-mandatory) term in the cycle — needed to exercise step_one_term's
+    "pause at every calendar term, including optional ones" behavior, which the default QU
+    config (optional_terms_enabled: false, per CLAUDE.md) can't distinguish from
+    step_one_mandatory_term since every term is mandatory there."""
+    curriculum, config, scenario = _fixture()
+    config = dict(config)
+    config["optional_terms_enabled"] = True
+    assert "Summer" not in get_mandatory_seasons(config)  # sanity: Summer really is optional here
+    return curriculum, config, scenario
+
+
+def test_step_one_term_advances_exactly_one_calendar_term_including_optional():
+    curriculum, config, scenario = _optional_terms_fixture()
+    sim = Simulator(curriculum, config, scenario)
+
+    term_before = sim._next_term
+    sim.step_one_term()
+    assert sim._next_term == term_before + 1  # never sweeps more than one calendar term
+
+    # Advance until we land on an optional (Summer) term boundary, then confirm step_one_term
+    # pauses there too — step_one_mandatory_term would instead sweep straight through it.
+    guard = 0
+    while term_season(sim._next_term, config) in get_mandatory_seasons(config) and guard < 50:
+        sim.step_one_term()
+        guard += 1
+    assert term_season(sim._next_term, config) not in get_mandatory_seasons(config)
+    optional_term = sim._next_term
+    sim.step_one_term()
+    assert sim._next_term == optional_term + 1
+    assert term_season(optional_term, config) not in get_mandatory_seasons(config)
+
+
+def test_step_one_term_matches_straight_run():
+    """Stepping one calendar term at a time (including optional ones) all the way to
+    completion must produce identical results to run() (which only pauses on mandatory
+    boundaries) — pausing more often must never change what happens inside any given term."""
+    curriculum, config, scenario = _optional_terms_fixture()
+    straight = Simulator(curriculum, config, scenario).run()
+
+    sim = Simulator(curriculum, config, scenario)
+    guard = 0
+    while not sim.is_finished and guard < 500:
+        sim.step_one_term()
+        guard += 1
+    assert sim.is_finished
+    stepped_result = sim.run()  # is_finished is already True, so this only applies the
+                                 # CENSORED safety net and builds the SimulationResult
+
+    assert _fingerprint(straight) == _fingerprint(stepped_result)
