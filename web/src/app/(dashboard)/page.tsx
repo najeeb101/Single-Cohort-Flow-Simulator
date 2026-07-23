@@ -27,7 +27,7 @@ export default function Home() {
 
 function DashboardBody() {
   const { meta, data } = useSimulation();
-  const { session, viewing, loading, busy, error, start, advance, rewind, peek, returnToCurrent, discard } =
+  const { session, viewing, loading, busy, error, start, advance, advanceToEnd, rewind, peek, returnToCurrent, discard } =
     useCheckpoint();
 
   return (
@@ -61,6 +61,7 @@ function DashboardBody() {
           viewing={viewing}
           busy={busy}
           onAdvance={advance}
+          onAdvanceToEnd={advanceToEnd}
           onRewind={rewind}
           onPeek={peek}
           onReturnToCurrent={returnToCurrent}
@@ -97,6 +98,7 @@ function SessionView({
   viewing,
   busy,
   onAdvance,
+  onAdvanceToEnd,
   onRewind,
   onPeek,
   onReturnToCurrent,
@@ -108,6 +110,7 @@ function SessionView({
   viewing: CheckpointState | null;
   busy: boolean;
   onAdvance: () => Promise<void>;
+  onAdvanceToEnd: () => Promise<void>;
   onRewind: (seq: number) => Promise<void>;
   onPeek: (seq: number) => Promise<void>;
   onReturnToCurrent: () => void;
@@ -212,6 +215,15 @@ function SessionView({
                 className="rounded-xl bg-accent px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {busy ? "Advancing…" : "Advance one term"}
+              </button>
+              <button
+                type="button"
+                onClick={onAdvanceToEnd}
+                disabled={busy || session.is_finished}
+                title="Run every remaining term to the end of the plan"
+                className="rounded-xl border border-border-2 bg-surface px-4 py-2 text-sm font-semibold text-ink disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Simulate to end
               </button>
             </>
           )}

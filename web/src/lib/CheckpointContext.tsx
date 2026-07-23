@@ -21,6 +21,7 @@ interface CheckpointContextValue {
   error: string | null;
   start: () => Promise<void>;
   advance: () => Promise<void>;
+  advanceToEnd: () => Promise<void>;
   edit: (patch: CheckpointEdit) => Promise<void>;
   rewind: (seq: number) => Promise<void>;
   peek: (seq: number) => Promise<void>;
@@ -65,6 +66,30 @@ export function CheckpointProvider({ children }: { children: ReactNode }) {
       setViewing(null);
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "Could not advance the session");
+    } finally {
+      setBusy(false);
+    }
+  }, []);
+
+  // Run the walkthrough straight to the end of the plan in one action: loop the same
+  // single-term advance (so every intervening term is still recorded in history and stays
+  // rewindable, exactly as if the head had clicked "Advance" that many times) until the session
+  // reports finished. Each step re-sets `session`, so the status bar visibly ticks through the
+  // terms as it goes. Callers gate this on !session.is_finished, so the first advance always
+  // steps at least one term.
+  const advanceToEnd = useCallback(async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      setViewing(null);
+      let s = await advanceCheckpoint();
+      setSession(s);
+      while (!s.is_finished) {
+        s = await advanceCheckpoint();
+        setSession(s);
+      }
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "Could not run the session to the end");
     } finally {
       setBusy(false);
     }
@@ -140,7 +165,7 @@ export function CheckpointProvider({ children }: { children: ReactNode }) {
   // an existing session is found.
   return (
     <CheckpointContext.Provider
-      value={{ session, viewing, loading, busy, error, start, advance, edit, rewind, peek, returnToCurrent, discard }}
+      value={{ session, viewing, loading, busy, error, start, advance, advanceToEnd, edit, rewind, peek, returnToCurrent, discard }}
     >
       {children}
     </CheckpointContext.Provider>
