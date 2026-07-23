@@ -46,6 +46,20 @@ Next.js 16 dev mode blocks cross-origin dev requests from origins not in `allowe
   `DATABASE_URL="sqlite:///<abs-temp-path>.db"` — it seeds fresh from the JSON files.
 - **Shut down** by killing whatever is LISTENING on 8001 / 3000 (on Windows:
   `netstat -ano | grep LISTENING | grep :PORT` → `taskkill //PID <pid> //F`).
+- **If 3000/8001 are already LISTENING, that's very likely the user's own live session** (check
+  `netstat` before assuming the ports are free) — don't kill it and don't create/advance/discard
+  its checkpoint session (there's only one shared demo user, so that state is real, not a
+  fixture). Instead run a fully isolated pair on different ports: backend on another port with
+  its own `DATABASE_URL`, and for the frontend, Next.js/Turbopack **refuses a second `next dev`
+  from the same project directory** ("Another next dev server is already running", naming the
+  live PID) — you have to `robocopy` `web/` (source + a **real copy** of `node_modules`, not a
+  symlink/junction: Turbopack's resolver rejects a `node_modules` symlink that points outside the
+  copy's own tree) to a **short** path and run `next dev -p <port>` from there with
+  `NEXT_PUBLIC_API_BASE` pointed at the isolated backend. The copy's path must stay short —
+  Turbopack writes long generated cache filenames under `.next/dev/...` and a deeply nested temp
+  path (e.g. this harness's default scratchpad dir) blows past Windows' filesystem path-length
+  limit and crashes with a `TurbopackInternalError`/`path length ... exceeds max length`; a
+  top-level path like `C:\wtest` works. Clean up the copy and kill the isolated PIDs when done.
 
 ## Drive the UI (Playwright)
 `drive_ui.mjs` (in this skill dir) launches headless Chrome, walks the full flow, and writes
