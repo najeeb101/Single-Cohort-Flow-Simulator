@@ -26,9 +26,11 @@ htmlcov/
 .tox/
 
 # ---- Claude Code ----
-# Keep the shared project settings; ignore personal/local state.
+# Keep the shared project settings + hook scripts; ignore personal/local state.
 .claude/*
 !.claude/settings.json
+!.claude/hooks/
+!.claude/hooks/**
 .claude/settings.local.json
 
 # ---- IDE / editor ----

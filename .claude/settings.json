@@ -27,5 +27,21 @@
       "Bash(git add *)",
       "Bash(grep -E \"__pycache__|\\\\.pyc$|^outputs/\")"
     ]
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "py .claude/hooks/post_edit_check.py",
+            "shell": "bash",
+            "timeout": 60,
+            "statusMessage": "Checking edited file (py_compile / eslint)..."
+          }
+        ]
+      }
+    ]
   }
 }
