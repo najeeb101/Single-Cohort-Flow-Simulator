@@ -135,7 +135,7 @@ To strengthen the technical evaluation of the system, the implementation was rev
 
 ## 4. Internship Experience
 
-The internship ran for seven weeks. The first two weeks built the core engine and turned it into a full-stack application; the middle weeks alternated between adding a feature, testing it against the research question, and cutting or rebuilding whatever did not hold up; the final weeks focused on the platform's decision-support tools and on tightening the whole system before submission.
+The internship ran for seven weeks. The assigned catalog task was to design and build, independently and end-to-end, a data-driven decision-support system for a real institutional planning problem; I chose Qatar University's own Computer Science curriculum as that problem, given my direct exposure to it as a QU CS student. The first two weeks built the core engine and turned it into a full-stack application; the middle weeks alternated between adding a feature, testing it against the research question, and cutting or rebuilding whatever did not hold up; the final weeks focused on the platform's decision-support tools and on tightening the whole system before submission.
 
 ### 4.1 Week 1: Understanding the Domain and Building the Core Engine
 
@@ -233,19 +233,19 @@ Together, these results support the project's central premise: a single graduati
 
 ## 6. Challenges Faced
 
-### 6.1 Modeling Optional Terms Correctly
+### 6.1 Modeling Optional Terms Correctly (Week 5)
 
-One major challenge was supporting optional academic terms such as Winter or Summer. The original logic assumed that every term counted toward a student's academic time budget. This became incorrect when optional terms were introduced, because students should be able to take an optional catch-up term without necessarily using one of their regular semesters.
+One major challenge, which surfaced while reworking the offering schedule to be realistic in Week 5, was supporting optional academic terms such as Winter or Summer. The original logic assumed that every term counted toward a student's academic time budget. This became incorrect when optional terms were introduced, because students should be able to take an optional catch-up term without necessarily using one of their regular semesters.
 
 The solution was to separate global simulation time from each student's personal semester count. Mandatory terms advance the student's personal semester count, while optional terms can still affect course outcomes without consuming the same academic time budget. This made the model more realistic and prevented students from being cut off too early.
 
-### 6.2 Maintaining Determinism
+### 6.2 Maintaining Determinism (Week 1)
 
-Another challenge was ensuring that the simulation remained deterministic. Since the model includes random pass and fail outcomes, repeated runs could become difficult to compare if randomness changed unpredictably. To solve this, each simulated student uses a seeded random stream based on the global seed and student ID. This means the same student receives the same random sequence when comparing scenarios.
+Another challenge, decided at the very start of the internship in Week 1 and never revisited, was ensuring that the simulation remained deterministic. Since the model includes random pass and fail outcomes, repeated runs could become difficult to compare if randomness changed unpredictably. To solve this, each simulated student uses a seeded random stream based on the global seed and student ID. This means the same student receives the same random sequence when comparing scenarios.
 
 This design is important for what-if analysis. If a capacity change improves the results, the difference should come from the capacity change itself, not from a different random draw. It is also what makes the close agreement between the single run and the Monte Carlo average in Section 5 a meaningful check rather than a coincidence.
 
-### 6.3 Balancing Features and Focus
+### 6.3 Balancing Features and Focus (Weeks 3 and 7)
 
 As the project grew, it became clear that adding more features did not always make the system better. Some features increased complexity without directly supporting the main research question, and a few (the original Live Simulation mode in Week 3, the Per-Student Trace in Week 7) were built, worked correctly, and were still removed once it was clear they were not earning their place. I learned to simplify the application and focus on the capabilities that mattered most: simulation, bottleneck analysis, scenario comparison, configuration, and clear visualization.
 
