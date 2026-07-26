@@ -10,7 +10,7 @@
 **Student ID:** [Insert student ID]  
 **Mentor / Supervisor (Scale AI):** [Insert supervisor name]  
 **Internship Period:** [Insert internship period, 7 weeks]  
-**Host Organization:** Scale AI (remote internship)  
+**Host Organization:** Scale AI (remote host, completed on Qatar University's campus)  
 **Academic Institution:** Qatar University, College of Engineering, Department of Computer Science and Engineering  
 **Year:** 2026  
 **Repository:** [github.com/najeeb101/Single-Cohort-Flow-Simulator](https://github.com/najeeb101/Single-Cohort-Flow-Simulator)
@@ -24,7 +24,7 @@ Department of Computer Science and Engineering
 
 ## Abstract
 
-During my internship, completed remotely at Scale AI, I worked on the design and development of the Single-Cohort Flow Simulator, a software system built to study student progression through Qatar University's Computer Science curriculum. The project focuses on an academic planning problem: when students are delayed, it is often difficult to determine whether the delay was caused by course difficulty, missing prerequisites, limited seats, or courses being offered only in certain terms.
+During my internship, completed on Qatar University's campus with Scale AI as the remote host organization, I worked on the design and development of the Single-Cohort Flow Simulator, a software system built to study student progression through Qatar University's Computer Science curriculum. The project focuses on an academic planning problem: when students are delayed, it is often difficult to determine whether the delay was caused by course difficulty, missing prerequisites, limited seats, or courses being offered only in certain terms.
 
 To address this problem, I developed a discrete-term, agent-based simulation model that represents students as individual agents moving through the curriculum over time. The system models prerequisites, course offerings, pass and fail outcomes, seat capacity, academic probation, dropout, and graduation. It has since grown from its original single-cohort design into a multi-cohort, steady-state model in which several overlapping cohorts are admitted year after year and compete for one shared pool of course seats, which is closer to how a real department actually operates. I also contributed to the FastAPI backend, SQLite persistence layer, and Next.js dashboard that make the simulator usable as an interactive decision-support tool.
 
@@ -34,7 +34,7 @@ The final result is a working platform that can run curriculum simulations, iden
 
 I would like to express my sincere gratitude to my mentors and colleagues at Scale AI for their guidance and support throughout this internship, and to my instructors at Qatar University for their feedback on both the technical quality of the project and the way I explained its purpose.
 
-I would also like to thank the Department of Computer Science and Engineering at Qatar University for providing the academic foundation that allowed me to work on a project combining software engineering, data analysis, and educational planning. This internship gave me the opportunity to apply concepts from my coursework to a practical system with real academic relevance, even while completing the internship itself off-site.
+I would also like to thank the Department of Computer Science and Engineering at Qatar University for providing the academic foundation, and the campus environment, that allowed me to work on a project combining software engineering, data analysis, and educational planning. This internship gave me the opportunity to apply concepts from my coursework to a practical system with real academic relevance, while working with a remote host organization.
 
 \newpage
 
@@ -58,7 +58,7 @@ I would also like to thank the Department of Computer Science and Engineering at
 
 ### 1.1 The Host Organization: Scale AI
 
-This internship was completed remotely through the **Scale x Qatar University Practical Training program**, a joint arrangement in which Scale AI, a technology company that builds data-labeling, evaluation, and human-feedback infrastructure used by AI research labs and enterprises to train and evaluate machine learning models, hosts QU students on independent, self-directed technical projects. Students are assigned a task from a shared Practical Training Task Catalog: each task is scoped for one student to complete solo, end-to-end, in roughly 25-30 hours of work spread across the seven-week training window, and is graded against a common rubric worth 15% of the practical training grade, scored across five bands from Excellent to Failing. This is how this simulator came to be the deliverable: rather than working on Scale AI's own data pipelines, I built a data-driven decision-support tool for a curriculum-planning problem I had first-hand context on as a Qatar University Computer Science student. The engineering habits the internship emphasized, treating a system as something to be measured and evaluated with structured evidence rather than a single headline number, carried directly into how this project's own bottleneck analytics were designed (Section 3.4).
+This internship was completed on Qatar University's campus, with Scale AI as the remote host organization, through the **Scale x Qatar University Practical Training program**, a joint arrangement in which Scale AI, a technology company that builds data-labeling, evaluation, and human-feedback infrastructure used by AI research labs and enterprises to train and evaluate machine learning models, hosts QU students on independent, self-directed technical projects. Students are assigned a task from a shared Practical Training Task Catalog: each task is scoped for one student to complete solo, end-to-end, in roughly 25-30 hours of work spread across the seven-week training window, and is graded against a common rubric worth 15% of the practical training grade, scored across five bands from Excellent to Failing. This is how this simulator came to be the deliverable: rather than working on Scale AI's own data pipelines, I built a data-driven decision-support tool for a curriculum-planning problem I had first-hand context on as a Qatar University Computer Science student. The engineering habits the internship emphasized, treating a system as something to be measured and evaluated with structured evidence rather than a single headline number, carried directly into how this project's own bottleneck analytics were designed (Section 3.4).
 
 ### 1.2 The Academic Project: Qatar University's Computer Science Curriculum
 
@@ -88,7 +88,7 @@ At the beginning of the internship, the main activity objectives were:
 
 The personal growth objectives of the internship were:
 
-- Improve my ability to work independently on a long-running software project, including while working remotely.
+- Improve my ability to work independently on a long-running software project, including while working with a remote host organization rather than on-site.
 - Strengthen my understanding of backend architecture, API design, and database modeling.
 - Gain more experience with React and TypeScript through a practical dashboard interface.
 - Learn how to translate a real academic planning problem into a software model.
@@ -259,7 +259,7 @@ The project also strengthened my understanding of concepts from my coursework. D
 
 Several specific university courses and concepts were directly applied during this internship. In Data Structures and Algorithms, I used graph-based reasoning to represent prerequisite chains and validate curriculum topology. In Database Systems, I designed the persistence model using SQLAlchemy and SQLite to manage plans, courses, configurations, and run data. In Software Engineering, I applied modular design, testing, and separation of concerns while building a multi-layer application. In Probability and Statistics, I worked with seeded randomness and scenario comparison to make simulation outcomes reproducible and meaningful. In Web Development, I used React, TypeScript, and Next.js to transform simulation results into an interactive and understandable dashboard. The main difference from the classroom was that the work had to be reliable, explainable, and useful for real academic planning decisions rather than only solving a small standalone assignment.
 
-Professionally, I learned the value of communicating technical results clearly. A simulation can produce many numbers, but users need to understand what those numbers mean and what action they suggest. The dashboard, figures, and bottleneck categories helped turn technical output into information that could support discussion, and writing Section 5 of this report was itself a useful exercise in doing that in prose rather than only in the dashboard's own visual language. Working remotely at Scale AI while the project itself concerned Qatar University also pushed me to communicate progress in writing more than I would have needed to in person, which is its own skill I expect to keep using.
+Professionally, I learned the value of communicating technical results clearly. A simulation can produce many numbers, but users need to understand what those numbers mean and what action they suggest. The dashboard, figures, and bottleneck categories helped turn technical output into information that could support discussion, and writing Section 5 of this report was itself a useful exercise in doing that in prose rather than only in the dashboard's own visual language. Working with a remote host organization while based on Qatar University's campus also pushed me to communicate progress in writing more than I would have needed to if a Scale AI mentor had been down the hall, which is its own skill I expect to keep using.
 
 I also learned that documentation is part of engineering work, not something separate from it. Writing project overviews, technical design notes, API references, and assumptions helped keep the project consistent and made it easier to explain decisions later.
 
