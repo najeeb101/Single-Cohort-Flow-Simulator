@@ -1,4 +1,11 @@
+\begin{center}
+
+![Qatar University](images/qu-logo.png){width=120px}
+
 # Qatar University
+
+**College of Engineering**  
+**Department of Computer Science and Engineering**
 
 # Internship Report
 
@@ -14,6 +21,8 @@
 **Academic Institution:** Qatar University, College of Engineering, Department of Computer Science and Engineering  
 **Year:** 2026  
 **Repository:** [github.com/najeeb101/Single-Cohort-Flow-Simulator](https://github.com/najeeb101/Single-Cohort-Flow-Simulator)
+
+\end{center}
 
 This project report is submitted to the Department of Computer Science and Engineering of Qatar University in partial fulfillment of the requirements of the Practical Training course, completed under the Scale x Qatar University Practical Training program.
 
@@ -58,7 +67,7 @@ I would also like to thank the Department of Computer Science and Engineering at
 
 ### 1.1 The Host Organization: Scale AI
 
-This internship was completed on Qatar University's campus, with Scale AI as the remote host organization, through the **Scale x Qatar University Practical Training program**, a joint arrangement in which Scale AI, a technology company that builds data-labeling, evaluation, and human-feedback infrastructure used by AI research labs and enterprises to train and evaluate machine learning models, hosts QU students on independent, self-directed technical projects. Students are assigned a task from a shared Practical Training Task Catalog: each task is scoped for one student to complete solo, end-to-end, in roughly 25-30 hours of work spread across the seven-week training window, and is graded against a common rubric worth 15% of the practical training grade, scored across five bands from Excellent to Failing. This is how this simulator came to be the deliverable: rather than working on Scale AI's own data pipelines, I built a data-driven decision-support tool for a curriculum-planning problem I had first-hand context on as a Qatar University Computer Science student. The engineering habits the internship emphasized, treating a system as something to be measured and evaluated with structured evidence rather than a single headline number, carried directly into how this project's own bottleneck analytics were designed (Section 3.4).
+This internship was completed on Qatar University's campus, with Scale AI as the remote host organization, through the **Scale x Qatar University Practical Training program**, a joint arrangement in which Scale AI, a technology company that builds data-labeling, evaluation, and human-feedback infrastructure used by AI research labs and enterprises to train and evaluate machine learning models, hosts QU students on independent, self-directed technical projects. Students are assigned a task from a shared Practical Training Task Catalog: each task is scoped for one student to complete solo, end-to-end, in roughly 25-30 hours of work per week across the seven-week training window, and is graded against a common rubric worth 15% of the practical training grade, scored across five bands from Excellent to Failing. This is how this simulator came to be the deliverable: rather than working on Scale AI's own data pipelines, I built a data-driven decision-support tool for a curriculum-planning problem I had first-hand context on as a Qatar University Computer Science student. The engineering habits the internship emphasized, treating a system as something to be measured and evaluated with structured evidence rather than a single headline number, carried directly into how this project's own bottleneck analytics were designed (Section 3.4).
 
 ### 1.2 The Academic Project: Qatar University's Computer Science Curriculum
 
