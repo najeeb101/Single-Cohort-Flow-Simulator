@@ -1,6 +1,10 @@
-\begin{center}
+<style>
+h1, h2, h3 { color: #5B9BD5; }
+</style>
 
-![Qatar University](images/qu-logo.png){width=120px}
+<div align="center">
+
+<img src="images/qu-logo.png" width="120" alt="Qatar University">
 
 # Qatar University
 
@@ -11,7 +15,7 @@
 
 ## At Scale AI
 
-### Single-Cohort Flow Simulator for Curriculum Delay Analysis
+### Cohort Flow Simulator
 
 **Student Name:** Najeeb Abdi  
 **Student ID:** [Insert student ID]  
@@ -22,7 +26,7 @@
 **Year:** 2026  
 **Repository:** [github.com/najeeb101/Single-Cohort-Flow-Simulator](https://github.com/najeeb101/Single-Cohort-Flow-Simulator)
 
-\end{center}
+</div>
 
 This project report is submitted to the Department of Computer Science and Engineering of Qatar University in partial fulfillment of the requirements of the Practical Training course, completed under the Scale x Qatar University Practical Training program.
 
