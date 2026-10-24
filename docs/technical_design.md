@@ -1,6 +1,10 @@
 # Technical Design Document
-## CS Flow Simulator: Qatar University CS Program
+## CS Intake Planner: Qatar University CS Program
 
+> **Note (product):** the engine described here is the foundation of the CS Intake Planner, which
+> answers "how many students should we admit next, and what seats does that need?". The decision
+> layer (`src/intake.py`) is described in §11.6 and §11.10 and in full in `docs/methodology.md`.
+>
 > **Note (multi-cohort extension):** §§1–10 below describe the per-student mechanics, which still
 > hold exactly. The simulator now runs **many cohorts on a shared seat pool**, warm-started by an
 > admin-entered initial state (not a simulated incumbent cohort, by default) and emits a frontend
@@ -338,9 +342,9 @@ elif prerequisites met but
 
 This is the heart of the model's contribution: it separates the *reason* a student is stuck into four non-interchangeable causes, each pointing to a different fix (better teaching vs. more seats vs. an added offering season vs. an upstream gateway). The four counters are never summed, only compared course-by-course within a signal.
 
-### 5.6 Why This Design Answers the Research Question
+### 5.6 Why This Design Can Support an Intake Decision
 
-The research question is *which prerequisite chains and scheduling constraints cause delay*. Because the model (a) advances in discrete Fall/Spring terms, it can represent a once-a-year course forcing a full-year wait; (b) enforces prerequisites and the senior-project compound rule exactly, it can represent a single gateway course (CMPS 303) stalling three dependents at once; and (c) records the four block signals separately, it can attribute each unit of delay to a specific, fixable cause. The CRN property then lets a single parameter change (e.g., CMPS 310 capacity 35 → 40) be read as a clean causal effect on graduation, which is precisely how the report's intervention recommendations are derived.
+An intake decision depends on how much *seat shortage* a given number of admitted students causes, separately from how many students would have failed or left anyway. The model supports that because it (a) advances in discrete Fall/Spring terms, so a once-a-year course forces a full-year wait when a seat is missed; (b) enforces prerequisites and the senior-project compound rule exactly, so a single gateway course (CMPS 303) can stall three dependents at once; (c) lets every cohort and other programs compete for the same seats by seniority priority; and (d) gives each student a private RNG stream, so an unlimited-seat run of the same students isolates exactly the outcome change caused by seat competition. The four block signals remain separate so the Bottlenecks page can name the course and the cause. The analysis built on this (spaced-seed replication, a pooled no-shortage reference, monotone smoothing, one-sided 95% bounds, a per-limit decision rule) is in §11.6 and `docs/methodology.md`.
 
 ---
 
@@ -364,13 +368,14 @@ src/
 │                         # expressions (how CMPS493's rule is expressed, not hardcoded)
 ├── simulator.py         # Simulator (staggered admission + 3-phase per-term loop) + History
 │                         # (the four block signals + snapshots) + SimulationResult
-├── analytics.py         # compute_metrics(), per-cohort metrics, admissions recommendation,
+├── analytics.py         # compute_metrics(), per-cohort metrics,
 │                         # curriculum graph, flow_timeline JSON, CSV writers
 ├── service.py           # run_simulation(curriculum, config, scenario, data_source=None)
 │                         # -> dict — the engine-as-a-service boundary: Simulator + every
 │                         # analytics.py derivation, in memory, zero file I/O
-├── optimizer.py          # solve_for_targets() — Auto-fill's bounded greedy capacity search
-│                         # (§11.10)
+├── intake.py             # the decision layer: intake sweep, seat plan, calibration (§11.6)
+├── jobs.py               # background runner for analyses: one at a time, progress, cancel
+├── parallel.py           # process-pool helpers (make_pool, iter_ordered, ordered_map)
 ├── db.py / db_models.py  # SQLAlchemy engine/session + User/Plan/Course/AppConfig/
 │                         # Scenario/Run tables (per-plan, multi-plan support) — see
 │                         # docs/database.md for the full schema
@@ -381,18 +386,18 @@ src/
 │                         # edits and Plan imports
 ├── scenarios.py          # persistent /scenarios + /runs endpoints (saved scenario-builder
 │                         # presets), scoped to the demo user
-├── api.py                # FastAPI wrapper: /health, /meta, /simulate, /autofill, /curriculum,
+├── api.py                # FastAPI wrapper: /health, /meta, /simulate, /intake-analyses, /curriculum,
 │                         # /config, /plans — every route resolves the requester's
 │                         # active Plan fresh, no cached globals; see docs/api.md
 ├── montecarlo.py         # run_monte_carlo() — mean ± 95% CI over many seeds
 ├── visualize.py          # save_all_figures() + per-figure functions (offline `py run.py` path)
 └── utils.py              # load_json(), grade_tier()
 
-web/         Next.js/TypeScript dashboard — Dashboard (Semester Checkpoint Mode: advance one
-             semester at a time, editing capacity/pass rate/occupancy/intake between steps),
-             Advisor (grounded LLM chat + what-if Test/Apply on proposed changes), Bottlenecks
-             (capacity recommendations + Auto-fill solver), Figures, Settings
-             (curriculum + config editing), Plans/Plan Builder, Run History
+web/         Next.js/TypeScript website — Intake Planner (home), Bottlenecks (which courses limit
+             intake; seat planner), Walkthrough (Semester Checkpoint Mode: advance one semester at
+             a time), Advisor (rules + local-LLM chat, what-if Test/Apply), Data (curriculum, seats,
+             pass rates, past intakes, other-program seats, policy), Programs (Plans, Plan Builder),
+             Methodology
 run.py       # entry point: load -> run_simulation() per scenario -> save figures + CSV
 ```
 
@@ -432,6 +437,8 @@ Single-Cohort-Flow-Simulator/
 │   └── migrate_json_to_db.py # (re)seeds data/app.db from the JSON files
 ├── tests/                    # pytest suite
 ├── docs/
+│   ├── methodology.md        # how the recommendation is computed
+│   ├── user_guide.md         # step-by-step guide for department staff
 │   ├── project_overview.md
 │   ├── technical_design.md   # this file
 │   ├── code_walkthrough.md   # code-level companion (real signatures, module by module)
@@ -439,7 +446,6 @@ Single-Cohort-Flow-Simulator/
 │   ├── api.md                # HTTP API reference
 │   └── assumptions.md
 ├── run.py
-├── render.yaml                # Render deployment blueprint
 └── CLAUDE.md
 ```
 
@@ -540,45 +546,43 @@ capacity is scaled down further by `optional_term_capacity_scale`.
 ### 11.5 Identity, RNG, determinism
 Study cohorts get `cohort_id` `0..n−1`; incumbents `−1, −2, −3`. Globally-unique `student_id = (cohort_id + num_incumbent_cohorts) × cohort_size + i`; RNG seed remains `seed + student_id`, so CRN and full determinism are preserved.
 
-### 11.6 Per-cohort post-mortems & admissions recommendation
-Four `*_by_cohort` block counters (`cohort_id → {course → count}`) let each cohort report *where it got stuck*. `compute_admissions_recommendation` is a single-run heuristic: it scores the representative study cohort against four `admission_targets` (graduation rate, time-to-degree, seats-denied-per-student, throughput stability), takes the binding (worst) slack factor, and scales next year's intake by it (growth capped at 1.25×).
+### 11.6 Per-cohort post-mortems & the intake analysis
+Four `*_by_cohort` block counters (`cohort_id → {course → count}`) let each cohort report *where it got stuck*.
+
+The old single-run `compute_admissions_recommendation` heuristic (four `admission_targets`, scale next year's intake by the worst slack) was removed: two of its targets could not be met at any intake and it showed no uncertainty. It is replaced by `src/intake.py::run_intake_sweep`, which:
+
+1. evaluates each candidate intake N (default 20 to 200) in two views: *next* (today's student body rebuilt from `current_students.past_intakes`, padded to 8 years, then the next intakes of N; measured on the first two) and *steady* (8 earlier cohorts of N, then 6, measured on the first four);
+2. replicates each N over spaced seeds (`spaced_seeds`, stride 10,000,019; consecutive seeds replay about 99% of the same students), 20 by default, refined to 40 near the crossing in steps of 5;
+3. estimates one pooled **unlimited-seat reference** (`unlimited_seats: "all"`, asserted to record zero denials) and defines the loss from seat shortages as reference minus real-seat outcome, for graduation and on-time rates;
+4. fits each loss to a monotone non-decreasing curve (weighted isotonic regression) and takes a one-sided 95% upper bound;
+5. applies the decision rule: per-limit maximum N (every smaller N also passing), recommended = the smallest, an honest "no feasible intake" otherwise, an upper limit where an extra student adds under 0.25 graduates per year, a robustness range (one fewer section in the three tightest courses; pass rates minus 5 points), and a precision warning;
+6. runs `calibration_check` against the entered historical outcomes (`2*sqrt(p(1-p)/n_hist + SE^2)`).
+
+It runs as a background `Analysis` job (`src/jobs.py`), one at a time. The policy is `config["intake_policy"]` (default Balanced: at most 2 points of graduation loss and 10 points of on-time loss). See `docs/methodology.md` for the full method and its limits.
 
 ### 11.7 Outputs & the frontend contract
 Beyond the legacy reports, the engine emits `flow_timeline.json`:
 - `meta` — stage nodes, cohort registry, and the static prerequisite **graph** (course nodes + prereq/senior-project edges).
 - `frames` — one per semester: per-course stats (capacity/registered/granted/denied/pass/fail/waiting/full) and per-cohort stage **node counts + flows** (`from → to` counts, e.g. Year2 → Year3).
-- `summary` — headline metrics (+ Monte Carlo CIs), per-cohort metrics + bottlenecks, and the admissions recommendation.
+- `summary` — headline metrics (+ Monte Carlo CIs), per-cohort metrics + bottlenecks, and the severe-terms summary.
 
 The `web/` Next.js dashboard lays out the graph by longest-path layering and replays the frames as an animation, ending in a dashboard rendered from `summary`. A later phase may add an AI step that classifies a raw prerequisite chart into `curriculum.json`; the export is producer-agnostic, so that step would change nothing downstream.
 
 ### 11.8 Monte Carlo
-`run_monte_carlo` re-runs the baseline across `n_runs` seeds (`base_seed + k`) and reports mean ± 95% CI per headline metric. The canonical timeline/animation stays on the single base seed (deterministic for the frontend); the CIs only annotate the dashboard.
+`run_monte_carlo` re-runs the baseline across `n_runs` **spaced** seeds (`base_seed + k × 10,000,019`; adjacent seeds would reuse ~99% of the same students and understate the spread) and reports mean ± 95% CI per headline metric. The canonical timeline/animation stays on the single base seed (deterministic for the frontend); the CIs only annotate the dashboard.
 
 ### 11.9 Engine-as-a-service boundary
 `src/service.py::run_simulation(curriculum, config, scenario, data_source=None) -> dict` is the
 single function boundary between the engine and any caller: script, test, or the FastAPI layer
 (`src/api.py`). It runs one scenario and returns `result` (the raw `SimulationResult`), `metrics`,
-`cohort_metrics`, `admissions_recommendation`, and `flow_timeline` as a plain dict; it never
+`cohort_metrics`, and `flow_timeline` as a plain dict; it never
 touches disk or prints. `run.py` is a thin wrapper: load JSON from disk → `run_simulation` per
 scenario → hand the returned `SimulationResult` to `analytics.py`'s CSV/JSON writers and
 `visualize.py`'s figure writers, which remain the only file-I/O layer. Monte Carlo stays a
 separate, opt-in call (§11.8) rather than folded into `run_simulation`, since re-running a
 scenario dozens of times isn't something every caller wants paid for by default.
 
-### 11.10 Advisor + Auto-fill
+### 11.10 Seat plan and Advisor
 
-Two decision-support layers on top of a completed run, both reading `evaluate_health_criteria`'s
-per-criterion slack against `config['admission_targets']` — the same four criteria §11.6's
-admissions recommendation scores (graduation rate, time-to-degree, seats-denied-per-student,
-throughput stability).
-
-- **Advisor** is a rules-based (no LLM) frontend read of a run's existing `flow_timeline.summary`
-  into prioritized plain-language recommendations — a pure derivation from data the `/simulate`
-  response already contains, no extra backend call.
-- **Auto-fill** (`src/optimizer.py::solve_for_targets`) is a bounded greedy solver: each iteration
-  runs one simulation, finds the course with the worst single-term seat shortfall, and bumps its
-  capacity by that shortfall, until the seats-denied target is met or `run_budget` (default 20,
-  max 40) is exhausted. It only drives the one target capacity actually fixes (seats denied),
-  reporting grad-rate/time-to-degree/throughput-stability breaches as non-capacity so it never
-  overstates the seats needed. `POST /autofill` is read-only; the frontend panel applies the
-  winning capacities itself via the existing `PUT /curriculum/{code}` + `PUT /config` writes.
+- **Seat plan** (`src/intake.py::run_seat_plan`, replacing the old Auto-fill greedy solver): for a target intake it (1) sizes each course from demand, running the target with unlimited *regular-term* seats and taking the 90th percentile of regular-term registrations plus other-program seats (`initial_state.occupancy`), rounded up to whole sections (`section_size`, default 35); (2) verifies on both views with 20 spaced seeds against the policy limits, and while a limit fails adds one section to the course with the most denials, up to `run_budget` rounds (default 6); (3) changes seats exactly with `dataclasses.replace(course, capacity=...)`. Sizing from real-seat shortfalls was dropped because an upstream denial hides downstream demand, and multipliers were dropped because they lose a seat for some sizes. It is read-only; the website applies the result through `PUT /curriculum/{code}`, or `POST /checkpoint/edit` for a walkthrough session.
+- **Advisor** is a rules-based (no LLM) frontend read of the analysis and run summary into prioritized plain-language recommendations, plus an optional chat grounded in the plan and the latest analysis (`src/advisor.py`). Default is a local Qwen model through Ollama (`qwen3:4b-instruct-2507-q4_K_M`, about 25 s per answer; for a localhost Ollama server the backend calls the native `/api/chat` with `num_ctx=8192` so the ~3k-token grounding is not truncated by Ollama's 4096 default). The model never produces the intake number; proposals are validated and applied only on an administrator's click.

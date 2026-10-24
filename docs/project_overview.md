@@ -1,398 +1,276 @@
-# Single-Cohort Flow Simulator — Project Overview & Technical Guide
+# CS Intake Planner: Project Overview and Technical Guide
 
-**Author:** Najeeb Barkhad
-
-> **A note on this document.** Earlier versions of this write-up were a research-paper-style
-> report with a Results section full of percentages (graduation rate, dropout rate, bottleneck
-> counts, confidence intervals). Those numbers depend on the simulator's current configuration —
-> pass rates, section counts, dropout parameters, whether optional Winter/Summer terms are
-> switched on — and that configuration is meant to change as the curriculum committee tunes it.
-> Every number in a fixed write-up like that goes stale the moment someone edits
-> `simulation_config.json` or flips a Settings toggle, which already happened twice during this
-> project. This version instead explains **what the project does and how it works**, in enough
-> technical depth to actually understand and extend it, without claiming any specific output as
-> "the" answer. If you want today's actual numbers, run the simulation — that's what it's for.
+> **A note on this document.** It explains what the project does and how it works, in enough
+> depth to understand and extend it, without claiming any specific output as "the" answer.
+> Results depend on the data entered (seats, pass rates, past intakes, policy limits), and that
+> data changes every semester, so any number written here would go stale quickly. Run the
+> analysis for today's figures. For the exact method behind the recommendation, see
+> [methodology.md](methodology.md); for day-to-day use, see [user_guide.md](user_guide.md).
 
 ---
 
 ## 1. What this project is
 
-Qatar University's BSc Computer Science program, like most CS programs, has deep prerequisite
-chains and courses that are only taught once a year. A student who fails a once-a-year course, or
-gets stuck waiting on a prerequisite, doesn't lose a semester — they lose a full year. The
-question this project exists to answer is: **when a student doesn't graduate on time, which kind
-of obstacle was actually responsible** — a hard course, a once-a-year scheduling gap, an upstream
-prerequisite, or a too-small lecture section — and which of those is the curriculum committee's
-most effective lever to pull?
+Qatar University's CS department has to decide each year how many students to admit. The honest
+answer depends on things a headcount cannot show: the program has deep prerequisite chains,
+several core courses are taught only once a year, and every cohort in the department competes
+for the same limited course seats, together with students from other programs. Admit too many
+and a gateway course runs out of seats; students who miss it lose a semester or a full year,
+some never finish. Admit too few and the department under-serves its mission.
 
-You can't answer that from a transcript spreadsheet, because a spreadsheet only tells you a
-student was *delayed*, not *why*. So this project builds a small, fast, deterministic simulation
-of the whole department: synthetic students move through the curriculum one semester at a time,
-competing for the same limited course seats as every other cohort enrolled at the same time, and
-every time someone gets stuck, the simulator records **which one of four distinct reasons** caused
-it. Run that for a few thousand simulated student-careers and you get a clean, attributable answer
-instead of a guess.
+The question this tool answers is:
 
-It is deliberately **not** a prediction tool for any real, named student, and it does not use real
-QU student records (none are public). It is a *structural* model: given the rules of the
-curriculum (prerequisites, seasonal offerings, seat counts) and reasonable assumptions about pass
-rates and attrition, what does the *shape* of delay look like, and which structural fix would
-relieve the most of it? See §6 for exactly what it does and doesn't claim to know.
+> **How many students should we admit into the next CS intake, and what course seats does that number need?**
+
+It does so by simulating the whole department. Synthetic students move through the real CS
+study plan one semester at a time, register by seniority priority, pass or fail each course at
+its pass rate, and compete with the students already enrolled and with other programs for seats.
+The analysis runs this for many intake sizes and many random replications, compares each against
+a no-seat-shortage reference, and finds the largest intake whose *seat-shortage harm* stays
+within limits the department sets. A second tool, the seat planner, answers the follow-up "what
+would it take to admit more?" in whole sections.
+
+The tool is deliberately **not** a prediction for any named, real student, and it does not use
+real student records (none are loaded yet). It is a structural model: given the curriculum's
+rules, the seats, and reasonable assumptions about pass rates and attrition, how much does
+crowding cost at each intake size? See §6 for what it does and does not claim to know.
+
+It runs locally on a department PC, started with `start.bat`. Computer Engineering may be added
+later as a second program on the same engine (a separate Plan with its own curriculum).
 
 ---
 
 ## 2. The university being modeled
 
 **The curriculum.** QU's 2024 CS study plan is 41 courses, 120 credit hours, on a nominal
-8-semester path. A handful of upper-level courses are only taught in one season a year (e.g. a
-Fall-only software engineering course, Spring-only algorithms/operating-systems/database
-courses) — missing one of those isn't a one-semester slip, it's a full-year wait. One course
-(Data Structures) is a *gateway*: passing it is the prerequisite for three other courses at once,
-so any delay there cascades into three separate downstream delays simultaneously. The
-senior-project sequence has a *compound* eligibility rule — it requires several specific courses
-passed *and* a minimum credit-hour count, all at once — which is the curriculum's hardest gate to
-satisfy cleanly.
+8-semester path. A handful of upper-level courses are taught in only one season a year (for
+example a Fall-only software engineering course, Spring-only algorithms and database courses):
+missing one is not a one-semester slip, it is a full-year wait. Data Structures is a *gateway*:
+passing it is a prerequisite for three other courses at once. The senior-project sequence has a
+*compound* eligibility rule (several specific courses passed and a minimum credit-hour count),
+the curriculum's hardest gate.
 
-**One shared seat pool, not one cohort in isolation.** A real registrar doesn't size a course's
-seats for one entering class: every cohort currently enrolled (freshmen through seniors) shows
-up wanting the same popular course in the same term, and someone has to decide who gets in. A
-single-cohort model can't represent that competition at all. This simulator runs several cohorts
-at once, all drawing from the exact same per-course seat pool, term after term. Rather than
-simulating a separate set of "incumbent" cohorts before the study window starts, the university
-is warm-started from an admin-entered **initial state**: how many seats in each course are
-already occupied by the existing student body. That occupancy is subtracted from every course's
-free seats on every mandatory term, so gateway courses are realistically full from the very first simulated term
-without the engine having to simulate years of pre-history to get there. (The engine still
-supports seeding literal incumbent cohorts at negative terms as a lower-level option, but the
-shipped configuration doesn't use it — that knob defaults to zero.)
+**One shared seat pool.** A real registrar does not size a course for one entering class: every
+cohort currently enrolled shows up wanting the same course in the same term. The simulator runs
+several cohorts at once from the same per-course seat pool, term after term. Seats are also used
+by students from **other programs** (for example Computer Engineering students in CMPS151 or
+MATH101); that permanent load is the `initial_state.occupancy` input and is subtracted from a
+course's free seats in every regular term.
 
-**The term calendar.** Every cohort always has a guaranteed Fall and Spring term — those are
-*mandatory*: they're what advances a student's personal graduation clock and what every cohort is
-admitted into. Winter and Summer intersessions exist as an **optional, admin-controlled feature**
-(Settings → "Enable optional Winter/Summer intersessions", off by default): when off, the
-simulator runs a plain two-season academic year; when on, a handful of high-demand courses get a
-smaller bonus section in Winter/Summer that a student can use to retake a failed course or get
-ahead, without it costing them a mandatory semester on their personal clock. Turning it on or off
-doesn't require re-entering any data — the optional-term course list and section sizes live in the
-configuration the whole time, inert until switched on.
+**Today's student body is rebuilt from past intakes.** The department enters how many students
+entered CS in each of the last several years. The engine turns each into a cohort that entered
+in the corresponding earlier year, padding with estimated older years so the oldest cohort does
+not start in an empty university, and the next intake walks into the department that results.
+
+**The term calendar.** Fall and Spring are *mandatory*: they advance a student's personal
+graduation clock, and cohorts are only ever admitted into them. Summer (and Winter, if a plan
+defines it) are *optional*: a course is offered only if its own offering list includes that
+season, seats are scaled down (30% of regular capacity by default), and using one does not cost
+a student a mandatory semester. The optional-term switch is an admin setting; the season data
+sits in the configuration whether or not it is on.
 
 ---
 
-## 3. How the simulation actually works
+## 3. How the simulation works
 
 ### 3.1 The mental model
 
-This is a **discrete-term, agent-based simulation**. There's no continuous time — the clock only
-ever advances in whole semesters. The "agents" are `Student` objects, each an independent little
-state machine (GPA, completed courses, status). Nothing is solved with an equation; every term,
-every student tries to register for courses, some requests get denied because of seat scarcity,
-and a seeded, reproducible coin-flip decides who passes and who fails. Run that loop for up to
-twelve semesters per student and look at what comes out the other end. Everything else in the
-codebase — analytics, charts, the API, the web dashboard — is just *reporting* on what happened
-during those term-by-term loops.
+A **discrete-term, agent-based simulation**. Time advances in whole semesters. The agents are
+`Student` objects, each a small state machine (GPA, completed courses, status). Each term every
+student tries to register, some requests are denied for lack of seats, and a seeded coin-flip
+decides who passes. Everything else (analytics, the API, the website) reports on what happened.
 
-### 3.2 Two clocks, not one
+### 3.2 Two clocks
 
-There's a single **global clock** shared by the whole university (term 0, term 1, term 2, ...,
-which only runs negative if incumbent cohorts are explicitly configured; the shipped
-configuration instead warm-starts via the initial-state occupancy numbers described in
-§2). But a student's own graduation deadline is judged on their **personal clock** — their own semester count
-since *their* admission, which only ticks forward on a mandatory term. A student admitted years
-into the simulation still gets a full personal budget of semesters, exactly like the first cohort
-admitted. This distinction is also what makes an optional Winter/Summer term "free": a student can
-take a course then, and it updates their GPA/credits/failed-attempts normally, but it does not
-advance their personal clock — so using the bonus term never costs them a mandatory semester, even
-if it happens to be the term that finishes their degree.
+A global clock runs the whole university. A student's graduation deadline is judged on a
+**personal clock**, their own semester count since admission, which ticks only on a mandatory
+term. A student admitted years into the run gets the same personal budget as the first cohort,
+and taking a Summer course never costs a semester.
 
 ### 3.3 The three-phase term loop
 
-Every term, for **every active student across every cohort at once** (this is what makes it a
-genuine multi-cohort model rather than four separate copies of a single-cohort one — they all
-compete for the same seats), three phases run in strict order:
+Every term, for every active student across every cohort at once:
 
-1. **Desired enrollment.** Each student independently builds a wish-list: retakes of previously
-   failed courses first, then required courses in priority order, then electives only once
-   they've crossed a credit-hour threshold, then filler courses — stopping once the next course
-   would exceed their per-term credit-hour cap (a lower cap applies if they're on academic
-   probation). Nothing about seat availability is checked yet — a student can "want" a course that
-   turns out to be full.
-2. **Seat allocation.** For each course, if there are enough seats for everyone who wants it,
-   everyone gets in. Otherwise, requesters are ranked by completed credit hours (more credits =
-   registers first, mirroring real priority registration) with a stable random tiebreak, and only
-   the top N — N being that course's actual section count times seats-per-section — get a seat.
-   Everyone else is recorded as **capacity-blocked**. A backlog of held-back juniors will
-   out-rank a fresh batch of freshmen for a popular gateway course every single term — that
-   seniority effect is the whole reason a shared, multi-cohort seat pool matters.
-3. **Outcome resolution.** For each granted seat, the student's personal pass probability (a base
-   course pass rate adjusted by their own fixed ability score) decides pass or fail; a pass draws
-   a letter grade from a difficulty-tiered distribution, a fail is an F. GPA, academic probation,
-   and the dropout check (§3.5) update immediately afterward, in the same term.
+1. **Desired enrollment.** Each student builds a wish-list: retakes first, then required courses,
+   then electives once past a credit-hour threshold, then filler, stopping at the per-term
+   credit-hour cap (lower on probation). Seat availability is not checked yet.
+2. **Seat allocation.** If a course has enough seats for everyone who wants it, all get in.
+   Otherwise requesters are ranked by completed credit hours (priority registration) with a
+   stable random tiebreak, and only the top N get seats. The rest are **capacity-blocked**.
+   Seniors out-rank freshmen, which is why a shared multi-cohort pool matters.
+3. **Outcome resolution.** Each granted seat resolves pass or fail from the course pass rate
+   adjusted by the student's fixed ability; a pass draws a letter grade. GPA, probation and the
+   dropout check update in the same term.
 
-### 3.4 The four-signal bottleneck model
+### 3.4 The four block signals
 
-This is the project's actual contribution. Every term, for every course a student hasn't yet
-passed, the simulator records **exactly one** of four mutually-exclusive reasons they're not
-enrolled in (or didn't pass) that course:
+Every term, for every course a student has not yet passed, the simulator records which of four
+distinct reasons applies. They are never added together: they are different units.
 
 | Signal | Means | Points to |
 |---|---|---|
-| **Failure** | They took it and failed | Course difficulty / teaching support |
-| **Capacity block** | They wanted a seat and didn't get one | Add sections |
-| **Offering block** | They're eligible, but it isn't taught this term | Offer it more often |
-| **Prerequisite block** | They haven't passed the prerequisite yet | Fix the *upstream* course |
+| **Failure** | They took it and failed | Course difficulty or teaching support |
+| **Capacity block** | They wanted a seat and did not get one | Add sections |
+| **Offering block** | Eligible, but not taught this term | Offer it more often |
+| **Prerequisite block** | The prerequisite is not yet passed | Fix the upstream course |
 
-These four counters are tracked completely separately, per course **and** per cohort, and the
-codebase deliberately never adds them together — they aren't even the same kind of unit. A failure
-is one event per attempt. An offering/prerequisite block accumulates once per *eligible, still-
-blocked student, per term* they remain stuck, so they're naturally an order of magnitude larger
-than failure counts — that's a property of the unit, not a sign that scheduling is "worse" than
-academic difficulty. The right way to read the output is *within* each signal (which courses rank
-highest for that one specific cause), never by comparing raw totals *across* signals, and never by
-summing them into one "trouble score." This separation is what lets you tell the difference
-between "this course is genuinely hard" and "this course is fine, but the one upstream of it is
-a chokepoint" — two problems that look identical from a graduation-rate spreadsheet but call for
-completely different fixes.
-
-A capacity caveat worth knowing if optional terms are switched on: a course's capacity-block count
-can mix a comfortably-staffed mandatory-term offering with a tiny, easily-saturated optional-term
-bonus section — so a course can show up with a large capacity-block total purely from its Winter/
-Summer section being oversubscribed, while its actual Fall/Spring offering has no problem at all.
-The fix differs (add one bonus section vs. redesign the regular-term schedule), so it's worth
-checking *which* term a capacity block came from, not just the total.
+The Bottlenecks page uses these to show which courses limit intake. The intake recommendation
+itself uses the capacity signal (seat denials), because that is the part intake controls.
 
 ### 3.5 GPA, probation, and dropout
 
-GPA is the standard credit-weighted average, with failed attempts counted in the denominator (an F
-is 0 points but the credits attempted still count) — so chronic failure visibly drags GPA down,
-the way it does in reality. A student whose GPA falls below the probation threshold gets a reduced
-per-term credit-hour cap until it recovers. When a student retakes and passes a previously failed
-course, the *prior failing attempts of that specific course* are removed from the GPA denominator
-(a grade-replacement policy) — but failures on *other* courses are untouched, so GPA recovery is
-gradual, not a clean reset.
+GPA is credit-weighted with failed attempts counted in the denominator, so chronic failure drags
+it down. Below the probation threshold a student's load cap is reduced. A retaken, passed course
+removes its earlier failing attempts from the denominator. Two independent triggers end a
+student's career early: chronic low GPA (front-loaded in the first semesters) and repeatedly
+failing the same course. A student who neither drops nor finishes within the personal semester
+budget is "censored".
 
-Two independent triggers can end a student's simulated career early:
-- **Chronic low GPA** — once a student has enough credits for GPA to be meaningful, each term
-  their GPA sits below the probation line carries a real, front-loaded risk of leaving (more
-  likely in their first few semesters, the way real first-year/sophomore attrition is heavily
-  weighted toward the early years).
-- **Stuck on one course** — failing the *same* course repeatedly enough times carries its own
-  separate risk of leaving, even for a student whose overall GPA would otherwise be survivable.
+### 3.6 Determinism and replication
 
-A student who neither drops nor finishes all requirements within their personal semester budget
-exits as "censored" — not a failure, just someone the simulation's window wasn't long enough to
-resolve either way.
+Every student owns a private random stream seeded by `seed + student_id`, so a given
+configuration reproduces exactly, and the same simulated student draws the same pass/fail
+sequence in any scenario being compared. That makes paired what-if comparisons causally
+meaningful. The same property has a consequence for *replication*: two seeds that differ by 1
+replay about 99% of the same students, so independent replications must use **widely spaced
+seeds** (`spaced_seeds()`, stride 10,000,019). The intake analysis and Monte Carlo both do.
 
-### 3.6 Determinism: why the randomness is trustworthy
+### 3.7 Capacity
 
-Every student owns their own private random-number stream, seeded by a combination of a global
-seed and that student's own unique ID, re-created identically every time a given configuration is
-run. That means **the same simulated student draws the exact same sequence of "random" pass/fail
-outcomes in every scenario you compare them across** — so if you add five seats to a gateway course
-and graduation rate moves, you know that's because of the seats, not because the dice happened to
-land differently. This is what makes structural what-if comparisons (the Advisor's
-what-if Test on a proposed change, or a persisted config edit in Settings) causally meaningful instead of just noisy. A student's fixed ability score and their seat-allocation
-tiebreak token are deliberately kept on separate draws so they don't perturb the pass/fail stream
-itself.
+Each course has a per-term `capacity` (seats). On the website seats are entered as sections
+times a section size (default 35); other-program usage is subtracted every regular term; and
+optional terms use the smaller scaled pool. An unlimited-seat scenario hook exists only to
+produce the analysis's no-shortage reference and its demand sizing.
 
-### 3.7 Capacity: sections, not a flat cap
+### 3.8 The intake analysis
 
-Per-term seats for a course are *sections × seats-per-section* — not an arbitrary flat number. A
-calibration script auto-sizes each course's section count to a configurable percentile of its own
-historical peak demand (high enough that ordinary enrollment bulges don't bind, not so high that
-sections sit empty), and that result is then hand-tunable per course — relieving a bottleneck is
-"add a section" in the config, not a code change. When optional terms are enabled, that bonus
-session uses its *own*, separately-sized (and typically much smaller) section count, because the
-demand for a one-off recovery session is a different, smaller thing than regular-term demand.
+On top of the engine, `src/intake.py` runs the sweep described in [methodology.md](methodology.md):
+two views of every candidate intake (next year given today's students; sustainable every year),
+many spaced-seed replications, a pooled unlimited-seat reference, monotone smoothing, one-sided
+95% bounds, and a decision rule that returns a recommended intake, a sustainable intake, an upper
+limit, the reason, and a robustness range. It runs as a background job (`src/jobs.py`), one at a
+time, and stores a snapshot of its inputs with its result.
 
-### 3.8 The admissions-recommendation heuristic
-
-The simulator also produces a single-run sizing heuristic: it scores a representative cohort
-against four target health criteria (graduation rate, average time-to-degree, seats denied per
-student, and *throughput stability* — how evenly graduates come out year over year rather than in
-lumpy batches) and recommends scaling next year's intake up or down by whichever criterion is
-closest to breaching its target. It's explicitly a decision-support nudge, not a calibrated
-forecast — the right way to use it is as a starting point for a real intake-sensitivity
-discussion, not as the answer itself.
-
-### 3.9 How it's all wired together
+### 3.9 How it is all wired together
 
 ```
 data/curriculum.json, simulation_config.json
-        │  (one-time seed into the database; the database is authoritative after that)
-        ▼
-Simulator.run()  ──►  History (raw counters, per-term snapshots, the four block signals)
-        ▼
-analytics.py  (headline metrics, per-cohort metrics, the bottleneck report)
-        ▼
-   ┌────┴───────────────────────────────┐
-   ▼                                     ▼
-visualize.py                       service.py::run_simulation()
-(static charts, the offline/batch     (the same engine, returned as an
- `py run.py` path)                     in-memory dict, the API's seam)
-                                              ▼
-                                        FastAPI backend
-                                              ▼
-                                  Next.js dashboard: Dashboard (Semester Checkpoint
-                                  Mode — advance one semester at a time, editing
-                                  capacity/pass rate/occupancy/intake between steps),
-                                  Advisor (rules-based recommendations + grounded
-                                  LLM chat with what-if Test/Apply on proposed
-                                  changes), Bottlenecks (section recommendations +
-                                  Auto-fill solver), Settings
-                                  (curriculum + config editing), Plans
+        |  (one-time seed into the database; the database is authoritative after that)
+        v
+Simulator.run()  -->  History (counters, per-term snapshots, the four block signals)
+        v
+   +----+-------------------------------+
+   v                                     v
+intake.py (sweep, seat plan)        analytics.py / service.py
+ run by jobs.py in the background    (metrics, flow_timeline, the API's in-memory seam)
+   v                                     v
+              FastAPI backend (src/api.py)
+                          v
+   Next.js website: Intake Planner (home), Bottlenecks, Walkthrough
+   (advance one semester at a time), Advisor, Data, Programs (Plans, Plan Builder),
+   Methodology
 ```
 
-There is only **one** simulation engine. The offline batch run and the live web dashboard call the
-exact same code; the only difference is whether the result gets written to disk as PNGs/CSVs or
-returned as JSON to a browser.
+There is one simulation engine. The command line (`py run.py`, `py run.py --intake`) and the
+website call the same code.
 
 ---
 
-## 4. What kind of insight this actually produces
+## 4. What kind of insight this produces
 
-Because the four signals (§3.4) are tracked separately rather than collapsed into one
-"graduation rate," the simulator can answer questions a transcript spreadsheet can't, for example:
+- **How many to admit.** The recommended, sustainable and upper-limit intakes, each with the
+  reason and a robustness range, and an honest "no feasible intake" when today's students and
+  other programs already fill the seats.
+- **What breaks first.** The first policy limit to fail and the course that runs out of seats,
+  not just a graduation rate.
+- **What it would take.** For a target intake, the sections to add per course, sized from
+  simulated demand and verified against the policy, with predicted outcomes before and after.
+- **Which obstacle is responsible.** Because the four signals are tracked separately, the
+  Bottlenecks page can tell a hard course from a scheduling gap, an upstream prerequisite chokepoint,
+  or a too-small section. A delay at a gateway shows up as a prerequisite-block spike on every
+  course behind it even though nothing is wrong with those courses.
+- **Whether a fix helps.** The Advisor can propose a change (one more section, a pass-rate gain)
+  and **Test** it as a what-if before anything is saved.
 
-- *Is a course's low pass-through rate because students aren't ready for it (a prerequisite
-  problem one course upstream), because it's only offered once a year (a scheduling problem),
-  because there aren't enough seats (a capacity problem), or because it's just a hard course (an
-  academic-support problem)?* These four causes look identical from the outside — "students don't
-  finish this course on time" — but call for completely different fixes, and the simulator
-  attributes each blocked student-term to exactly one of them.
-- *Does a single upstream gateway course explain why three unrelated-looking downstream courses
-  all seem to be bottlenecks at once?* If course X is the prerequisite for courses A, B, and C,
-  a delay at X shows up as a prerequisite-block spike on A, B, *and* C simultaneously, even though
-  nothing is actually wrong with A, B, or C themselves. Watching for that lockstep pattern across
-  courses is how the model points you at the real chokepoint instead of its symptoms.
-- *If we relieve one specific bottleneck (add a section, add a second offering season, raise a
-  pass rate), does the overall graduation rate actually move, or was that never the binding
-  constraint?* This is what the Advisor's what-if (Test a proposed change) is for. Common Random Numbers
-  (§3.6) make the *difference* between two scenarios trustworthy even when neither scenario's
-  absolute number is.
-- *How much does the shared seat pool's behavior vary year to year just from cohort-to-cohort
-  noise, at a fixed intake size?* — which is the actual question behind the admissions
-  recommendation (§3.8): whether the pool can absorb a given intake size *smoothly*, not just on
-  average.
-- *What should the curriculum committee actually do about it, and how many seats does that take?*
-  The Advisor panel turns a run's own numbers into prioritized plain-language recommendations;
-  Auto-fill goes a step further and searches for the smallest set of capacity additions that meets
-  the committee's own admission targets, instead of leaving "how many more seats" as a guess.
-
-What it deliberately does **not** do is hand you a single number and tell you that's "the"
-graduation rate QU should expect — see §6.
+What it does **not** do is hand over a single "true" number. Every result carries uncertainty
+and an indication of how much of it rests on real QU data.
 
 ---
 
 ## 5. Design decisions and tradeoffs
 
-Every choice below traded something away on purpose. Knowing *why* matters more than just knowing
-*what*.
-
 | Decision | What it buys | What it gives up |
 |---|---|---|
-| **Agent-based (individual students), not an aggregate flow model** | Delay can be attributed to a specific course-level cause for a specific (simulated) student, not just inferred from pooled counts | More computation than a pooled-counts model; doesn't scale to a much larger university without rework |
-| **Common Random Numbers (paired seeds per student across scenarios)** | Causally clean scenario comparisons — a metric change can be attributed to the structural change you made, not random noise | A single scenario's output isn't an independent draw from "the real world"; only *comparisons* are fully trustworthy |
-| **Four separate, never-summed block signals** | Distinguishes course difficulty from scheduling from prerequisite structure from seat capacity — the actual point of the project | More to interpret than one combined "trouble score"; requires reading each panel on its own terms |
-| **Multi-cohort, shared seat pool, warm-started via initial state** | Captures real priority-registration competition between simultaneously-enrolled cohorts, not just one cohort in an empty university | More moving parts than a single-cohort model; per-cohort outcomes need their own bookkeeping |
-| **Config-driven term calendar, with optional terms as an explicit admin toggle** | Winter/Summer behavior can be switched on or off without touching code or re-entering data; generalizes beyond a strict 2-season assumption | More branching logic in the season/capacity helpers than a single hardcoded calendar would need |
-| **Section-based capacity (sections × seats-per-section), auto-calibrated then hand-tunable** | Capacity is data, not code — relieving a bottleneck is a config edit | Calibration is a manual/semi-automatic demand-percentile step, not driven by real staffing data |
-| **One fixed ability score per student, not per-subject or time-varying** | Simple, one RNG draw, trivially reproducible | Can't represent "strong at math, weak at writing," or a student maturing/burning out over time |
-| **Multi-plan architecture (each plan a full, independent copy of curriculum + config)** | Two plans can never accidentally corrupt each other; switching plans is instant and per-user | Two 95%-similar plans store two full separate copies of every course row, not a diff |
-| **No caching on the simulate endpoint** | No shared mutable state between users on different active plans — nothing to race | Every API call fully re-runs the simulation; identical repeated requests aren't free |
-| **SQLite, not Postgres/MySQL, for local dev** | Zero setup — the database is just a file | Not built for concurrent multi-process write load; fine for this scale, not a production multi-tenant system |
+| **Agent-based (individual students)** | Delay attributable to a specific course-level cause | More computation than a pooled-counts model |
+| **Per-student seeds, spaced across replications** | Exact repeatability and clean paired comparisons; independent replications | A single run is not an independent draw of the real world |
+| **Compare against an unlimited-seat reference** | Isolates the harm that intake controls from failures and dropout it cannot fix | One more set of simulations per analysis |
+| **Monotone (isotonic) smoothing and one-sided 95% bounds** | No jagged "fails at 70, passes at 80" answers; no recommendation on a lucky estimate | A slightly conservative recommendation |
+| **Four separate, never-summed block signals** | Separates difficulty, scheduling, prerequisites and seats | More to interpret than one score |
+| **Multi-cohort shared pool, student body rebuilt from past intakes** | Real priority-registration competition; today's students included | Padding older years is an estimate |
+| **Config-driven calendar, optional terms as an admin setting** | Summer behavior can change without code | More branching in the season and capacity helpers |
+| **Multi-plan architecture** | Plans cannot corrupt each other; a second program is a new Plan | Two similar plans store two full copies |
+| **SQLite, local, one analysis at a time** | Zero setup, runs on a department PC | Not a multi-user production system |
 
 ---
 
 ## 6. What this model deliberately does not know
 
-This section matters as much as the mechanics above — overclaiming what a model like this can
-tell you is the fastest way to lose credibility with anyone technical reviewing it.
-
-1. **The numbers feeding it are assumed, not measured.** Per-course pass rates, section counts,
-   and dropout-hazard parameters are calibrated *estimates*, tuned so the model's aggregate output
-   lands near one public external benchmark (QU's published multi-year graduation rate) — not
-   real QU per-course institutional data, because no public dataset like that exists. That
-   benchmark validates the aggregate, not any individual course's assumed pass rate. Trust
-   *relative* comparisons between two scenarios (same seeds, one structural change) far more than
-   any single scenario's absolute output.
-2. **No minimum-grade prerequisites.** Any passing grade satisfies a prerequisite here. If the
-   real program enforces a higher minimum grade for some prerequisite, this model doesn't know
-   that and will look slightly more optimistic than reality on courses where it matters.
-3. **Optional terms, when enabled, are deliberately narrow.** Only a small, hand-picked list of
-   high-demand courses get a Winter/Summer bonus section — most of the curriculum still can only
-   be taken in a mandatory Fall/Spring term. Course withdrawal (a real escape hatch students have)
-   isn't modeled at all: every enrolled student receives either a pass or an F, with no option to
-   withdraw before it counts against them.
-4. **No non-academic attrition causes.** Financial hardship, transferring schools or majors,
-   health, family obligations — none of that exists here. The only exits are: graduate, get pushed
-   out by chronic low GPA, get pushed out by repeatedly failing one course, or run out of personal
+1. **Inputs are partly estimates.** Pass rates, seats, past intakes and dropout parameters are
+   tagged QU data or estimate. Until student-level history is available, pass rates and dropout
+   are assumed, not measured. Trust relative comparisons (same seeds, one change) more than
+   any absolute figure. Results built mostly on estimates are marked illustrative.
+2. **Electives are modeled as slots.** The default plan has four elective slots (CSEL1 to CSEL4)
+   as single courses; real elective capacity is the sum of all elective sections. Enter real
+   seats before relying on elective-driven results.
+3. **No minimum-grade prerequisites.** Any passing grade satisfies a prerequisite.
+4. **Optional terms are narrow.** Only courses whose offering list includes Summer or Winter
+   run then, with a deliberately small seat pool. Course withdrawal is not modeled.
+5. **No non-academic attrition.** Financial hardship, transfers, health and family are absent.
+   Exits are graduation, chronic low GPA, repeatedly failing one course, or running out of
    semesters.
-5. **Ability is one scalar per student, not per-subject and not time-varying.** A student is
-   generically "stronger" or "weaker" by the same fixed amount across *every* course, for their
-   entire simulated career. Real students are uneven across subjects and can improve or decline
-   over time; this model captures neither.
-6. **No instructor- or section-level quality variation.** Every section of a course shares the
-   same pass rate. Real outcomes vary a lot by instructor; this model averages that away.
-7. **The curriculum itself is static for the whole run.** Courses, prerequisites, and pass rates
-   don't change over the years simulated, even though real curricula get revised.
-8. **It is not a predictive tool for any named, real individual student.** This is a
-   population-level what-if instrument, not an early-warning system for whether one particular
-   student will pass their next course. Every student in a run is synthetic, generated by the
-   model itself — a diagnostic lens on the model's own output, not a forecast about anyone real.
-9. **Closed-system assumption.** No transfer students arrive mid-program, nobody changes major
-   into or out of a cohort, no transfer or AP credit. Every simulated student starts at zero
-   credit hours and exits through one of four terminal states.
-10. **Re-running with many random seeds tells you about the model's own sensitivity to chance, not
-    about real-world uncertainty.** A confidence interval here describes how much *this model,
-    with these fixed assumptions,* varies run to run — it is not a statement about whether the
-    underlying assumptions themselves are correct.
+6. **Ability is one scalar per student**, not per subject or time-varying.
+7. **No instructor or section quality variation.** Every section shares the course's pass rate.
+8. **The curriculum is static** for the whole run.
+9. **Future intakes are assumed equal to N**, and other-program seat use constant.
+10. **Closed system.** No transfers in, no changes of major, no transfer or AP credit.
+11. **Confidence ranges describe the model**, with fixed assumptions, not whether the assumptions
+    themselves are right.
 
-If asked "how do you know the numbers are right?" — the honest, defensible answer is: the
-assumptions are individually documented and justified (`docs/assumptions.md`), the aggregate
-output was checked against one real external benchmark, and every scenario comparison uses
-identical seeds per student so the *differences* between scenarios are real even where the
-*absolute* numbers underneath them are estimates.
+If asked "how do you know the numbers are right?", the defensible answer is: the assumptions are
+individually documented ([assumptions.md](assumptions.md)); a calibration check compares the
+simulation with the historical outcomes and headcount the department enters, flagging only gaps
+larger than chance; every analysis stores the inputs it used; and comparisons use identical
+seeds so differences are real even where absolute numbers are estimates.
 
 ---
 
-## 7. How a curriculum committee actually uses this
+## 7. How the department uses it
 
-- **Initial-state setup (first run)** — before the simulation panel unlocks at all, a required
-  screen asks for today's real department state: seats already taken in each course (zero is an
-  accepted answer for a from-scratch university). A CSV paste/upload fills in a batch of courses
-  at once, so this is realistically a five-minute step rather than hand-typing every course. The
-  same editor stays reachable afterward from Settings, for whenever those numbers change.
-- **Settings** — edit the curriculum (courses, prerequisites, offerings, pass rates) and the
-  baseline configuration in place, covering the same admissions/pass-rate/dropout/registration
-  knobs a one-off scenario would, but as a *persistent* change rather than a per-run override.
-  This is where the optional-term toggle lives. Edits here persist immediately as the new
-  baseline for every future run.
-- **Advisor** — two layers over a run's own numbers. A rules-based (no AI, no external API)
-  prioritized, plain-language list of what to look at first, plus an optional grounded LLM chat
-  (dormant without an API key) that reads the full curriculum + settings and can propose concrete
-  changes. Each proposal has **Test** (a one-off what-if run that predicts the effect without
-  saving), **Apply** (persist it to the plan), and **Save as scenario** — so the Advisor is the
-  app's single what-if surface.
-- **Bottlenecks** — the primary "what's actually wrong, and what would fix it" page: the
-  four-signal breakdown by course, per-course section recommendations (estimated relief from
-  adding a section), and an Auto-fill solver that searches for the smallest capacity additions that
-  meet the committee's own admission targets and applies them with one click. (What-if testing of a
-  specific change moved to the Advisor.) When a Dashboard checkpoint walkthrough is in progress,
-  this page and Auto-fill read that session's own (partial) numbers live instead of the full
-  12-semester baseline — an explicit banner says how many terms have run so far — so testing a
-  capacity fix reflects the decisions actually being staged, not a frozen earlier run.
-- **Plans** — more than one full curriculum + configuration combination can exist at once (e.g.
-  to compare the current 2024 study plan against a hypothetical revised one), each fully
-  independent, importable/exportable via the Plan Builder.
+- **First-run setup.** A required screen asks for past intakes and for seats used by other
+  programs (zero is accepted). CSV or Excel import fills many rows at once. The same editor
+  stays on the Data page.
+- **Data.** Edit courses and seats (sections times size), pass rates, current students (past
+  intakes), other-program seats, policy limits and analysis settings, with QU data or
+  estimate tags. Edits persist immediately as the new baseline.
+- **Intake Planner (home).** Check the policy, press Run analysis, read the recommendation card,
+  chart and per-intake table, use the seat planner and Apply, review the calibration check, and
+  print or export past analyses for the committee.
+- **Bottlenecks.** Which courses limit intake, and how many sections they need.
+- **Walkthrough.** Advance one semester at a time, editing seats, pass rates, occupancy and the
+  next intake between steps, with a term history that can be previewed and rewound.
+- **Advisor.** A rules-based reading of the analysis, plus an optional chat with a local model
+  (Qwen through Ollama) grounded in the plan and the latest analysis. The AI explains and
+  proposes; it never produces the intake number and never writes anything on its own.
+- **Programs.** Separate curriculum and configuration combinations (Plans, Plan Builder), the
+  route to adding Computer Engineering.
 
 ---
 
 ## 8. Where this could go next
 
-The most valuable next step isn't a bigger feature — it's **real data**. The engine's population
-source is already built behind a swappable interface specifically so that a future real-data
-integration (an actual institutional transcript export) is a configuration change, not a rewrite
-of the simulation logic. Short of that, the most useful refinements would be: course withdrawal as
-a real exit path, minimum-grade prerequisites where the real program enforces them, and widening
-which courses get an optional-term bonus session based on actual observed summer-enrollment
-patterns rather than a hand-picked list.
+The most valuable next step is **student-level history**: pass rates, dropout and course loads
+measured from a de-identified Registrar export (hashed IDs, no names), the real current student
+body as the starting point, and a true back-test. The engine already has the seam
+(`src/datasource.py`, `RealDataSource`). No live Banner login is involved, and any
+student-level data would stay on the local PC. See the last section of
+[methodology.md](methodology.md).

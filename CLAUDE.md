@@ -4,9 +4,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Purpose
 
-A discrete-term, agent-based simulation of students progressing through Qatar University's Computer Science curriculum over up to 12 semesters each. Research question: **which prerequisite chains and scheduling constraints contribute most to student delay and non-completion?**
+The **CS Intake Planner**: a decision tool Qatar University's CS department runs locally on a department PC to answer **"how many students should we admit in the next CS intake, and what course seats does that number need?"** Computer Engineering may come later as a second program (a separate Plan on the same engine).
 
-It now models a **multi-cohort, steady-state university**: a new cohort is admitted each year, the university starts **partly full of a pre-existing student body defined by an admin-entered initial state** (see [Initial-State Model](#initial-state-model)) rather than by simulated incumbent cohorts, and **all cohorts compete for one shared pool of course seats**. The engine emits a frontend-ready per-semester data file that the included Next.js dashboard (`web/`) animates.
+Under it is a discrete-term, agent-based simulation of students progressing through the CS curriculum over up to 12 semesters each, modeled as a **multi-cohort, steady-state university**: a new cohort is admitted each year, **today's student body is rebuilt from the department's real past intakes** (`config["current_students"]["past_intakes"]`, padded with estimated older years, see [Initial-State Model](#initial-state-model)), seats used by other programs are a permanent background load, and **all cohorts compete for one shared pool of course seats**. The decision layer (`src/intake.py`, see [Intake Planner](#intake-planner--advisor)) sweeps candidate intakes against that engine and returns a recommended intake with uncertainty. Real QU data is only partly available, so every input is tagged QU data vs estimate and results built on estimates are marked "illustrative". Sections and seats change every semester, so analyses store a snapshot of their inputs and the site says to re-run when the schedule changes.
+
+Method for the committee: [docs/methodology.md](docs/methodology.md). Staff guide: [docs/user_guide.md](docs/user_guide.md).
 
 Full design document: [docs/technical_design.md](docs/technical_design.md)
 Assumptions log: [docs/assumptions.md](docs/assumptions.md)
@@ -16,8 +18,14 @@ Database schema: [docs/database.md](docs/database.md)
 ## Commands
 
 ```bash
+# One-click start on the department PC: launches backend + website, opens http://localhost:3000
+start.bat
+
 # Run the full simulation (writes outputs/ only)
 py run.py
+# ...plus the intake analysis (about a minute or two on a multi-core PC); prints the
+# recommendation and writes outputs/reports/intake_analysis.json
+py run.py --intake
 
 # Re-calibrate each course's capacity to peak demand (writes into curriculum.json)
 py scripts/size_capacity.py
@@ -30,7 +38,7 @@ py scripts/migrate_json_to_db.py [--force]
 # shared auto-provisioned demo user, see src/auth.py)
 py -m uvicorn src.api:app --reload --port 8001
 
-# Run the Next.js dashboard (talks to the API above via next.config.ts's rewrite, see
+# Run the Next.js website (talks to the API above via next.config.ts's rewrite, see
 # web/README.md). Must open http://localhost:3000, not 127.0.0.1:3000 — Next.js 16 dev
 # mode blocks cross-origin dev requests from origins not in `allowedDevOrigins`.
 cd web && npm install && npm run dev   # then open http://localhost:3000
@@ -54,7 +62,12 @@ src/
 ├── datasource.py        # DataSource seam: CohortSpec + SyntheticDataSource (population creation, decoupled from the engine)
 ├── rules.py             # evaluate_rule() / gate_edges() — generic compound prerequisite/eligibility expressions
 ├── simulator.py         # Simulator (staggered admission + 3-phase per-term loop) + History + SimulationResult
-├── analytics.py         # metrics, per-cohort metrics, admissions recommendation, curriculum graph, flow_timeline JSON, CSV writers
+├── intake.py             # THE DECISION LAYER: run_intake_sweep() (two views, spaced seeds, pooled
+│                         # unlimited-seat reference, isotonic smoothing, one-sided 95% bounds,
+│                         # decision rule), run_seat_plan(), calibration_check(). Engine imports only.
+├── jobs.py               # background runner for analyses: one at a time, daemon thread + own DB
+│                         # session, throttled progress, cancel, inline mode for tests
+├── analytics.py         # metrics, per-cohort metrics, curriculum graph, flow_timeline JSON, CSV writers
 ├── service.py            # run_simulation() — engine-as-a-service boundary, no file I/O (the seam an API layer calls)
 ├── db.py                 # SQLAlchemy engine/session, plan-scoped DB<->engine-shape loaders,
 │                         # get_or_create_default_plan(), import_plan(), resolve_active_plan_id()
@@ -72,29 +85,28 @@ src/
 │                         # guardrails (cohort_size positivity, capacity-vs-occupancy, admission
 │                         # season/size shape) called by every write/simulate path; also
 │                         # validate_prerequisites_locked() for the write-once prereq guard
-├── optimizer.py           # solve_for_targets() — Auto-fill solver: bounded greedy search for the
-│                         # smallest capacity additions meeting admission_targets at current intake
-├── api.py                # FastAPI wrapper: /health, /meta, /simulate, /autofill, /scenarios, /runs,
+├── api.py                # FastAPI wrapper: /health, /meta, /simulate, /intake-analyses, /scenarios, /runs,
 │                         # /curriculum (GET/POST/PUT/DELETE), /config, /plans — no
 │                         # login required (see auth.py); see docs/api.md for the full reference
-├── montecarlo.py         # run_monte_carlo() — mean ± 95% CI over many seeds (parallel across
+├── montecarlo.py         # run_monte_carlo() — mean ± 95% CI over spaced seeds (parallel across
 │                         # seeds via src/parallel.py; results collected in seed order so they're
 │                         # byte-identical to a serial run)
 ├── parallel.py           # ordered_map() — process-pool helper for the embarrassingly-parallel
-│                         # workloads (MC seeds, Auto-fill intake-probe); order-preserving with a
-│                         # serial fallback that can't mask real bugs. See "Parallel Workloads"
+│                         # workloads (MC seeds); make_pool()/iter_ordered() drive intake analyses (one pool
+│                         # per job, no silent serial fallback). See "Parallel Workloads"
 ├── visualize.py          # save_all_figures() + per-figure functions
 └── utils.py              # load_json(), grade_tier()
-web/                   # Next.js/TypeScript dashboard — talks to src/api.py via next.config.ts's
-                       # /api/backend/* rewrite (so the browser stays same-origin; no auth cookie
-                       # involved since auth was removed). Includes the animated curriculum graph,
-                       # the static figures (ported as React/SVG), saved Scenarios + Run History,
-                       # Settings (curriculum CRUD + baseline config editing), Plans (import/
-                       # activate/export/delete alternate curriculum+config combos), and the Plan
-                       # Builder wizard (create a new plan from scratch or by cloning the default).
+web/                   # Next.js/TypeScript website — talks to src/api.py via next.config.ts's
+                       # /api/backend/* rewrite (same-origin; no auth). Nav: Intake Planner (/, the
+                       # home page: run analysis, recommendation card, chart, per-N table, seat
+                       # planner, calibration, past analyses) · Bottlenecks · Walkthrough
+                       # (/walkthrough, the Semester Checkpoint Mode) · Advisor · Data (the former
+                       # Settings: courses & seats, pass rates, current students, other-program
+                       # seats, policy & analysis, advanced) · Programs (Plans, Plan Builder) ·
+                       # Methodology (/about). Figures, Scenarios and Run History pages were removed.
 ```
 
-**Dashboard start gate + roadmap layout** (`web/src/lib/SimulationContext.tsx`,
+**Start gate + roadmap layout (Walkthrough and baseline)** (`web/src/lib/SimulationContext.tsx`,
 `web/src/components/CurriculumGraph.tsx`, `web/src/lib/graphLayout.ts`): on load the dashboard
 fetches only the program structure (`GET /meta`). If `initial_state` is still completely empty
 (and the `initial-state-setup-done` localStorage flag isn't set), it first shows the required
@@ -124,7 +136,7 @@ cached module globals, so two users can have two different active plans at once 
 mutable state to race on. `PUT /curriculum/{code}`/`PUT /config` (Settings) write into the active
 plan's rows; switching plans (`POST /plans/{id}/activate`) changes what subsequent requests see
 immediately, no server restart needed. See [Multi-Plan Model](#multi-plan-model) below.
-`src/service.py::run_simulation(curriculum, config, scenario, data_source=None) -> dict` runs one scenario in memory (no file I/O) and returns `result`/`metrics`/`cohort_metrics`/`admissions_recommendation`/`flow_timeline`; `run.py` calls it, then passes the result to `analytics.py`/`visualize.py`'s writers, which remain the only place that touches disk.
+`src/service.py::run_simulation(curriculum, config, scenario, data_source=None) -> dict` runs one scenario in memory (no file I/O) and returns `result`/`metrics`/`cohort_metrics`/`flow_timeline`; `run.py` calls it, then passes the result to `analytics.py`/`visualize.py`'s writers, which remain the only place that touches disk.
 
 ## Term/Season Model
 
@@ -206,7 +218,7 @@ immediately, no server restart needed. See [Multi-Plan Model](#multi-plan-model)
   frames before aggregating — optional-term frames carry much smaller, separately-modeled
   demand and would otherwise dilute the peak/percentile figures meant to size *regular*-term
   capacity.
-- Not surfaced in `/meta` or the Settings/Scenario Builder UI yet — `terms_per_year`,
+- Not surfaced in `/meta` or the Data page yet — `terms_per_year`,
   `mandatory_terms`, and `optional_term_capacity_scale` are JSON-file-only knobs for now,
   alongside other config keys (`grade_tiers`, `ability_sd`) that aren't exposed there either.
 
@@ -221,15 +233,12 @@ immediately, no server restart needed. See [Multi-Plan Model](#multi-plan-model)
 
 ## Initial-State Model
 
-- Replaces the old simulated-incumbent warm start: instead of admitting cohorts at negative terms, the admin enters an **initial state** describing the university the first simulated cohort walks into. It lives in `config["initial_state"]` (per-plan, in `AppConfig.data`) with a single part:
-  - **`occupancy`** (`{course_code: seats}`) — seats in each course already taken by the existing, un-simulated student body. `src/simulator.py::_effective_capacity` subtracts this from a course's free seats on **every mandatory term** (steady-state background load, not just term 0; floored at 0). Optional (Summer/Winter) terms are left alone — their separate, much smaller capacity model shouldn't be zeroed out by it. A course whose seats are fully consumed reports `full` even with no requesters.
-  - The starting student body is driven **entirely** by occupancy — there is no separate year-standing head-count (an earlier `initial_state.standing` field, folded into the aggregate stage nodes as `frame["background"]`, was removed; occupancy alone was judged sufficient to represent the existing population). `year_standing_thresholds` still exists and is unrelated to this: it's the CH-band config that classifies *simulated* students into `Year1..Year(K+1)` flow-chart stages (`src/models/student.py::stage_node_names`/`curriculum_stage`), not a warm-start count.
-- Wired through `/meta` (read), `POST /simulate` (`ScenarioRequest.initial_state` override), and `PUT /config` (persist, validated by `src/plan_validation.py::validate_initial_state`). `meta.flow_timeline.meta.initial_state` carries it to the dashboard.
-- `num_incumbent_cohorts` and `initial_state` are independent and *can* coexist, but the default QU plan uses only `initial_state`.
-- **Frontend editing surfaces** — two entry points share one editor, `web/src/components/scenario-builder/InitialStateEditor.tsx` (a header + `InitialOccupancyTable.tsx`'s per-course occupancy table, sorted by `study_plan_term`), so there is one implementation, not two:
-  - **Required first-run setup gate** (`web/src/components/InitialStateGate.tsx`, wired into `web/src/lib/SimulationContext.tsx`'s render waterfall, between the loading/error checks and the auto-run): whenever `meta.initial_state.occupancy` is fully empty and a `localStorage` flag (`initial-state-setup-done`) isn't already `"1"`, the admin sees this screen before anything else — occupancy must be reviewed (zero is an accepted answer) and "Continue" clicked (`PUT /config`, sets the flag) before the baseline auto-run becomes reachable at all. This makes entering today's real department state a mandatory first step, not an optional Settings tab an admin could skip past.
-  - **`AdmissionsTab.tsx`** (Settings, Plan Builder's Config step) — the same editor, for revisiting the values any time after the gate.
-  - **CSV import** (`InitialStateImportModal.tsx`, launched from a header button on either surface): paste or upload a two-column `code,value` CSV — `code` matches a course code, case-insensitively; a header row is auto-detected; unknown codes or non-numeric values are skipped with a reason shown in a preview, never fatal to the rest of the batch. Lets a department head bulk-load real numbers instead of hand-typing ~41 rows.
+- **Today's CS student body** is rebuilt from **`config["current_students"]["past_intakes"]`** (`[{label, size}]`, most recent first). `src/intake.py::resolve_incumbent_sizes` pads them with estimated older years (the mean of the real ones, or `cohort_size`) to at least `intake_analysis.min_history_years` (8) so the oldest cohort doesn't start in an empty university; each entry is tagged `entered` or `padded`. `SyntheticDataSource(config, incumbent_sizes=...)` turns them into incumbent cohorts at negative terms with their own sizes (passing both `incumbent_sizes` and `num_incumbent_cohorts > 0` raises). With `past_intakes` absent/empty the engine's ids and specs are byte-identical to before, so a plain `/simulate` baseline is unchanged.
+- **`config["initial_state"]["occupancy"]`** (`{course_code: seats}`) now means **seats used by OTHER programs** (e.g. Computer Engineering students in CMPS151 or MATH101): a permanent background load. `src/simulator.py::_effective_capacity` subtracts it from a course's free seats on **every mandatory term** (floored at 0). Optional (Summer/Winter) terms are left alone (their separate, smaller capacity model shouldn't be zeroed out). A course whose seats are fully consumed reports `full` even with no requesters. The seat plan adds it to demand when sizing.
+- No separate year-standing head-count exists (an earlier `initial_state.standing` field was removed). `year_standing_thresholds` is unrelated: it classifies *simulated* students into `Year1..Year(K+1)` flow-chart stages.
+- Wired through `/meta` (`initial_state`, `current_students`, `data_sources`, `historical_outcomes`, `planning`, `section_size`), `POST /simulate` (`ScenarioRequest.initial_state` override), and `PUT /config` (validated by `src/plan_validation.py::validate_initial_state`, `validate_current_students`, `validate_historical_outcomes`, `validate_section_size`).
+- **Data tags.** `config["data_sources"]` records `capacity`/`pass_rate` per course (`"qu"` or absent = estimate), `past_intakes` and `occupancy` as `"qu"`/`"estimate"`; `intake.data_quality` turns them into the "N of 41 QU data" strip and the `illustrative` flag (fewer than half of capacities or pass rates tagged QU, or no real past intakes).
+- **Frontend editing surfaces** share one editor family (`InitialStateEditor.tsx` + `InitialOccupancyTable.tsx`): the **required first-run setup gate** (`InitialStateGate.tsx`, wired into `SimulationContext.tsx`, shown while the planner inputs are unset and the `initial-state-setup-done` flag isn't `"1"`: past intakes plus other-program seats, zero is accepted) and the **Data page** (and Plan Builder's Config step) for revisiting them. **CSV/Excel import** (`InitialStateImportModal.tsx`, generalized per Data tab): a header row is auto-detected, unknown codes or non-numeric values are skipped with a reason shown in a preview, never fatal to the rest of the batch.
 
 ## Multi-Plan Model
 
@@ -241,7 +250,7 @@ immediately, no server restart needed. See [Multi-Plan Model](#multi-plan-model)
 - **Prerequisite lock**: `prerequisites`/`rule_expr` are **write-once**, settable only at course creation (Plan Builder's course step, or `POST /curriculum` for a course added later to an existing plan — both still cycle-checked by `check_no_cycle`) and permanently immutable afterward. They define eligibility, which drives the whole deterministic trajectory, so editing them mid-life would silently invalidate what any run built on the old graph means. `src/plan_validation.py::validate_prerequisites_locked` diffs a `PUT /curriculum/{code}` patch against the stored course and 422s **only on an actual change** to either field (not merely their presence, since the Settings edit form used to always round-trip both) — capacity/title/offering-only saves are unaffected. `CourseFormFields.tsx`'s new `lockPrerequisites` prop (same pattern as `hidePassRate`/`hideCapacity`) renders them read-only in Settings' edit form while Plan Builder's course step keeps them fully editable. The lock is permanent from creation, not "until first run" — the baseline auto-run already writes a `Run` row on every dashboard load, so "never run" is effectively never true.
 - **Cross-object guardrails** (`src/plan_validation.py::validate_plan_edits`, called by `PUT /curriculum`, `POST /curriculum`, `PUT /config`, and every `/simulate`-family endpoint): `cohort_size` within `[10, 1000]`, `normal_load_ch`/`probation_load_ch` each within `[1, 24]` with `probation_load_ch <= normal_load_ch`, `max_course_attempts` within `[1, 10]`, and `initial_state.occupancy[code] <= capacity` for every course — `Simulator._effective_capacity` otherwise silently floors `capacity - occupancy` at 0, which can quietly stall a required gateway into mass `CENSORED` instead of erroring up front. It also runs `src/curriculum_validation.py::validate_curriculum_topology` — no course references a nonexistent prerequisite, no prerequisite cycle (`check_no_cycle`), and the longest prerequisite chain doesn't exceed `max_terms` (a chain that can't be completed within the term budget). The same module also holds `validate_initial_state`/`validate_admissions` (moved here from `src/api.py`, same behavior) so there is one place cross-object plan invariants live, not one per endpoint.
 - **Plan Builder** (`web/src/app/(dashboard)/plan-builder/page.tsx`, `web/src/components/plan-builder/`): a 4-step wizard (name & seed → courses → config → review/save) for building a plan entirely client-side before the one and only network write (`POST /plans/import`, optionally followed by activate). "Seed" clones the default plan's `{curriculum, config}` via `GET /plans/{id}/export`, or starts blank (`web/src/lib/planBuilder.ts::BLANK_CONFIG`); the config step reuses the Scenario Builder's `AdmissionsTab`/`PassRatesDropoutTab`/`RegistrationPolicyTab` over a `BuilderState` built from the cloned/blank config (`metaFromPlanExport`).
-- Distinct from the Scenario Builder (ephemeral per-run overrides on top of whatever plan is active) and Settings (in-place edits to the *active* plan's curriculum/config, persisted immediately per edit).
+- Distinct from the Advisor's ephemeral what-if Test (per-run overrides on top of whatever plan is active) and the Data page (formerly Settings: in-place edits to the *active* plan's curriculum/config, persisted immediately per edit).
 
 ## Per-Term Loop (three phases)
 
@@ -270,35 +279,40 @@ Each also has a `*_by_cohort` variant (`cohort_id -> {course -> count}`) powerin
 |---|---|
 | baseline | Default (assumed) pass rates and capacity |
 
-`capacity_multiplier`, `capacity_overrides`, `offering_overrides`, and `pass_rate_overrides` per-scenario hooks exist in the engine for what-if experiments. `run.py` simulates every scenario in this list and reports each in `simulation_summary.csv` + a `bottlenecks_<scenario>.png`; with a single scenario, `outputs/reports/flow_timeline.json` (what the dashboard animates) comes from it directly. The scenario's name is recorded at `flow_timeline.json`'s `meta.scenario` so the dashboard can pick the matching `bottlenecks_<scenario>.png`. With more than one scenario, `save_all_figures` also writes `scenario_comparison.png` (graduation/on-time rate + avg time-to-degree, one bar group per scenario, single-seed only).
+`capacity_multiplier`, `capacity_overrides`, `offering_overrides`, and `pass_rate_overrides` per-scenario hooks exist in the engine for what-if experiments. `run.py` simulates every scenario in this list and reports each in `simulation_summary.csv` + a `bottlenecks_<scenario>.png`; with a single scenario, `outputs/reports/flow_timeline.json` (the walkthrough/baseline data) comes from it directly. The scenario's name is recorded at `flow_timeline.json`'s `meta.scenario` so the dashboard can pick the matching `bottlenecks_<scenario>.png`. With more than one scenario, `save_all_figures` also writes `scenario_comparison.png` (graduation/on-time rate + avg time-to-degree, one bar group per scenario, single-seed only).
 
-> **Dashboard integration:** new scenarios added to `data/simulation_config.json` automatically
-> appear in the web Scenario Builder — the UI reads them via `GET /meta` on each page load.
-> No frontend changes are needed when adding scenarios; `py run.py` also picks them up in the
-> same loop. The `capacity_overrides` and `offering_overrides` fields already in the engine
-> (§11 in `docs/technical_design.md`) are the correct hooks for structural intervention scenarios.
+> The website's Scenarios page was removed; the `/scenarios` and `/runs` endpoints remain for API
+> users. `py run.py` picks up any scenario added to `data/simulation_config.json`. The engine's
+> `capacity_overrides` and `offering_overrides` are the hooks the Advisor's what-if **Test** uses, and
+> `unlimited_seats` is the hook the intake analysis uses for its no-shortage reference.
 
-## Advisor + Auto-fill
+## Intake Planner + Advisor
 
-Two decision-support features layered on top of a completed run, both reading the same
-`evaluate_health_criteria` slacks (vs `config['admission_targets']`) the admissions
-recommendation already uses.
+### Intake Planner (`src/intake.py`, `src/jobs.py`, `POST /intake-analyses`)
 
-- **Advisor** (`web/src/components/AdvisorPanel.tsx`, on the Dashboard) — a **rules-based**
-  (no-LLM, no-API-key) reading of the run's existing `flow_timeline.summary` (headline metrics,
-  the four health criteria, top bottlenecks) into a prioritized list of plain-language
+Replaces the old `compute_admissions_recommendation` heuristic ("admit 7/year", two targets unmeetable at any intake, no uncertainty) and `admission_targets` (config migration drops the key; `PUT /config` with it returns 422; its old 0.70 grad target is deliberately NOT converted to `min_grad_rate`). The method is in `docs/methodology.md`; the load-bearing facts:
+
+- **Policy** `config["intake_policy"]` (default "Balanced"): `max_grad_rate_loss_pts: 2`, `max_on_time_loss_pts: 10`, optional `min_grad_rate: null`. Sweep knobs in `config["intake_analysis"]` (grid 20..200 step 10, 20 seeds, refine step 5 with 40 seeds, 8 reference runs, `min_history_years` 8); `section_size: 35`; `planning.next_intake_label`; `historical_outcomes` for the calibration check.
+- **Two views per N**: *next* (rebuilt incumbents, then the next intakes of N, measured on the first 2) drives the headline; *steady* (8 earlier cohorts of N, then 6, measured on the first 4) gives the sustainable intake and the diminishing-returns upper limit.
+- **Spaced seeds** (`utils.spaced_seeds`, `SEED_STRIDE = 10_000_019`): student RNG is `Random(seed + student_id)`, so consecutive seeds replay ~99% of the same students. Monte Carlo uses the same helper now (intentional output change; its CIs were too narrow).
+- **Unlimited-seat reference**: scenario key `unlimited_seats: "all"|"regular"` in `_effective_capacity` bypasses every seat limit (overrides, Summer scale, occupancy). The pooled `"all"` reference (outcomes are independent of N) asserts zero denials; loss = reference − real-seat outcome. `"regular"` is for demand sizing (Summer keeps its small pool).
+- **Smoothing + bounds**: weighted isotonic (non-decreasing) fit of loss vs N, one-sided 95% upper bound (`t_quantile`, no scipy). **Decision rule**: per-limit maximum N (every smaller N also passes); recommended = smallest; no feasible intake is reported honestly (`recommended_intake: null`); `imprecise` status when inside the limit but too uncertain; robustness range (one fewer section in the 3 tightest courses; pass rates −5 pts); precision warning when the margin exceeds half the limit; early stop of the coarse sweep once every limit has clearly failed.
+- **Seat plan** `run_seat_plan(target)` (`kind=seat_plan`): demand sizing with `unlimited_seats: "regular"` at the 90th percentile + occupancy, rounded to whole sections, verified on both views, +1 section on the worst course per failing round up to `run_budget` (6). Seats change with `dataclasses.replace`, never multipliers. Read-only: the site applies it via `PUT /curriculum` (or `POST /checkpoint/edit` when `source: "checkpoint"`). Replaces `src/optimizer.py`/Auto-fill (both removed, along with `/autofill` and `/checkpoint/autofill`).
+- **Jobs** (`src/jobs.py`): one analysis at a time (`POST /intake-analyses` → 202, or 409), results and an exact `inputs_snapshot` stored in the `Analysis` table; `GET /intake-analyses[/{id}]`, `POST .../cancel` (terminates pool workers). `src/db.py::recover_interrupted_analyses` fails rows a killed server left running; `migrate_plan_configs`/`normalize_config` bring stored configs up to date at startup. Tests run jobs inline (`INTAKE_JOBS_INLINE=1`, `INTAKE_WORKERS=1`). Covered by `tests/test_intake_*.py`, `test_seat_plan.py`, `test_analysis_api.py`, `test_config_migration.py`.
+
+### Advisor
+
+- **Advisor** (`web/src/components/AdvisorPanel.tsx`) — a **rules-based**
+  (no-LLM, no-API-key) reading of the latest intake analysis and the run's `flow_timeline.summary` (headline metrics,
+  top bottlenecks) into a prioritized list of plain-language
   recommendations. Pure frontend: it computes from data already in the `/simulate` payload, no
   extra request. This is **Phase A of the hybrid advisor**.
 - **Advisor chat (Phase B)** (`src/advisor.py`, `POST /advisor/chat`,
   `web/src/components/AdvisorChat.tsx` on the `/advisor` page) — an **optional LLM chat box**
-  grounded in the run's numbers. **Provider-agnostic**: it POSTs to any OpenAI-compatible
-  `/chat/completions` endpoint selected purely by env vars (`LLM_API_KEY`, `LLM_BASE_URL`
-  [default Groq `https://api.groq.com/openai/v1`], `LLM_MODEL` [default
-  `llama-3.3-70b-versatile`]) — so Groq/Gemini/OpenRouter/Claude are a config swap, not a code
-  change. **Grounding has two sources merged per call**: the frontend sends a facts blob from the
-  `/simulate` summary (headline/criteria/bottlenecks) **plus per-course run aggregates**
+  grounded in the plan and the latest analysis. **The AI never produces the intake number; the simulation does.** **Provider-agnostic and local-first**: the default is a **local Ollama model** (`LLM_BASE_URL=http://localhost:11434/v1`, `LLM_MODEL=qwen3:4b-instruct-2507-q4_K_M`, ~25 s per grounded answer; `qwen3-coder:30b` failed to load on a laptop and needs ~32 GB RAM). A localhost base URL needs no `LLM_API_KEY` and gets a 120 s timeout; when it points at Ollama (port 11434) the backend calls the native `/api/chat` with `num_ctx=8192` so the ~3k-token grounding isn't truncated by Ollama's 4096 default, otherwise it POSTs to the OpenAI-compatible `/chat/completions` (hosted: `LLM_API_KEY`). Optional `LLM_FALLBACK_BASE_URL`/`_MODEL`/`_API_KEY` is tried if the primary fails (aggregate numbers only, never student records); `<think>` blocks are stripped; `/meta.llm_model` and the chat response's `model` show which model answered ("… · on this PC"). **Grounding has three sources merged per call**: the frontend sends a facts blob from the
+  `/simulate` summary (headline/bottlenecks) **plus per-course run aggregates**
   (`course_stats`: peak seat-denials, terms-full, pass/fail totals, from the frames it already
-  holds); and the **`/advisor/chat` endpoint injects `plan`** — the active plan's *full curriculum
+  holds); the endpoint injects the latest completed `intake_sweep` for the plan (`summarize_analysis`: recommendation, why, robustness range, per-intake rows), and the **`/advisor/chat` endpoint injects `plan`** — the active plan's *full curriculum
   + settings* (`src/advisor.py::summarize_plan`: every course's seats/pass-rate/offering/
   prerequisites/study-plan-term, plus intake knobs and admission targets), loaded authoritatively
   from the DB so it's always fresh and can't be spoofed by the client. `build_system_prompt` renders
@@ -344,23 +358,10 @@ recommendation already uses.
   `tests/test_severe_terms.py` (`summarize_severe_terms`'s shape, worst-first sort, and
   mandatory-terms-only filtering). Uses `httpx` (already a dep) — no new package, no `claude-api`
   skill needed since it's not Anthropic-specific.
-- **Auto-fill** (`src/optimizer.py::solve_for_targets`, `POST /autofill`, panel
-  `web/src/components/AutofillPanel.tsx` on the Bottlenecks page) — a bounded **greedy** solver:
-  each iteration runs one simulation, finds the course with the worst single-(mandatory-)term
-  seat shortfall, and bumps its capacity by that shortfall (the same "peak shortfall" heuristic
-  `CapacityRecommendations` shows), until the **seat-denial** target is met or `run_budget`
-  (default 20, clamped ≤ 40) is exhausted. It only drives `seats_denied_per_stud` — the one
-  target capacity actually fixes — and reports grad-rate/time-to-degree/throughput-stability
-  breaches as **non-capacity** (with an intake-reduction fallback probe), so it never overstates
-  the seats needed. Objective is fixed as *"fewest capacity additions at the current intake"*
-  (intake is a fallback lever only). Read-only endpoint; the panel **applies** the result via the
-  existing `PUT /curriculum/{code}` + `PUT /config` + `refreshBaseline()` path. Single-seed per
-  candidate (deterministic) — Monte-Carlo-verify the final pick before committing. Covered by
-  `tests/test_optimizer.py`.
 
 ## Semester Checkpoint Mode ("advance one term at a time")
 
-**The Dashboard (`/`) IS this feature** — there is no separate full-run landing page anymore. A
+**The Walkthrough page (`/walkthrough`) IS this feature** (it used to be the dashboard home; the home page is now the Intake Planner). A
 department head advances **one calendar term at a time — including optional Summer/Winter
 terms, not just Fall/Spring** — and edits future-facing knobs (capacity, pass rate, occupancy,
 next intake) between steps — never the courses already run. This is **not** a revival of the
@@ -369,13 +370,12 @@ append-only edit log): a checkpoint session advances **only** on an explicit "Ad
 term" click, and it freezes/resumes real mid-run engine state rather than replaying from term 0
 each time.
 
-The old static full-horizon dashboard's presentational sections (roadmap, admissions
-recommendation, headline results, per-cohort table, prerequisite network) are back on `/`, but
-now driven by the **checkpoint session's own partial run** instead of a single complete
-`/simulate` call — see "Live-synced analytics" below. `web/src/app/(dashboard)/page.tsx` renders
-the checkpoint walkthrough; the full-horizon baseline simulation still runs invisibly in the
-background (`SimulationProvider`, from the dashboard layout, unchanged) purely so Advisor and
-Figures keep working exactly as before.
+The walkthrough page shows the roadmap, headline results, per-cohort table and prerequisite
+network, driven by the **checkpoint session's own partial run** instead of a single complete
+`/simulate` call (see "Live-synced analytics"); its admissions section links to the latest intake analysis
+instead of computing a recommendation. The full-horizon baseline simulation still runs in the
+background (`SimulationProvider`, from the dashboard layout) purely so the Advisor and
+Bottlenecks have data before any walkthrough starts.
 
 - **Resumable engine** (`src/simulator.py`): both stepping methods share a private
   `_advance_one_calendar_term()` (admit any cohort due that term, run it, advance the cursor —
@@ -464,11 +464,10 @@ Figures keep working exactly as before.
 - **Live-synced analytics**: `_checkpoint_summary_from_sim` includes a `flow_timeline` field —
   the *exact* `{meta, frames, summary}` shape `analytics.flow_timeline_payload` builds for a
   completed `/simulate` run, computed straight off the mid-run `Simulator` (`compute_metrics`/
-  `compute_cohort_metrics`/`compute_admissions_recommendation` only ever read `.history`/
+  `compute_cohort_metrics` only ever read `.history`/
   `.config`/`.students`, all present on a `Simulator` whether it's finished or not — every ratio
-  already guards its own zero-student/zero-graduate case, and the admissions "representative
-  cohort" degrades to "mean across cohorts so far" until one has actually finished its horizon).
-  This lets the Dashboard's restored `HeadlineKpis`/`AdmissionsRecommendation`/`CohortsTable`/
+  already guards its own zero-student/zero-graduate case).
+  This lets the walkthrough's `HeadlineKpis`/`CohortsTable`/
   `PrerequisiteNetwork` (each wrapped in a `CollapsibleSection`, collapsed by default) and the
   Bottlenecks page's `BottlenecksPanel`/`CapacityRecommendations` read a checkpoint session
   exactly like they'd read the baseline's `flow_timeline` — always **explicitly framed as
@@ -480,20 +479,16 @@ Figures keep working exactly as before.
   block rendering while its initial `GET /checkpoint` resolves (`loading` is exposed for the one
   place — the Dashboard's own start/session branch — that needs to avoid flashing the wrong
   screen; every other page just falls back to the baseline until the near-instant fetch settles).
-  **Auto-fill also has a session-scoped variant**: `POST /checkpoint/autofill` runs
-  `optimizer.solve_for_targets` against the session's `working_curriculum`/`working_config`
-  instead of the live plan (each candidate is still a fresh full-horizon simulation — the solver
-  doesn't use the session's own resumed/partial engine state, a capacity search needs to see a
-  whole horizon play out per candidate) — read-only, exactly like the baseline `/autofill`; "Apply"
-  routes through `POST /checkpoint/edit` instead of `PUT /curriculum`/`PUT /config`, so it takes
-  effect on the next Advance rather than immediately. `AutofillPanel`/`CapacityRecommendations`
-  pick whichever mode matches whether a checkpoint session is active, with copy reflecting which.
-  Falls back to the baseline (full-horizon, immediate-write) path the moment there's no active
-  session. Bottlenecks page: `tests/test_checkpoint_api.py::test_checkpoint_summary_carries_flow_timeline_shaped_data` and `test_autofill_scoped_to_working_config_not_live_plan`.
+  **Seat plans also have a session-scoped variant**: `POST /intake-analyses` with `source: "checkpoint"`
+  runs the analysis or seat plan against the session's `working_curriculum`/`working_config` (it replaced
+  `POST /checkpoint/autofill`) — read-only; "Apply" routes through `POST /checkpoint/edit` instead of
+  `PUT /curriculum`/`PUT /config`, so it takes effect on the next Advance rather than immediately. The seat
+  planner and `CapacityRecommendations` pick whichever mode matches whether a checkpoint session is active.
+  Covered by `tests/test_checkpoint_api.py::test_checkpoint_summary_carries_flow_timeline_shaped_data`.
 - **Frontend** (`web/src/lib/CheckpointContext.tsx`,
-  `web/src/app/(dashboard)/page.tsx`, `web/src/components/checkpoint/CheckpointEditPanel.tsx`):
+  `web/src/app/(dashboard)/walkthrough/page.tsx`, `web/src/components/checkpoint/CheckpointEditPanel.tsx`):
   built like `SimulationContext` but **with no auto-run** — it starts idle until "Start checkpoint
-  walkthrough" is clicked. A "Term history" chip strip (`page.tsx::TermHistoryStrip`, rendered
+  walkthrough" is clicked. A "Term history" chip strip (`TermHistoryStrip`, rendered
   once `session.history` has more than one entry) lists every recorded step by its `label` (from
   the API, e.g. "Start", "Fall Y1", "Summer Y2"); clicking an earlier chip confirms via
   `window.confirm` (same pattern as Discard) and calls `useCheckpoint().rewind(seq)` — the
@@ -533,17 +528,14 @@ Figures keep working exactly as before.
   pool/spawn failure (a genuine bug in `fn` re-raises from the serial path — only environmental pool
   problems are silently recovered). `fn` must be a module-level function (spawn-picklable); below 3
   items or `workers<=1` it just runs serial.
-- **Monte Carlo** (`run_monte_carlo(..., workers=None)`) parallelizes across its `base_seed + k`
-  seeds — **~7x faster on a 20-core box (27.7s → 4.0s for 30 seeds), result byte-identical.** Worker
+- **Monte Carlo** (`run_monte_carlo(..., workers=None)`) parallelizes across its **spaced** seeds (`spaced_seeds`, see Intake Planner) — **~7x faster on a 20-core box (27.7s → 4.0s for 30 seeds), result byte-identical.** Worker
   count: explicit `workers` arg → `config["monte_carlo"]["workers"]` → one per CPU; `workers=1` forces
   serial. Only runs when `include_monte_carlo` is set, so it never touches the default dashboard load.
-- **Auto-fill** (`optimizer.solve_for_targets`): its greedy loop is a **strict dependency chain**
-  (each iteration adds seats based on the *previous* run's shortfall) and is **not parallelizable** —
-  its floor is `run_budget` × per-run sim time (~18s). Only the **intake-probe fallback**
-  (`_probe_intake`, independent candidate intakes) is parallelized (picks the largest passing intake,
-  identical to the old step-down). Cutting the greedy loop itself only comes from making each run
-  faster (the eligibility cache above already bought ~20%; a further inverted `unpassed_prereqs`
-  index in `_record_blocks` is possible but needs real cache-invalidation), not from parallelism.
+- **Intake analyses** (`src/intake.py`) fan every simulation of a job across one process pool
+  (`parallel.make_pool`/`iter_ordered`: ordered results for progress, no silent serial fallback,
+  `terminate_workers()` on cancel on Python 3.14). A full default analysis is ~570 simulations,
+  ~2.5 minutes on a 20-core PC (`INTAKE_WORKERS` caps cores); the coarse sweep stops early once every
+  limit has clearly failed because high intakes are the most expensive and least informative.
 
 ## Key Constraints
 
@@ -579,7 +571,8 @@ outputs/
 │               graduation_histogram.png, bottlenecks_<scenario>.png, curriculum_network.png,
 │               survival_curve.png, cohort_bottleneck_comparison.png, scenario_comparison.png
 └── reports/    simulation_summary.csv, cohort_flow.csv, cohort_summary.csv,
-                course_utilization.csv, monte_carlo.csv, flow_timeline.json
+                course_utilization.csv, monte_carlo.csv, flow_timeline.json,
+                intake_analysis.json (only with `py run.py --intake`)
 ```
 
-`flow_timeline.json` is the frontend contract: `meta` (scenario name, stage nodes, cohorts, prerequisite `graph`), `frames` (one per semester: per-course stats + per-cohort stage nodes/flows), and `summary` (headline metrics + CIs, per-cohort metrics + bottlenecks, admissions recommendation).
+`flow_timeline.json` is the frontend contract: `meta` (scenario name, stage nodes, cohorts, prerequisite `graph`), `frames` (one per semester: per-course stats + per-cohort stage nodes/flows), and `summary` (headline metrics + CIs, per-cohort metrics + bottlenecks, severe terms). The intake recommendation is not in it: it lives in the `Analysis` result (`POST /intake-analyses`).

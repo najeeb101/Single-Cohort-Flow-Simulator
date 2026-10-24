@@ -1,7 +1,8 @@
 # Code Walkthrough (Deep Technical Reference)
 
 This is the code-level companion to `docs/technical_design.md` (mechanics/decisions in prose)
-and `docs/project_overview.md` (narrative/tradeoffs). This document is for reading **with the
+and `docs/project_overview.md` (narrative/tradeoffs); the intake analysis's statistics are explained in
+`docs/methodology.md`. This document is for reading **with the
 source open**: real function signatures, real code, module by module, so you can point at a line
 in a meeting and say "this is where X happens." Line numbers are omitted deliberately (they drift
 every edit) — search for the quoted signature instead.
@@ -20,8 +21,10 @@ every edit) — search for the quoted signature instead.
 | `src/simulator.py` | `Simulator` (the engine loop) + `History` + `SimulationResult` |
 | `src/analytics.py` | Every derived metric/report/JSON payload, no simulation logic |
 | `src/service.py` | `run_simulation()` — the in-memory, zero-file-I/O API boundary |
-| `src/optimizer.py` | `solve_for_targets()` — Auto-fill's bounded greedy capacity search |
-| `src/montecarlo.py` | `run_monte_carlo()` — re-run across seeds for CIs |
+| `src/intake.py` | The decision layer: `run_intake_sweep()`, `run_seat_plan()`, `recommend()`, `calibration_check()` (§13) |
+| `src/jobs.py` | Background runner for analyses: one at a time, progress, cancel (§13) |
+| `src/parallel.py` | `make_pool()`, `iter_ordered()`, `ordered_map()` — process-pool helpers |
+| `src/montecarlo.py` | `run_monte_carlo()` — re-run across spaced seeds for CIs |
 | `src/curriculum_validation.py` | `check_no_cycle()` — prerequisite-cycle guard |
 | `src/scenarios.py` | Persistent `/scenarios` + `/runs` endpoints, scoped to the demo user |
 | `src/db.py` / `src/db_models.py` | SQLAlchemy engine/session + ORM tables (multi-plan) |
@@ -281,8 +284,13 @@ class DataSource(ABC):
     def create_students(self, spec: CohortSpec) -> list[Student]: ...
 ```
 
-`SyntheticDataSource` is the only implementation today; it owns cohort sizing, the (mostly
-unused-by-default) incumbent warm-start count, and student-id assignment:
+`SyntheticDataSource(config, *, incumbent_sizes=None)` is the only
+implementation today; it owns cohort sizing, the incumbent warm-start, and student-id assignment.
+`incumbent_sizes` (most recent first) gives each warm-start cohort its own size: this is how the
+Intake Planner rebuilds today's student body from `current_students.past_intakes` (see
+`intake.resolve_incumbent_sizes`, which pads to at least `min_history_years` and tags each entry
+`entered` or `padded`). Passing both `incumbent_sizes` and `num_incumbent_cohorts > 0` raises
+`ValueError`; with neither, ids and specs are byte-identical to the old behavior:
 
 ```python
 def create_students(self, spec: CohortSpec) -> list[Student]:
@@ -373,7 +381,6 @@ def run_simulation(
         "result": result,
         "metrics": result.metrics,
         "cohort_metrics": compute_cohort_metrics(result),
-        "admissions_recommendation": compute_admissions_recommendation(result),
         "flow_timeline": flow_timeline_payload(result, curriculum),
     }
 ```
@@ -382,15 +389,18 @@ Zero file I/O, zero `print`. `run.py` is a thin wrapper that calls this once per
 scenario, then hands `result` to `analytics.py`'s CSV/JSON writers and `visualize.py`'s figure
 writers — the only two file-I/O modules left in the engine. Monte Carlo (`src/montecarlo.py`)
 is a deliberately separate, opt-in call, since re-running a scenario 30 times isn't something
-every caller wants paid for by default:
+every caller wants paid for by default. Seeds are **spaced** (`src/utils.py::spaced_seeds`,
+`SEED_STRIDE = 10_000_019`): each student's RNG is `Random(seed + student_id)`, so seeds
+differing by 1 would replay ~99% of the same students and understate the confidence range. The
+seeds fan out across processes (`src/parallel.py`) and results are collected in seed order:
 
 ```python
 def run_monte_carlo(curriculum, config, scenario) -> dict:
     n_runs = int(config.get("monte_carlo", {}).get("n_runs", 30))
     base_seed = int(config.get("monte_carlo", {}).get("base_seed", config["seed"]))
-    for k in range(n_runs):
+    for seed in spaced_seeds(base_seed, n_runs):   # base + k * 10_000_019, not base + k
         run_config = copy.deepcopy(config)
-        run_config["seed"] = base_seed + k
+        run_config["seed"] = seed
         result = Simulator(curriculum, run_config, scenario).run()
         ...  # mean, stdev, 95% CI per metric via 1.96 * sd / sqrt(n)
 ```
@@ -398,6 +408,10 @@ def run_monte_carlo(curriculum, config, scenario) -> dict:
 ---
 
 ## 9. Persistence (`src/db_models.py`)
+
+(See `docs/database.md` for every table. `Analysis` stores each intake job's params, an exact
+`inputs_snapshot`, progress and `result`; `src/db.py` runs `migrate_plan_configs` and
+`recover_interrupted_analyses` at startup.)
 
 SQLAlchemy 2.0-style `Mapped[...]` models. The load-bearing relationship: `Course`/`AppConfig`
 are all scoped to a `plan_id`, not global rows —
@@ -430,7 +444,8 @@ mutable state or race each other.
 | `GET/POST/PUT/DELETE /curriculum[/{code}]` | curriculum CRUD on the active plan, cycle-checked |
 | `GET/PUT /config` | active plan's baseline `AppConfig` |
 | `GET /plans`, `POST /plans/import`, `POST /plans/{id}/activate`, `DELETE /plans/{id}`, `GET /plans/{id}/export` | multi-plan management |
-| `POST /autofill` | Auto-fill solver (read-only; see §13) |
+| `POST /intake-analyses`, `GET /intake-analyses[/{id}]`, `POST /intake-analyses/{id}/cancel` | start / poll / cancel an intake sweep or seat plan (background job; see §13) |
+| `POST/GET/PUT/DELETE /checkpoint...` | Semester walkthrough sessions (`/checkpoint/autofill` was removed; seat plans run through `/intake-analyses` with `source: "checkpoint"`) |
 
 `get_current_user` (`src/auth.py`) is a dependency on every route except `/health` — today it's a
 stub that gets-or-creates one shared `demo@local` user rather than checking a real
@@ -450,8 +465,7 @@ No simulation logic lives here — every function is a pure derivation over a fi
 | `compute_metrics(result)` | headline rates (graduation, dropout, censored, probation, on-time, avg time-to-degree) |
 | `compute_cohort_metrics(result)` | the same, per `cohort_id` |
 | `compute_historical_transcripts(result, incumbents_only=True)` | canonical `StudentRecord`/`EnrollmentRecord`/`OutcomeRecord` export |
-| `compute_admissions_recommendation(result)` | binding-constraint intake-scaling heuristic |
-| `evaluate_health_criteria(result)` | the four admission-health criteria + slack, shared by the admissions recommendation, Advisor, and Auto-fill (§13) |
+| `summarize_severe_terms(result)` | worst term-level seat shortfalls (retrospective), feeds the Advisor |
 | `build_course_utilization(result)` | per-course seat utilization for the heatmap |
 | `build_curriculum_graph(curriculum)` | node/edge graph for the prerequisite network + roadmap |
 | `flow_timeline_payload(result, curriculum)` | the full frontend contract (`meta`/`frames`/`summary`) |
@@ -483,28 +497,55 @@ either population supply (`DataSource`) or reporting (`analytics.py`/`visualize.
 
 ---
 
-## 13. Advisor + Auto-fill (`src/optimizer.py`)
+## 13. Intake analysis (`src/intake.py`, `src/jobs.py`) and Advisor
 
-Both read the same admission-health slack, `evaluate_health_criteria` (`src/analytics.py`,
-§11) computed against `config['admission_targets']` — the same four criteria the admissions
-recommendation scores.
+`src/intake.py` imports only engine code, so spawned pool workers never import `api.py`. The
+pieces, in the order a sweep uses them:
 
-**Advisor** is frontend-only: `web/src/components/AdvisorPanel.tsx` derives its prioritized
-recommendations straight from a `/simulate` response already in hand — no extra request, no LLM.
+- **Setup.** `IntakePolicy` / `policy_from_config` (defaults `DEFAULT_POLICY`), `analysis_params`
+  (defaults `DEFAULT_ANALYSIS`, `base_seed` falls back to `config["seed"]`), `intake_grid`,
+  `section_size`, `resolve_incumbent_sizes` (past intakes, padded).
+- **One simulation.** `_run_task(task)` is module-level (picklable). It builds a
+  `SyntheticDataSource`, runs the `Simulator`, and returns compact counts for the measured
+  cohorts (graduated, on-time, dropped, censored, time sum, regular/total denials, per-course
+  denials, and optionally per-course regular-term demand). `_Views.next_task` /
+  `steady_task` lay out the two views (next: rebuilt incumbents then `next_measured +
+  successor_intakes` cohorts of N; steady: `min_history_years` earlier cohorts of N, then
+  `steady_cohorts`, measuring the first `steady_measured`).
+- **Reference.** `_reference` runs `unlimited_seats: "all"` (see `Simulator._effective_capacity`)
+  and raises `RuntimeError` if any denial is recorded; `estimate_reference` pools the rows.
+- **Statistics.** `isotonic_increasing` (weighted pool-adjacent-violators), `t_quantile`
+  (Cornish-Fisher, no scipy), `_apply_limits` (loss, fitted loss, one-sided 95% upper bound per
+  point; attaches `*_loss`, `*_loss_fit`, `*_loss_upper`), `_verdict` (per-limit maximum with
+  every smaller intake passing; status `ok|imprecise|infeasible`; precision warning),
+  `recommend` (smallest per-limit maximum; no number if any limit is infeasible),
+  `diminishing_returns` (first intake where the smoothed marginal graduates per extra student
+  falls below the threshold).
+- **Sweep.** `_evaluate_view` runs ascending batches of 4 intakes, stops early once every limit
+  has clearly failed, then refines in `refine_step` increments inside each crossing bracket with
+  extra seeds. `run_intake_sweep` runs the reference, both views, `_robustness` (fewer sections;
+  pass rates minus 5 points, with its own reference), assembles warnings, `data_quality` and
+  `calibration_check` (`2*sqrt(p(1-p)/n_hist + SE^2)`), and returns the JSON-ready result.
+- **Seat plan.** `run_seat_plan(curriculum, config, target_intake, run_budget=6)` measures demand
+  under `unlimited_seats: "regular"`, sizes each course at the 90th percentile of regular-term
+  registrations plus `initial_state.occupancy`, rounds up to whole sections, verifies both
+  views with `_single_point_check` (no smoothing), and adds one section to the worst course per
+  failing round. Capacity changes use `dataclasses.replace`, never multipliers.
+- **Parallelism.** `src/parallel.py::make_pool(workers)` is a context manager (one pool per job;
+  `SerialPool` for 1 worker); `iter_ordered` yields in input order with no silent serial fallback;
+  `terminate_pool` stops in-flight work on cancel.
 
-**Auto-fill** (`solve_for_targets`) is a bounded greedy loop, roughly:
+`src/jobs.py::start(analysis_id, kind, curriculum, config, job_params)` claims the single job
+slot (`RuntimeError` if busy; the API answers 409), then runs `_run` on a daemon thread with its
+own DB session (or inline when `INLINE`/`INTAKE_JOBS_INLINE=1`, as in tests). `_run` marks the
+row `running`, throttles progress writes to about 1/s, stores `result` and `status="done"`, or
+`cancelled` (on `AnalysisCancelled`) or `failed` with `error`. `INTAKE_WORKERS` caps the pool.
 
-```python
-for iteration in range(run_budget):
-    run = run_simulation(curriculum, config, scenario)
-    if seats_denied_target_met(run):
-        break
-    worst_course, shortfall = _worst_capacity_shortfall(run)  # peak single-term shortfall
-    curriculum[worst_course].capacity += shortfall
-```
-
-(Illustrative — see the real function for the exact loop and bookkeeping.) It targets only
-`seats_denied_per_stud` — the one criterion capacity actually fixes — and reports any other
-breach (grad rate, time-to-degree, throughput stability) as non-capacity rather than papering
-over it with more seats. `POST /autofill` (§10) is read-only; the frontend panel applies the
-winning capacities itself via the existing `PUT /curriculum/{code}` + `PUT /config` writes.
+**Advisor** (`src/advisor.py`, `web/src/components/AdvisorPanel.tsx`, `AdvisorChat.tsx`). The
+panel is frontend-only rules over a `/simulate` response. The chat is optional: providers come
+from env (`LLM_*` primary, `LLM_FALLBACK_*`); a localhost base URL needs no key and gets a
+120 s timeout; for a local Ollama server (port 11434) it calls the native `/api/chat` with
+`num_ctx=8192` so the ~3k-token grounding is not truncated, other servers use the
+OpenAI-compatible `/chat/completions`; `<think>` blocks are stripped. `summarize_plan` and
+`summarize_analysis` ground it; `extract_proposals` / `validate_proposals` turn any proposed
+change into a validated card. The model never produces the intake number.

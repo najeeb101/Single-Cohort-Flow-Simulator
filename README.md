@@ -1,187 +1,117 @@
-# CS Flow Simulator — Multi-Cohort University Model
+# CS Intake Planner
 
-A discrete-term, agent-based simulation of students progressing through Qatar University's
-Bachelor of Science in Computer Science (2024 study plan) over up to 12 semesters each.
+A decision tool for Qatar University's Computer Science department. It answers one question:
 
-**Research question:** *which prerequisite chains and scheduling constraints contribute most to
-student delay and non-completion?*
+> **How many students should we admit into the next CS intake, and what course seats does that number need?**
 
-It models a **steady-state university**: a new cohort is admitted every year, the university
-starts **partly full of a pre-existing student body defined by an admin-entered initial state**
-(seats already occupied per course — see `docs/technical_design.md`'s Initial-State Model)
-rather than by simulated incumbent cohorts, and **all cohorts compete for one shared pool of
-course seats** — so a delayed senior
-class starves incoming freshmen of gateway seats and congestion compounds cohort over cohort.
-Rather than reporting only a graduation rate, the simulator separates **why** students get stuck
-into four independent signals — course failures, capacity denials, seasonal offering mismatches,
-and unmet prerequisites — so each bottleneck points to a different fix.
+It does this by simulating students moving through the real CS study plan (the 2024 roadmap,
+41 courses, 120 credit hours): who can take which course, who gets a seat, who passes, who falls
+behind, who drops out. The simulation includes the students already in the department and the
+seats used by other programs, so the answer reflects how crowded the courses will actually be.
+Computer Engineering can be added later as a second program on the same engine.
 
-An included **Next.js dashboard** (`web/`) lets you advance the active plan one semester at a
-time from the main Dashboard page — editing capacity, pass rates, occupancy, and next intake
-between steps (Semester Checkpoint Mode), with headline KPIs/per-cohort outcomes/admissions
-recommendation and the Bottlenecks page updating live off that in-progress walkthrough — while a
-full 12-semester baseline run powers Advisor and Figures (and Bottlenecks/Auto-fill before any
-walkthrough has been started).
+The tool runs **locally on a department PC**. Nothing is sent to an outside server.
 
 ---
 
-## Key results (baseline, seed 42 · 8 study cohorts of 100 admitted yearly, initial-state warm start)
+## Who it is for
 
-| Metric | Value |
-|---|---|
-| Graduation rate (study cohorts, within 12 semesters) | **63.1%** |
-| Average graduation time | 9.3 semesters |
-| On-time rate (≤ 8 semesters) | 23.4% |
-| Academic dropout | 14.9% |
-| Censored (hit 12-semester horizon) | 22.0% |
-| Monte Carlo (30 seeds) | graduation **65.5%**, 95% CI 65.0–66.0% |
-| Admissions recommendation | ~6 students/year (at current capacity) |
+Department heads and planning staff who set the intake number. You do not need to know how the
+simulation works to use it. The site shows a recommended intake, a safe range, the reason, and
+what it would take (in sections) to admit more. Every number is labelled as **QU data** or
+**estimate**, so you can see how much of an answer rests on real figures.
 
-The residual delay/non-completion comes from **once-a-year scheduling**: 8 core courses are
-single-term (Fall-only {CMPS200, CMPS310, CMPE355, CMPS380}, Spring-only {CMPE263, CMPS323,
-CMPS351, CMPS405}), matching QU's real schedule. A student who falls behind on the shared seat
-pool reaches one of these off-cycle and loses a **full year**, which is what censors the tail —
-so the required sequence is sized to peak demand (adequately seated) and the 22 non-CS service
-courses run in **Summer** as a catch-up path. Lower a course's `capacity` in `curriculum.json`
-(or Settings) to study a capacity bottleneck. Re-run `py run.py` any time the config changes —
-these numbers are a snapshot of today's default plan, not a fixed constant.
+> Sections and seats change every semester. A recommendation assumes the seats you entered stay
+> roughly the same for the next 6 years. Update the data and run the analysis again whenever the
+> schedule changes.
 
 ---
 
-## Requirements
+## The yearly workflow
 
-- **Python 3.11+**
-- `matplotlib`, `networkx` (plotting), `pytest` (tests)
-- `fastapi`, `uvicorn`, `sqlalchemy` (HTTP API + SQLite persistence, both optional)
+1. **Update the data.** Seats per course (sections times section size), pass rates, the last
+   few years of intakes, and seats used by other programs. Import from CSV or Excel, or type
+   them in on the **Data** page.
+2. **Run the analysis.** On the **Intake Planner** page, check the policy limits and press
+   **Run analysis**. It takes a few minutes (about 2.5 minutes on a 20-core PC).
+3. **Read the card.** It gives the recommended intake, the number that is sustainable every
+   year, an upper limit beyond which extra students add little, the reason, and a range showing
+   how sensitive the number is.
+4. **Make a seat plan.** To admit more than the card allows, ask the **seat planner** what it
+   would take, for example "what would it take to admit 120?". It lists the sections to add per
+   course, with predicted outcomes before and after. Apply them to the plan if you wish.
+5. **Decide.** Take the card, the chart and the table to the committee. Past analyses are kept
+   (with the exact inputs each used) and can be printed or exported to CSV.
+6. **Record.** Note the decision and the "as of" date of the data. Next year, start again at step 1.
 
-## Installation
+A step-by-step guide for staff is in [docs/user_guide.md](docs/user_guide.md).
+
+---
+
+## Quick start
+
+On the department PC, double-click **`start.bat`**. It starts the backend and the website and
+opens <http://localhost:3000>. The first time, the site asks you to enter the past intakes and
+other-program seats before anything else.
+
+**Manual start (fallback)**
 
 ```bash
-# from the project root
+# 1. Install the Python dependencies (from the project root)
 py -m pip install -r requirements.txt
-```
 
-> On macOS/Linux use `python3` instead of `py`.
+# 2. Start the backend API
+py -m uvicorn src.api:app --port 8001
 
----
-
-## How to run
-
-### Run the full simulation
-
-```bash
-py run.py
-```
-
-This runs the baseline scenario and writes all outputs to `outputs/` plus the dashboard data file:
-
-```
-outputs/
-├── figures/
-│   ├── university_enrollment.png     # whole-university population over the global timeline
-│   ├── cohort_flow.png               # per-cohort head-count (later cohorts lag)
-│   ├── utilization_heatmap.png       # course × semester seat utilization
-│   ├── graduation_histogram.png      # time-to-graduate distribution
-│   ├── bottlenecks_<scenario>.png    # 4-panel: fail / capacity / offering / prereq blocks, one per scenario
-│   └── curriculum_network.png        # prerequisite graph, shaded by failure count
-└── reports/
-    ├── simulation_summary.csv        # headline metrics + top bottleneck per signal, one row per scenario
-    ├── cohort_flow.csv               # per-cohort, per-semester ledger
-    ├── cohort_summary.csv            # per-cohort outcomes + where each got stuck
-    ├── course_utilization.csv        # course × semester demand vs. capacity
-    ├── monte_carlo.csv               # mean ± 95% CI over many seeds
-    └── flow_timeline.json            # frontend contract for the scenario that feeds the dashboard (web/ fetches the same shape from POST /simulate)
-```
-
-To view the animated flow chart + dashboard, see "Run the Next.js dashboard" below.
-
-### Run the tests
-
-```bash
-py -m pytest tests/ -v
-```
-
-220+ tests cover determinism, the 120-credit-hour reconciliation, graduation detection,
-prerequisite logic, capacity allocation, probation, the multi-cohort layer (staggered
-admissions, the initial-state warm start, shared-seat priority, per-cohort metrics, the
-admissions recommendation, the timeline-JSON contract, and Monte Carlo), the generic
-rule-expression evaluator, the historical-transcript export, optional Winter/Summer terms,
-the multi-plan model, the `run_simulation()` service boundary, the FastAPI wrapper, the
-prerequisite write-once lock and cross-object plan-edit guardrails, and Semester Checkpoint
-Mode's resumable engine + `/checkpoint` API.
-
-### Run the HTTP API (optional)
-
-```bash
-py -m uvicorn src.api:app --reload --port 8001
-```
-
-A thin wrapper around the same engine (`GET /health`, `GET /meta`, `POST /simulate`, plus
-curriculum/config/plans/live-simulation endpoints backed by a SQLite database). No login is
-required — every request resolves to a single shared demo user. See
-[docs/api.md](docs/api.md) for the full endpoint reference and
-[docs/database.md](docs/database.md) for the schema.
-
-### Run the Next.js dashboard (optional, Phase 2)
-
-```bash
-# with the API above already running
+# 3. In a second terminal, start the website
 cd web && npm install && npm run dev
+# then open http://localhost:3000  (not 127.0.0.1:3000)
 ```
 
-Open `http://localhost:3000` — **not** `http://127.0.0.1:3000`, Next.js 16's dev server
-blocks cross-origin dev requests from origins outside `allowedDevOrigins`. This is a
-from-scratch React/TypeScript port of: the turn-based Dashboard (Semester Checkpoint Mode —
-advance one semester at a time, editing capacity/pass-rate/occupancy/next-intake in a modal
-between steps, with an inline curriculum roadmap and collapsible headline-KPIs/admissions-
-recommendation/per-cohort-table/prerequisite-network sections showing results so far), the
-Bottlenecks page (top-bottleneck cards, capacity recommendations, and an Auto-fill solver — both
-this page and the Dashboard's sections read the in-progress checkpoint session live when one
-exists, falling back to a full 12-semester baseline run otherwise), the Advisor's grounded chat
-with a test-then-apply what-if flow, and the static figures (university population over time,
-per-cohort flow, time-to-graduate distribution, seat-utilization heatmap, and the prerequisite
-network shaded by failure count) as React/SVG — talking to the API directly, it does not read
-`outputs/`. See `web/README.md` (generated by `create-next-app`) for the standard Next.js
-scripts.
+**From the command line (no website)**
 
-**First run:** if `initial_state.occupancy` hasn't been set yet, the dashboard opens on a
-required setup screen instead of the checkpoint walkthrough — enter today's real department
-numbers (or leave everything at 0 for a from-scratch university) before the simulation panel
-unlocks. A "paste or upload CSV" import fills in a batch of courses at once (`code,value` rows,
-each code setting its occupancy) instead of hand-typing all ~41 rows. The same editor is
-reachable again any time afterward from **Settings**.
+```bash
+py run.py --intake
+```
+
+Runs the baseline simulation and the full intake analysis, prints the recommendation, and writes
+`outputs/reports/intake_analysis.json` next to the usual CSV reports.
+
+**Optional: the Advisor chat.** The Advisor explains the result and proposes changes to test.
+It uses a local model through [Ollama](https://ollama.com) (no cost, nothing leaves the PC).
+The recommended model is `qwen3:4b-instruct-2507-q4_K_M` (about 25 s per answer); a larger one such as `qwen3-coder:30b` needs a PC with about 32 GB RAM. Copy `.env.example` to `.env` to choose the model. Without it, the rules-based advice on the
+Advisor page still works. The AI never produces the intake number; the simulation does.
 
 ---
 
-## Configuration
+## Example result (illustrative, not a recommendation)
 
-All inputs are data-driven — no code changes needed to re-tune the model:
+This is what the card looked like on the **default, estimated data** shipped with the project:
+today's student body rebuilt from five past intakes of 100 (padded to 8 years), default seats,
+and the "Balanced" policy (seat shortages may cost at most 2 points of graduation rate and 10
+points of on-time rate).
 
-| File | Contents |
+| | |
 |---|---|
-| `data/curriculum.json` | The 41 courses (real QU CS roadmap): prerequisites, offering seasons, pass rates, per-course capacities. **Source of truth.** |
-| `data/simulation_config.json` | Cohort size, seed, load caps, probation/dropout rules, grade distributions, and the multi-cohort settings below. |
+| Recommended next intake | **40** |
+| Sustainable every year | **70** |
+| Upper limit (beyond this, extra students add little) | **90** |
+| Limit that binds first | on-time graduation |
+| Course that runs out of seats first | CSEL2 |
 
-> After first API startup these two files only seed `data/app.db` (gitignored SQLite) — from
-> then on the DB is authoritative. Re-run `py scripts/migrate_json_to_db.py --force` after
-> hand-editing either file to resync the default plan.
+Why so low? The default plan models the elective slots (CSEL1 to CSEL4) as single courses of
+35 to 70 seats, a leftover from an earlier research version that squeezed electives on purpose.
+That crowds them. At QU the real elective capacity is the sum of all elective sections, so
+entering real numbers changes this result. **Treat the table above as a demonstration of the
+output, not as advice.** Results built mostly on estimates carry an "illustrative" badge on the site.
 
-Key multi-cohort knobs in `simulation_config.json`:
+---
 
-| Key | Meaning |
-|---|---|
-| `num_cohorts` | study cohorts admitted, one per year (default 8, for a steady state) |
-| `num_incumbent_cohorts` | prior cohorts seeded before term 0 as a warm start (default **0** — the default plan warm-starts via `initial_state` instead, see below) |
-| `initial_state` | `{occupancy: {code: seats}}` — the admin-entered pre-existing student body (see `docs/technical_design.md`) |
-| `admission_terms` | seasons that admit a new cohort — `["Fall"]` (yearly) or `["Fall", "Spring"]` (a second yearly intake); mandatory seasons only, never Summer |
-| `admission_sizes` | optional per-season intake size, e.g. `{"Spring": 40}` (a season absent uses `cohort_size`) |
-| `admission_targets` | health thresholds driving the intake recommendation |
-| `monte_carlo` | `{enabled, n_runs, base_seed}` for confidence intervals |
+## Local only
 
-Per-course seat capacity lives on each course's own `capacity` field in `curriculum.json`
-(auto-calibrated by `scripts/size_capacity.py`, then hand-tunable). To experiment, edit a
-course's `capacity` or `offering`, then re-run `py run.py`. To re-derive capacity from demand,
-run `py scripts/size_capacity.py`.
+The database (`data/app.db`) lives on the PC, and analyses run on its CPU cores. There is no
+login and no hosting. The optional paid-API Advisor setting sends only aggregate numbers
+(never student records), and is off unless you configure it.
 
 ---
 
@@ -191,65 +121,44 @@ run `py scripts/size_capacity.py`.
 src/
 ├── models/
 │   ├── course.py        # Course dataclass + load_curriculum()
-│   ├── student.py       # Student state, GPA, eligibility, cohort_id/entry_term, curriculum_stage()
-│   └── semester.py      # term index → season + year (config-driven, supports optional terms)
-├── datasource.py         # DataSource seam: canonical schema + SyntheticDataSource (population creation)
-├── rules.py              # evaluate_rule() / gate_edges() — generic compound prerequisite expressions
+│   ├── student.py       # Student state, GPA, eligibility, cohort_id/entry_term
+│   └── semester.py      # term index -> season + year (config-driven, optional terms)
+├── datasource.py         # CohortSpec + SyntheticDataSource (builds today's students from past intakes)
+├── rules.py              # evaluate_rule() / gate_edges() - compound prerequisite expressions
 ├── simulator.py          # Simulator (staggered admission + 3-phase per-term loop) + History
-├── analytics.py          # metrics, per-cohort metrics, admissions rec, curriculum graph, flow_timeline JSON, CSVs
-├── service.py            # run_simulation() — no-file-I/O engine boundary; what api.py calls
-├── db.py                 # SQLAlchemy engine/session, plan-scoped loaders
-├── db_models.py          # User/Plan/Course/AppConfig/Scenario/Run ORM tables
-├── auth.py               # No-op auth — resolves every request to one shared demo user
-├── curriculum_validation.py  # check_no_cycle() — prerequisite-cycle check for edits/imports
-├── scenarios.py          # Persistent /scenarios + /runs endpoints
-├── api.py                # FastAPI wrapper: /health, /meta, /simulate, /curriculum, /config,
-│                         # /plans, /scenarios, /runs — see docs/api.md
-├── montecarlo.py         # run_monte_carlo() — mean ± 95% CI over many seeds
-├── visualize.py          # figure generation
-└── utils.py              # load_json(), grade_tier()
+├── intake.py             # THE DECISION LAYER: intake sweep, no-shortage reference, smoothing,
+│                         # decision rule, seat plan, calibration check
+├── jobs.py               # background runner: one analysis at a time, progress, cancel
+├── analytics.py          # metrics, per-cohort metrics, curriculum graph, flow_timeline JSON, CSVs
+├── service.py            # run_simulation() - no-file-I/O engine boundary
+├── parallel.py           # process-pool helpers (order-preserving)
+├── montecarlo.py         # mean +/- 95% CI over spaced seeds
+├── db.py / db_models.py  # SQLite persistence (plans, courses, config, analyses)
+├── plan_validation.py    # guardrails on every edit
+├── advisor.py            # rules + optional local-LLM chat, grounded in the plan and analysis
+├── api.py                # FastAPI: /meta, /intake-analyses, /simulate, /curriculum, /config, /plans, /checkpoint
+└── visualize.py          # static figures for run.py
 
-web/         Next.js/TypeScript dashboard — turn-based Checkpoint Mode Dashboard, Bottlenecks,
-             Advisor, Settings, Plans, Plan Builder; talks to src/api.py; static figures
-             ported as React/SVG
-data/        curriculum.json, simulation_config.json
-outputs/     figures/ and reports/ (generated by run.py)
-scripts/     size_capacity.py, migrate_json_to_db.py
-tests/       pytest suite (220+ tests)
-docs/        project_overview.md, technical_design.md, assumptions.md, code_walkthrough.md,
-             api.md, database.md
-run.py       entry point
+web/        Next.js website: Intake Planner, Bottlenecks, Walkthrough, Advisor, Data, Plans, Methodology
+data/       curriculum.json, simulation_config.json (seed data for the database)
+scripts/    size_capacity.py, migrate_json_to_db.py
+tests/      pytest suite
+docs/       methodology, user guide, technical documentation
+run.py      command-line entry point (--intake for the intake analysis)
+start.bat   one-click launcher for the department PC
 ```
 
----
-
-## How the model works (in brief)
-
-A new cohort is admitted each year onto one shared seat pool; the university starts partly full
-via an admin-entered initial state (occupied seats per course for the pre-existing student
-body). Each term runs a three-phase loop over **all** active students
-from every cohort:
-
-1. **Desired enrollment** — every active student builds a priority-ordered wish-list
-   (retakes → required CS → electives → filler), capped at 18 credit hours (12 on probation).
-2. **Seat allocation** — when demand exceeds a course's capacity, students are ranked by
-   completed credit hours (QU's registration priority), so seniors from older cohorts outrank
-   freshmen; the overflow is logged as a capacity block.
-3. **Outcome resolution** — pass/fail is drawn against each student's ability-adjusted pass rate;
-   passers receive a sampled letter grade. Dropout, probation, graduation (on each student's own
-   12-semester clock), and the four block signals are then updated.
-
-Every student owns a fixed random stream seeded by `seed + student_id` (**Common Random Numbers**),
-so the simulation is fully **deterministic**. Full mechanics:
-[docs/technical_design.md](docs/technical_design.md).
+Run the tests with `py -m pytest tests/ -v`.
 
 ---
 
 ## Documentation
 
-- **[docs/project_overview.md](docs/project_overview.md)** — what the project is, how the simulation works, design tradeoffs, and known limitations. Deliberately has no point-in-time output numbers (those depend on the active configuration and go stale the moment it changes) — run the simulation for today's actual figures.
-- **[docs/technical_design.md](docs/technical_design.md)** — model architecture and execution walkthrough.
-- **[docs/code_walkthrough.md](docs/code_walkthrough.md)** — deep code-level reference (real function signatures and snippets, module by module), for reading alongside the source.
-- **[docs/assumptions.md](docs/assumptions.md)** — every assumption and parameter, with justification.
-- **[docs/api.md](docs/api.md)** — every HTTP endpoint (`/simulate`, `/curriculum`, `/plans`, ...), request/response shapes, and status codes.
-- **[docs/database.md](docs/database.md)** — the SQLite schema (`User`/`Plan`/`Course`/`AppConfig`/`Scenario`/`Run`) and how it relates to the JSON seed files.
+- **[docs/user_guide.md](docs/user_guide.md)**: step-by-step guide for department staff.
+- **[docs/methodology.md](docs/methodology.md)**: how the recommendation is computed, what it assumes, and its limits. For the committee and technical reviewers.
+- **[docs/project_overview.md](docs/project_overview.md)**: what the project is and how the simulation works.
+- **[docs/technical_design.md](docs/technical_design.md)**: model architecture and execution walkthrough.
+- **[docs/code_walkthrough.md](docs/code_walkthrough.md)**: module-by-module code reference.
+- **[docs/assumptions.md](docs/assumptions.md)**: every assumption and parameter, with justification.
+- **[docs/api.md](docs/api.md)**: every HTTP endpoint, request and response shapes.
+- **[docs/database.md](docs/database.md)**: the SQLite schema and startup migration.

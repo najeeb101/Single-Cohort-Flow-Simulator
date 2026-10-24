@@ -18,7 +18,9 @@ User ──< active_plan_id >── Plan ──< plan_id >── Course
   │
   ├──< owner_user_id >── Scenario
   ├──< user_id >── Run
-  └──< user_id >── CheckpointSession  (plan_id kept for provenance only)
+  ├──< user_id >── CheckpointSession  (plan_id kept for provenance only)
+  │                  └──< session_id >── CheckpointSnapshot  (one engine snapshot per step)
+  └──< user_id, plan_id >── Analysis  (Intake Planner jobs and results)
 ```
 
 ### `users`
@@ -63,7 +65,9 @@ Mirrors `src/models/course.py::Course` field-for-field. `code` is unique **only 
 
 ### `app_config`
 One row per plan, holding the full `simulation_config.json` shape (cohort size, seed, dropout
-knobs, `initial_state`, `scenarios`, etc.) as a single JSON blob — there's no per-key column
+knobs, `initial_state`, `scenarios`, and the Intake Planner keys `intake_policy`, `intake_analysis`,
+`section_size`, `planning`, `current_students.past_intakes`, `historical_outcomes`, `data_sources`,
+etc.) as a single JSON blob — there's no per-key column
 because the config shape is meant to evolve without a migration each time a new knob is added.
 
 | Column | Type | Notes |
@@ -96,7 +100,7 @@ summary).
 | `scenario_id` | FK → `scenarios.id`, nullable | which saved scenario this run came from, if any |
 | `requested_at` | datetime | |
 | `overrides_json` | JSON | the `ScenarioRequest` that was sent |
-| `summary_json` | JSON | `{metrics, admissions_recommendation}` |
+| `summary_json` | JSON | `{metrics}` (the old `admissions_recommendation` was retired; rows written earlier may still contain it) |
 
 ### `checkpoint_sessions`
 One row per Semester Checkpoint Mode session (see CLAUDE.md's "Semester Checkpoint Mode" and
@@ -118,6 +122,61 @@ in-progress session.
 | `working_curriculum` | JSON list | plan-export-shaped course list, mutated in place by edits |
 | `working_config` | JSON | full config dict, mutated in place by edits |
 | `created_at`, `updated_at` | datetime | |
+
+### `checkpoint_snapshots`
+One pickled engine snapshot per walkthrough step: `seq=0` at session creation, `seq=N` after the
+Nth advance. `POST /checkpoint/rewind` restores one and deletes every later row (a linear undo);
+`GET /checkpoint/peek/{seq}` reads one without changing anything.
+
+| Column | Type | Notes |
+|---|---|---|
+| `id` | PK | |
+| `session_id` | FK → `checkpoint_sessions.id` | purged when the session is discarded or replaced |
+| `seq` | int | step number |
+| `next_term` | int | resume cursor as of this step |
+| `snapshot` | binary | `Simulator.snapshot()` blob |
+| `created_at` | datetime | |
+
+### `analyses`
+One row per Intake Planner job (`src/jobs.py`): an **intake sweep** ("how many should we admit?")
+or a **seat plan** ("what would it take to admit N?"). Each row keeps an exact snapshot of the
+inputs it ran on, so a recommendation can always be traced back to the data behind it (seats and
+sections change every semester). Not stored in the plan's own tables, so editing or deleting
+courses never rewrites history.
+
+| Column | Type | Notes |
+|---|---|---|
+| `id` | PK | |
+| `user_id` | FK → `users.id` | |
+| `plan_id` | FK → `plans.id` | the plan active when the job was started; `GET /intake-analyses` lists by it |
+| `kind` | string | `intake_sweep` \| `seat_plan` |
+| `source` | string | `plan` \| `checkpoint` (ran on a walkthrough session's staged data) |
+| `label` | string, nullable | e.g. "Fall 2027 intake" (from `planning.next_intake_label`) |
+| `status` | string | `queued` \| `running` \| `done` \| `failed` \| `cancelled` |
+| `progress`, `progress_note` | float, string | 0..1 and a short phase description; written about once a second |
+| `params` | JSON | the request (`policy`, `params`, `target_intake`, `run_budget`) with the effective policy |
+| `inputs_snapshot` | JSON | `{curriculum: [course dicts], config}` exactly as run |
+| `result` | JSON, nullable | the `src/intake.py` result (see `docs/api.md`) |
+| `error` | string, nullable | set when `status = failed` |
+| `analysis_version` | int | `src/intake.py::ANALYSIS_VERSION` at creation (column default 1) |
+| `created_at`, `started_at`, `finished_at` | datetime | |
+
+## Startup migration and recovery
+
+`src/api.py` runs these once at import, after `init_db()` and `get_or_create_default_plan()`:
+
+- **`migrate_plan_configs(session)`**: passes every stored `AppConfig.data` through
+  `normalize_config()`, which drops the retired `admission_targets` and fills any missing Intake
+  Planner key with its default (`planning`, `current_students`, `section_size`,
+  `historical_outcomes`, `data_sources`, `intake_policy`). It does **not** convert the old 0.70
+  graduation target into `intake_policy.min_grad_rate` (that floor would fail every intake on the
+  default plan). Idempotent. It assigns a fresh dict because JSON columns do not track in-place
+  mutation. `import_plan` calls `normalize_config` too.
+- **`recover_interrupted_analyses(session)`**: marks any `queued`/`running` analysis `failed`
+  ("Interrupted: the server restarted..."). A killed server (every `uvicorn --reload` code save)
+  takes its job thread with it, so such rows would otherwise stay "running" forever.
+- The SQLite connection uses a 30 s timeout so the background job's progress writes and the
+  API's requests wait for each other instead of failing with "database is locked".
 
 ## Migrations
 

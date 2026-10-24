@@ -1,7 +1,10 @@
-# Simulation Assumptions
+# Assumptions
 
-This document records every assumption made in the Single-Cohort Flow Simulator.
-Assumptions are documented here and were fixed before the final baseline run; calibration choices are noted explicitly where they affect the reported results.
+This document records every assumption behind the CS Intake Planner: the engine's parameters
+(§A to §J), the references that support them (§K), and the assumptions specific to the intake
+analysis and seat plan (§L). The method itself is in [methodology.md](methodology.md). Most
+inputs are currently **estimates** (tagged "Estimate" on the website until replaced by QU data),
+so each assumption below says what it rests on.
 
 ---
 
@@ -10,7 +13,7 @@ Assumptions are documented here and were fixed before the final baseline run; ca
 | Parameter | Value | Justification |
 |---|---|---|
 | `seed` | 42 | Arbitrary; fixed for reproducibility |
-| `cohort_size` | 100 | T3.1 specification |
+| `cohort_size` | 100 | Default intake size; also the fallback size when no past intakes are entered (the intake analysis overrides it for each candidate intake) |
 | `max_terms` | 12 (6 academic years) | QU maximum study duration for BS programs |
 | `normal_load_ch` | 18 | QU standard full-time load cap |
 | `probation_load_ch` | 12 | QU academic probation load restriction |
@@ -69,7 +72,7 @@ per-term seats is a single `capacity` field on the course (`data/curriculum.json
 auto-calibrated by [scripts/size_capacity.py](../scripts/size_capacity.py), then hand-tunable
 per course (in the JSON file or Settings) with no derived arithmetic in between.
 
-**Sizing policy — the required sequence is seated to peak; only electives are squeezed.** The
+**Sizing policy (research-era calibration; the Intake Planner does not use it) — the required sequence is seated to peak; only electives are squeezed.** The
 whole required path (`cs_core`) and all non-CS courses are sized to their **peak** unconstrained
 per-term demand; only interchangeable electives (`cs_elective`) are squeezed to the **75th
 percentile** to keep a deliberate bottleneck. This policy changed when the real single-term
@@ -80,6 +83,12 @@ gateway knocks a student off the annual rhythm, so they reach a single-term uppe
 off-cycle and lose a full year — cascading into non-completion (CENSORED), not just delay.
 Deliberate scarcity therefore lives on electives (4 interchangeable slots, no prerequisites,
 where scarcity only redistributes), not on the critical path.
+
+> **Caveat for the Intake Planner.** The four elective slots (CSEL1 to CSEL4) are modeled as
+> single courses of 35 to 70 seats because of that squeeze. Real QU elective capacity is the sum
+> of all elective sections, so the default seats make electives look more crowded than they are
+> (in the default-data example CSEL2 is the first course to run out of seats). Replace them with
+> real figures. On the website, seats are entered as sections times `section_size` (default 35).
 
 The residual bottleneck is now **timing, not seats**: with the required sequence seated to peak,
 what still binds is the once-a-year scheduling of the single-term upper cluster (CMPE355,
@@ -156,40 +165,28 @@ scenario. Scenario differences reflect structural interventions, not RNG noise.
 
 ---
 
-## J. Face-Validity Results (baseline, seed=42, 30-seed Monte Carlo)
+## J. Face-Validity Checks (engine)
 
-> These are a **snapshot** of the current default plan (8 yearly cohorts, the real single-term
-> offering schedule, cs_core sized to peak). They move whenever the config changes — the ranges
-> are the sanity check, not the exact numbers. Re-run `py run.py` for today's actual values.
+The engine's aggregate output was sanity-checked against plausible ranges for a 12-semester
+program. These are **ranges, not targets**, and the exact values move whenever the config
+changes (seats, past intakes, optional terms), so run `py run.py` for today's figures rather
+than trusting a number written here. The intake recommendation does not depend on matching them
+exactly; what matters is the comparison against the no-shortage reference and the calibration
+check against the department's own historical outcomes (§L).
 
-| Metric | Expected Range | Actual (MC mean) | Status |
-|---|---|---|---|
-| Graduation rate | 50–70% | 65.5% (95% CI 65.0–66.0%) | ✓ PASS |
-| On-time rate (≤ 8 sem) | 20–50% | 23.4% | ✓ PASS |
-| Probation rate | 15–25% | 17.9% | ✓ PASS |
-| Academic dropout rate | 15–30% | 14.9% | ✓ (just under) |
-| Censored rate (hit horizon) | — | 22.0% | — |
+| Metric | Plausible range |
+|---|---|
+| Graduation rate (within 12 semesters) | 50 to 70% |
+| On-time rate (within 8 semesters) | 20 to 50% |
+| Probation rate | 15 to 25% |
+| Academic dropout rate | 15 to 30% |
 
-**Graduation rate (~65%)**: Within the plausible range for a 12-semester program. The residual
-non-completion is dominated by **once-a-year scheduling**: 8 core courses are single-term, so a
-student who falls behind on the shared seat pool reaches one off-cycle and loses a full year,
-which pushes the tail past the 12-semester horizon (→ CENSORED). `dropout_base_hazard` (0.18)
-is calibrated so graduation lands mid-range — an internally-chosen target, not fit to external
-data.
-
-**Censored dominates dropout here** (22% vs. 15%): the binding constraint is *timing* (the
-once-a-year sequence), not academic failure. This is why raising capacity on the **early**
-gateways — which keeps students on the annual rhythm so they hit the single-term upper courses
-on schedule — is what moves graduation, and why the required sequence (cs_core) is sized to
-peak demand rather than squeezed. See `scripts/size_capacity.py`.
-
-**Probation rate (~18%)**: Within the 15–25% target, driven by grade replacement (passing a
-retake removes prior F attempts from the GPA denominator; without it, probation exceeds 30%).
-
-**Which courses bind** (a snapshot — re-derive from a run): the capacity/offering/prereq
-pressure concentrates on the single-term cluster (CMPE355, CMPS405, CMPS323) and the CMPS303
-gateway that feeds several of them. Read `outputs/reports/simulation_summary.csv` after a run
-for the current top course per signal.
+`dropout_base_hazard` (0.18) is chosen so graduation lands mid-range; it is an
+internally-chosen target, not fit to external data. Censored students (those who hit the horizon
+without graduating) typically outnumber dropouts, because the binding constraint is *timing*
+(the once-a-year sequence), not academic failure. Probation near 18% is driven by grade
+replacement (passing a retake removes prior F attempts from the GPA denominator; without it,
+probation exceeds 30%).
 
 ---
 
@@ -209,3 +206,30 @@ year/page numbers confirmed independently, not taken on faith from a prior draft
 | Duarte & Márquez (2016), LACCEI Multi-Conference | Agent-based vs. aggregate model justification — motivates individual-level simulation over cohort-level pooled-count equations |
 | Ishitani (2006), *J. Higher Education* 77(5) | `dropout_early_multiplier = 2.0` — empirical support for front-loaded early-semester attrition (Assumption A) |
 | Singer & Willett (2003), *Applied Longitudinal Data Analysis* | Competing-risk/survival framing for graduation vs. dropout vs. censoring; censored-rate-as-lower-bound interpretation |
+
+---
+
+## L. Intake Analysis and Seat Plan Assumptions
+
+These apply to `src/intake.py`. Defaults are in `DEFAULT_POLICY` / `DEFAULT_ANALYSIS` and are
+editable per plan (`intake_policy`, `intake_analysis`) or per run.
+
+| Assumption | Value / meaning | Why |
+|---|---|---|
+| **Future intakes equal N** | The candidate intake N is admitted every year in the headline view (next intake plus 3 more) and in the sustainable view | The department asks "what number can we take"; a constant N is the simplest policy to compare |
+| **Other-program seats are constant** | `initial_state.occupancy` is subtracted from each course's seats in every regular term, forever | Real figures are not yet available; a constant is the transparent default |
+| **Other-season intakes are fixed** | An intake outside the primary admission season (for example a Spring intake in `admission_sizes`) does not vary with N | Only the primary intake is the decision variable |
+| **Policy default "Balanced"** | Seat shortages may cost at most 2 points of graduation rate and 10 points of on-time rate; `min_grad_rate` off | Department-editable; chosen so a recommendation tolerates ordinary delay but not seat-driven non-completion |
+| **Only seat-shortage harm is limited** | Loss is measured against a pooled unlimited-seat reference | Failures and dropout cannot be fixed by intake; including them would blame the intake |
+| **Past intakes rebuild today's students** | Each past intake is a cohort that entered in the matching earlier year, with its own size | The Registrar's real current body is not yet available |
+| **Padding of history** | Fewer than `min_history_years` (8) of intakes are padded with the mean of the real ones (or `cohort_size`) and flagged "estimated history" | Without it the oldest cohort starts in an empty university and the backlog is too small |
+| **Replications use spaced seeds** | `base + k x 10,000,019` | Consecutive seeds replay about 99% of the same students |
+| **Confidence** | One-sided 95% upper bound on the monotone-smoothed loss | Avoids recommending an intake on a lucky estimate |
+| **Diminishing returns** | An extra admitted student that adds fewer than 0.25 graduates per year marks the upper limit | Graduates per year often plateau rather than peak |
+| **Section size** | 35 seats (`section_size`) converts seats to sections | Typical QU lecture section; editable |
+| **Seat sizing from demand** | 90th percentile of regular-term registrations plus other-program seats, rounded up to whole sections, then verified | Greedy sizing from real-seat shortfalls misses demand an upstream denial hides |
+| **Robustness perturbations** | One fewer section (35 seats) in each of the 3 tightest courses; every pass rate 5 points lower | A coarse sensitivity range, not a full uncertainty analysis |
+| **Summer** | Optional term; seats are 30% of regular capacity (`optional_term_capacity_scale`) for courses whose offering includes Summer; a Summer course does not cost a mandatory semester | Matches how QU offers high-demand service courses; real Summer schedules vary |
+| **Calibration tolerance** | A simulated outcome is flagged only if its gap exceeds `2 x sqrt(p(1-p)/n_hist + SE^2)`; enrolled headcount within 10% | One historical cohort of 100 is itself noisy (about +/- 4.7 points) |
+| **Data stays put** | Seats and sections are assumed roughly constant for the next 6 years | They change every semester; re-run when the schedule changes |
+| **Students are synthetic** | No real student records are used (student-level history is a planned next phase) | None loaded yet |
