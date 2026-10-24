@@ -1,6 +1,7 @@
 # Render "Blueprint" — provisions the backend, frontend, and database together from one file.
-# See docs/deployment.md for the one-time setup steps and free-tier caveats (cold starts,
-# 90-day Postgres expiry).
+# Not the current deployment target: the planner runs locally for now (see README). Kept for a
+# future hosted setup. Free-tier caveats: cold starts, 90-day Postgres expiry, ~0.1 CPU (too slow
+# for a full intake analysis).
 databases:
   - name: scfs-db
     plan: free

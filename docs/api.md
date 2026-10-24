@@ -6,7 +6,7 @@ Next.js dashboard never calls this directly — it goes through `web/next.config
 
 **No login required.** Every request resolves to a single shared, auto-provisioned demo user
 (`src/auth.py`) — auth was built in an earlier phase and deliberately removed as part of a
-scope-simplification pass (see `docs/progress_report.md`). All endpoints below therefore act on
+scope-simplification pass (the planner runs locally on a department PC). All endpoints below therefore act on
 that one user's data; there is no per-user isolation except at the `Plan` level (a plan with
 `owner_user_id != null` is private in principle, but since there's only ever one user in
 practice, this only matters if auth is reintroduced later).
