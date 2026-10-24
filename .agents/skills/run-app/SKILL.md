@@ -77,5 +77,5 @@ still a failed launch.
 - `py -m pytest tests/ -v` — full suite (~3 min, 148 tests).
 - `cd web && npx tsc --noEmit -p .` — typecheck the dashboard.
 - `validate_api.py` (in this skill dir) — in-process API smoke test against a throwaway DB
-  (exercises `/meta`, `/simulate`, `/autofill`, `/config` + 422 validation). Run from the repo
+  (exercises `/meta`, `/simulate`, `/intake-analyses` (sweep + seat plan), `/config` + 422 validation). Run from the repo
   root with `PYTHONPATH` set to the repo root.
