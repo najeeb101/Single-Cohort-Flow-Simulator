@@ -19,6 +19,7 @@ from src.analytics import compute_metrics
 from src.models.course import Course
 from src.parallel import ordered_map, resolve_workers
 from src.simulator import Simulator
+from src.utils import spaced_seeds
 
 _METRICS = [
     "graduation_rate", "academic_dropout_rate", "censored_rate",
@@ -48,13 +49,14 @@ def run_monte_carlo(
 
     `workers` sets the process-pool size; `None` (default) uses `monte_carlo.workers` from the
     config if present, else one worker per CPU. `workers=1` forces the serial path (identical
-    results). Seeds are `base_seed + k`, exactly as before this was parallelized.
+    results). Seeds are `spaced_seeds(base_seed, n_runs)` — consecutive seeds would replay ~99%
+    of the same students (student RNG = seed + student_id) and understate the CI.
     """
     mc = config.get("monte_carlo", {})
     n_runs = int(mc.get("n_runs", 30))
     base_seed = int(mc.get("base_seed", config["seed"]))
 
-    tasks = [(curriculum, config, scenario, base_seed + k) for k in range(n_runs)]
+    tasks = [(curriculum, config, scenario, seed) for seed in spaced_seeds(base_seed, n_runs)]
     n_workers = resolve_workers(n_runs, requested=workers, config_workers=mc.get("workers"))
     rows = ordered_map(_run_one, tasks, workers=n_workers)
 

@@ -33,8 +33,10 @@ _is_memory_db = ":memory:" in DB_URL
 ENGINE = create_engine(
     DB_URL,
     # check_same_thread is a SQLite-only connect arg; psycopg2 (production Postgres) rejects
-    # it outright, so only pass it on the sqlite dialect.
-    connect_args={"check_same_thread": False} if _is_sqlite else {},
+    # it outright, so only pass it on the sqlite dialect. The 30s timeout lets a background
+    # intake job's progress writes wait out a concurrent request's write instead of failing
+    # with "database is locked".
+    connect_args={"check_same_thread": False, "timeout": 30} if _is_sqlite else {},
     poolclass=StaticPool if _is_memory_db else None,
 )
 SessionLocal = sessionmaker(bind=ENGINE)
@@ -68,6 +70,65 @@ REQUIRED_CONFIG_KEYS = (
 def init_db() -> None:
     db_models.Base.metadata.create_all(bind=ENGINE)
     _ensure_columns()
+
+
+# Defaults for the Intake Planner keys (mirrors data/simulation_config.json). A plan stored
+# before the planner existed gets these on its next load — see normalize_config.
+_PLANNER_DEFAULTS: dict = {
+    "planning": {"next_intake_label": "Next intake", "data_as_of": None},
+    "current_students": {"past_intakes": []},
+    "section_size": 35,
+    "historical_outcomes": {"grad_rate_6yr": None, "on_time_rate_4yr": None,
+                            "n_students": None, "current_headcount": None},
+    "data_sources": {"capacity": {}, "pass_rate": {}, "past_intakes": "estimate", "occupancy": "estimate"},
+    "intake_policy": {"max_grad_rate_loss_pts": 2.0, "max_on_time_loss_pts": 10.0, "min_grad_rate": None},
+}
+
+
+def normalize_config(config: dict) -> dict:
+    """Bring a stored/uploaded config up to the current shape, returning a NEW dict.
+
+    Drops `admission_targets` (the retired one-run admissions heuristic). Its old 0.70
+    graduation target is deliberately NOT carried over as `intake_policy.min_grad_rate`: the
+    default plan graduates ~66%, so that floor would fail every intake and hide the real answer.
+    Missing planner keys get their defaults. Idempotent.
+    """
+    out = copy.deepcopy(config)
+    out.pop("admission_targets", None)
+    for key, default in _PLANNER_DEFAULTS.items():
+        if key not in out:
+            out[key] = copy.deepcopy(default)
+    return out
+
+
+def migrate_plan_configs(session: Session) -> int:
+    """Normalize every stored plan config in place (see normalize_config); returns how many
+    changed. Assigns a fresh dict — JSON columns don't track in-place mutation."""
+    changed = 0
+    for row in session.query(db_models.AppConfig).all():
+        new = normalize_config(row.data)
+        if new != row.data:
+            row.data = new
+            changed += 1
+    if changed:
+        session.commit()
+    return changed
+
+
+def recover_interrupted_analyses(session: Session) -> int:
+    """Mark analyses a killed server left queued/running as failed (run at startup — with
+    `uvicorn --reload` every code save kills the process, and its job thread with it)."""
+    rows = (
+        session.query(db_models.Analysis)
+        .filter(db_models.Analysis.status.in_(("queued", "running")))
+        .all()
+    )
+    for row in rows:
+        row.status = "failed"
+        row.error = "Interrupted: the server restarted while this analysis was running. Run it again."
+    if rows:
+        session.commit()
+    return len(rows)
 
 
 def _ensure_columns() -> None:
@@ -193,6 +254,7 @@ def import_plan(
         # first /simulate — these are the keys the simulator reads unconditionally. Guarded,
         # defaulted keys (terms_per_year, mandatory_terms, …) are deliberately not required.
         raise PlanImportError("Config is missing required keys: " + ", ".join(missing))
+    config = normalize_config(config)
 
     plan = db_models.Plan(owner_user_id=owner_user_id, name=name)
     session.add(plan)

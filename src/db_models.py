@@ -146,3 +146,34 @@ class CheckpointSnapshot(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow)
 
 
+
+
+class Analysis(Base):
+    """One Intake Planner job (src/jobs.py): an intake sweep ("how many should we admit?") or a
+    seat plan ("what would it take to admit N?"). Each row keeps an exact snapshot of the inputs
+    it ran on, so a recommendation can always be traced back to the data behind it — seats and
+    sections change every semester, and the committee needs to know which version was used.
+
+    status: queued | running | done | failed | cancelled. A row left `running` by a server that
+    was killed mid-job (e.g. `uvicorn --reload`) is marked failed at the next startup
+    (src/db.py::recover_interrupted_analyses).
+    """
+    __tablename__ = "analyses"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
+    plan_id: Mapped[int] = mapped_column(ForeignKey("plans.id"), nullable=False)
+    kind: Mapped[str] = mapped_column(String, nullable=False)  # intake_sweep | seat_plan
+    source: Mapped[str] = mapped_column(String, default="plan")  # plan | checkpoint
+    label: Mapped[str | None] = mapped_column(String, nullable=True)
+    status: Mapped[str] = mapped_column(String, default="queued")
+    progress: Mapped[float] = mapped_column(default=0.0)
+    progress_note: Mapped[str] = mapped_column(String, default="")
+    params: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    inputs_snapshot: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    result: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    error: Mapped[str | None] = mapped_column(String, nullable=True)
+    analysis_version: Mapped[int] = mapped_column(default=1)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow)
+    started_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)

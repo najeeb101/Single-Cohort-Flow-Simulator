@@ -1,4 +1,5 @@
 """Entry point: load → run scenario(s) → analyze → render → CSV + outputs/.
+`py run.py --intake` also runs the intake analysis (src/intake.py).
 
 The dashboard (web/) doesn't read this script's output directly — it talks to src/api.py
 in memory via POST /simulate — but this is still how outputs/figures/ and
@@ -6,6 +7,8 @@ outputs/reports/ (CSVs, flow_timeline.json) get written for the static report an
 """
 from __future__ import annotations
 
+import json
+import sys
 from pathlib import Path
 
 from src.analytics import (
@@ -16,6 +19,7 @@ from src.analytics import (
     build_monte_carlo_csv,
     build_summary_csv,
 )
+from src.intake import run_intake_sweep
 from src.models.course import load_curriculum
 from src.montecarlo import run_monte_carlo
 from src.service import run_simulation
@@ -23,7 +27,7 @@ from src.visualize import save_all_figures
 from src.utils import load_json
 
 
-def main() -> None:
+def main(run_intake: bool = False) -> None:
     curriculum_path = Path("data/curriculum.json")
     config_path     = Path("data/simulation_config.json")
 
@@ -85,14 +89,23 @@ def main() -> None:
     print("  Saved simulation_summary.csv, cohort_flow.csv, cohort_summary.csv,")
     print("        course_utilization.csv, monte_carlo.csv, flow_timeline.json")
 
-    # Admissions recommendation headline.
-    rec = runs[baseline_name]["admissions_recommendation"]
-    if rec:
-        print("\nAdmissions recommendation (single-run heuristic):")
-        print(f"  Current intake     : {rec['current_intake']}")
-        print(f"  Recommended intake : {rec['recommended_intake']} / year")
-        print(f"  Binding criterion  : {rec['binding_criterion']} "
-              f"(slack {rec['binding_slack']:.2f})")
+    # Intake analysis (opt-in: ~a minute on a multi-core PC) — the same sweep the Intake Planner
+    # page runs, written to outputs/reports/intake_analysis.json.
+    if run_intake:
+        print("\nRunning the intake analysis (how many students to admit next)...")
+        analysis = run_intake_sweep(
+            curriculum, config,
+            progress=lambda f, note: print(f"  {f:4.0%}  {note}", end="\r", flush=True),
+        )
+        (reports_dir / "intake_analysis.json").write_text(json.dumps(analysis, indent=1), encoding="utf-8")
+        rec = analysis["recommendation"]
+        print(f"\n  Recommended next intake : {rec['recommended_intake'] or 'none within the policy limits'}")
+        print(f"  Sustainable every year  : {rec['sustainable_intake'] or '-'}")
+        print(f"  Upper limit             : {rec['upper_limit'] or 'not reached'}")
+        print(f"  Why                     : {rec['why']}")
+        for w in rec["warnings"]:
+            print(f"  ! {w}")
+        print("  Saved intake_analysis.json")
 
     # Figures — saved to outputs/figures/ for ad-hoc inspection; the dashboard (web/) ports
     # the same underlying data as React/SVG instead of embedding these PNGs anywhere.
@@ -105,4 +118,4 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    main(run_intake="--intake" in sys.argv[1:])

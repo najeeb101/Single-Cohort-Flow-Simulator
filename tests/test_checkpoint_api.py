@@ -62,15 +62,12 @@ def test_checkpoint_summary_carries_flow_timeline_shaped_data():
     assert set(ft["summary"]) == {
         "headline",
         "per_cohort",
-        "admissions_recommendation",
         "top_bottlenecks",
         "severe_terms",
     }
 
     assert ft["frames"] == []
     assert ft["summary"]["per_cohort"] == []
-    # No study cohorts have been admitted yet, so there's nothing to recommend from.
-    assert ft["summary"]["admissions_recommendation"] == {}
 
     client.post("/checkpoint/advance")
     after = client.get("/checkpoint").json()
@@ -112,21 +109,29 @@ def test_advance_to_completion_marks_session_completed():
     _discard_any_session()
 
 
-def test_autofill_scoped_to_working_config_not_live_plan():
-    # Bumping a course's staged capacity in the session should change what the session-scoped
-    # solver sees (fewer/no seat shortfalls to fix for that course) without touching the live
-    # plan at all — proving it reads working_curriculum/working_config, not the DB plan.
+def test_intake_analysis_scoped_to_working_config_not_live_plan():
+    # An analysis started with source="checkpoint" must run on the session's STAGED data: a
+    # capacity staged in the session shows up in the analysis's input snapshot while the live
+    # plan stays untouched — proving it reads working_curriculum, not the DB plan.
     _discard_any_session()
     created = client.post("/checkpoint").json()
     code = created["working_curriculum"][0]["code"]
     live_capacity_before = next(c["capacity"] for c in client.get("/curriculum").json() if c["code"] == code)
+    staged = live_capacity_before + 35
+    assert client.post("/checkpoint/edit", json={"capacity": {code: staged}}).status_code == 200
 
-    resp = client.post("/checkpoint/autofill", json={"run_budget": 2})
-    assert resp.status_code == 200
-    body = resp.json()
-    assert set(body) >= {"feasible", "recommended", "final_metrics", "criteria", "trace", "runs"}
+    resp = client.post("/intake-analyses", json={
+        "source": "checkpoint",
+        "params": {"grid_min": 60, "grid_max": 60, "seeds": 3, "refine_seeds": 3, "reference_runs": 1,
+                   "min_history_years": 0, "steady_seeds": 3, "robustness": False},
+    })
+    assert resp.status_code == 202
+    analysis = client.get(f"/intake-analyses/{resp.json()['id']}").json()
+    assert analysis["status"] == "done", analysis["error"]
+    assert analysis["source"] == "checkpoint"
+    snap = {c["code"]: c["capacity"] for c in analysis["inputs_snapshot"]["curriculum"]}
+    assert snap[code] == staged
 
-    # The live plan's own capacity is untouched by a read-only solve.
     live_capacity_after = next(c["capacity"] for c in client.get("/curriculum").json() if c["code"] == code)
     assert live_capacity_after == live_capacity_before
     _discard_any_session()

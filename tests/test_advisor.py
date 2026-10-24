@@ -13,6 +13,16 @@ from src.api import app
 
 client = TestClient(app)
 
+
+@pytest.fixture(autouse=True)
+def _no_ambient_llm_env(monkeypatch):
+    """Each test sets exactly the provider env it needs — a developer's .env (e.g. a local
+    Ollama LLM_BASE_URL) must not leak in and flip the enabled/disabled assertions."""
+    for key in ("LLM_API_KEY", "LLM_BASE_URL", "LLM_MODEL", "LLM_TIMEOUT",
+                "LLM_FALLBACK_BASE_URL", "LLM_FALLBACK_MODEL", "LLM_FALLBACK_API_KEY"):
+        monkeypatch.delenv(key, raising=False)
+
+
 SAMPLE_CONTEXT = {
     "scenario": "baseline",
     "headline": {
@@ -23,7 +33,6 @@ SAMPLE_CONTEXT = {
         "censored_rate": 0.22,
         "mean_gpa_at_graduation": 2.97,
     },
-    "criteria": [{"name": "graduation_rate", "observed": "65.5%", "target": "70.0%", "slack": 0.93}],
     "bottlenecks": {"capacity": [["CMPS323", 1064]], "fail": [["MATH101", 280]]},
 }
 
@@ -87,11 +96,11 @@ def test_summarize_plan_flattens_curriculum_and_settings():
         ),
     }
     config = {"cohort_size": 100, "num_cohorts": 8, "admission_terms": ["Fall"], "max_terms": 12,
-              "optional_terms_enabled": True, "admission_targets": {"target_grad_rate": 0.7}}
+              "optional_terms_enabled": True, "intake_policy": {"max_grad_rate_loss_pts": 2.0}}
     plan = advisor.summarize_plan(curriculum, config)
     assert plan["cohort_size"] == 100 and plan["max_terms"] == 12
     assert plan["admission_terms"] == ["Fall"]
-    assert plan["targets"]["target_grad_rate"] == 0.7
+    assert plan["intake_policy"]["max_grad_rate_loss_pts"] == 2.0
     # Courses come back in study-plan order, each carrying its definition.
     codes = [c["code"] for c in plan["courses"]]
     assert codes == ["CMPS151", "CMPS303"]
@@ -104,7 +113,7 @@ def test_prompt_includes_curriculum_and_per_course_run_behavior():
         **SAMPLE_CONTEXT,
         "plan": {
             "cohort_size": 100, "num_cohorts": 8, "admission_terms": ["Fall"], "admission_sizes": {},
-            "max_terms": 12, "optional_terms_enabled": True, "targets": {"target_grad_rate": 0.7},
+            "max_terms": 12, "optional_terms_enabled": True, "intake_policy": {"max_grad_rate_loss_pts": 2.0},
             "courses": [
                 {"code": "CMPS303", "title": "Data Structures", "credits": 3, "category": "cs_core",
                  "capacity": 90, "pass_rate": 0.75, "offering": ["Fall"], "prerequisites": ["CMPS151"],
@@ -116,7 +125,7 @@ def test_prompt_includes_curriculum_and_per_course_run_behavior():
     p = advisor.build_system_prompt(context)
     assert "CURRENT PLAN & SETTINGS" in p
     assert "100 students/cohort" in p           # intake settings surfaced
-    assert "target_grad_rate=0.7" in p          # admission target surfaced
+    assert "max_grad_rate_loss_pts=2.0" in p     # intake policy surfaced
     assert "seats=90" in p and "prereqs=CMPS151" in p  # the course definition
     assert "peak seat-denied 42" in p and "passed 300/failed 80" in p  # merged run behavior
 
@@ -133,6 +142,66 @@ def test_chat_disabled_without_key(monkeypatch):
 def test_chat_enabled_with_key(monkeypatch):
     monkeypatch.setenv("LLM_API_KEY", "test-key")
     assert advisor.chat_enabled() is True
+
+
+def test_local_server_needs_no_key(monkeypatch):
+    monkeypatch.setenv("LLM_BASE_URL", "http://localhost:11434/v1")
+    monkeypatch.setenv("LLM_MODEL", "qwen3-coder:30b")
+    assert advisor.chat_enabled() is True
+    assert advisor.model_label() == "qwen3-coder:30b · on this PC"
+    assert advisor._config()["timeout"] == 120.0  # local inference gets a longer timeout
+
+
+def test_hosted_url_without_key_stays_disabled(monkeypatch):
+    monkeypatch.setenv("LLM_BASE_URL", "https://api.groq.com/openai/v1")
+    assert advisor.chat_enabled() is False
+
+
+def test_fallback_answers_when_local_is_down(monkeypatch):
+    import httpx
+
+    monkeypatch.setenv("LLM_BASE_URL", "http://localhost:11434/v1")
+    monkeypatch.setenv("LLM_MODEL", "qwen3-coder:30b")
+    monkeypatch.setenv("LLM_FALLBACK_BASE_URL", "https://api.example.com/v1")
+    monkeypatch.setenv("LLM_FALLBACK_API_KEY", "paid-key")
+    monkeypatch.setenv("LLM_FALLBACK_MODEL", "big-model")
+
+    def fake_post(url, **_kwargs):
+        if url.startswith("http://localhost"):
+            raise httpx.ConnectError("connection refused")
+        return _FakeResp(200, {"choices": [{"message": {"content": "From the fallback."}}]})
+
+    monkeypatch.setattr(advisor.httpx, "post", fake_post)
+    out = advisor.run_chat_detailed([{"role": "user", "content": "why?"}], SAMPLE_CONTEXT)
+    assert out == {"reply": "From the fallback.", "model": "big-model · api.example.com"}
+
+
+def test_think_blocks_are_stripped(monkeypatch):
+    monkeypatch.setenv("LLM_BASE_URL", "http://127.0.0.1:11434/v1")
+    monkeypatch.setattr(advisor.httpx, "post", lambda *a, **k: _FakeResp(
+        200, {"choices": [{"message": {"content": "<think>internal reasoning</think>\nThe answer."}}]}))
+    assert advisor.run_chat([{"role": "user", "content": "q"}], SAMPLE_CONTEXT) == "The answer."
+
+
+def test_prompt_grounds_latest_intake_analysis():
+    analysis = advisor.summarize_analysis({
+        "label": "Fall 2027 intake",
+        "policy": {"max_grad_rate_loss_pts": 2.0, "max_on_time_loss_pts": 10.0},
+        "reference": {"grad_rate": 0.66, "on_time_rate": 0.5},
+        "recommendation": {"recommended_intake": 40, "sustainable_intake": 70, "upper_limit": 90,
+                           "why": "At 45 students seat shortages could cost up to 11 pts.",
+                           "robustness": {"range": [30, 50]}, "warnings": ["Illustrative."]},
+        "views": {"next": {"points": [{"intake": 40, "grad_rate": 0.67, "on_time_rate": 0.42,
+                                       "grad_rate_loss_fit": -1.0, "on_time_loss_fit": 8.5,
+                                       "graduates_per_year": 27.0,
+                                       "top_courses": [{"code": "CSEL2", "denials_per_student": 0.4}]}]}},
+        "data_quality": {"illustrative": True},
+    })
+    p = advisor.build_system_prompt({"intake_analysis": analysis})
+    assert "Recommended next intake: 40" in p and "sustainable every year: 70" in p
+    assert "Robustness range" in p and "30-50" in p
+    assert "40: 67.0% / 42.0%" in p and "CSEL2" in p
+    assert "never recompute or overrule" in p
 
 
 def test_run_chat_success_path(monkeypatch):

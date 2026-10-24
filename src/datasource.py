@@ -93,12 +93,25 @@ class SyntheticDataSource(DataSource):
     not in the engine: real students arrive with real ids and histories instead.
     """
 
-    def __init__(self, config: dict) -> None:
+    def __init__(self, config: dict, *, incumbent_sizes: list[int] | None = None) -> None:
+        """`incumbent_sizes` (most recent first) gives each warm-start cohort its own size — the
+        intake analysis passes the department's real past intakes here (src/intake.py) so the
+        next cohort walks into a realistically-sized student body. It replaces
+        `num_incumbent_cohorts` × cohort_size; leaving it None keeps the old behaviour exactly.
+        """
         self.config: dict = config
         self.seed: int = config["seed"]
         self.cohort_size: int = config["cohort_size"]
         self.num_cohorts: int = config.get("num_cohorts", 1)
-        self.num_incumbent_cohorts: int = config.get("num_incumbent_cohorts", 0)
+        if incumbent_sizes is not None and config.get("num_incumbent_cohorts", 0):
+            raise ValueError("pass either incumbent_sizes or num_incumbent_cohorts, not both")
+        self.incumbent_sizes: list[int] | None = (
+            [int(n) for n in incumbent_sizes] if incumbent_sizes is not None else None
+        )
+        self.num_incumbent_cohorts: int = (
+            len(self.incumbent_sizes) if self.incumbent_sizes is not None
+            else config.get("num_incumbent_cohorts", 0)
+        )
         self.ability_sd: float = config.get("ability_sd", 0.15)
         self.ability_clip: float = config.get("ability_clip", 0.30)
         # Admission cadence is now driven by *which seasons admit* (Fall-only, or Fall+Spring)
@@ -143,8 +156,10 @@ class SyntheticDataSource(DataSource):
         while len(incumbents) < self.num_incumbent_cohorts:
             season = term_season(t, self.config)
             if season in self.admission_terms:
+                size = (self.incumbent_sizes[len(incumbents)] if self.incumbent_sizes is not None
+                        else self._size_for_season(season))
                 incumbents.append(CohortSpec(cohort_id=-(len(incumbents) + 1), entry_term=t,
-                                             size=self._size_for_season(season)))
+                                             size=size))
             t -= 1
         # Admission order: incumbents earliest (most negative) first, then study cohorts. This
         # order is what makes the cumulative-id bases match the legacy scheme for equal sizes.

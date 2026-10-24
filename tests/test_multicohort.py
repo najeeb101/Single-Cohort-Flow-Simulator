@@ -1,7 +1,6 @@
 """Tests for the multi-cohort steady-state university model + data exports."""
 from __future__ import annotations
 
-import math
 from collections import defaultdict
 
 import pytest
@@ -9,7 +8,6 @@ import pytest
 from src.analytics import (
     build_course_utilization,
     build_curriculum_graph,
-    compute_admissions_recommendation,
     compute_cohort_metrics,
     compute_metrics,
 )
@@ -248,29 +246,6 @@ def test_record_blocks_includes_students_who_drop_the_same_term(monkeypatch):
     assert dropped_by_term[start_term] <= blocks_at_entry_term, (
         "students who dropped this term must still appear in this term's _record_blocks call"
     )
-
-
-# ── Admissions recommendation ────────────────────────────────────── #
-
-def test_admissions_recommendation_shape():
-    result, config, _ = _run()
-    rec = compute_admissions_recommendation(result)
-    assert rec["recommended_intake"] >= 1
-    assert rec["recommended_intake"] <= math.ceil(config["cohort_size"] * 1.25)
-    assert rec["binding_criterion"] in {
-        "graduation_rate", "time_to_degree", "seats_denied_per_stud", "throughput_stability"
-    }
-    assert len(rec["criteria"]) == 4
-
-
-def test_starved_capacity_recommends_shrink():
-    config, curriculum = _setup()
-    # Choke every course to 5 seats -> heavy congestion -> shrink intake.
-    scenario = {"name": "starved", "capacity_overrides": {c: 0.05 for c in curriculum}}
-    result = Simulator(curriculum, config, scenario).run()
-    result.metrics = compute_metrics(result)
-    rec = compute_admissions_recommendation(result)
-    assert rec["recommended_intake"] < config["cohort_size"]
 
 
 # ── Timeline JSON structure ──────────────────────────────────────── #

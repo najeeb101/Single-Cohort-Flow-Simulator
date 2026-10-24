@@ -8,7 +8,7 @@
     "Fall"
   ],
   "admission_sizes": {},
-  "_initial_state_note": "Replaces the old num_incumbent_cohorts warm start (simulated cohorts admitted at negative terms). The university starts NOT empty: 'occupancy' is how many seats in each course are already taken by the existing student body the first simulated cohort competes against -- a steady-state background load subtracted from that course's free seats on every mandatory term (see src/simulator.py::_effective_capacity and CLAUDE.md's Initial-State Model). Edit in Settings or the Scenario Builder. num_incumbent_cohorts still works as an engine knob (defaults to 0 / no incumbents) but is no longer part of the default plan.",
+  "_initial_state_note": "'occupancy' = seats in each course used by students of OTHER programs (e.g. Computer Engineering students in CMPS151 or MATH101) -- a permanent background load subtracted from that course's free seats on every mandatory term (see src/simulator.py::_effective_capacity and CLAUDE.md's Initial-State Model). The CS student body itself is rebuilt from current_students.past_intakes by the Intake Planner. Edit on the Data page. num_incumbent_cohorts still works as an engine knob (defaults to 0 / no incumbents) but is not part of the default plan.",
   "initial_state": {
     "occupancy": {
       "CMPS151": 20,
@@ -118,11 +118,48 @@
       "D": 0.03
     }
   },
-  "admission_targets": {
-    "target_grad_rate": 0.7,
-    "max_avg_time_to_degree": 10.0,
-    "max_seats_denied_per_student": 1.0,
-    "min_throughput_stability": 0.85
+  "_planning_note": "The Intake Planner (src/intake.py). planning labels the decision being made and how current the data is. current_students.past_intakes (most recent first) rebuilds today's student body the next intake walks into; older years are padded with estimates up to intake_analysis.min_history_years. section_size converts seat plans into whole sections. data_sources tags each input 'qu' (QU data) or 'estimate' so every result says how much it rests on estimates. historical_outcomes (optional, 0..1 rates) powers the calibration check.",
+  "planning": {
+    "next_intake_label": "Fall 2027 intake",
+    "data_as_of": "Default estimates (not yet QU data)"
+  },
+  "current_students": {
+    "past_intakes": [
+      {"label": "Fall 2026", "size": 100},
+      {"label": "Fall 2025", "size": 100},
+      {"label": "Fall 2024", "size": 100},
+      {"label": "Fall 2023", "size": 100},
+      {"label": "Fall 2022", "size": 100}
+    ]
+  },
+  "section_size": 35,
+  "historical_outcomes": {
+    "grad_rate_6yr": null,
+    "on_time_rate_4yr": null,
+    "n_students": null,
+    "current_headcount": null
+  },
+  "data_sources": {
+    "capacity": {},
+    "pass_rate": {},
+    "past_intakes": "estimate",
+    "occupancy": "estimate"
+  },
+  "_intake_policy_note": "How much harm from seat shortages the department accepts, measured against the same students with unlimited seats. Default 'Balanced': graduation within max_terms may drop at most 2 pts and on-time graduation at most 10 pts. min_grad_rate (0..1, optional) adds an absolute floor.",
+  "intake_policy": {
+    "max_grad_rate_loss_pts": 2.0,
+    "max_on_time_loss_pts": 10.0,
+    "min_grad_rate": null
+  },
+  "intake_analysis": {
+    "grid_min": 20,
+    "grid_max": 200,
+    "grid_step": 10,
+    "seeds": 20,
+    "refine_step": 5,
+    "refine_seeds": 40,
+    "reference_runs": 8,
+    "min_history_years": 8
   },
   "monte_carlo": {
     "enabled": true,

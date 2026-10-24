@@ -22,6 +22,10 @@ from src.utils import grade_tier
 # Semester Checkpoint Mode.
 _SNAPSHOT_VERSION = 1
 
+# Per-term seats a course gets under the `unlimited_seats` scenario hook — far above any cohort
+# the API will accept (cohort_size <= 1000), so no requester is ever turned away.
+_UNLIMITED_SEATS = 10**9
+
 
 class SnapshotVersionError(Exception):
     """Raised by Simulator.from_snapshot on a version mismatch — the caller (a checkpoint
@@ -661,6 +665,14 @@ class Simulator:
         # capacity model applies (`optional_term_capacity_scale`) — see CLAUDE.md's
         # "Term/Season Model". Scenario hooks still scale it for what-if experiments
         # (`capacity_overrides` interpreted as a per-course multiplier).
+        #
+        # `unlimited_seats` ("all" | "regular") is the intake analysis's no-shortage reference
+        # (src/intake.py): it bypasses every seat limit — overrides, the optional-term scale and
+        # occupancy included — so a reference run can never record a denial. "regular" lifts only
+        # the mandatory seasons and leaves optional terms on their normal model.
+        unlimited = self.scenario.get("unlimited_seats")
+        if unlimited == "all" or (unlimited == "regular" and self._is_mandatory_season(season)):
+            return _UNLIMITED_SEATS
         seats = course.capacity
         if not self._is_mandatory_season(season):
             scale = float(self.config.get("optional_term_capacity_scale", 0.3))

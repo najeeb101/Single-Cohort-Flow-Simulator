@@ -1,16 +1,25 @@
-"""Phase B of the hybrid advisor: an optional LLM chat box grounded in one run's numbers.
+"""Phase B of the hybrid advisor: an optional LLM chat box grounded in the plan, the latest
+intake analysis, and one run's numbers.
 
-Provider-agnostic by design — it POSTs to any OpenAI-compatible ``/chat/completions`` endpoint,
-selected entirely by environment variables, so Groq (the default, which has a real free tier),
-Google Gemini, OpenRouter, or an Anthropic-compatible proxy are a config swap, not a code change::
+**The model never produces the intake number** — src/intake.py does. The chat explains the
+recommendation and proposes changes to *test*; nothing is written without the admin's click.
 
-    LLM_API_KEY    required to enable the feature at all
-    LLM_BASE_URL   default https://api.groq.com/openai/v1
-    LLM_MODEL      default llama-3.3-70b-versatile
+Provider-agnostic: it POSTs to any OpenAI-compatible ``/chat/completions`` endpoint selected by
+environment variables. The recommended setup is a **local model through Ollama** (free, offline,
+nothing leaves the department PC)::
 
-When ``LLM_API_KEY`` is unset the whole feature is dormant: :func:`chat_enabled` is ``False``,
-``/meta`` reports it, and the frontend hides the chat box — Phase A (the rules-based
-``AdvisorPanel``) is completely untouched and needs no key.
+    LLM_BASE_URL   e.g. http://localhost:11434/v1 (Ollama); default https://api.groq.com/openai/v1
+    LLM_MODEL      e.g. qwen3-coder:30b;            default llama-3.3-70b-versatile
+    LLM_API_KEY    required for a hosted provider; optional for a localhost server
+    LLM_TIMEOUT    seconds; default 120 for a local server (CPU/GPU inference is slower), else 30
+
+An optional paid/hosted fallback is tried when the primary can't be reached::
+
+    LLM_FALLBACK_BASE_URL, LLM_FALLBACK_MODEL, LLM_FALLBACK_API_KEY
+
+With neither a key nor a local base URL the feature is dormant: :func:`chat_enabled` is
+``False``, ``/meta`` reports it, and the frontend shows a "how to enable" note — the rules-based
+``AdvisorPanel`` needs no model at all.
 """
 from __future__ import annotations
 
@@ -26,17 +35,62 @@ DEFAULT_BASE_URL = "https://api.groq.com/openai/v1"
 DEFAULT_MODEL = "llama-3.3-70b-versatile"
 
 
+_LOCAL_HOSTS = ("localhost", "127.0.0.1", "0.0.0.0", "[::1]")
+
+
+def _is_local(base_url: str) -> bool:
+    host = base_url.split("://", 1)[-1].split("/", 1)[0].rsplit(":", 1)[0].lower()
+    return host in _LOCAL_HOSTS
+
+
+def _provider(prefix: str = "LLM_") -> dict | None:
+    """One provider's settings from env (``LLM_`` primary, ``LLM_FALLBACK_`` fallback), or None
+    when that provider isn't configured. A localhost server (Ollama, LM Studio) needs no key."""
+    explicit_url = os.environ.get(f"{prefix}BASE_URL")
+    if prefix != "LLM_" and not explicit_url:
+        return None
+    base_url = (explicit_url or DEFAULT_BASE_URL).rstrip("/")
+    api_key = os.environ.get(f"{prefix}API_KEY", "")
+    local = _is_local(base_url)
+    if not api_key and not local:
+        return None
+    return {
+        "base_url": base_url,
+        "api_key": api_key or "local",
+        "model": os.environ.get(f"{prefix}MODEL", DEFAULT_MODEL),
+        "local": local,
+        "timeout": float(os.environ.get("LLM_TIMEOUT", 120.0 if local else 30.0)),
+    }
+
+
+def _providers() -> list[dict]:
+    return [p for p in (_provider("LLM_"), _provider("LLM_FALLBACK_")) if p]
+
+
 def chat_enabled() -> bool:
-    """True iff an LLM API key is configured. Everything else stays dormant without it."""
-    return bool(os.environ.get("LLM_API_KEY"))
+    """True when a hosted provider has a key or a local server URL is configured."""
+    return bool(_providers())
 
 
 def _config() -> dict:
-    return {
-        "base_url": os.environ.get("LLM_BASE_URL", DEFAULT_BASE_URL).rstrip("/"),
-        "api_key": os.environ.get("LLM_API_KEY", ""),
-        "model": os.environ.get("LLM_MODEL", DEFAULT_MODEL),
-    }
+    """The primary provider's settings (kept for callers/tests that read one config)."""
+    providers = _providers()
+    return providers[0] if providers else {
+        "base_url": DEFAULT_BASE_URL, "api_key": "", "model": DEFAULT_MODEL, "local": False, "timeout": 30.0}
+
+
+def _label(provider: dict) -> str:
+    where = "on this PC" if provider["local"] else provider["base_url"].split("://", 1)[-1].split("/", 1)[0]
+    return f"{provider['model']} · {where}"
+
+
+def model_label() -> str | None:
+    """Human-readable "which model answers" line for the UI, e.g. "qwen3-coder:30b · on this PC"."""
+    providers = _providers()
+    return _label(providers[0]) if providers else None
+
+
+_THINK_RE = re.compile(r"<think>.*?</think>", re.DOTALL | re.IGNORECASE)
 
 
 class AdvisorChatError(RuntimeError):
@@ -51,7 +105,7 @@ def _fmt_pct(x: object) -> str:
 
 
 def summarize_plan(curriculum: dict, config: dict) -> dict:
-    """Compact, LLM-groundable snapshot of the ACTIVE plan: intake knobs, admission targets, and
+    """Compact, LLM-groundable snapshot of the ACTIVE plan: intake knobs, intake policy limits, and
     every course's definition (seats, pass rate, offering seasons, prerequisites, study-plan term).
 
     Injected by the ``/advisor/chat`` endpoint from the requesting user's active plan, so the model
@@ -84,8 +138,50 @@ def summarize_plan(curriculum: dict, config: dict) -> dict:
         "admission_sizes": config.get("admission_sizes") or {},
         "max_terms": config.get("max_terms"),
         "optional_terms_enabled": config.get("optional_terms_enabled", False),
-        "targets": config.get("admission_targets") or {},
+        "intake_policy": config.get("intake_policy") or {},
+        "past_intakes": [e.get("size") for e in (config.get("current_students") or {}).get("past_intakes") or []],
+        "section_size": config.get("section_size", 35),
         "courses": courses,
+    }
+
+
+def summarize_analysis(result: dict | None, *, label: str | None = None, when: str | None = None) -> dict:
+    """Compact, LLM-groundable view of one completed intake analysis (src/intake.py)."""
+    if not result:
+        return {}
+    rec = result.get("recommendation") or {}
+    nxt = (result.get("views") or {}).get("next") or {}
+    rows = []
+    for p in nxt.get("points") or []:
+        top = p["top_courses"][0]["code"] if p.get("top_courses") else None
+        rows.append({
+            "intake": p["intake"],
+            "grad_rate": round(p["grad_rate"], 3),
+            "on_time_rate": round(p["on_time_rate"], 3),
+            "grad_loss_pts": round(p.get("grad_rate_loss_fit", 0.0), 1),
+            "on_time_loss_pts": round(p.get("on_time_loss_fit", 0.0), 1),
+            "graduates_per_year": round(p["graduates_per_year"], 1),
+            "top_short_course": top,
+        })
+    rob = rec.get("robustness") or {}
+    ref = result.get("reference") or {}
+    return {
+        "label": label or result.get("label"),
+        "when": when,
+        "recommended_intake": rec.get("recommended_intake"),
+        "sustainable_intake": rec.get("sustainable_intake"),
+        "upper_limit": rec.get("upper_limit"),
+        "feasible": rec.get("feasible"),
+        "binding_limit": rec.get("binding_limit"),
+        "binding_course": rec.get("binding_course"),
+        "why": rec.get("why"),
+        "robustness_range": rob.get("range"),
+        "warnings": rec.get("warnings") or [],
+        "policy": result.get("policy") or {},
+        "reference_grad_rate": ref.get("grad_rate"),
+        "reference_on_time_rate": ref.get("on_time_rate"),
+        "per_intake": rows,
+        "illustrative": (result.get("data_quality") or {}).get("illustrative"),
     }
 
 
@@ -131,24 +227,28 @@ def build_system_prompt(context: dict) -> str:
     """Ground the model in exactly this run's numbers, so it can't invent figures or courses.
 
     ``context`` is the facts blob assembled for one run. The ``/advisor/chat`` endpoint injects
-    ``plan`` (the active plan's full curriculum + settings, via :func:`summarize_plan`); the
-    frontend supplies the ``/simulate`` summary (``headline`` / ``criteria`` / ``bottlenecks`` /
+    ``plan`` (the active plan's full curriculum + settings, via :func:`summarize_plan`) and
+    ``intake_analysis`` (the latest completed intake analysis, via :func:`summarize_analysis`);
+    the frontend supplies the ``/simulate`` summary (``headline`` / ``bottlenecks`` /
     ``scenario``) plus per-course run aggregates (``course_stats``). Every field is optional and
     defended, so a partial or empty context still yields a valid prompt.
     """
     ctx = context or {}
     h = ctx.get("headline") or {}
-    criteria = ctx.get("criteria") or []
     bn = ctx.get("bottlenecks") or {}
     scenario = ctx.get("scenario") or "baseline"
     plan = ctx.get("plan") or {}
     course_stats = ctx.get("course_stats") or {}
 
+    analysis = ctx.get("intake_analysis") or {}
     lines = [
-        "You are the built-in assistant of a university course-flow SIMULATOR. A discrete-term, "
-        "agent-based model simulates students moving through a curriculum over up to 12 semesters, "
-        "all competing for shared course seats; a student can pass, fail, repeat, be delayed, drop "
-        "out, or run out of time (CENSORED). An administrator is exploring the results of ONE run.",
+        "You are the built-in assistant of the CS INTAKE PLANNER used by a university department "
+        "(Qatar University Computer Science). Its one question: HOW MANY STUDENTS SHOULD WE ADMIT IN "
+        "THE NEXT INTAKE, AND WHAT COURSE SEATS DOES THAT NUMBER NEED? A discrete-term, agent-based "
+        "model simulates students moving through the real curriculum over up to 12 semesters, all "
+        "competing for shared course seats; a student can pass, fail, repeat, be delayed, drop out, "
+        "or run out of time (CENSORED). The intake recommendation below was computed by the "
+        "simulation's intake sweep - explain it, never recompute or overrule it yourself.",
         "",
         "RULES:",
         "- Answer ONLY from the facts below: this run's numbers PLUS the full curriculum and current "
@@ -158,11 +258,13 @@ def build_system_prompt(context: dict) -> str:
         "term, so answer specific per-course questions (\"what unlocks X?\", \"how many seats does Y "
         "have?\", \"when is Z taught?\") directly from that list.",
         "- You are read-only: you can't change anything yourself. To act, point them at the right tool: "
-        "Settings (edit the plan permanently), Bottlenecks + Auto-fill (auto-solve seat shortfalls), the "
-        "Test button on a proposal you emit below (a safe what-if run that predicts the effect before "
-        "they Apply it), or the Dashboard's checkpoint walkthrough (step term by term, editing capacity/"
-        "pass rate/occupancy/intake between steps). There is no separate \"what-if panel\" — you ARE "
-        "the what-if surface, via the proposals you emit.",
+        "the Intake Planner page (run the analysis; its seat planner answers 'what would it take to "
+        "admit N?' in whole sections), the Data page (edit seats, pass rates, past intakes, other-program "
+        "seats, policy limits), Bottlenecks (which courses limit intake), the Test button on a proposal "
+        "you emit below (a safe what-if run that predicts the effect before they Apply it), or the "
+        "Walkthrough page (step term by term, editing capacity/pass rate/occupancy/intake between steps).",
+        "- Data honesty: seats and sections change every semester, and many inputs may still be "
+        "estimates rather than QU data. When the analysis is marked illustrative, say so.",
         "- Be concise and concrete — usually 2-5 sentences — and cite the real numbers.",
         "- Mechanics you must respect: a capacity block = wanted a seat but the course was full "
         "(fixed by more seats); an offering block = eligible but the course wasn't taught that term "
@@ -203,12 +305,40 @@ def build_system_prompt(context: dict) -> str:
         f"mean GPA at graduation {h.get('mean_gpa_at_graduation', 'n/a')}.",
     ]
 
-    if criteria:
+    if analysis:
+        lines.append("")
+        when = f", {analysis.get('when')}" if analysis.get("when") else ""
+        lines.append(f"LATEST INTAKE ANALYSIS ({analysis.get('label') or 'next intake'}{when}):")
+        rec_n = analysis.get("recommended_intake")
         lines.append(
-            "- Admission health targets (observed / target / slack; slack < 1 means the target is MISSED):"
+            f"- Recommended next intake: {rec_n if rec_n is not None else 'NONE meets the policy limits'}; "
+            f"sustainable every year: {analysis.get('sustainable_intake') or 'n/a'}; upper limit (extra "
+            f"students stop adding graduates beyond): {analysis.get('upper_limit') or 'not reached'}."
         )
-        for c in criteria:
-            lines.append(f"    {c.get('name')}: {c.get('observed')} / {c.get('target')} (slack {c.get('slack')})")
+        if analysis.get("why"):
+            lines.append(f"- Why: {analysis['why']}")
+        if analysis.get("robustness_range"):
+            lo, hi = analysis["robustness_range"]
+            lines.append(f"- Robustness range (one fewer section in tight courses / pass rates 5 pts lower): {lo}-{hi}.")
+        pol = analysis.get("policy") or {}
+        lines.append(
+            f"- Policy limits: seat shortages may cost at most {pol.get('max_grad_rate_loss_pts')} pts of "
+            f"graduation rate and {pol.get('max_on_time_loss_pts')} pts of on-time graduation, measured "
+            f"against the same students with unlimited seats (graduation "
+            f"{_fmt_pct(analysis.get('reference_grad_rate'))}, on-time {_fmt_pct(analysis.get('reference_on_time_rate'))})."
+        )
+        rows = analysis.get("per_intake") or []
+        if rows:
+            lines.append("- Per intake (next intakes, smoothed): N: grad / on-time / grad loss / on-time loss / "
+                         "graduates per year / most short course")
+            for r in rows:
+                lines.append(
+                    f"    {r['intake']}: {_fmt_pct(r['grad_rate'])} / {_fmt_pct(r['on_time_rate'])} / "
+                    f"{r['grad_loss_pts']} pts / {r['on_time_loss_pts']} pts / {r['graduates_per_year']} / "
+                    f"{r.get('top_short_course') or '-'}"
+                )
+        for w in analysis.get("warnings") or []:
+            lines.append(f"- Caveat: {w}")
 
     def _top(key: str, label: str) -> None:
         rows = bn.get(key) or []
@@ -242,9 +372,12 @@ def build_system_prompt(context: dict) -> str:
             "semesters to graduate. Optional (Summer/Winter) terms: "
             f"{'on' if plan.get('optional_terms_enabled') else 'off'}."
         )
-        targets = plan.get("targets") or {}
-        if targets:
-            lines.append("- Admission targets: " + ", ".join(f"{k}={v}" for k, v in targets.items()))
+        policy = plan.get("intake_policy") or {}
+        if policy:
+            lines.append("- Intake policy limits: " + ", ".join(f"{k}={v}" for k, v in policy.items()))
+        if plan.get("past_intakes"):
+            lines.append(f"- Past intakes (most recent first): {plan['past_intakes']}; section size "
+                         f"{plan.get('section_size')} seats.")
         courses = plan.get("courses") or []
         if courses:
             lines.append(
@@ -258,32 +391,50 @@ def build_system_prompt(context: dict) -> str:
     return "\n".join(lines)
 
 
-def run_chat(messages: list[dict], context: dict, *, timeout: float = 30.0) -> str:
-    """Send the grounded system prompt + the conversation to the configured provider, return the reply."""
-    if not chat_enabled():
-        raise AdvisorChatError("LLM chat is not configured (set LLM_API_KEY).")
-    cfg = _config()
+def _call(provider: dict, messages: list[dict], context: dict, timeout: float | None) -> str:
     payload = {
-        "model": cfg["model"],
+        "model": provider["model"],
         "messages": [{"role": "system", "content": build_system_prompt(context)}, *messages],
         "temperature": 0.2,
         "max_tokens": 700,
     }
     try:
         resp = httpx.post(
-            f"{cfg['base_url']}/chat/completions",
-            headers={"Authorization": f"Bearer {cfg['api_key']}", "Content-Type": "application/json"},
+            f"{provider['base_url']}/chat/completions",
+            headers={"Authorization": f"Bearer {provider['api_key']}", "Content-Type": "application/json"},
             json=payload,
-            timeout=timeout,
+            timeout=timeout if timeout is not None else provider["timeout"],
         )
     except httpx.HTTPError as e:  # network / timeout / DNS
         raise AdvisorChatError(f"Could not reach the LLM provider: {e}") from e
     if resp.status_code != 200:
         raise AdvisorChatError(f"LLM provider returned {resp.status_code}: {resp.text[:300]}")
     try:
-        return resp.json()["choices"][0]["message"]["content"].strip()
+        content = resp.json()["choices"][0]["message"]["content"]
     except (KeyError, IndexError, TypeError) as e:
         raise AdvisorChatError("Unexpected response shape from the LLM provider.") from e
+    # Reasoning models (Qwen3 thinking variants) may prepend a <think>...</think> block.
+    return _THINK_RE.sub("", content or "").strip()
+
+
+def run_chat_detailed(messages: list[dict], context: dict, *, timeout: float | None = None) -> dict:
+    """Ask the primary provider, falling back to the LLM_FALLBACK_* one if the primary fails.
+    Returns {"reply", "model"} where model is the human-readable label of who answered."""
+    providers = _providers()
+    if not providers:
+        raise AdvisorChatError("LLM chat is not configured (set LLM_BASE_URL to a local server, or LLM_API_KEY).")
+    errors = []
+    for provider in providers:
+        try:
+            return {"reply": _call(provider, messages, context, timeout), "model": _label(provider)}
+        except AdvisorChatError as e:
+            errors.append(f"{_label(provider)}: {e}")
+    raise AdvisorChatError("; ".join(errors))
+
+
+def run_chat(messages: list[dict], context: dict, *, timeout: float | None = None) -> str:
+    """Send the grounded system prompt + the conversation, return the reply text."""
+    return run_chat_detailed(messages, context, timeout=timeout)["reply"]
 
 
 # --- Actionable proposals (step 2: propose a change the admin applies with one click) -----------

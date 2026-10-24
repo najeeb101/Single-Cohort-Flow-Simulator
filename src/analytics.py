@@ -16,13 +16,12 @@ from __future__ import annotations
 
 import csv
 import json
-import statistics
 from dataclasses import asdict
 from pathlib import Path
 from typing import TYPE_CHECKING
 
 from src.datasource import StudentRecord
-from src.models.semester import get_mandatory_seasons, mandatory_horizon_end_term
+from src.models.semester import get_mandatory_seasons
 from src.models.student import stage_node_names
 from src.rules import gate_edges
 
@@ -177,136 +176,6 @@ def compute_historical_transcripts(result: "SimulationResult", incumbents_only: 
 
 
 # ------------------------------------------------------------------ #
-# Admissions recommendation (single-run heuristic)                    #
-# ------------------------------------------------------------------ #
-
-def evaluate_health_criteria(result: "SimulationResult") -> dict | None:
-    """The four steady-state "health" criteria + their slack, judged against
-    config['admission_targets']. Slack is normalized so >= 1 always passes and < 1 always
-    breaches, regardless of whether the target is a floor (grad rate, stability) or a ceiling
-    (time-to-degree, seats denied). Shared by compute_admissions_recommendation (which scales
-    intake by the worst slack) and capacity.run_intake_sweep (which judges every intake by the
-    exact same definitions). Returns None when there are no study cohorts to evaluate.
-    """
-    config = result.config
-    targets = config.get("admission_targets", {})
-    cohort_metrics = compute_cohort_metrics(result)
-
-    # Representative steady-state cohort = latest study cohort that has finished
-    # its horizon; fall back to the mean across study cohorts.
-    study = {cid: m for cid, m in cohort_metrics.items() if not m["is_incumbent"]}
-    if not study:
-        return None
-
-    rep = _representative_cohort(result, study)
-    # Throughput stability: graduates-per-term coefficient (1 - cv), clipped to [0,1].
-    stability = _throughput_stability(result)
-
-    g = rep["graduation_rate"]
-    T = rep["avg_time_to_degree"] or config["max_terms"]
-    # capacity blocks per study student
-    total_denied = sum(
-        sum(c.values()) for cid, c in result.history.capacity_block_by_cohort.items() if cid >= 0
-    )
-    n_study = len(_study_students(result)) or 1
-    d = total_denied / n_study
-
-    tgt_g = targets.get("target_grad_rate", 0.70)
-    tgt_T = targets.get("max_avg_time_to_degree", 10.0)
-    tgt_d = targets.get("max_seats_denied_per_student", 1.0)
-    tgt_s = targets.get("min_throughput_stability", 0.85)
-
-    criteria = [
-        {"name": "graduation_rate",      "observed": round(g, 4),  "target": tgt_g,
-         "slack": (g / tgt_g) if tgt_g else float("inf")},
-        {"name": "time_to_degree",       "observed": round(T, 4),  "target": tgt_T,
-         "slack": (tgt_T / T) if T else float("inf")},
-        {"name": "seats_denied_per_stud","observed": round(d, 4),  "target": tgt_d,
-         "slack": (tgt_d / d) if d else float("inf")},
-        {"name": "throughput_stability", "observed": round(stability, 4), "target": tgt_s,
-         "slack": (stability / tgt_s) if tgt_s else float("inf")},
-    ]
-    return {"criteria": criteria, "representative_cohort": rep["cohort_id"]}
-
-
-def compute_admissions_recommendation(result: "SimulationResult") -> dict:
-    config = result.config
-    health = evaluate_health_criteria(result)
-    if health is None:
-        return {}
-    criteria = health["criteria"]
-
-    binding = min(criteria, key=lambda c: c["slack"])
-    f = binding["slack"]
-    f_capped = min(f, 1.25)  # don't extrapolate growth beyond observed range
-    current = config["cohort_size"]
-    recommended = max(1, round(current * f_capped))
-
-    return {
-        "current_intake": current,
-        "recommended_intake": recommended,
-        "binding_criterion": binding["name"],
-        "binding_slack": round(f, 4),
-        "growth_capped_at": 1.25,
-        "representative_cohort": health["representative_cohort"],
-        "criteria": criteria,
-        "note": "Single-run heuristic: intake scaled by the worst-performing health "
-                "criterion (slack<1 = breach -> shrink; slack>1 = headroom -> grow, capped 1.25x). "
-                "Not an optimum; an intake sweep would be the rigorous follow-up.",
-    }
-
-
-def _representative_cohort(result: "SimulationResult", study: dict[int, dict]) -> dict:
-    """Latest fully-observed study cohort, else the mean across study cohorts."""
-    max_terms = result.config["max_terms"]
-    end_term = result.history.timeline[-1]["term"] if result.history.timeline else 0
-    entry_by_cohort = {s.cohort_id: s.entry_term for s in result.students}
-
-    # "Finished" means this cohort's max_terms-th *mandatory* semester has already occurred
-    # within the simulated window — a raw calendar-term subtraction would overcount once
-    # optional (non-mandatory) seasons exist in the cycle. See CLAUDE.md's "Term/Season Model".
-    finished = [
-        cid for cid in study
-        if mandatory_horizon_end_term(entry_by_cohort.get(cid, 0), max_terms, result.config) - 1 <= end_term
-    ]
-    if finished:
-        cid = max(finished)
-        return study[cid]
-
-    # Mean across study cohorts.
-    keys = ["graduation_rate", "academic_dropout_rate", "censored_rate",
-            "on_time_rate", "avg_time_to_degree", "probation_rate"]
-    mean = {k: statistics.fmean(study[c][k] for c in study) for k in keys}
-    mean["cohort_id"] = "mean"
-    mean["is_incumbent"] = False
-    return mean
-
-
-def _throughput_stability(result: "SimulationResult") -> float:
-    """1 - coefficient of variation of graduates-per-term (study cohorts), clipped to [0,1]."""
-    # Read the real calendar term of graduation from OutcomeRecord (already the true term_idx
-    # _record_outcome saw) rather than reconstructing it from entry_term + grad_semester — that
-    # reconstruction drifts once grad_semester only counts mandatory terms.
-    grad_term_by_student = {
-        r.student_id: r.graduation_term
-        for r in result.history.outcomes if r.exit_reason == "graduated"
-    }
-    per_term: dict[int, int] = {}
-    for s in result.students:
-        if s.status == "GRADUATED" and s.entry_term >= 0 and s.student_id in grad_term_by_student:
-            grad_term = grad_term_by_student[s.student_id]
-            per_term[grad_term] = per_term.get(grad_term, 0) + 1
-    counts = list(per_term.values())
-    if len(counts) < 2:
-        return 1.0
-    mean = statistics.fmean(counts)
-    if mean == 0:
-        return 0.0
-    cv = statistics.pstdev(counts) / mean
-    return max(0.0, min(1.0, 1.0 - cv))
-
-
-# ------------------------------------------------------------------ #
 # Course demand / utilization                                         #
 # ------------------------------------------------------------------ #
 
@@ -456,14 +325,13 @@ def flow_timeline_payload(
             "cohort_size": result.config.get("cohort_size"),
             "max_terms": result.config.get("max_terms"),
             "num_cohorts": result.config.get("num_cohorts"),
-            "num_incumbent_cohorts": result.config.get("num_incumbent_cohorts", 0),
+            "num_incumbent_cohorts": sum(1 for c in cohorts_meta if c["is_incumbent"]),
             "initial_state": result.config.get("initial_state", {"occupancy": {}}),
         },
         "frames": history.timeline,
         "summary": {
             "headline": headline,
             "per_cohort": list(compute_cohort_metrics(result).values()),
-            "admissions_recommendation": compute_admissions_recommendation(result),
             "top_bottlenecks": {
                 "fail":     _top3(history.fail_counts),
                 "capacity": _top3(history.capacity_block_counts_mandatory),

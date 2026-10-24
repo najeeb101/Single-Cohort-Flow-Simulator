@@ -134,6 +134,11 @@ def validate_plan_edits(curriculum: dict[str, Course], config: dict) -> None:
     validate_capacity_vs_occupancy(curriculum, config)
     validate_credit_load_bounds(config)
     validate_max_course_attempts(config)
+    validate_intake_policy(config.get("intake_policy"))
+    validate_intake_analysis(config.get("intake_analysis"))
+    validate_current_students(config.get("current_students"))
+    validate_historical_outcomes(config.get("historical_outcomes"))
+    validate_section_size(config.get("section_size"))
     # Curriculum topology guardrails (missing prereqs, cycles, unreachable depth).
     from src.curriculum_validation import validate_curriculum_topology
     try:
@@ -177,3 +182,93 @@ def validate_admissions(patch: dict, config: dict) -> None:
             isinstance(v, int) and not isinstance(v, bool) and v >= 1 for v in sizes.values()
         ):
             raise PlanValidationError("admission_sizes must map season names to positive integers")
+
+
+# ------------------------------------------------------------------ #
+# Intake Planner keys (src/intake.py)                                 #
+# ------------------------------------------------------------------ #
+
+def _is_number(v: object) -> bool:
+    return isinstance(v, (int, float)) and not isinstance(v, bool)
+
+
+def _is_int(v: object) -> bool:
+    return isinstance(v, int) and not isinstance(v, bool)
+
+
+def validate_intake_policy(value: object) -> None:
+    """How much harm from seat shortages is acceptable: loss limits in percentage points, and an
+    optional absolute graduation-rate floor (0..1)."""
+    if value is None:
+        return
+    if not isinstance(value, dict):
+        raise PlanValidationError("intake_policy must be an object")
+    for key, hi in (("max_grad_rate_loss_pts", 50), ("max_on_time_loss_pts", 100)):
+        if key in value and not (_is_number(value[key]) and 0 < value[key] <= hi):
+            raise PlanValidationError(f"intake_policy.{key} must be a number in (0, {hi}]")
+    mgr = value.get("min_grad_rate")
+    if mgr is not None and not (_is_number(mgr) and 0 <= mgr <= 1):
+        raise PlanValidationError("intake_policy.min_grad_rate must be null or a rate between 0 and 1")
+
+
+# (key, min, max) for the sweep knobs. Bounds keep one analysis to minutes on a department PC.
+_INTAKE_ANALYSIS_BOUNDS = (
+    ("grid_min", 10, 1000), ("grid_max", 10, 1000), ("grid_step", 1, 200),
+    ("seeds", 3, 100), ("refine_step", 1, 100), ("refine_seeds", 3, 200),
+    ("reference_runs", 1, 50), ("min_history_years", 0, 20),
+    ("steady_seeds", 2, 100), ("robustness_seeds", 2, 100),
+)
+_MAX_GRID_POINTS = 60
+
+
+def validate_intake_analysis(value: object) -> None:
+    if value is None:
+        return
+    if not isinstance(value, dict):
+        raise PlanValidationError("intake_analysis must be an object")
+    for key, lo, hi in _INTAKE_ANALYSIS_BOUNDS:
+        if key in value and not (_is_int(value[key]) and lo <= value[key] <= hi):
+            raise PlanValidationError(f"intake_analysis.{key} must be an integer in [{lo}, {hi}]")
+    lo, hi, step = value.get("grid_min", 20), value.get("grid_max", 200), value.get("grid_step", 10)
+    if lo > hi:
+        raise PlanValidationError("intake_analysis.grid_min must not exceed grid_max")
+    if (hi - lo) // step + 1 > _MAX_GRID_POINTS:
+        raise PlanValidationError(f"intake_analysis grid has more than {_MAX_GRID_POINTS} intakes; raise grid_step")
+    if value.get("refine_seeds", 40) < value.get("seeds", 20):
+        raise PlanValidationError("intake_analysis.refine_seeds must be at least seeds")
+
+
+def validate_current_students(value: object) -> None:
+    """Past intakes (most recent first): [{label, size, source?}], sizes 0..2000."""
+    if value is None:
+        return
+    if not isinstance(value, dict):
+        raise PlanValidationError("current_students must be an object")
+    intakes = value.get("past_intakes", [])
+    if not isinstance(intakes, list) or len(intakes) > 30:
+        raise PlanValidationError("current_students.past_intakes must be a list of at most 30 intakes")
+    for i, entry in enumerate(intakes):
+        if not isinstance(entry, dict) or not (_is_int(entry.get("size")) and 0 <= entry["size"] <= 2000):
+            raise PlanValidationError(f"current_students.past_intakes[{i}].size must be an integer in [0, 2000]")
+        if "label" in entry and not isinstance(entry["label"], str):
+            raise PlanValidationError(f"current_students.past_intakes[{i}].label must be text")
+
+
+def validate_historical_outcomes(value: object) -> None:
+    if value is None:
+        return
+    if not isinstance(value, dict):
+        raise PlanValidationError("historical_outcomes must be an object")
+    for key in ("grad_rate_6yr", "on_time_rate_4yr"):
+        v = value.get(key)
+        if v is not None and not (_is_number(v) and 0 <= v <= 1):
+            raise PlanValidationError(f"historical_outcomes.{key} must be null or a rate between 0 and 1")
+    for key in ("n_students", "current_headcount"):
+        v = value.get(key)
+        if v is not None and not (_is_int(v) and 0 <= v <= 100_000):
+            raise PlanValidationError(f"historical_outcomes.{key} must be null or a non-negative integer")
+
+
+def validate_section_size(value: object) -> None:
+    if value is not None and not (_is_int(value) and 1 <= value <= 500):
+        raise PlanValidationError("section_size must be an integer in [1, 500]")

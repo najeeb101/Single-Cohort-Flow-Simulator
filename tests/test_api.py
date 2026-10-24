@@ -46,7 +46,9 @@ def test_meta_shape():
         "dropout_fails_threshold", "dropout_prob_on_repeated_fail",
         "registration_tier_thresholds", "enrollment_priority_tiers",
         "year_standing_thresholds", "on_time_terms",
-        "admission_targets", "llm_chat_enabled",
+        "intake_policy", "intake_analysis", "section_size", "planning", "current_students",
+        "historical_outcomes", "data_sources", "intake_job_running",
+        "llm_chat_enabled", "llm_model",
         "checkpoint_active", "checkpoint_next_term",
     }
     assert len(body["graph"]["nodes"]) == len(CURRICULUM)
@@ -172,7 +174,7 @@ def test_simulate_default_matches_run_simulation():
     resp = client.post("/simulate", json={})
     assert resp.status_code == 200
     body = resp.json()
-    assert set(body) == {"metrics", "cohort_metrics", "admissions_recommendation", "flow_timeline"}
+    assert set(body) == {"metrics", "cohort_metrics", "flow_timeline"}
 
     expected = run_simulation(CURRICULUM, BASE_CONFIG, BASE_SCENARIO)
     expected_top_fail = [list(pair) for pair in expected["metrics"].pop("top_fail_courses")]

@@ -14,7 +14,6 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from src.analytics import (
-    compute_admissions_recommendation,
     compute_cohort_metrics,
     compute_metrics,
     flow_timeline_payload,
@@ -35,8 +34,8 @@ def run_simulation(
     """Run one scenario end-to-end and return its results as a plain dict.
 
     Keys: `result` (the raw SimulationResult, for callers that want to pass it on to
-    analytics.py/visualize.py's writers), `metrics`, `cohort_metrics`,
-    `admissions_recommendation`, and `flow_timeline` (the full frontend-contract payload,
+    analytics.py/visualize.py's writers), `metrics`, `cohort_metrics`, and `flow_timeline`
+    (the full frontend-contract payload,
     without Monte Carlo — pass `monte_carlo=...` to flow_timeline_payload yourself on
     `result` if you need CIs merged in). `data_source` defaults to `SyntheticDataSource`;
     pass a `RealDataSource` here once one exists.
@@ -47,6 +46,5 @@ def run_simulation(
         "result": result,
         "metrics": result.metrics,
         "cohort_metrics": compute_cohort_metrics(result),
-        "admissions_recommendation": compute_admissions_recommendation(result),
         "flow_timeline": flow_timeline_payload(result, curriculum),
     }

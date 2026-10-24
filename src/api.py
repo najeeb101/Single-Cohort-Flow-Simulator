@@ -26,11 +26,14 @@ from pydantic import BaseModel, Field, field_validator
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from src import jobs
 from src.advisor import (
     AdvisorChatError,
     chat_enabled,
     extract_proposals,
-    run_chat,
+    model_label,
+    run_chat_detailed,
+    summarize_analysis,
     summarize_plan,
     validate_proposals,
 )
@@ -49,9 +52,12 @@ from src.db import (
     init_db,
     load_config_from_db,
     load_curriculum_from_db,
+    migrate_plan_configs,
+    recover_interrupted_analyses,
     resolve_active_checkpoint_session,
     resolve_active_plan_id,
 )
+from src.db_models import Analysis as AnalysisRow
 from src.db_models import AppConfig as AppConfigRow
 from src.db_models import CheckpointSession as CheckpointSessionRow
 from src.db_models import CheckpointSnapshot as CheckpointSnapshotRow
@@ -61,12 +67,14 @@ from src.db_models import Run, User
 from src.models.course import Course, course_from_dict
 from src.models.semester import DEFAULT_TERMS, admission_seasons, get_mandatory_seasons, term_label
 from src.models.student import stage_node_names
+from src.intake import DEFAULT_ANALYSIS, DEFAULT_POLICY, analysis_params, policy_from_config
 from src.montecarlo import run_monte_carlo
-from src.optimizer import DEFAULT_RUN_BUDGET, MAX_RUN_BUDGET, solve_for_targets
 from src.plan_validation import (
     PlanValidationError,
     validate_admissions,
     validate_initial_state,
+    validate_intake_analysis,
+    validate_intake_policy,
     validate_plan_edits,
     validate_prerequisites_locked,
 )
@@ -78,8 +86,12 @@ from src.simulator import Simulator
 init_db()
 with SessionLocal() as _session:
     get_or_create_default_plan(_session)
+    # Bring plans stored before the Intake Planner up to the current config shape, and fail any
+    # analysis a killed server (e.g. a --reload restart) left mid-run.
+    migrate_plan_configs(_session)
+    recover_interrupted_analyses(_session)
 
-app = FastAPI(title="Single-Cohort-Flow-Simulator API")
+app = FastAPI(title="CS Intake Planner API")
 app.include_router(scenarios_router)
 
 # The Next.js dev server (web/, npm run dev on :3000) proxies to this API via
@@ -285,8 +297,8 @@ class AdvisorChatRequest(BaseModel):
 @app.post("/advisor/chat")
 def advisor_chat(req: AdvisorChatRequest, db: Session = Depends(get_db)) -> dict:
     """Phase B: LLM chat grounded in one run's numbers PLUS the active plan's full curriculum and
-    settings. Dormant (200, configured=False) when no LLM_API_KEY is set, so the frontend can hide
-    the box without a failed request."""
+    settings PLUS the latest intake analysis. Dormant (200, configured=False) when no model is
+    configured (see src/advisor.py), so the frontend can hide the box without a failed request."""
     if not chat_enabled():
         return {"configured": False, "reply": None}
     # Only forward real turns, cap history so prompts stay small, and require a trailing user turn.
@@ -297,16 +309,32 @@ def advisor_chat(req: AdvisorChatRequest, db: Session = Depends(get_db)) -> dict
     # top of the run summary the frontend sent — so it can answer per-course questions, not guess.
     curriculum, config, _scenario = _load_plan_data(db)
     context = {**(req.context or {}), "plan": summarize_plan(curriculum, config)}
+    # ...and in the latest finished intake analysis for this plan, so "why 80?" / "what would it
+    # take to admit 120?" are answered from the real sweep, not reconstructed by the model.
+    current_user = get_current_user(db)
+    latest = (
+        db.query(AnalysisRow)
+        .filter(AnalysisRow.user_id == current_user.id,
+                AnalysisRow.plan_id == resolve_active_plan_id(db, current_user),
+                AnalysisRow.kind == "intake_sweep", AnalysisRow.status == "done")
+        .order_by(AnalysisRow.id.desc())
+        .first()
+    )
+    if latest is not None:
+        context["intake_analysis"] = summarize_analysis(
+            latest.result, label=latest.label,
+            when=latest.finished_at.strftime("%Y-%m-%d") if latest.finished_at else None)
     try:
-        reply = run_chat(msgs, context)
+        answer = run_chat_detailed(msgs, context)
     except AdvisorChatError as e:
         raise HTTPException(status_code=502, detail=str(e))
+    reply = answer["reply"]
     # Pull any concrete-change proposals out of the reply (so the user sees prose, not raw JSON) and
     # validate them against the real plan. The frontend renders these as one-click "Apply" cards
     # routed through PUT /curriculum / PUT /config — the model never writes anything itself.
     clean, raw_proposals = extract_proposals(reply)
     proposals = validate_proposals(raw_proposals, curriculum, config)
-    return {"configured": True, "reply": clean, "proposals": proposals}
+    return {"configured": True, "reply": clean, "proposals": proposals, "model": answer["model"]}
 
 
 @app.get("/meta")
@@ -358,18 +386,25 @@ def meta(db: Session = Depends(get_db)) -> dict:
         # Phase B advisor: whether the optional LLM chat is configured (LLM_API_KEY set). The
         # frontend uses this to show the chat box or a "not configured" note — see src/advisor.py.
         "llm_chat_enabled": chat_enabled(),
+        # Which model answers the chat ("qwen3-coder:30b · on this PC"), shown under the chat box.
+        "llm_model": model_label(),
         # Year-standing CH bands + the on-time-graduation cutoff — see student.py::curriculum_stage
         # and analytics.py's on_time_rate. Defaults mirror the engine's own fallback (QU's
         # 30/60/90 CH bands, 8-semester on-time cutoff) so a plan that predates these keys
         # reports its actual computed behavior.
         "year_standing_thresholds": config.get("year_standing_thresholds", [30, 60, 90]),
         "on_time_terms": config.get("on_time_terms", 8),
-        "admission_targets": config.get("admission_targets", {
-            "target_grad_rate": 0.70,
-            "max_avg_time_to_degree": 10.0,
-            "max_seats_denied_per_student": 1.0,
-            "min_throughput_stability": 0.85,
-        }),
+        # Intake Planner inputs (src/intake.py): the policy limits, the sweep knobs (merged with
+        # their defaults so the frontend always sees every key), and the data that rebuilds
+        # today's student body + labels how much of it is real QU data vs estimates.
+        "intake_policy": {**DEFAULT_POLICY, **(config.get("intake_policy") or {})},
+        "intake_analysis": {k: v for k, v in analysis_params(config).items() if k in DEFAULT_ANALYSIS},
+        "section_size": config.get("section_size", 35),
+        "planning": config.get("planning") or {},
+        "current_students": config.get("current_students") or {"past_intakes": []},
+        "historical_outcomes": config.get("historical_outcomes") or {},
+        "data_sources": config.get("data_sources") or {},
+        "intake_job_running": jobs.is_busy(),
         # Whether the caller has an in-progress Semester Checkpoint Mode session (see
         # /checkpoint below) — lets the nav/dashboard reflect it without a separate request.
         "checkpoint_active": checkpoint_session is not None,
@@ -475,40 +510,156 @@ def simulate(
         user_id=current_user.id,
         scenario_id=req.scenario_id,
         overrides_json=req.model_dump(exclude_none=True),
-        summary_json={"metrics": run["metrics"], "admissions_recommendation": run["admissions_recommendation"]},
+        summary_json={"metrics": run["metrics"]},
     ))
     db.commit()
 
     return {
         "metrics": run["metrics"],
         "cohort_metrics": run["cohort_metrics"],
-        "admissions_recommendation": run["admissions_recommendation"],
         "flow_timeline": flow_timeline,
     }
 
 
-class AutofillRequest(BaseModel):
-    # How many candidate simulations the solver may run (each is one full run). Clamped to
-    # [1, MAX_RUN_BUDGET] inside solve_for_targets so a request can't wedge the server.
-    run_budget: int = Field(default=DEFAULT_RUN_BUDGET, ge=1, le=MAX_RUN_BUDGET)
-    # Whether to probe intake reductions when capacity alone can't meet every target.
-    tune_intake_fallback: bool = True
+# ---------------------------------------------------------------------------- #
+# Intake Planner: background analyses (src/intake.py via src/jobs.py)           #
+# ---------------------------------------------------------------------------- #
+# "How many students should we admit next?" (kind=intake_sweep) and "what seats would it take
+# to admit N?" (kind=seat_plan). Each runs as a background job — one at a time, since a job
+# already uses every CPU core — and is stored as an Analysis row with an exact snapshot of the
+# inputs it ran on. Read-only with respect to the plan: applying a seat plan goes through the
+# existing PUT /curriculum (or POST /checkpoint/edit for a walkthrough session).
+
+class IntakeAnalysisRequest(BaseModel):
+    kind: str = Field(default="intake_sweep", pattern="^(intake_sweep|seat_plan)$")
+    label: str | None = Field(default=None, max_length=120)
+    # seat_plan only: the intake the department wants to reach.
+    target_intake: int | None = Field(default=None, ge=10, le=1000)
+    # Run against the active plan, or against a walkthrough session's staged (working) data.
+    source: str = Field(default="plan", pattern="^(plan|checkpoint)$")
+    # One-off overrides for this run only (not persisted): policy limits and sweep knobs.
+    policy: dict | None = None
+    params: dict | None = None
+    run_budget: int = Field(default=6, ge=1, le=20)
 
 
-@app.post("/autofill")
-def autofill(req: AutofillRequest, db: Session = Depends(get_db)) -> dict:
-    """Auto-fill solver: search the smallest capacity additions that meet the active plan's
-    admission health targets at the current intake. Read-only — returns a recommendation the
-    caller applies itself via PUT /curriculum/{code} + PUT /config. See src/optimizer.py."""
-    curriculum, config, _scenario = _load_plan_data(db)
+def _analysis_to_dict(row: AnalysisRow, *, full: bool) -> dict:
+    out = {
+        "id": row.id,
+        "kind": row.kind,
+        "source": row.source,
+        "label": row.label,
+        "status": row.status,
+        "progress": row.progress,
+        "progress_note": row.progress_note,
+        "params": row.params,
+        "error": row.error,
+        "created_at": row.created_at.isoformat() if row.created_at else None,
+        "started_at": row.started_at.isoformat() if row.started_at else None,
+        "finished_at": row.finished_at.isoformat() if row.finished_at else None,
+    }
+    result = row.result or {}
+    if row.kind == "intake_sweep":
+        rec = result.get("recommendation") or {}
+        out["summary"] = {k: rec.get(k) for k in (
+            "recommended_intake", "sustainable_intake", "upper_limit", "feasible", "binding_limit")}
+        out["summary"]["illustrative"] = (result.get("data_quality") or {}).get("illustrative")
+    else:
+        out["summary"] = {k: result.get(k) for k in (
+            "target_intake", "feasible", "total_seats_added", "total_sections_added")}
+    if full:
+        out["result"] = row.result
+        out["inputs_snapshot"] = row.inputs_snapshot
+    return out
+
+
+def _require_analysis(db: Session, analysis_id: int) -> AnalysisRow:
+    row = db.get(AnalysisRow, analysis_id)
+    if row is None or row.user_id != get_current_user(db).id:
+        raise HTTPException(status_code=404, detail="Analysis not found")
+    return row
+
+
+@app.post("/intake-analyses", status_code=202)
+def start_intake_analysis(req: IntakeAnalysisRequest, db: Session = Depends(get_db)) -> dict:
+    """Start an intake sweep or seat plan in the background; poll GET /intake-analyses/{id}."""
+    if req.kind == "seat_plan" and req.target_intake is None:
+        raise HTTPException(status_code=422, detail="target_intake is required for a seat plan")
+    if jobs.is_busy():
+        raise HTTPException(status_code=409, detail="Another analysis is already running; wait or cancel it")
+
+    current_user = get_current_user(db)
+    plan_id = resolve_active_plan_id(db, current_user)
+    if req.source == "checkpoint":
+        session_row = _require_checkpoint_session(db, current_user)
+        curriculum = _checkpoint_curriculum(session_row)
+        config = copy.deepcopy(session_row.working_config)
+    else:
+        curriculum, config, _scenario = _load_plan_data(db)
+
     try:
-        return solve_for_targets(
-            curriculum, config,
-            run_budget=req.run_budget,
-            tune_intake_fallback=req.tune_intake_fallback,
-        )
-    except Exception as exc:
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
+        validate_intake_policy({**DEFAULT_POLICY, **(config.get("intake_policy") or {}), **(req.policy or {})})
+        validate_intake_analysis({**(config.get("intake_analysis") or {}), **(req.params or {})})
+        validate_plan_edits(curriculum, config)
+    except PlanValidationError as exc:
+        _raise_plan_validation(exc)
+
+    label = req.label or (config.get("planning") or {}).get("next_intake_label")
+    job_params = {"policy": req.policy or {}, "params": req.params or {},
+                  "target_intake": req.target_intake, "run_budget": req.run_budget}
+    row = AnalysisRow(
+        user_id=current_user.id,
+        plan_id=plan_id,
+        kind=req.kind,
+        source=req.source,
+        label=label,
+        status="queued",
+        params={**job_params, "policy": dataclasses.asdict(policy_from_config(config, req.policy))},
+        inputs_snapshot={
+            "curriculum": [_course_to_dict(c) for c in sorted(curriculum.values(), key=lambda c: c.study_plan_order)],
+            "config": config,
+        },
+    )
+    db.add(row)
+    db.commit()
+    try:
+        jobs.start(row.id, req.kind, curriculum, config, job_params)
+    except RuntimeError as exc:  # lost a race with another request for the single job slot
+        row.status = "failed"
+        row.error = str(exc)
+        db.commit()
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    db.refresh(row)
+    return _analysis_to_dict(row, full=False)
+
+
+@app.get("/intake-analyses")
+def list_intake_analyses(kind: str | None = None, limit: int = 20, db: Session = Depends(get_db)) -> list[dict]:
+    """Past analyses for the caller's active plan, newest first (summaries only)."""
+    current_user = get_current_user(db)
+    plan_id = resolve_active_plan_id(db, current_user)
+    q = db.query(AnalysisRow).filter(AnalysisRow.user_id == current_user.id, AnalysisRow.plan_id == plan_id)
+    if kind:
+        q = q.filter(AnalysisRow.kind == kind)
+    rows = q.order_by(AnalysisRow.id.desc()).limit(max(1, min(limit, 100))).all()
+    return [_analysis_to_dict(r, full=False) for r in rows]
+
+
+@app.get("/intake-analyses/{analysis_id}")
+def get_intake_analysis(analysis_id: int, db: Session = Depends(get_db)) -> dict:
+    return _analysis_to_dict(_require_analysis(db, analysis_id), full=True)
+
+
+@app.post("/intake-analyses/{analysis_id}/cancel")
+def cancel_intake_analysis(analysis_id: int, db: Session = Depends(get_db)) -> dict:
+    row = _require_analysis(db, analysis_id)
+    if row.status not in ("queued", "running"):
+        raise HTTPException(status_code=409, detail=f"Analysis is already {row.status}")
+    if not jobs.request_cancel(analysis_id):
+        row.status = "cancelled"
+        row.progress_note = "Cancelled"
+        db.commit()
+    return {"id": analysis_id, "cancel_requested": True}
 
 
 @app.get("/curriculum")
@@ -669,6 +820,9 @@ def update_config(
 
     if "optional_terms_enabled" in patch and not isinstance(patch["optional_terms_enabled"], bool):
         raise HTTPException(status_code=422, detail="optional_terms_enabled must be a boolean")
+
+    if "admission_targets" in patch:
+        raise HTTPException(status_code=422, detail="admission_targets was retired; set intake_policy instead")
 
     plan_id = resolve_active_plan_id(db, get_current_user(db))
     row = db.query(AppConfigRow).filter_by(plan_id=plan_id).first()
@@ -857,12 +1011,10 @@ def _checkpoint_summary_from_sim(db: Session, row: CheckpointSessionRow, sim: Si
         # "go back to an earlier term" without a separate request.
         "history": _checkpoint_history(db, row.id, sim.config),
         # The exact {meta, frames, summary} shape a completed /simulate produces — every field
-        # in compute_metrics/compute_cohort_metrics/compute_admissions_recommendation only reads
-        # .history/.config/.students, all present on a Simulator mid-run, so this is safe to
-        # call on a partial population (ratios guard their own zero-student/zero-graduate case;
-        # the admissions "representative cohort" degrades to "mean across cohorts so far" until
-        # one has actually finished its horizon). Lets Bottlenecks/HeadlineKpis/
-        # AdmissionsRecommendation/CohortsTable read a checkpoint session exactly like the
+        # in compute_metrics/compute_cohort_metrics only reads .history/.config/.students, all
+        # present on a Simulator mid-run, so this is safe to call on a partial population
+        # (ratios guard their own zero-student/zero-graduate case). Lets Bottlenecks/
+        # HeadlineKpis/CohortsTable read a checkpoint session exactly like the
         # baseline dashboard's flow_timeline — the frontend must still treat it as partial
         # (fewer terms run = less reliable), which is why it's a distinct field rather than the
         # baseline's own flow_timeline.
@@ -988,28 +1140,6 @@ def edit_checkpoint(req: CheckpointEditRequest, db: Session = Depends(get_db)) -
     row.working_config = working_config
     db.commit()
     return _checkpoint_summary(db, row)
-
-
-@app.post("/checkpoint/autofill")
-def autofill_checkpoint(req: AutofillRequest, db: Session = Depends(get_db)) -> dict:
-    """Auto-fill solver scoped to the session's staged (working) curriculum/config rather than
-    the live plan — so it answers "what capacity would meet targets given the settings I've
-    staged so far" without writing anything to the plan first. Each candidate is still a fresh
-    full-horizon simulation (solve_for_targets doesn't use the session's resumed/partial engine
-    state — a capacity search needs to see the whole horizon play out per candidate). Read-only;
-    the caller applies the result via POST /checkpoint/edit, exactly like the plan-scoped
-    /autofill applies via PUT /curriculum + PUT /config."""
-    row = _require_checkpoint_session(db, get_current_user(db))
-    curriculum = _checkpoint_curriculum(row)
-    config = row.working_config
-    try:
-        return solve_for_targets(
-            curriculum, config,
-            run_budget=req.run_budget,
-            tune_intake_fallback=req.tune_intake_fallback,
-        )
-    except Exception as exc:
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
 @app.post("/checkpoint/advance")

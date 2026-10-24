@@ -21,7 +21,8 @@ from __future__ import annotations
 
 import os
 from concurrent.futures import ProcessPoolExecutor
-from typing import Callable, Iterable, Sequence, TypeVar
+from contextlib import contextmanager
+from typing import Callable, Iterable, Iterator, Sequence, TypeVar
 
 T = TypeVar("T")
 R = TypeVar("R")
@@ -55,3 +56,51 @@ def ordered_map(fn: Callable[[T], R], items: Iterable[T], *, workers: int) -> li
         # Environmental pool failure (or a task error): redo serially. A real bug in `fn`
         # surfaces here instead of being swallowed.
         return [fn(x) for x in items_list]
+
+
+# ------------------------------------------------------------------ #
+# Long jobs (the intake analysis): one pool per job, streamed results #
+# ------------------------------------------------------------------ #
+# ordered_map's silent serial redo is right for a few-second Monte Carlo but wrong for a
+# minutes-long intake sweep: a failure there would quietly re-run everything ~20x slower. A long
+# job instead opens one pool for its whole life (spawning workers costs ~1s each on Windows),
+# streams results in order so it can report progress, and lets errors propagate.
+
+class SerialPool:
+    """Stand-in for a process pool when `workers <= 1` (tests, or a one-core box) — same
+    `map`/`shutdown` surface, runs in-process."""
+
+    def map(self, fn: Callable[[T], R], items: Iterable[T]) -> Iterator[R]:
+        return (fn(x) for x in items)
+
+    def shutdown(self, wait: bool = True, cancel_futures: bool = False) -> None:
+        return None
+
+
+@contextmanager
+def make_pool(workers: int):
+    """A process pool sized `workers` for the duration of one job (or a SerialPool for 1)."""
+    if workers <= 1:
+        yield SerialPool()
+        return
+    pool = ProcessPoolExecutor(max_workers=workers)
+    try:
+        yield pool
+    finally:
+        pool.shutdown(wait=True, cancel_futures=True)
+
+
+def terminate_pool(pool) -> None:
+    """Stop a running job's workers immediately (cancel). `terminate_workers` exists on
+    Python 3.14+; older interpreters just drop queued work and wait for the in-flight tasks."""
+    terminate = getattr(pool, "terminate_workers", None)
+    if terminate is not None:
+        terminate()
+    else:
+        pool.shutdown(wait=False, cancel_futures=True)
+
+
+def iter_ordered(fn: Callable[[T], R], items: Iterable[T], pool) -> Iterator[R]:
+    """Yield `fn(item)` in input order as each result becomes available, on an open pool from
+    `make_pool`. No serial fallback: a worker error is raised to the caller."""
+    return iter(pool.map(fn, list(items)))

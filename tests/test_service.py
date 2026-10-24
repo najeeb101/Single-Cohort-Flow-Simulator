@@ -7,7 +7,6 @@ from __future__ import annotations
 from pathlib import Path
 
 from src.analytics import (
-    compute_admissions_recommendation,
     compute_cohort_metrics,
     compute_metrics,
 )
@@ -36,7 +35,7 @@ def test_returns_expected_keys():
     config, curriculum = _setup()
     run = run_simulation(curriculum, config, config["scenarios"][0])
     assert set(run) == {
-        "result", "metrics", "cohort_metrics", "admissions_recommendation", "flow_timeline",
+        "result", "metrics", "cohort_metrics", "flow_timeline",
     }
     assert set(run["flow_timeline"]) == {"meta", "frames", "summary"}
 
@@ -52,7 +51,6 @@ def test_matches_manual_construction():
 
     assert run["metrics"] == expected.metrics
     assert run["cohort_metrics"] == compute_cohort_metrics(expected)
-    assert run["admissions_recommendation"] == compute_admissions_recommendation(expected)
     assert run["result"].history.timeline == expected.history.timeline
 
 

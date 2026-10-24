@@ -12,8 +12,6 @@ proposal that would silently corrupt a run:
     hard end-of-term drop once a student exhausts a course's attempt cap.
   - AI proposal integrity (src/advisor.py): conflicting proposals collapse to one, and a
     pass-rate increase is capped.
-  - Auto-fill (src/optimizer.py): run_budget bounds the solver's cost (deeper coverage lives in
-    tests/test_optimizer.py; this file adds one end-to-end sanity check for cohesion).
 """
 from __future__ import annotations
 
@@ -335,19 +333,3 @@ class TestAdvisorProposalIntegrity:
         assert out[0]["value"] == 0.6
 
 
-# ─────────────────────────────────────────────────────────────────────────── #
-# Auto-fill: budget-capped solver (src/optimizer.py)                         #
-# Deeper coverage (clamping an absurd run_budget, monotonicity) lives in     #
-# tests/test_optimizer.py — this is a single end-to-end sanity check that a  #
-# tight budget really does bound the solver's cost.                         #
-# ─────────────────────────────────────────────────────────────────────────── #
-
-class TestAutofillBudgetCap:
-    def test_tight_run_budget_bounds_solver_cost(self):
-        from src.models.course import load_curriculum
-        from src.optimizer import solve_for_targets
-
-        config = load_json("data/simulation_config.json")
-        curriculum = load_curriculum("data/curriculum.json")
-        res = solve_for_targets(curriculum, config, run_budget=1)
-        assert res["runs"] <= 1
