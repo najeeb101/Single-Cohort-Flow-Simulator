@@ -20,12 +20,6 @@ export interface BuilderState {
   seed: number;
   registrationTierThresholds: number[];
   enrollmentPriorityTiers: EnrollmentPriorityTier[];
-  admissionTargets: {
-    target_grad_rate: number;
-    max_avg_time_to_degree: number;
-    max_seats_denied_per_student: number;
-    min_throughput_stability: number;
-  };
 }
 
 export function baselineFromMeta(meta: MetaResponse): BuilderState {
@@ -47,7 +41,6 @@ export function baselineFromMeta(meta: MetaResponse): BuilderState {
     seed: meta.seed,
     registrationTierThresholds: [...meta.registration_tier_thresholds],
     enrollmentPriorityTiers: meta.enrollment_priority_tiers.map((t) => ({ ...t, categories: [...t.categories] })),
-    admissionTargets: { ...meta.admission_targets },
   };
 }
 
@@ -140,6 +133,5 @@ export function applyOverrides(overrides: ScenarioRequest, baseline: BuilderStat
     seed: overrides.seed ?? baseline.seed,
     registrationTierThresholds: overrides.registration_tier_thresholds ?? baseline.registrationTierThresholds,
     enrollmentPriorityTiers: overrides.enrollment_priority_tiers ?? baseline.enrollmentPriorityTiers,
-    admissionTargets: baseline.admissionTargets,
   };
 }

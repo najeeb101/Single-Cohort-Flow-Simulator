@@ -1,5 +1,6 @@
 import { SimulationProvider } from "@/lib/SimulationContext";
 import { CheckpointProvider } from "@/lib/CheckpointContext";
+import { IntakeProvider } from "@/lib/IntakeContext";
 import NavBar from "@/components/NavBar";
 
 export default function DashboardLayout({
@@ -11,10 +12,12 @@ export default function DashboardLayout({
     <>
       <NavBar />
       <SimulationProvider>
-        {/* CheckpointProvider lives at the layout level (not just on the Dashboard page) so
-            Bottlenecks/Auto-fill/Capacity recommendations can also read the in-progress
-            checkpoint session's data when one exists — see those pages/components. */}
-        <CheckpointProvider>{children}</CheckpointProvider>
+        {/* CheckpointProvider and IntakeProvider live at the layout level (not on one page) so
+            Bottlenecks, the seat planner and Capacity recommendations can read the in-progress
+            walkthrough session and the running intake analysis from any page. */}
+        <CheckpointProvider>
+          <IntakeProvider>{children}</IntakeProvider>
+        </CheckpointProvider>
       </SimulationProvider>
     </>
   );

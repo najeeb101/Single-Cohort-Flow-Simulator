@@ -14,6 +14,16 @@ const nextConfig: NextConfig = {
   // `session` cookie set by our own login route is sent automatically; Next's server
   // then forwards the request (cookie included) to FastAPI server-to-server. This avoids
   // CORS-with-credentials entirely and keeps the JWT out of client JS reach.
+  // Old bookmarks: Settings became Data; Figures, Run History and Scenarios were removed (past
+  // analyses now live on the Intake Planner home page).
+  async redirects() {
+    return [
+      { source: "/settings", destination: "/data", permanent: false },
+      { source: "/runs", destination: "/", permanent: false },
+      { source: "/figures", destination: "/", permanent: false },
+      { source: "/scenarios", destination: "/", permanent: false },
+    ];
+  },
   async rewrites() {
     return [{ source: "/api/backend/:path*", destination: `${API_BASE}/:path*` }];
   },

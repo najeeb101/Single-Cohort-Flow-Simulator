@@ -28,15 +28,15 @@ export default function InitialOccupancyTable({ courses, occupancy, baselineOccu
 
   return (
     <SectionCard
-      title="All courses — initial occupancy"
-      hint="seats already taken by the existing student body, subtracted from capacity every mandatory term"
+      title="All courses"
+      hint="seats other programs use, subtracted from the seats every regular term"
       actions={actions}
     >
       <div className="max-h-[420px] overflow-auto rounded-lg border border-border">
         <table className="w-full border-collapse text-sm">
           <thead>
             <tr>
-              {["Course", "Title", "Term", "Capacity", "Occupancy", "Free / term"].map((h) => (
+              {["Course", "Title", "Term", "Seats", "Used by other programs", "Left for CS / term"].map((h) => (
                 <th
                   key={h}
                   className="sticky top-0 border-b border-border bg-surface px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-muted"

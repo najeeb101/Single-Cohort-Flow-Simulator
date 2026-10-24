@@ -34,6 +34,13 @@ export const BLANK_CONFIG: Record<string, unknown> = {
     easy: { A: 0.25, "B+": 0.25, B: 0.25, "C+": 0.12, C: 0.1, D: 0.03 },
   },
   scenarios: [{ name: "baseline" }],
+  // Intake Planner inputs (src/intake.py). A new program starts with every input an estimate.
+  intake_policy: { max_grad_rate_loss_pts: 2, max_on_time_loss_pts: 10, min_grad_rate: null },
+  section_size: 35,
+  planning: { next_intake_label: "Next intake" },
+  current_students: { past_intakes: [] },
+  historical_outcomes: {},
+  data_sources: { capacity: {}, pass_rate: {}, past_intakes: "estimate", occupancy: "estimate" },
 };
 
 // Mirrors src/api.py's CourseCreate validators (VALID_OFFERINGS, credits 0-6, capacity >= 1,
@@ -111,12 +118,21 @@ export function metaFromPlanExport(curriculum: CourseRecord[], config: Record<st
     enrollment_priority_tiers: (config.enrollment_priority_tiers as EnrollmentPriorityTier[]) ?? [],
     year_standing_thresholds: (config.year_standing_thresholds as number[]) ?? [30, 60, 90],
     on_time_terms: (config.on_time_terms as number) ?? 8,
-    admission_targets: (config.admission_targets as MetaResponse["admission_targets"]) ?? {
-      target_grad_rate: 0.70,
-      max_avg_time_to_degree: 10.0,
-      max_seats_denied_per_student: 1.0,
-      min_throughput_stability: 0.85,
+    intake_policy: {
+      max_grad_rate_loss_pts: 2,
+      max_on_time_loss_pts: 10,
+      min_grad_rate: null,
+      ...((config.intake_policy as Partial<MetaResponse["intake_policy"]> | undefined) ?? {}),
     },
+    intake_analysis: (config.intake_analysis as MetaResponse["intake_analysis"]) ?? {
+      grid_min: 20, grid_max: 200, grid_step: 10, seeds: 20, refine_step: 5, refine_seeds: 40,
+      reference_runs: 8, min_history_years: 8,
+    },
+    section_size: (config.section_size as number) ?? 35,
+    planning: (config.planning as MetaResponse["planning"]) ?? {},
+    current_students: (config.current_students as MetaResponse["current_students"]) ?? { past_intakes: [] },
+    historical_outcomes: (config.historical_outcomes as MetaResponse["historical_outcomes"]) ?? {},
+    data_sources: (config.data_sources as MetaResponse["data_sources"]) ?? {},
   };
 }
 

@@ -108,14 +108,14 @@ web/                   # Next.js/TypeScript website — talks to src/api.py via 
 
 **Start gate + roadmap layout (Walkthrough and baseline)** (`web/src/lib/SimulationContext.tsx`,
 `web/src/components/CurriculumGraph.tsx`, `web/src/lib/graphLayout.ts`): on load the dashboard
-fetches only the program structure (`GET /meta`). If `initial_state` is still completely empty
-(and the `initial-state-setup-done` localStorage flag isn't set), it first shows the required
-[`InitialStateGate`](#initial-state-model) setup screen. Once that's past (dismissed, or on any
-later load where the values are non-empty) the baseline **auto-runs** — there is no manual
+fetches only the program structure (`GET /meta`). If the planner inputs still need setting up
+(past intakes empty or tagged estimate) and the `initial-state-setup-done` localStorage flag isn't
+set, it first shows the [`InitialStateGate`](#initial-state-model) setup screen. Once that's past
+the baseline **auto-runs** — there is no manual
 "Start" button. `SimulationProvider`'s effect fires `start()` exactly once (a `useRef` guard
 turns a *failed* run into a retry surface instead of a loop, `StartingScreen` shows a
-"Running the baseline simulation…" state meanwhile). Re-running the baseline after an edit
-(`refreshBaseline`, called from Settings/Plans/initial-state writes) sets a `refreshing` flag
+"Loading the department's data…" state meanwhile). Re-running the baseline after an edit
+(`refreshBaseline`, called from Data/Plans/seat-plan Apply/policy writes) sets a `refreshing` flag
 that renders a fixed "Updating simulation…" pill. The roadmap is a Qatar-University-style
 program-roadmap layout — `computeSemesterLayout` places each course in its `study_plan_term`
 column (term 1 = Year 1 Fall, 2 = Year 1 Spring, …), grouped under Year 1–4 bands with
@@ -238,7 +238,8 @@ immediately, no server restart needed. See [Multi-Plan Model](#multi-plan-model)
 - No separate year-standing head-count exists (an earlier `initial_state.standing` field was removed). `year_standing_thresholds` is unrelated: it classifies *simulated* students into `Year1..Year(K+1)` flow-chart stages.
 - Wired through `/meta` (`initial_state`, `current_students`, `data_sources`, `historical_outcomes`, `planning`, `section_size`), `POST /simulate` (`ScenarioRequest.initial_state` override), and `PUT /config` (validated by `src/plan_validation.py::validate_initial_state`, `validate_current_students`, `validate_historical_outcomes`, `validate_section_size`).
 - **Data tags.** `config["data_sources"]` records `capacity`/`pass_rate` per course (`"qu"` or absent = estimate), `past_intakes` and `occupancy` as `"qu"`/`"estimate"`; `intake.data_quality` turns them into the "N of 41 QU data" strip and the `illustrative` flag (fewer than half of capacities or pass rates tagged QU, or no real past intakes).
-- **Frontend editing surfaces** share one editor family (`InitialStateEditor.tsx` + `InitialOccupancyTable.tsx`): the **required first-run setup gate** (`InitialStateGate.tsx`, wired into `SimulationContext.tsx`, shown while the planner inputs are unset and the `initial-state-setup-done` flag isn't `"1"`: past intakes plus other-program seats, zero is accepted) and the **Data page** (and Plan Builder's Config step) for revisiting them. **CSV/Excel import** (`InitialStateImportModal.tsx`, generalized per Data tab): a header row is auto-detected, unknown codes or non-numeric values are skipped with a reason shown in a preview, never fatal to the rest of the batch.
+- **Frontend editing surfaces** share one editor family (`InitialStateEditor.tsx` + `InitialOccupancyTable.tsx` for other-program seats, `web/src/components/data/PastIntakesEditor.tsx` for past intakes): the **first-run setup gate** (`InitialStateGate.tsx`, wired into `SimulationContext.tsx`'s `plannerSetupNeeded`: shown while past intakes are empty or still tagged estimate and the `initial-state-setup-done` flag isn't `"1"`; "Skip for now" keeps the shipped estimates, zero is accepted) and the **Data page** (`web/src/app/(dashboard)/data/page.tsx`, tabs via `?tab=`; and Plan Builder's Config step) for revisiting them. **CSV/Excel import** (`web/src/components/data/ImportModal.tsx`, one generic modal with a row mapper per Data tab: `courseValueMapper` for seats/pass rates/other-program seats, a label,size mapper for past intakes): a header row is auto-detected, unknown codes or non-numeric values are skipped with a reason shown in a preview, never fatal to the rest of the batch. QU data / Estimate tags (`SourceTag.tsx`) write `config.data_sources`; imports never auto-tag.
+- **Intake Planner frontend**: `web/src/lib/IntakeContext.tsx` (layout-level, so the home page and Bottlenecks share the one running job; polls `GET /intake-analyses/{id}` every 1.5 s, resumes a job started before a reload, holds the latest finished sweep/seat plan), `web/src/lib/intakeUtils.ts` (`changedInputs` compares an analysis's `inputs_snapshot` with current `/meta` order-insensitively for the "data has changed" banner; losses <= 0 display as "none"), components in `web/src/components/intake/` (recommendation card, SVG chart, per-intake table + CSV, seat planner, calibration card, past analyses, progress bar).
 
 ## Multi-Plan Model
 

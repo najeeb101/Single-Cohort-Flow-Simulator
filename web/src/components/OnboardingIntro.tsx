@@ -12,47 +12,47 @@ type Step = "welcome" | "how" | "pages";
 
 const STEP_ORDER: Step[] = ["welcome", "how", "pages"];
 const STEP_LABELS: Record<Step, string> = {
-  welcome: "Welcome",
-  how: "How it works",
-  pages: "Page guide",
+  welcome: "The question",
+  how: "How it decides",
+  pages: "Where to go",
 };
 
 const WELCOME_POINTS = [
-  { label: "Student-level", desc: "Each student carries grades, credits, standing, and delay history." },
-  { label: "Seat-aware", desc: "Every term respects course capacity, offering seasons, and prerequisite gates." },
-  { label: "Plan-ready", desc: "Use the same run to explain bottlenecks, compare plans, and size interventions." },
+  { label: "One question", desc: "How many students should the department admit in the next CS intake, and what course seats does that number need?" },
+  { label: "Today's students included", desc: "The next intake joins the students already enrolled, rebuilt from past intakes, plus seats other programs use." },
+  { label: "Honest about data", desc: "Every input is marked QU data or estimate. A result built mostly on estimates is labelled illustrative." },
 ];
 
 const HOW_IT_WORKS = [
   {
-    label: "Simulate",
-    desc: "Run the full multi-cohort model and see term-by-term who progresses, who gets blocked, and why.",
+    label: "Try many intakes",
+    desc: "For each candidate intake, the model simulates every student term by term through the real roadmap, many times over.",
   },
   {
-    label: "Identify bottlenecks",
-    desc: "Find which courses deny the most seats, block the most prerequisites, and delay graduation most.",
+    label: "Measure the harm",
+    desc: "The same students are also run with unlimited seats. The difference is the harm caused purely by seat shortages.",
   },
   {
-    label: "Test interventions",
-    desc: "Add a section to a gateway course or change cohort size and immediately see the impact on graduation rate.",
+    label: "Apply your limits",
+    desc: "The recommendation is the largest intake whose harm stays within your limits, with a range for uncertainty. The AI never sets the number.",
   },
 ];
 
 const PAGE_GROUPS = [
   {
-    label: "Explore",
-    desc: "Walk the plan forward one semester at a time, or review past runs.",
-    pages: "Dashboard, Run History",
+    label: "Decide",
+    desc: "Run the analysis, read the recommendation, and plan the seats a larger intake needs.",
+    pages: "Intake Planner",
   },
   {
-    label: "Analyze",
-    desc: "Find the courses and patterns that delay graduation.",
-    pages: "Bottlenecks, Advisor, Figures",
+    label: "Understand",
+    desc: "See which courses limit intake, ask questions, or step through the terms one by one.",
+    pages: "Bottlenecks, Advisor, Walkthrough",
   },
   {
-    label: "Manage",
-    desc: "Change the plan, warm-start state, and simulation assumptions.",
-    pages: "Plans, Settings, Plan Builder",
+    label: "Keep it current",
+    desc: "Update seats, pass rates and past intakes each semester, and manage programs.",
+    pages: "Data, Plans, Methodology",
   },
 ];
 
@@ -103,22 +103,22 @@ export default function OnboardingIntro({ onComplete, showSkip = true }: Props) 
               {step === "welcome" && (
                 <>
                   <h1 className="text-[27px] font-extrabold leading-tight tracking-tight text-ink sm:text-[32px]">
-                    Cohort Analyzer
+                    CS Intake Planner
                   </h1>
                   <p className="mt-1 text-[12px] leading-5 text-muted sm:text-[13px]">
-                    A discrete-term, agent-based model of students moving through a curriculum, term by
-                    term. Every student follows the real prerequisite chain, competes for the same
-                    limited seats, and can fail, repeat, or drop out.
+                    A planning tool for Qatar University&apos;s Computer Science department. It simulates
+                    students moving through the real CS roadmap, competing for the same limited course seats,
+                    so the department can see how large the next intake can be.
                   </p>
                 </>
               )}
               {step === "how" && (
                 <>
                   <h1 className="text-[25px] font-extrabold leading-tight tracking-tight text-ink">
-                    How it works
+                    How it decides
                   </h1>
                   <p className="mt-1 text-[12px] leading-5 text-muted">
-                    Three practical moves once a plan has been simulated.
+                    The full method is on the Methodology page.
                   </p>
                 </>
               )}
@@ -128,7 +128,7 @@ export default function OnboardingIntro({ onComplete, showSkip = true }: Props) 
                     Where to go
                   </h1>
                   <p className="mt-1 text-[12px] leading-5 text-muted">
-                    The dashboard is organized around exploration, analysis, and plan management.
+                    Everything on the site serves the intake decision.
                   </p>
                 </>
               )}
@@ -182,10 +182,10 @@ export default function OnboardingIntro({ onComplete, showSkip = true }: Props) 
             onClick={forward}
             className="rounded-xl bg-accent px-6 py-2 text-[14px] font-semibold text-white outline-none transition-colors hover:bg-accent/90 focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-background"
           >
-            {isLast ? "Enter dashboard" : "Continue"}
+            {isLast ? "Start planning" : "Continue"}
           </button>
         </div>
-        <p className="text-xs text-muted">You can revisit this intro anytime from About.</p>
+        <p className="text-xs text-muted">The full method is always on the Methodology page.</p>
         {showSkip && (
           <button
             type="button"

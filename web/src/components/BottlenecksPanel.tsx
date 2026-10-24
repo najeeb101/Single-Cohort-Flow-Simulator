@@ -43,7 +43,7 @@ export default function BottlenecksPanel({ bottlenecks, frames }: { bottlenecks:
         <div>
           <h2 className="text-[15px] font-bold">Top bottlenecks</h2>
           <p className="mt-0.5 max-w-2xl text-sm text-muted">
-            The reasons a student couldn&apos;t take a course they needed — ranked by how often each course
+            The reasons a student couldn&apos;t take a course they needed, ranked by how often each course
             caused the problem across the run. A course near the top of multiple lists is the deepest structural
             delay point in the curriculum.
           </p>
@@ -111,22 +111,22 @@ function DetailModal({ detail, frames, onClose }: { detail: Detail; frames: Fram
   switch (detail.signal) {
     case "capacity":
       if (peakMandatory > 0) {
-        fix = `Add ~${peakMandatory} seat${peakMandatory > 1 ? "s" : ""} to clear the worst term's denials (capacity ${cap} → ${cap + peakMandatory}). Set it in Settings, or use Auto-fill below.`;
+        fix = `Add ~${peakMandatory} seat${peakMandatory > 1 ? "s" : ""} to clear the worst term's denials (seats ${cap} → ${cap + peakMandatory}). Change it on the Data page, or use the seat planner below for a larger intake.`;
       } else if (peakRow.v > 0) {
         fix =
-          "All seat denials fall in optional (Summer) terms, which use a separate, smaller capacity model — regular-term capacity is sufficient.";
+          "All seat denials fall in optional (Summer) terms, which use a separate, smaller pool of seats. Regular-term seats are enough.";
       } else {
-        fix = "No seat denials recorded — current capacity is sufficient.";
+        fix = "No seat denials recorded. Current seats are enough.";
       }
       break;
     case "offering":
-      fix = `Offered in ${offeredTerms} of ${total} terms. Widen this course's offering schedule (Settings → course offering) so eligible students don't wait a full cycle.`;
+      fix = `Offered in ${offeredTerms} of ${total} terms. Offer this course in more terms (Data page, Advanced, course structure) so eligible students don't wait a full cycle.`;
       break;
     case "fail":
-      fix = "Failures track the pass rate, not seats — raising capacity won't help. Review prerequisite readiness or add academic support for this course.";
+      fix = "Failures track the pass rate, not seats, so more seats won't help. Review prerequisite readiness or add academic support for this course.";
       break;
     case "prereq":
-      fix = "Students reach this course before finishing its prerequisites. The real fix is upstream — clear the earlier bottleneck feeding it.";
+      fix = "Students reach this course before finishing its prerequisites. The real fix is upstream: clear the earlier bottleneck feeding it.";
       break;
   }
 

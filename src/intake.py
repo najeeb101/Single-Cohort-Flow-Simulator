@@ -849,7 +849,7 @@ def run_intake_sweep(
                         f"which regular sections only partly relieve.")
     quality = data_quality(config, curriculum)
     if quality["illustrative"]:
-        warnings.append("Most inputs are still estimates — treat this result as illustrative.")
+        warnings.append("Most inputs are still estimates, so treat this result as illustrative.")
     if any(src == "padded" for _, src in incumbents):
         warnings.append(f"{sum(1 for _, s in incumbents if s == 'padded')} older intakes were estimated "
                         f"to rebuild today's student body.")

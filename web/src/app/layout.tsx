@@ -27,8 +27,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Cohort Analyzer — Flow Simulator Dashboard",
-  description: "Cohort analytics, bottlenecks, and live what-if scenarios for the multi-cohort curriculum flow simulator.",
+  title: "CS Intake Planner",
+  description: "How many students should Qatar University's CS department admit next, and what course seats does that need?",
 };
 
 // NavBar + SimulationProvider live in (dashboard)/layout.tsx, not the root — pages outside

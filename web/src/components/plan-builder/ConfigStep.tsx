@@ -7,7 +7,7 @@ import PassRatesDropoutTab from "@/components/scenario-builder/PassRatesDropoutT
 import RegistrationPolicyTab from "@/components/scenario-builder/RegistrationPolicyTab";
 
 // Reuses the Scenario Builder's tab components unchanged (mode="advanced") — same pattern
-// as the Settings page (web/src/app/(dashboard)/settings/page.tsx), but seeded from the
+// as the Data page's Advanced tab (web/src/app/(dashboard)/data/page.tsx), but seeded from the
 // wizard's locally-cloned/blank config rather than the active plan's baseline.
 export default function ConfigStep({
   meta,

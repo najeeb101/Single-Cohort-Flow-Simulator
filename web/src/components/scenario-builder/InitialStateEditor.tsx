@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from "react";
-import type { CourseRecord } from "@/types/simulation";
+import { useMemo, useState } from "react";
+import type { CourseRecord, DataSource } from "@/types/simulation";
 import { SectionCard } from "./fields";
 import InitialOccupancyTable from "./InitialOccupancyTable";
-import InitialStateImportModal from "./InitialStateImportModal";
+import ImportModal, { courseValueMapper, nonNegativeInt } from "@/components/data/ImportModal";
+import SourceTag from "@/components/data/SourceTag";
 
 interface Props {
   courses: CourseRecord[];
@@ -12,16 +13,18 @@ interface Props {
   onOccupancyChange: (code: string, value: number) => void;
   onOccupancyBulkChange: (patch: Record<string, number>) => void;
   baselineOccupancy?: Record<string, number>;
-  // Settings folds per-course occupancy into its Curriculum table instead, so it hides the
-  // standalone occupancy table here (default true keeps Scenario/Plan Builder unchanged). Bulk
-  // import + demo still populate occupancy via the callbacks above; it just renders elsewhere.
+  // Callers that show occupancy elsewhere (e.g. a combined course table) hide the table here
+  // and keep only the import.
   showOccupancyTable?: boolean;
+  // QU data vs estimate tag for the whole table (config.data_sources.occupancy).
+  source?: DataSource;
+  onSourceChange?: (next: DataSource) => void;
 }
 
-// The shared "initial state — existing student body" editor: per-course occupancy, plus one
-// file import (CSV or Excel) that can bulk-fill it. Used by AdmissionsTab (Settings, Plan
-// Builder) and the pre-simulation InitialStateGate. The starting student body is driven
-// entirely by occupancy — there is no separate year-standing head-count.
+// The shared "seats used by other programs" editor (config.initial_state.occupancy): seats in
+// each course taken by students outside this program, e.g. Computer Engineering students in
+// CMPS151 or MATH101. A permanent background load subtracted from the free seats every regular
+// term. Used by the first-run gate, the Data page, Plan Builder and the walkthrough editor.
 export default function InitialStateEditor({
   courses,
   occupancy,
@@ -29,36 +32,24 @@ export default function InitialStateEditor({
   onOccupancyBulkChange,
   baselineOccupancy,
   showOccupancyTable = true,
+  source,
+  onSourceChange,
 }: Props) {
   const [importOpen, setImportOpen] = useState(false);
-
-  // Fill the editor (not the DB) with a small, plausible existing-student-body so an admin can
-  // preview the flow chart non-empty before entering real numbers. Plan-agnostic: occupancy goes
-  // on this plan's earliest courses. Persisted only when the caller (gate / Settings) saves.
-  const populateDemo = () => {
+  const mapper = useMemo(() => courseValueMapper(courses, nonNegativeInt), [courses]);
+  const sample = useMemo(() => {
     const early = [...courses].sort((a, b) => a.study_plan_term - b.study_plan_term);
-    const seatsByRank = [12, 8, 6, 5];
-    const occ: Record<string, number> = {};
-    early.slice(0, seatsByRank.length).forEach((c, i) => {
-      occ[c.code] = seatsByRank[i];
-    });
-    if (Object.keys(occ).length > 0) onOccupancyBulkChange(occ);
-  };
+    return ["code,seats", ...early.slice(0, 2).map((c, i) => `${c.code},${i === 0 ? 20 : 0}`)].join("\n") + "\n";
+  }, [courses]);
 
   return (
     <div className="flex flex-col gap-4">
       <SectionCard
-        title="Initial state — existing student body"
-        hint="the university the first cohort walks into (replaces the old incumbent cohorts)"
+        title="Seats used by other programs"
+        hint="for example Computer Engineering students in shared courses"
         actions={
           <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={populateDemo}
-              className="rounded-md border border-border-2 px-2.5 py-1 text-xs font-semibold text-ink hover:bg-surface-2"
-            >
-              Populate demo data
-            </button>
+            {(source !== undefined || onSourceChange) && <SourceTag value={source} onChange={onSourceChange} />}
             <button
               type="button"
               onClick={() => setImportOpen(true)}
@@ -69,32 +60,26 @@ export default function InitialStateEditor({
           </div>
         }
       >
-        <p className="mb-2.5 text-xs text-muted">
-          Seats already taken, per course, by students who aren&apos;t part of this simulation —
-          added as a constant background load so the first simulated cohort competes for the
-          remaining seats from term&nbsp;0.
-          {showOccupancyTable
-            ? " Entered in the table below."
-            : " Entered in the Curriculum table below."}
+        <p className="text-xs text-muted">
+          Seats in each course taken every regular term by students outside this program. They are subtracted from the
+          free seats, so CS students compete for what is left. Leave a course at 0 if no other program uses it.
+          {showOccupancyTable ? " Enter the numbers in the table below." : ""}
         </p>
       </SectionCard>
 
       {showOccupancyTable && (
-        <InitialOccupancyTable
-          courses={courses}
-          occupancy={occupancy}
-          baselineOccupancy={baselineOccupancy}
-          onChange={onOccupancyChange}
-        />
+        <InitialOccupancyTable courses={courses} occupancy={occupancy} baselineOccupancy={baselineOccupancy} onChange={onOccupancyChange} />
       )}
 
-      <InitialStateImportModal
+      <ImportModal
         open={importOpen}
         onClose={() => setImportOpen(false)}
-        courses={courses}
-        onApply={(result) => {
-          if (Object.keys(result.occupancy).length > 0) onOccupancyBulkChange(result.occupancy);
-        }}
+        title="Import other-program seats"
+        help="Two columns: a course code and the number of seats other programs use in it each term."
+        sampleCsv={sample}
+        sampleName="other-program-seats.csv"
+        mapRows={mapper}
+        onApply={(value) => onOccupancyBulkChange(value)}
       />
     </div>
   );

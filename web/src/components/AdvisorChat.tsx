@@ -8,20 +8,22 @@ import type { AdvisorProposal, FlowTimelineSummary, Frame } from "@/types/simula
 
 // A chat turn as this component tracks it: the wire shape (role/content) plus any actionable
 // proposals the backend attached to an assistant reply (rendered as one-click Apply cards).
-type ChatTurn = { role: "user" | "assistant"; content: string; proposals?: AdvisorProposal[] };
+type ChatTurn = { role: "user" | "assistant"; content: string; proposals?: AdvisorProposal[]; model?: string };
 
-// Phase B of the hybrid advisor: an optional LLM chat box, grounded in this run's numbers AND the
-// active plan's full curriculum + settings (the backend injects those on every /advisor/chat call
-// from the DB — see src/api.py). It only renders live when the backend has an LLM key
-// (meta.llm_chat_enabled); otherwise it shows a short "how to turn it on" note. The rules-based
-// AdvisorPanel (Phase A) works with or without it. The run-summary + per-course aggregates below
-// are built from data the dashboard already has — no extra run.
+// Phase B of the hybrid advisor: an optional LLM chat box, grounded in this run's numbers, the
+// active plan's full curriculum + settings, and the latest intake analysis (the backend injects
+// the last two on every /advisor/chat call from the DB, see src/api.py). The model explains the
+// recommendation; it never produces the intake number. It only renders live when a model is
+// configured (meta.llm_chat_enabled: a local Ollama server by default); otherwise it shows a short
+// "how to turn it on" note. The rules-based AdvisorPanel (Phase A) works with or without it.
 
-const SUGGESTIONS = [
-  "Why aren't we hitting the graduation target?",
-  "Propose the seat changes to fix the worst bottleneck.",
-  "What if I raise the worst bottleneck's capacity by 50 seats?",
-];
+function suggestions(recommended: number | null | undefined): string[] {
+  return [
+    recommended != null ? `Why is the recommendation ${recommended}?` : "Why does no intake meet the limits?",
+    "What would it take to admit 120?",
+    "Which course should get the next extra section?",
+  ];
+}
 
 // Per-course run behavior, aggregated from the frames the dashboard already holds. Merged into the
 // backend's curriculum list (by course code) so the model sees each course's definition next to how
@@ -73,17 +75,19 @@ export default function AdvisorChat({
   frames,
   mandatorySeasons,
   enabled,
+  modelLabel,
+  recommendedIntake,
 }: {
   summary: FlowTimelineSummary;
   scenario: string;
   frames: Frame[];
   mandatorySeasons: string[];
   enabled: boolean;
+  modelLabel?: string | null;
+  recommendedIntake?: number | null;
 }) {
   const { refreshBaseline } = useSimulation();
   const baseline = summary.headline;
-  const baselineSeatsPerStud =
-    summary.admissions_recommendation?.criteria?.find((c) => c.name === "seats_denied_per_stud")?.observed ?? null;
   const [messages, setMessages] = useState<ChatTurn[]>([]);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
@@ -102,7 +106,6 @@ export default function AdvisorChat({
         censored_rate: h.censored_rate,
         mean_gpa_at_graduation: h.mean_gpa_at_graduation,
       },
-      criteria: summary.admissions_recommendation.criteria ?? [],
       bottlenecks: summary.top_bottlenecks,
       course_stats: aggregateCourseStats(frames, mandatorySeasons),
       severe_terms: summary.severe_terms,
@@ -123,10 +126,10 @@ export default function AdvisorChat({
       // Only role/content go on the wire; proposals are display-only state, not conversation.
       const res = await advisorChat(next.map(({ role, content }) => ({ role, content })), context);
       if (!res.configured) {
-        setError("Chat isn't configured on the server (no LLM key).");
+        setError("Chat isn't configured on the server (no model set up).");
         return;
       }
-      setMessages([...next, { role: "assistant", content: res.reply ?? "", proposals: res.proposals }]);
+      setMessages([...next, { role: "assistant", content: res.reply ?? "", proposals: res.proposals, model: res.model }]);
       requestAnimationFrame(() => listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: "smooth" }));
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "The advisor couldn't respond — try again.");
@@ -139,13 +142,31 @@ export default function AdvisorChat({
     return (
       <section className="py-6">
         <h2 className="mb-1 text-[15px] font-bold">Ask the advisor</h2>
-        <div className="rounded-2xl border border-dashed border-border-2 bg-surface p-4 text-sm text-muted">
-          The conversational advisor is off. Add <code className="rounded bg-black/20 px-1 py-0.5">LLM_API_KEY</code> to
-          your <code className="rounded bg-black/20 px-1 py-0.5">.env</code> (see{" "}
-          <code className="rounded bg-black/20 px-1 py-0.5">.env.example</code>) and restart the backend to chat with an
-          assistant grounded in this run&apos;s numbers. Groq&apos;s free tier works out of the box; any
-          OpenAI-compatible endpoint is a swap via <code className="rounded bg-black/20 px-1 py-0.5">LLM_BASE_URL</code> /{" "}
-          <code className="rounded bg-black/20 px-1 py-0.5">LLM_MODEL</code>. The prioritized advice above works without it.
+        <div className="flex flex-col gap-2 rounded-2xl border border-dashed border-border-2 bg-surface p-4 text-sm text-muted">
+          <p>
+            The chat is off. It runs best on a free local model through{" "}
+            <a href="https://ollama.com" className="font-semibold text-accent hover:underline">Ollama</a>, so nothing leaves
+            this PC and no API key is needed:
+          </p>
+          <ol className="ml-5 list-decimal">
+            <li>
+              Install Ollama, then run{" "}
+              <code className="rounded bg-black/20 px-1 py-0.5">ollama pull qwen3:4b-instruct-2507-q4_K_M</code>.
+            </li>
+            <li>
+              Add these two lines to the <code className="rounded bg-black/20 px-1 py-0.5">.env</code> file in the project
+              folder (see <code className="rounded bg-black/20 px-1 py-0.5">.env.example</code>):
+              <pre className="mt-1 rounded bg-black/20 px-2 py-1 text-xs">
+                LLM_BASE_URL=http://localhost:11434/v1{"\n"}LLM_MODEL=qwen3:4b-instruct-2507-q4_K_M
+              </pre>
+            </li>
+            <li>Restart the planner (start.bat).</li>
+          </ol>
+          <p>
+            A larger model such as <code className="rounded bg-black/20 px-1 py-0.5">qwen3-coder:30b</code> needs a PC with
+            about 32 GB of memory. A paid hosted model can be added as an optional backup (LLM_FALLBACK_* settings). The
+            advice cards on this page work without any model.
+          </p>
         </div>
       </section>
     );
@@ -155,16 +176,16 @@ export default function AdvisorChat({
     <section className="py-6">
       <div className="mb-1 flex items-baseline gap-2">
         <h2 className="text-[15px] font-bold">Ask the advisor</h2>
-        <span className="text-xs font-normal text-muted">— grounded in this run&apos;s numbers and your curriculum</span>
+        <span className="text-xs font-normal text-muted">grounded in the latest analysis, this run and your curriculum</span>
       </div>
 
       <div className="rounded-2xl border border-border bg-surface">
         <div ref={listRef} className="max-h-[420px] min-h-[80px] overflow-y-auto px-4 py-3">
           {messages.length === 0 ? (
             <div className="flex flex-col gap-2">
-              <p className="text-sm text-muted">Ask about the results, the bottlenecks, or what to change. Try:</p>
+              <p className="text-sm text-muted">Ask about the recommendation, the bottlenecks, or what to change. Try:</p>
               <div className="flex flex-wrap gap-2">
-                {SUGGESTIONS.map((s) => (
+                {suggestions(recommendedIntake).map((s) => (
                   <button
                     key={s}
                     type="button"
@@ -189,17 +210,17 @@ export default function AdvisorChat({
                   >
                     {m.content}
                   </div>
+                  {m.role === "assistant" && m.model && <span className="text-[10.5px] text-muted">Answered by {m.model}</span>}
                   {m.role === "assistant" && m.proposals && m.proposals.length > 0 && (
                     <div className="flex w-full max-w-[85%] flex-col gap-1.5">
                       <p className="text-xs font-semibold uppercase tracking-wide text-muted">
-                        Suggested changes — test, then apply
+                        Suggested changes: test, then apply
                       </p>
                       {m.proposals.map((p, j) => (
                         <AdvisorProposalCard
                           key={j}
                           proposal={p}
                           baseline={baseline}
-                          baselineSeatsPerStud={baselineSeatsPerStud}
                           onApplied={refreshBaseline}
                         />
                       ))}
@@ -210,7 +231,7 @@ export default function AdvisorChat({
               {sending && (
                 <div className="flex justify-start">
                   <div className="rounded-2xl border border-border bg-surface-2 px-3 py-2 text-sm text-muted">
-                    <span className="inline-block h-1.5 w-1.5 animate-ping rounded-full bg-accent" /> thinking…
+                    <span className="inline-block h-1.5 w-1.5 animate-ping rounded-full bg-accent" /> thinking… (a local model can take 20 to 30 seconds)
                   </div>
                 </div>
               )}
@@ -229,7 +250,7 @@ export default function AdvisorChat({
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder="Ask about this run…"
+            placeholder="Ask about the recommendation..."
             aria-label="Ask the advisor"
             disabled={sending}
             className="flex-1 rounded-xl border border-border-2 bg-surface-2 px-3 py-1.5 text-sm text-ink placeholder:text-faint focus:outline-none focus:ring-1 focus:ring-accent disabled:opacity-60"
@@ -245,11 +266,11 @@ export default function AdvisorChat({
         {error && <p className="px-4 pb-2.5 text-sm text-bad">{error}</p>}
       </div>
       <p className="mt-1.5 text-xs text-muted">
-        Answers come from an LLM reading this run&apos;s numbers and your full curriculum + settings. When it
-        suggests a change you can <span className="font-semibold text-ink">Test</span> it (a what-if run that
-        predicts the effect without changing anything) and then <span className="font-semibold text-ink">Apply</span> it,
-        which writes it into your active plan and re-runs the baseline. It never edits anything on its own. Treat replies as a
-        starting point, not ground truth.
+        {modelLabel ? <>Model: <span className="font-semibold text-ink">{modelLabel}</span>. </> : null}
+        The AI explains the result; the intake number always comes from the simulation. When it suggests a change you can{" "}
+        <span className="font-semibold text-ink">Test</span> it (a what-if run that changes nothing) and then{" "}
+        <span className="font-semibold text-ink">Apply</span> it, which writes it into your active plan. It never edits
+        anything on its own. Treat replies as a starting point, not ground truth.
       </p>
     </section>
   );

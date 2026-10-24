@@ -7,34 +7,28 @@ import ThemeToggle from "@/components/ThemeToggle";
 
 type NavLink = { href: string; label: string };
 
-// Top-level items stay as direct links; everything else groups into a dropdown so the bar
-// doesn't overflow into horizontal scroll. Grouping is by what the page is *for*, not just
-// alphabetical: Analytics = different lenses on the same simulation result, Plans = managing
-// reusable configs (scenarios/curricula) rather than viewing output.
+// Every page serves one question: how many students to admit next, and what seats that needs.
+// The Intake Planner (home) answers it; the rest explain it, edit its inputs, or manage
+// programs (a program is a Plan: CS today, Computer Engineering later).
 const PRIMARY_LINKS: NavLink[] = [
-  { href: "/", label: "Dashboard" },
+  { href: "/", label: "Intake Planner" },
   { href: "/bottlenecks", label: "Bottlenecks" },
+  { href: "/walkthrough", label: "Walkthrough" },
+  { href: "/advisor", label: "Advisor" },
+  { href: "/data", label: "Data" },
 ];
 
 const GROUPS: { label: string; links: NavLink[] }[] = [
   {
-    label: "Analytics",
-    links: [
-      { href: "/advisor", label: "Advisor" },
-      { href: "/figures", label: "Figures" },
-    ],
-  },
-  {
-    label: "Plans",
+    label: "Programs",
     links: [
       { href: "/plans", label: "Plans" },
       { href: "/plan-builder", label: "Plan Builder" },
-      { href: "/runs", label: "Run History" },
     ],
   },
 ];
 
-const SETTINGS_LINK: NavLink = { href: "/settings", label: "Settings" };
+const SETTINGS_LINK: NavLink = { href: "/about", label: "Methodology" };
 
 function NavDropdown({ label, links, active }: { label: string; links: NavLink[]; active: boolean }) {
   const [open, setOpen] = useState(false);
@@ -89,7 +83,7 @@ export default function NavBar() {
   return (
     <nav className="border-b border-border bg-surface/85 backdrop-blur-md sticky top-0 z-50">
       <div className="mx-auto grid max-w-[1600px] grid-cols-[1fr_auto_1fr] items-center px-7">
-        <Link href="/" className="flex items-center gap-2" aria-label="Cohort Analyzer home">
+        <Link href="/" className="flex items-center gap-2" aria-label="CS Intake Planner home">
           {/* Nav uses the emblem-only mark (cropped from the stacked logo) so it stays legible at
               nav size; the full stacked wordmark is used on the larger hero/onboarding screens. */}
           {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -135,8 +129,8 @@ export default function NavBar() {
         <div className="flex items-center justify-end gap-2 py-3">
           <Link
             href="/about"
-            title="About this tool"
-            aria-label="About this tool"
+            title="How the planner works"
+            aria-label="How the planner works"
             className="grid h-8 w-8 place-items-center rounded-lg border border-border-2 bg-surface-2 text-sm font-bold text-ink transition-colors hover:bg-surface"
           >
             ?

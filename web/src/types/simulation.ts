@@ -74,82 +74,12 @@ export interface InitialState {
   occupancy: Record<string, number>;
 }
 
-export interface Criterion {
-  name: string;
-  observed: number;
-  target: number;
-  slack: number;
-}
-
-export interface AdmissionsRecommendation {
-  current_intake?: number;
-  recommended_intake?: number;
-  binding_criterion?: string;
-  binding_slack?: number;
-  growth_capped_at?: number;
-  representative_cohort?: number | string;
-  criteria?: Criterion[];
-  note?: string;
-}
-
-
 export interface ConfidenceInterval {
   mean: number;
   stdev: number;
   ci_low: number;
   ci_high: number;
   n_runs: number;
-}
-
-// Auto-fill solver (POST /autofill, src/optimizer.py): smallest capacity additions that meet
-// the admission health targets at the current intake. `recommended` is keyed by course code,
-// changed courses only.
-export interface AutofillCapacityRec {
-  current: number;
-  recommended: number;
-  added: number;
-}
-
-export interface AutofillCriterion {
-  name: string;
-  observed: number;
-  target: number;
-  slack: number;
-  met: boolean;
-}
-
-export interface AutofillTraceRow {
-  iteration: number;
-  action: string;
-  course?: string;
-  from?: number;
-  to?: number;
-  worst_criterion?: string | null;
-  worst_slack?: number | null;
-}
-
-export interface AutofillIntakeSuggestion {
-  recommended_intake: number | null;
-  note: string;
-}
-
-export interface AutofillResult {
-  feasible: boolean;
-  runs: number;
-  current_intake: number;
-  recommended: Record<string, AutofillCapacityRec>;
-  total_seats_added: number;
-  final_metrics: {
-    graduation_rate: number;
-    on_time_rate: number;
-    avg_graduation_time: number;
-    academic_dropout_rate: number;
-    censored_rate: number;
-  };
-  criteria: AutofillCriterion[];
-  trace: AutofillTraceRow[];
-  intake_suggestion: AutofillIntakeSuggestion | null;
-  note: string;
 }
 
 export interface Headline {
@@ -217,7 +147,6 @@ export interface SevereTermsSummary {
 export interface FlowTimelineSummary {
   headline: Headline;
   per_cohort: CohortMetric[];
-  admissions_recommendation: AdmissionsRecommendation;
   top_bottlenecks: TopBottlenecks;
   severe_terms: SevereTermsSummary;
 }
@@ -250,7 +179,6 @@ export interface FlowTimeline {
 export interface SimulateResponse {
   metrics: Headline;
   cohort_metrics: Record<string, CohortMetric>;
-  admissions_recommendation: AdmissionsRecommendation;
   flow_timeline: FlowTimeline;
 }
 
@@ -286,14 +214,19 @@ export interface MetaResponse {
   enrollment_priority_tiers: EnrollmentPriorityTier[];
   year_standing_thresholds: number[];
   on_time_terms: number;
-  admission_targets: {
-    target_grad_rate: number;
-    max_avg_time_to_degree: number;
-    max_seats_denied_per_student: number;
-    min_throughput_stability: number;
-  };
-  // Phase B: whether the optional LLM advisor chat is configured on the backend (LLM_API_KEY set).
+  // Intake Planner inputs (src/intake.py). See IntakePolicy etc. below.
+  intake_policy: IntakePolicy;
+  intake_analysis: IntakeAnalysisParams;
+  section_size: number;
+  planning: Planning;
+  current_students: CurrentStudents;
+  historical_outcomes: HistoricalOutcomes;
+  data_sources: DataSources;
+  intake_job_running?: boolean;
+  // Phase B: whether the optional LLM advisor chat is configured (a local model URL or an API key).
   llm_chat_enabled?: boolean;
+  // Which model answers the chat, e.g. "qwen3:4b-instruct-2507-q4_K_M · on this PC".
+  llm_model?: string | null;
   // Whether the caller has an in-progress Semester Checkpoint Mode session — see CheckpointState.
   checkpoint_active?: boolean;
   checkpoint_next_term?: number | null;
@@ -331,9 +264,9 @@ export interface CheckpointState {
   history: { seq: number; next_term: number; label: string }[];
   // Same {meta, frames, summary} shape a completed /simulate produces (src/api.py's
   // _checkpoint_summary_from_sim), computed live off the session's partial run — lets
-  // Bottlenecks/HeadlineKpis/AdmissionsRecommendation/CohortsTable read a checkpoint session
+  // Bottlenecks/HeadlineKpis/CohortsTable read a checkpoint session
   // exactly like the baseline dashboard's flow_timeline. Always partial: fewer terms run so far
-  // means less reliable headline/admissions numbers, especially before any cohort has finished.
+  // means less reliable headline numbers, especially before any cohort has finished.
   flow_timeline: FlowTimeline;
   // Present only on a GET /checkpoint/peek/{seq} response — marks this payload as a read-only
   // preview of an earlier step, not the live session (see CheckpointContext's `viewing`).
@@ -371,6 +304,7 @@ export interface AdvisorChatResponse {
   configured: boolean;
   reply: string | null;
   proposals?: AdvisorProposal[];
+  model?: string;
 }
 
 export interface ScenarioRequest {
@@ -396,15 +330,6 @@ export interface ScenarioRequest {
   enrollment_priority_tiers?: EnrollmentPriorityTier[];
   include_monte_carlo?: boolean;
   scenario_id?: number;
-}
-
-// A saved, named override set (POST /scenarios). `overrides` is a ScenarioRequest payload.
-export interface ScenarioRecord {
-  id: number;
-  name: string;
-  overrides: ScenarioRequest;
-  created_at: string;
-  updated_at: string;
 }
 
 export type RuleExpr = string | { all: RuleExpr[] } | { any: RuleExpr[] } | { min_ch: number };
@@ -468,12 +393,245 @@ export interface PlanExportPayload {
   config: Record<string, unknown>;
 }
 
-export interface RunRecord {
-  id: number;
-  scenario_id: number | null;
-  requested_at: string;
-  overrides_json: ScenarioRequest;
-  summary_json: { metrics: Headline; admissions_recommendation: AdmissionsRecommendation };
+export type BlockSignal = "capacity" | "offering" | "prereq";
+
+// ---------------------------------------------------------------------------------------- //
+// Intake Planner (src/intake.py, POST/GET /intake-analyses). Losses are in percentage points
+// (pts) against the same students with unlimited seats.
+// ---------------------------------------------------------------------------------------- //
+
+export type DataSource = "qu" | "estimate";
+
+export interface IntakePolicy {
+  max_grad_rate_loss_pts: number;
+  max_on_time_loss_pts: number;
+  min_grad_rate: number | null;
 }
 
-export type BlockSignal = "capacity" | "offering" | "prereq";
+export interface IntakeAnalysisParams {
+  grid_min: number;
+  grid_max: number;
+  grid_step: number;
+  seeds: number;
+  refine_step: number;
+  refine_seeds: number;
+  reference_runs: number;
+  min_history_years: number;
+  [key: string]: number | boolean;
+}
+
+export interface Planning {
+  next_intake_label?: string;
+  data_as_of?: string;
+}
+
+export interface PastIntake {
+  label?: string;
+  size: number;
+}
+
+export interface CurrentStudents {
+  past_intakes: PastIntake[];
+}
+
+export interface HistoricalOutcomes {
+  grad_rate_6yr?: number | null;
+  on_time_rate_4yr?: number | null;
+  n_students?: number | null;
+  current_headcount?: number | null;
+}
+
+export interface DataSources {
+  capacity?: Record<string, DataSource>;
+  pass_rate?: Record<string, DataSource>;
+  past_intakes?: DataSource;
+  occupancy?: DataSource;
+}
+
+export interface TopCourse {
+  code: string;
+  denials_per_student: number;
+}
+
+export interface IntakePoint {
+  intake: number;
+  seeds: number;
+  grad_rate: number;
+  grad_se: number;
+  on_time_rate: number;
+  on_time_se: number;
+  dropout_rate: number;
+  censored_rate: number;
+  avg_time_to_degree: number;
+  graduates_per_year: number;
+  denials_per_student: number;
+  summer_denial_share: number;
+  top_courses: TopCourse[];
+  current_students_grad_rate?: number;
+  headcount_at_start?: number;
+  grad_rate_loss: number;
+  grad_rate_loss_fit: number;
+  grad_rate_loss_upper: number;
+  on_time_loss: number;
+  on_time_loss_fit: number;
+  on_time_loss_upper: number;
+}
+
+export interface IntakeLimit {
+  name: "grad_rate_loss" | "on_time_loss" | "min_grad_rate";
+  label: string;
+  tolerance: number;
+  max_intake: number | null;
+  first_failing_intake: number | null;
+  status: "ok" | "infeasible" | "imprecise";
+  value_at_min: number;
+  precision_warning: boolean;
+}
+
+export interface IntakeView {
+  points: IntakePoint[];
+  limits: IntakeLimit[];
+  recommended_intake: number | null;
+  binding_limit: string | null;
+  feasible: boolean;
+  upper_limit?: number | null;
+  marginal?: { from: number; to: number; graduates_per_extra_student: number }[];
+}
+
+export interface Robustness {
+  range: [number, number];
+  fewer_sections: number | null;
+  lower_pass_rates: number | null;
+  tight_courses?: string[];
+}
+
+export interface IntakeRecommendation {
+  recommended_intake: number | null;
+  sustainable_intake: number | null;
+  upper_limit: number | null;
+  feasible: boolean;
+  binding_limit: string | null;
+  binding_course: string | null;
+  first_failing_intake: number | null;
+  why: string;
+  robustness: Robustness | null;
+  warnings: string[];
+}
+
+export interface IntakeReference {
+  grad_rate: number;
+  on_time_rate: number;
+  avg_time_to_degree: number;
+  runs: number;
+  denials: number;
+}
+
+export interface CalibrationCheck {
+  name: string;
+  label: string;
+  actual: number;
+  simulated: number;
+  gap: number;
+  allowed_gap: number;
+  flag: boolean;
+}
+
+export interface DataQuality {
+  capacity: { qu: number; estimate: number; total: number };
+  pass_rate: { qu: number; estimate: number; total: number };
+  past_intakes: { entered: number; source: DataSource };
+  occupancy: DataSource;
+  as_of: string | null;
+  illustrative: boolean;
+}
+
+export interface IntakeSweepResult {
+  label: string | null;
+  policy: IntakePolicy;
+  section_size: number;
+  reference: IntakeReference;
+  history: { size: number; source: "entered" | "padded" }[];
+  views: { next: IntakeView; steady: IntakeView };
+  recommendation: IntakeRecommendation;
+  calibration: { usual_intake: number; checks: CalibrationCheck[]; note: string };
+  data_quality: DataQuality;
+  runs: number;
+  elapsed_s: number;
+}
+
+export interface SeatPlanChange {
+  code: string;
+  title: string;
+  current: number;
+  recommended: number;
+  seats_added: number;
+  sections_added: number;
+}
+
+export interface SeatPlanOutcome {
+  grad_rate: number;
+  on_time_rate: number;
+  avg_time_to_degree: number;
+  denials_per_student: number;
+  checks: Record<string, { loss: number; upper: number; tolerance: number; met: boolean }>;
+}
+
+export interface SeatPlanResult {
+  target_intake: number;
+  section_size: number;
+  feasible: boolean;
+  changes: SeatPlanChange[];
+  total_seats_added: number;
+  total_sections_added: number;
+  before: { next: SeatPlanOutcome; steady: SeatPlanOutcome };
+  after: { next: SeatPlanOutcome; steady: SeatPlanOutcome };
+  reference: IntakeReference;
+  trace: { action: string; [key: string]: unknown }[];
+  runs: number;
+  elapsed_s: number;
+  note: string;
+}
+
+export type AnalysisKind = "intake_sweep" | "seat_plan";
+export type AnalysisStatus = "queued" | "running" | "done" | "failed" | "cancelled";
+
+export interface AnalysisSummary {
+  recommended_intake?: number | null;
+  sustainable_intake?: number | null;
+  upper_limit?: number | null;
+  feasible?: boolean | null;
+  binding_limit?: string | null;
+  illustrative?: boolean | null;
+  target_intake?: number | null;
+  total_seats_added?: number | null;
+  total_sections_added?: number | null;
+}
+
+export interface AnalysisRecord {
+  id: number;
+  kind: AnalysisKind;
+  source: "plan" | "checkpoint";
+  label: string | null;
+  status: AnalysisStatus;
+  progress: number;
+  progress_note: string;
+  params: Record<string, unknown>;
+  error: string | null;
+  created_at: string | null;
+  started_at: string | null;
+  finished_at: string | null;
+  summary: AnalysisSummary;
+  // Only on GET /intake-analyses/{id}.
+  result?: IntakeSweepResult | SeatPlanResult | null;
+  inputs_snapshot?: { curriculum: CourseRecord[]; config: Record<string, unknown> };
+}
+
+export interface IntakeAnalysisRequest {
+  kind?: AnalysisKind;
+  label?: string;
+  target_intake?: number;
+  source?: "plan" | "checkpoint";
+  policy?: Partial<IntakePolicy>;
+  params?: Record<string, number | boolean>;
+  run_budget?: number;
+}

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, type ReactNode } from "react";
+import { useMemo } from "react";
 import type { Frame, MetaResponse } from "@/types/simulation";
 
 // Only these two fields are actually read below — narrowed so callers can pass either the
@@ -15,10 +15,11 @@ interface CourseRec {
   totalDenied: number;
   oversubscribedTerms: number;
   peakShortfall: number;
+  sectionsToAdd: number;
   recommendedCapacity: number;
 }
 
-function buildRecommendations(frames: Frame[], meta: CapacityMeta): CourseRec[] {
+function buildRecommendations(frames: Frame[], meta: CapacityMeta, sectionSize: number): CourseRec[] {
   const capacityByCode: Record<string, number> = {};
   for (const node of meta.graph.nodes) capacityByCode[node.code] = node.capacity;
 
@@ -45,6 +46,8 @@ function buildRecommendations(frames: Frame[], meta: CapacityMeta): CourseRec[] 
 
     const currentCapacity = capacityByCode[code] ?? 0;
     const peakShortfall = Math.max(...termDenials);
+    // Seats come in whole sections, so round the worst term's shortfall up to sections.
+    const sectionsToAdd = Math.ceil(peakShortfall / sectionSize);
 
     recs.push({
       code,
@@ -52,7 +55,8 @@ function buildRecommendations(frames: Frame[], meta: CapacityMeta): CourseRec[] 
       totalDenied,
       oversubscribedTerms: termDenials.length,
       peakShortfall,
-      recommendedCapacity: currentCapacity + peakShortfall,
+      sectionsToAdd,
+      recommendedCapacity: currentCapacity + sectionsToAdd * sectionSize,
     });
   }
 
@@ -62,24 +66,20 @@ function buildRecommendations(frames: Frame[], meta: CapacityMeta): CourseRec[] 
 export default function CapacityRecommendations({
   frames,
   meta,
-  children,
+  sectionSize,
 }: {
   frames: Frame[];
   meta: CapacityMeta;
-  // Optional slot rendered under a divider at the bottom of the section — used on the
-  // Bottlenecks page to group the Auto-fill solver together with these recommendations,
-  // since both are capacity tools.
-  children?: ReactNode;
+  sectionSize: number;
 }) {
-  const recs = useMemo(() => buildRecommendations(frames, meta), [frames, meta]);
+  const recs = useMemo(() => buildRecommendations(frames, meta, sectionSize), [frames, meta, sectionSize]);
 
   if (recs.length === 0) {
     return (
       <section className="py-6">
         <div className="rounded-2xl border border-border bg-surface p-5">
           <h2 className="mb-1 text-[15px] font-bold">Capacity recommendations</h2>
-          <p className="text-sm text-muted">No seat denials recorded — current capacity is sufficient.</p>
-          {children && <div className="mt-5 border-t border-border pt-5">{children}</div>}
+          <p className="text-sm text-muted">No seat denials recorded in this run. Current seats are enough at the current intake.</p>
         </div>
       </section>
     );
@@ -91,13 +91,11 @@ export default function CapacityRecommendations({
         <div className="p-5">
           <h2 className="mb-1 text-[15px] font-bold">Capacity recommendations</h2>
           <p className="max-w-3xl text-sm text-muted">
-            Courses ranked by total seat denials. <span className="font-semibold text-ink">Recommended capacity</span>{" "}
-            is current capacity plus the worst single term&apos;s shortfall — enough to clear every denial seen in
-            this run. To test the actual impact of raising capacity, ask the{" "}
-            <Link href="/advisor" className="font-semibold text-accent">Advisor</Link>{" "}
-            (it predicts the effect, then lets you apply it), or edit{" "}
-            <Link href="/settings" className="font-semibold text-accent">Settings</Link>{" "}
-            to make a change permanent.
+            Courses ranked by total seat denials at the current intake. The suggestion adds enough whole sections of{" "}
+            {sectionSize} to clear the worst single term&apos;s shortfall seen in this run. For the sections a{" "}
+            <i>larger</i> intake needs, use the seat planner below; to test one change first, ask the{" "}
+            <Link href="/advisor" className="font-semibold text-accent">Advisor</Link>; to change seats for good, edit the{" "}
+            <Link href="/data" className="font-semibold text-accent">Data</Link> page.
           </p>
         </div>
 
@@ -105,7 +103,7 @@ export default function CapacityRecommendations({
           <table className="w-full border-collapse text-sm">
             <thead>
               <tr>
-                {["Course", "Capacity", "Total denied", "Recommended capacity"].map((h) => (
+                {["Course", "Seats", "Total denied", "Suggested seats"].map((h) => (
                   <th
                     key={h}
                     className="whitespace-nowrap border-b border-border bg-surface px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-muted"
@@ -126,7 +124,7 @@ export default function CapacityRecommendations({
                   <td className="whitespace-nowrap px-3 py-2.5 tabular-nums font-bold text-ink">
                     {r.recommendedCapacity.toLocaleString()}{" "}
                     <span className="ml-1 rounded bg-surface-2 px-1.5 py-0.5 text-xs font-medium text-muted">
-                      +{r.peakShortfall.toLocaleString()}
+                      +{r.sectionsToAdd} section{r.sectionsToAdd === 1 ? "" : "s"}
                     </span>
                   </td>
                 </tr>
@@ -135,7 +133,6 @@ export default function CapacityRecommendations({
           </table>
         </div>
 
-        {children && <div className="border-t border-border p-5">{children}</div>}
       </div>
     </section>
   );

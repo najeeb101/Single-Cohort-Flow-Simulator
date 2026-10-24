@@ -254,3 +254,23 @@ input[type="range"]::-moz-range-thumb {
   border: 2px solid var(--ink);
   cursor: pointer;
 }
+
+/* Print the Intake Planner result for a committee: light colours, no nav or controls. */
+@media print {
+  :root {
+    --bg: #ffffff;
+    --surface: #ffffff;
+    --surface-2: #f7f6f3;
+    --border: rgba(0, 0, 0, 0.15);
+    --border-2: rgba(0, 0, 0, 0.2);
+    --ink: #1f2326;
+    --muted: #55544f;
+  }
+  nav,
+  .no-print {
+    display: none !important;
+  }
+  body {
+    background: #ffffff;
+  }
+}

@@ -1,7 +1,8 @@
 import type {
   AdvisorChatMessage,
   AdvisorChatResponse,
-  AutofillResult,
+  AnalysisKind,
+  AnalysisRecord,
   CheckpointEdit,
   CheckpointState,
   CourseCreate,
@@ -10,17 +11,14 @@ import type {
   MetaResponse,
   PlanExportPayload,
   PlanImportPayload,
+  IntakeAnalysisRequest,
   PlanRecord,
-  RunRecord,
-  ScenarioRecord,
   ScenarioRequest,
   SimulateResponse,
 } from "@/types/simulation";
 
 // Relative + same-origin: resolves to localhost:3000/api/backend/..., which
-// next.config.ts's rewrites() forwards server-to-server to FastAPI (see that file's
-// comment) — this is what lets the browser's httpOnly auth cookie reach the backend
-// without ever being readable by client JS.
+// next.config.ts's rewrites() forwards server-to-server to FastAPI (see that file's comment).
 export const API_BASE = "/api/backend";
 
 export class ApiError extends Error {}
@@ -84,7 +82,7 @@ export function simulate(overrides: ScenarioRequest): Promise<SimulateResponse> 
 }
 
 // Phase B advisor chat (POST /advisor/chat). `context` is the grounding facts blob built from the
-// run summary. Returns configured:false (not an error) when the backend has no LLM_API_KEY set.
+// run summary. Returns configured:false (not an error) when no model is configured on the backend.
 export function advisorChat(
   messages: AdvisorChatMessage[],
   context: Record<string, unknown>,
@@ -94,44 +92,6 @@ export function advisorChat(
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ messages, context }),
   }).then((res) => asJson<AdvisorChatResponse>(res));
-}
-
-export function autofill(runBudget?: number): Promise<AutofillResult> {
-  return fetch(`${API_BASE}/autofill`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(runBudget ? { run_budget: runBudget } : {}),
-  }).then((res) => asJson<AutofillResult>(res));
-}
-
-export const RUNS_LIMIT = 100;
-
-export function listRuns(limit = RUNS_LIMIT): Promise<RunRecord[]> {
-  return fetch(`${API_BASE}/runs?limit=${limit}`).then((res) => asJson<RunRecord[]>(res));
-}
-
-export function getRun(id: number): Promise<RunRecord> {
-  return fetch(`${API_BASE}/runs/${id}`).then((res) => asJson<RunRecord>(res));
-}
-
-// Saved scenarios: a named override set persisted for later (POST /scenarios). Scoped to the
-// shared demo user, like runs. See src/scenarios.py.
-export function listScenarios(): Promise<ScenarioRecord[]> {
-  return fetch(`${API_BASE}/scenarios`).then((res) => asJson<ScenarioRecord[]>(res));
-}
-
-export function createScenario(name: string, overrides: ScenarioRequest): Promise<ScenarioRecord> {
-  return fetch(`${API_BASE}/scenarios`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ name, overrides }),
-  }).then((res) => asJson<ScenarioRecord>(res));
-}
-
-export function deleteScenario(id: number): Promise<void> {
-  return fetch(`${API_BASE}/scenarios/${id}`, { method: "DELETE" }).then((res) => {
-    if (!res.ok) throw new ApiError(`API returned ${res.status}`);
-  });
 }
 
 export function listCurriculum(): Promise<CourseRecord[]> {
@@ -242,16 +202,30 @@ export function peekCheckpoint(seq: number): Promise<CheckpointState> {
   return fetch(`${API_BASE}/checkpoint/peek/${seq}`).then((res) => asJson<CheckpointState>(res));
 }
 
-// Auto-fill solver scoped to the session's staged curriculum/config rather than the live plan —
-// see src/api.py::autofill_checkpoint. Read-only; apply via editCheckpoint (POST /checkpoint/edit).
-export function autofillCheckpoint(runBudget?: number): Promise<AutofillResult> {
-  return fetch(`${API_BASE}/checkpoint/autofill`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(runBudget ? { run_budget: runBudget } : {}),
-  }).then((res) => asJson<AutofillResult>(res));
-}
-
 export function discardCheckpoint(): Promise<void> {
   return fetch(`${API_BASE}/checkpoint`, { method: "DELETE" }).then((res) => asJson<void>(res));
+}
+
+// Intake Planner (src/intake.py via src/jobs.py): background analyses, one at a time. POST returns
+// 202 with the queued row (409 if another analysis is running); poll getIntakeAnalysis(id).
+export function startIntakeAnalysis(req: IntakeAnalysisRequest): Promise<AnalysisRecord> {
+  return fetch(`${API_BASE}/intake-analyses`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(req),
+  }).then((res) => asJson<AnalysisRecord>(res));
+}
+
+export function listIntakeAnalyses(kind?: AnalysisKind, limit = 20): Promise<AnalysisRecord[]> {
+  const q = new URLSearchParams({ limit: String(limit) });
+  if (kind) q.set("kind", kind);
+  return fetch(`${API_BASE}/intake-analyses?${q}`).then((res) => asJson<AnalysisRecord[]>(res));
+}
+
+export function getIntakeAnalysis(id: number): Promise<AnalysisRecord> {
+  return fetch(`${API_BASE}/intake-analyses/${id}`).then((res) => asJson<AnalysisRecord>(res));
+}
+
+export function cancelIntakeAnalysis(id: number): Promise<void> {
+  return fetch(`${API_BASE}/intake-analyses/${id}/cancel`, { method: "POST" }).then((res) => asJson<void>(res));
 }

@@ -15,7 +15,7 @@ import type { AdvisorProposal, Headline, ScenarioRequest } from "@/types/simulat
 // The LLM never writes anything itself; the human tests and confirms.
 
 type ApplyState = "idle" | "confirm" | "applying" | "applied" | "error";
-type TestResult = { metrics: Headline; seatsPerStud: number | null };
+type TestResult = { metrics: Headline };
 
 const TYPE_LABEL: Record<AdvisorProposal["type"], string> = {
   capacity: "Seats",
@@ -46,19 +46,17 @@ function Delta({ after, before, isPct = false, lowerIsBetter = false }: {
   if (Math.abs(d) < 1e-6) return <span className="text-muted">—</span>;
   const improved = lowerIsBetter ? d < 0 : d > 0;
   const sign = d > 0 ? "+" : "";
-  const text = isPct ? `${sign}${(d * 100).toFixed(1)}pp` : `${sign}${d.toFixed(2)}`;
+  const text = isPct ? `${sign}${(d * 100).toFixed(1)} pts` : `${sign}${d.toFixed(2)}`;
   return <span className={improved ? "font-semibold text-good" : "font-semibold text-bad"}>{text}</span>;
 }
 
 export default function AdvisorProposalCard({
   proposal,
   baseline,
-  baselineSeatsPerStud,
   onApplied,
 }: {
   proposal: AdvisorProposal;
   baseline: Headline;
-  baselineSeatsPerStud: number | null;
   onApplied: () => Promise<void> | void;
 }) {
   const [state, setState] = useState<ApplyState>("idle");
@@ -72,9 +70,7 @@ export default function AdvisorProposalCard({
     setTestErr(null);
     try {
       const res = await simulate(buildOverride(proposal));
-      const seatsPerStud =
-        res.admissions_recommendation?.criteria?.find((c) => c.name === "seats_denied_per_stud")?.observed ?? null;
-      setTestResult({ metrics: res.metrics, seatsPerStud });
+      setTestResult({ metrics: res.metrics });
     } catch (e) {
       setTestErr(e instanceof ApiError ? e.message : "Test failed — is the API running?");
     } finally {
@@ -113,10 +109,6 @@ export default function AdvisorProposalCard({
           delta: <Delta after={testResult.metrics.avg_graduation_time} before={baseline.avg_graduation_time} lowerIsBetter /> },
         { label: "Academic dropout", now: pct(baseline.academic_dropout_rate), next: pct(testResult.metrics.academic_dropout_rate),
           delta: <Delta after={testResult.metrics.academic_dropout_rate} before={baseline.academic_dropout_rate} isPct lowerIsBetter /> },
-        ...(baselineSeatsPerStud !== null && testResult.seatsPerStud !== null
-          ? [{ label: "Seats denied / student", now: baselineSeatsPerStud.toFixed(2), next: testResult.seatsPerStud.toFixed(2),
-              delta: <Delta after={testResult.seatsPerStud} before={baselineSeatsPerStud} lowerIsBetter /> }]
-          : []),
       ]
     : [];
 
@@ -163,7 +155,7 @@ export default function AdvisorProposalCard({
           <table className="w-full border-collapse text-sm">
             <thead>
               <tr>
-                {["Predicted effect", "Now", "If applied", "Δ"].map((h) => (
+                {["Predicted effect", "Now", "If applied", "Change"].map((h) => (
                   <th key={h} className="border-b border-border px-3 py-1.5 text-left text-[10px] font-semibold uppercase tracking-wide text-muted">
                     {h}
                   </th>
@@ -182,7 +174,7 @@ export default function AdvisorProposalCard({
             </tbody>
           </table>
           <p className="px-3 py-1.5 text-[10.5px] text-muted">
-            Single-seed estimate on top of the current baseline — nothing was changed. Click Apply to commit it.
+            One-run estimate at today&apos;s intake; nothing was changed. Apply to commit it, then re-run the intake analysis.
           </p>
         </div>
       )}

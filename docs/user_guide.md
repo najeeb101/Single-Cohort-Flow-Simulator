@@ -28,8 +28,9 @@ The first time, the site shows a setup screen before anything else. It asks for 
   seats are taken each semester by students from other programs (for example Computer
   Engineering). These seats are not available to CS students.
 
-Entering zero is an accepted answer for the second item. Press **Continue** when you are done.
-You can change either later on the **Data** page.
+Entering zero is an accepted answer for the second item. Press **Save and continue** when you
+are done, or **Skip for now and use the estimates** to keep the shipped estimates. You can change
+either later on the **Data** page.
 
 ---
 
@@ -39,18 +40,18 @@ Open the **Data** page. It has tabs:
 
 | Tab | What to enter |
 |---|---|
-| Courses & seats | For each course, the number of sections and the section size (default 35). Seats are sections times size. |
+| Courses & seats | For each course, the total seats per regular semester (all sections together). The page shows how many sections of the section size (default 35, set on Policy & analysis) that is. |
 | Pass rates | The share of students who pass each course on an attempt. |
 | Current students | The past intakes, most recent first. |
 | Other-program seats | Seats per course used by other programs. |
 | Policy & analysis | The policy limits, the planning label (for example "Fall 2027 intake"), historical outcomes and enrolled headcount (optional, used for the calibration check), and analysis settings. |
-| Advanced | Dropout and registration rules. Leave these alone unless you know why you are changing them. |
+| Advanced | Dropout and registration rules, the baseline run's cohort settings, and the course structure. Leave these alone unless you know why you are changing them. |
 
 **Importing from CSV or Excel.** Each tab has an import button. Use a file with a code column
 and a value column (a header row is detected automatically). Rows with unknown course codes or
 non-numeric values are skipped and listed with a reason; the rest are still imported.
 
-**QU data or estimate.** Next to each input there is a tag. Mark a value **QU data** only when it
+**QU data or estimate.** Next to each input there is a tag; click it to switch. Mark a value **QU data** only when it
 comes from a real QU source (the class schedule, the Registrar, Admissions). Leave everything
 else as **Estimate**. The tool uses the tags to tell you how much of a result rests on real
 figures.
@@ -101,8 +102,10 @@ run is marked as interrupted and you simply run it again.
 
 **The chart and the table.** The chart shows the outcome at each tested intake with its
 uncertainty band; the table gives the same numbers per intake: graduation rate, on-time rate,
-average time to degree, losses from seat shortages (split into regular terms and Summer),
-graduates per year, the first course to run out of seats, and the effect on current students.
+average time to degree, graduates per year, losses from seat shortages (best estimate and a
+cautious upper value), the share of seat denials that fall in Summer, the effect on students
+already enrolled, and the course most short of seats. **Download CSV** saves the table, and
+**Print** gives a clean copy for the committee.
 
 **The calibration check.** If you entered historical outcomes or the enrolled headcount, the
 tool compares its own results with them. A mismatch is flagged only when it is larger than
@@ -132,7 +135,7 @@ reachable; consider a lower target or relaxing a limit.
 - **Bottlenecks**: which courses limit the intake, and how many sections they need.
 - **Walkthrough**: advance the department one semester at a time, changing seats, pass rates
   or the next intake between steps. Good for exploring "what if" ideas.
-- **Advisor**: see section 9.
+- **Advisor**: see section 10.
 - **Programs**: Plans and Plan Builder, for keeping separate curricula and settings (for
   example a Computer Engineering plan later).
 - **Methodology**: a plain explanation of how the number is produced.

@@ -15,9 +15,12 @@ import type {
 const INITIAL_STATE_SETUP_DONE_KEY = "initial-state-setup-done";
 const ONBOARDING_INTRO_DONE_KEY = "onboarding-intro-done";
 
-function isInitialStateUnset(meta: MetaResponse): boolean {
-  const occupancy = meta.initial_state?.occupancy ?? {};
-  return Object.keys(occupancy).length === 0;
+// The first-run setup screen asks for past intakes and other-program seats. It shows until it is
+// dismissed once (localStorage flag) while those inputs are still unset or only estimates; both
+// may be left as estimates, the screen only asks.
+function plannerSetupNeeded(meta: MetaResponse): boolean {
+  const intakes = meta.current_students?.past_intakes ?? [];
+  return intakes.length === 0 || meta.data_sources?.past_intakes !== "qu";
 }
 
 type Phase = "loading" | "ready" | "error";
@@ -107,7 +110,7 @@ export function SimulationProvider({ children }: { children: ReactNode }) {
   // admin never has to click a separate "Start" button (the whole point of the auto-run UX).
   // The ref guard means a *failed* run surfaces a retry instead of silently re-firing in a
   // loop, and a *successful* run fills `data`, so the condition can never become true again.
-  const pastGate = !!meta && (initialStateDismissed || !isInitialStateUnset(meta));
+  const pastGate = !!meta && (initialStateDismissed || !plannerSetupNeeded(meta));
   useEffect(() => {
     if (phase === "ready" && pastGate && !data && !starting && !startError && !autoStarted.current) {
       autoStarted.current = true;
@@ -121,8 +124,7 @@ export function SimulationProvider({ children }: { children: ReactNode }) {
         {waking ? (
           <span className="flex items-center gap-2">
             <span className="inline-block h-2.5 w-2.5 animate-ping rounded-full bg-accent" />
-            Waking the backend… the free-tier server sleeps when idle and can take up to ~40s to
-            start. Hang tight.
+            Waiting for the planner&apos;s backend to start…
           </span>
         ) : (
           "Loading the program structure…"
@@ -135,11 +137,10 @@ export function SimulationProvider({ children }: { children: ReactNode }) {
     return (
       <main className="mx-auto max-w-xl px-7 py-16">
         <div className="rounded-2xl border border-border border-l-[4px] border-l-bad bg-surface px-6 py-5 text-bad">
-          Could not reach the simulation API after several attempts. If you are running locally,
-          start it with{" "}
+          Could not reach the planner&apos;s backend. Start the planner with{" "}
+          <code className="rounded bg-black/35 px-1.5 py-0.5">start.bat</code>, or run{" "}
           <code className="rounded bg-black/35 px-1.5 py-0.5">py -m uvicorn src.api:app --port 8001</code>{" "}
-          (from the repo root) and reload. On the hosted version the backend may still be waking
-          up, so wait a moment and reload.
+          from the project folder, then reload this page.
         </div>
       </main>
     );
@@ -156,7 +157,7 @@ export function SimulationProvider({ children }: { children: ReactNode }) {
     );
   }
 
-  if (!initialStateDismissed && isInitialStateUnset(meta)) {
+  if (!initialStateDismissed && plannerSetupNeeded(meta)) {
     return (
       <InitialStateGate
         meta={meta}
@@ -208,7 +209,7 @@ function StartingScreen({
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/qu-logo.png" alt="Qatar University" className="qu-mark h-36 w-auto shrink-0 object-contain" />
           <h1 className="mt-3 text-[24px] font-extrabold tracking-tight text-ink">
-            Cohort Analyzer
+            CS Intake Planner
           </h1>
           {error ? (
             <>
@@ -225,7 +226,7 @@ function StartingScreen({
           ) : (
             <p className="mt-3 flex items-center gap-2 text-[14px] text-muted">
               <span className="inline-block h-2.5 w-2.5 animate-ping rounded-full bg-accent" />
-              Running the baseline simulation…
+              Loading the department&apos;s data…
             </p>
           )}
         </div>
@@ -244,8 +245,8 @@ function StartingScreen({
   );
 }
 
-// Fixed-position pill shown whenever the shared baseline is re-running after an edit (Settings,
-// Plans, initial-state changes). Lives inside the provider because NavBar sits outside it and
+// Fixed-position pill shown whenever the shared baseline is re-running after an edit (Data,
+// Plans, seat-plan Apply). Lives inside the provider because NavBar sits outside it and
 // can't read this state.
 function UpdatingIndicator() {
   return (
