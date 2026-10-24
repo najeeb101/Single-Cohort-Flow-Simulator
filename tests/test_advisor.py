@@ -18,7 +18,7 @@ client = TestClient(app)
 def _no_ambient_llm_env(monkeypatch):
     """Each test sets exactly the provider env it needs — a developer's .env (e.g. a local
     Ollama LLM_BASE_URL) must not leak in and flip the enabled/disabled assertions."""
-    for key in ("LLM_API_KEY", "LLM_BASE_URL", "LLM_MODEL", "LLM_TIMEOUT",
+    for key in ("LLM_API_KEY", "LLM_BASE_URL", "LLM_MODEL", "LLM_TIMEOUT", "LLM_OLLAMA_NATIVE",
                 "LLM_FALLBACK_BASE_URL", "LLM_FALLBACK_MODEL", "LLM_FALLBACK_API_KEY"):
         monkeypatch.delenv(key, raising=False)
 
@@ -146,10 +146,38 @@ def test_chat_enabled_with_key(monkeypatch):
 
 def test_local_server_needs_no_key(monkeypatch):
     monkeypatch.setenv("LLM_BASE_URL", "http://localhost:11434/v1")
-    monkeypatch.setenv("LLM_MODEL", "qwen3-coder:30b")
+    monkeypatch.setenv("LLM_MODEL", "qwen3:4b-instruct-2507-q4_K_M")
     assert advisor.chat_enabled() is True
-    assert advisor.model_label() == "qwen3-coder:30b · on this PC"
+    assert advisor.model_label() == "qwen3:4b-instruct-2507-q4_K_M · on this PC"
     assert advisor._config()["timeout"] == 120.0  # local inference gets a longer timeout
+
+
+def test_ollama_uses_native_api_with_bigger_context(monkeypatch):
+    monkeypatch.setenv("LLM_BASE_URL", "http://localhost:11434/v1")
+    seen = {}
+
+    def fake_post(url, json=None, **_kwargs):
+        seen["url"], seen["json"] = url, json
+        return _FakeResp(200, {"message": {"content": "Native reply."}})
+
+    monkeypatch.setattr(advisor.httpx, "post", fake_post)
+    assert advisor.run_chat([{"role": "user", "content": "q"}], SAMPLE_CONTEXT) == "Native reply."
+    assert seen["url"] == "http://localhost:11434/api/chat"
+    assert seen["json"]["options"]["num_ctx"] == advisor.OLLAMA_NUM_CTX >= 8192
+    assert seen["json"]["stream"] is False
+
+
+def test_other_local_servers_use_openai_endpoint(monkeypatch):
+    monkeypatch.setenv("LLM_BASE_URL", "http://localhost:1234/v1")  # e.g. LM Studio
+    seen = {}
+
+    def fake_post(url, **_kwargs):
+        seen["url"] = url
+        return _FakeResp(200, {"choices": [{"message": {"content": "ok"}}]})
+
+    monkeypatch.setattr(advisor.httpx, "post", fake_post)
+    advisor.run_chat([{"role": "user", "content": "q"}], SAMPLE_CONTEXT)
+    assert seen["url"] == "http://localhost:1234/v1/chat/completions"
 
 
 def test_hosted_url_without_key_stays_disabled(monkeypatch):
@@ -161,7 +189,7 @@ def test_fallback_answers_when_local_is_down(monkeypatch):
     import httpx
 
     monkeypatch.setenv("LLM_BASE_URL", "http://localhost:11434/v1")
-    monkeypatch.setenv("LLM_MODEL", "qwen3-coder:30b")
+    monkeypatch.setenv("LLM_MODEL", "qwen3:4b-instruct-2507-q4_K_M")
     monkeypatch.setenv("LLM_FALLBACK_BASE_URL", "https://api.example.com/v1")
     monkeypatch.setenv("LLM_FALLBACK_API_KEY", "paid-key")
     monkeypatch.setenv("LLM_FALLBACK_MODEL", "big-model")
@@ -179,7 +207,7 @@ def test_fallback_answers_when_local_is_down(monkeypatch):
 def test_think_blocks_are_stripped(monkeypatch):
     monkeypatch.setenv("LLM_BASE_URL", "http://127.0.0.1:11434/v1")
     monkeypatch.setattr(advisor.httpx, "post", lambda *a, **k: _FakeResp(
-        200, {"choices": [{"message": {"content": "<think>internal reasoning</think>\nThe answer."}}]}))
+        200, {"message": {"content": "<think>internal reasoning</think>\nThe answer."}}))
     assert advisor.run_chat([{"role": "user", "content": "q"}], SAMPLE_CONTEXT) == "The answer."
 
 
@@ -344,3 +372,23 @@ def test_endpoint_returns_validated_proposals(monkeypatch):
     props = body["proposals"]
     assert [p["type"] for p in props] == ["capacity", "cohort_size"]
     assert props[0]["code"] == "CMPS323" and props[0]["value"] == 150  # validated against the real seeded plan
+
+
+def test_validate_proposals_drops_no_op_changes():
+    # A small local model sometimes "proposes" exactly what the plan already has.
+    from src.models.course import Course
+
+    curriculum = {"CSEL2": Course(code="CSEL2", title="Elective 2", credits=3, prerequisites=(),
+                                  pass_rate=0.85, offering=("Fall", "Spring"), category="cs_elective",
+                                  capacity=35, study_plan_term=6)}
+    config = {"terms_per_year": ["Fall", "Spring", "Summer"], "cohort_size": 100}
+    raw = [
+        {"type": "offering", "code": "CSEL2", "value": ["Spring", "Fall"], "reason": "same as now"},
+        {"type": "capacity", "code": "CSEL2", "value": 35, "reason": "same as now"},
+        {"type": "capacity", "code": "CSEL2", "value": 70, "reason": "a real change"},
+    ]
+    out = advisor.validate_proposals(raw, curriculum, config)
+    # Dedup keeps the first capacity proposal (35, a no-op) and drops it; the offering no-op too.
+    assert out == []
+    out = advisor.validate_proposals(raw[2:], curriculum, config)
+    assert [(p["type"], p["value"]) for p in out] == [("capacity", 70)]

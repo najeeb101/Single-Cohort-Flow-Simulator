@@ -9,9 +9,14 @@ environment variables. The recommended setup is a **local model through Ollama**
 nothing leaves the department PC)::
 
     LLM_BASE_URL   e.g. http://localhost:11434/v1 (Ollama); default https://api.groq.com/openai/v1
-    LLM_MODEL      e.g. qwen3-coder:30b;            default llama-3.3-70b-versatile
+    LLM_MODEL      e.g. qwen3:4b-instruct-2507-q4_K_M; default llama-3.3-70b-versatile
     LLM_API_KEY    required for a hosted provider; optional for a localhost server
     LLM_TIMEOUT    seconds; default 120 for a local server (CPU/GPU inference is slower), else 30
+
+A local **Ollama** server (port 11434) is called through its native ``/api/chat`` with
+``num_ctx`` = :data:`OLLAMA_NUM_CTX`: Ollama ignores context settings on its OpenAI-compatible
+endpoint and defaults to 4096 tokens, which the grounding prompt (the whole curriculum plus the
+latest analysis, ~3k tokens) plus a reply would overflow — silently, by truncation.
 
 An optional paid/hosted fallback is tried when the primary can't be reached::
 
@@ -38,9 +43,26 @@ DEFAULT_MODEL = "llama-3.3-70b-versatile"
 _LOCAL_HOSTS = ("localhost", "127.0.0.1", "0.0.0.0", "[::1]")
 
 
+OLLAMA_NUM_CTX = 8192
+_OLLAMA_PORT = "11434"
+
+
+def _host_port(base_url: str) -> tuple[str, str]:
+    netloc = base_url.split("://", 1)[-1].split("/", 1)[0].lower()
+    host, _, port = netloc.rpartition(":") if ":" in netloc.lstrip("[") else (netloc, "", "")
+    return (host or netloc), port
+
+
 def _is_local(base_url: str) -> bool:
-    host = base_url.split("://", 1)[-1].split("/", 1)[0].rsplit(":", 1)[0].lower()
-    return host in _LOCAL_HOSTS
+    return _host_port(base_url)[0] in _LOCAL_HOSTS
+
+
+def _is_ollama(base_url: str) -> bool:
+    """A local server on Ollama's port, or LLM_OLLAMA_NATIVE=1 to force the native API."""
+    if os.environ.get("LLM_OLLAMA_NATIVE") == "1":
+        return True
+    host, port = _host_port(base_url)
+    return host in _LOCAL_HOSTS and port == _OLLAMA_PORT
 
 
 def _provider(prefix: str = "LLM_") -> dict | None:
@@ -59,6 +81,7 @@ def _provider(prefix: str = "LLM_") -> dict | None:
         "api_key": api_key or "local",
         "model": os.environ.get(f"{prefix}MODEL", DEFAULT_MODEL),
         "local": local,
+        "ollama": _is_ollama(base_url),
         "timeout": float(os.environ.get("LLM_TIMEOUT", 120.0 if local else 30.0)),
     }
 
@@ -76,7 +99,8 @@ def _config() -> dict:
     """The primary provider's settings (kept for callers/tests that read one config)."""
     providers = _providers()
     return providers[0] if providers else {
-        "base_url": DEFAULT_BASE_URL, "api_key": "", "model": DEFAULT_MODEL, "local": False, "timeout": 30.0}
+        "base_url": DEFAULT_BASE_URL, "api_key": "", "model": DEFAULT_MODEL, "local": False,
+        "ollama": False, "timeout": 30.0}
 
 
 def _label(provider: dict) -> str:
@@ -85,7 +109,7 @@ def _label(provider: dict) -> str:
 
 
 def model_label() -> str | None:
-    """Human-readable "which model answers" line for the UI, e.g. "qwen3-coder:30b · on this PC"."""
+    """Human-readable "which model answers" line for the UI, e.g. "qwen3:4b · on this PC"."""
     providers = _providers()
     return _label(providers[0]) if providers else None
 
@@ -392,15 +416,19 @@ def build_system_prompt(context: dict) -> str:
 
 
 def _call(provider: dict, messages: list[dict], context: dict, timeout: float | None) -> str:
-    payload = {
-        "model": provider["model"],
-        "messages": [{"role": "system", "content": build_system_prompt(context)}, *messages],
-        "temperature": 0.2,
-        "max_tokens": 700,
-    }
+    convo = [{"role": "system", "content": build_system_prompt(context)}, *messages]
+    if provider.get("ollama"):
+        # Native Ollama API: the only way to raise its 4096-token default context per request.
+        root = provider["base_url"][:-3] if provider["base_url"].endswith("/v1") else provider["base_url"]
+        url = f"{root}/api/chat"
+        payload = {"model": provider["model"], "messages": convo, "stream": False,
+                   "options": {"num_ctx": OLLAMA_NUM_CTX, "temperature": 0.2, "num_predict": 700}}
+    else:
+        url = f"{provider['base_url']}/chat/completions"
+        payload = {"model": provider["model"], "messages": convo, "temperature": 0.2, "max_tokens": 700}
     try:
         resp = httpx.post(
-            f"{provider['base_url']}/chat/completions",
+            url,
             headers={"Authorization": f"Bearer {provider['api_key']}", "Content-Type": "application/json"},
             json=payload,
             timeout=timeout if timeout is not None else provider["timeout"],
@@ -410,7 +438,8 @@ def _call(provider: dict, messages: list[dict], context: dict, timeout: float | 
     if resp.status_code != 200:
         raise AdvisorChatError(f"LLM provider returned {resp.status_code}: {resp.text[:300]}")
     try:
-        content = resp.json()["choices"][0]["message"]["content"]
+        body = resp.json()
+        content = body["message"]["content"] if provider.get("ollama") else body["choices"][0]["message"]["content"]
     except (KeyError, IndexError, TypeError) as e:
         raise AdvisorChatError("Unexpected response shape from the LLM provider.") from e
     # Reasoning models (Qwen3 thinking variants) may prepend a <think>...</think> block.
@@ -554,6 +583,8 @@ def validate_proposals(raw: list, curriculum: dict, config: dict) -> list[dict]:
             if v is None or v < 1:
                 continue
             cur = getattr(course, "capacity", None)
+            if v == cur:
+                continue  # a no-op "change" isn't worth a card
             out.append({"type": t, "code": code, "value": v, "current": cur, "reason": reason,
                         "label": f"Set {code} capacity to {v} seats" + (f" (from {cur})" if cur is not None else "")})
         elif t == "pass_rate":
@@ -575,6 +606,8 @@ def validate_proposals(raw: list, curriculum: dict, config: dict) -> list[dict]:
             if not val:
                 continue
             cur = list(getattr(course, "offering", ()) or ())
+            if set(val) == set(cur):
+                continue  # already offered exactly then — nothing to apply
             out.append({"type": t, "code": code, "value": val, "current": cur, "reason": reason,
                         "label": f"Offer {code} in {', '.join(val)}" + (f" (was {', '.join(cur)})" if cur else "")})
 
