@@ -1,9 +1,10 @@
-"""Process-pool helper for the engine's embarrassingly-parallel workloads (optimization plan
-item 2): Monte Carlo across seeds and the Auto-fill intake-probe across candidate intakes. Each
-of those is a set of *independent* full simulations, so fanning them across CPU cores is a large
-wall-time win with no change to results.
+"""Process-pool helper for the engine's embarrassingly-parallel workloads: Monte Carlo across
+seeds (`ordered_map`) and the intake analyses' runs across candidate intakes and seeds
+(`make_pool`/`iter_ordered`). Each of those is a set of *independent* full simulations, so
+fanning them across CPU cores is a large wall-time win with no change to results.
 
-Two correctness properties this helper guarantees, so parallel output is trustworthy:
+Two correctness properties `ordered_map` guarantees, so parallel output is trustworthy
+(`iter_ordered` keeps the ordering but has no serial fallback):
 
 1. **Order-preserving.** `ordered_map` returns results in the same order as `items`, exactly
    like a serial `[fn(x) for x in items]`. Callers that aggregate seed samples therefore get a
