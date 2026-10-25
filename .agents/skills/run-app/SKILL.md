@@ -11,9 +11,11 @@ CORS/auth to configure (auth was removed; every request is one shared demo user)
 
 ## Prerequisites (already true on the dev machine)
 - `py -m pip install -r requirements.txt` (backend deps).
-- `cd web && npm install` (frontend deps). **Playwright is already in `web/node_modules`** — the
-  UI driver reuses it. No `npx playwright install` needed; it drives the *system* Chrome via
-  `channel: "chrome"`.
+- `cd web && npm install` (frontend deps). **Playwright is NOT a `web/` dependency** (it isn't in
+  `package.json`, and on the department laptop it isn't installed). Add it without touching
+  `package.json`, ideally into the isolated copy you drive (see Gotchas):
+  `PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 npm install --no-save playwright@1.55.0`. No
+  `npx playwright install` needed with `CHROME_CHANNEL=chrome` (drives the *system* Chrome).
 
 ## Launch
 

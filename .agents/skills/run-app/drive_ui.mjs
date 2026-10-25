@@ -146,23 +146,30 @@ try {
   await page.goto(`${BASE}/advisor`, { waitUntil: "domcontentloaded", timeout: 90000 });
   const meta = await (await api("/meta")).json();
   await page.getByRole("heading", { name: "Advisor", exact: true }).waitFor({ timeout: 60000 });
-  ok("advisor shows the analysis verdict", await page.getByText(/Recommended next intake|No intake meets your limits/).first().isVisible().catch(() => false));
-  if (meta.llm_chat_enabled && ASK_ADVISOR) {
+  // The advice cards render after the heading, once the latest analysis loads.
+  ok("advisor shows the analysis verdict", await page.getByText(/Recommended next intake|No intake meets your limits/).first()
+    .waitFor({ timeout: 30000 }).then(() => true).catch(() => false));
+  if (meta.llm_chat_enabled) {
     const box = page.getByPlaceholder("Ask about the recommendation...");
-    await box.fill("In two sentences: why is the recommended intake what it is?");
-    await page.getByRole("button", { name: "Send" }).click();
-    const answered = await page.getByText(/^Answered by/).first().waitFor({ timeout: 240000 }).then(() => true).catch(() => false);
-    ok("advisor chat answered (model label shown)", answered);
+    ok("advisor chat box shown", await box.isVisible().catch(() => false));
+    if (ASK_ADVISOR) {
+      await box.fill("In two sentences: why is the recommended intake what it is?");
+      await page.getByRole("button", { name: "Send" }).click();
+      const answered = await page.getByText(/^Answered by/).first().waitFor({ timeout: 240000 }).then(() => true).catch(() => false);
+      ok("advisor chat answered (model label shown)", answered);
+    }
   } else {
     ok("advisor explains how to turn on the local model", await page.getByText(/ollama pull/).first().isVisible().catch(() => false));
   }
   await page.screenshot({ path: shot(n++, "advisor"), fullPage: true });
 
   // 7. Dark mode (the opt-in; light is the default) renders the planner too.
+  // Wait for the card first: a click before React hydrates the toggle is silently lost.
   await page.goto(BASE, { waitUntil: "domcontentloaded" });
-  await page.getByRole("button", { name: /Switch to dark mode/ }).first().click();
-  ok("dark mode toggles on", await page.evaluate(() => document.documentElement.classList.contains("theme-dark")));
   await page.getByText(/Recommended for the/).waitFor({ timeout: 60000 }).catch(() => {});
+  await page.getByRole("button", { name: /Switch to dark mode/ }).first().click();
+  ok("dark mode toggles on", await page.waitForFunction(() => document.documentElement.classList.contains("theme-dark"),
+    null, { timeout: 10000 }).then(() => true).catch(() => false));
   await page.screenshot({ path: shot(n++, "planner-dark"), fullPage: true });
 
   ok("no uncaught page errors", pageErrors.length === 0, pageErrors.join(" | "));
