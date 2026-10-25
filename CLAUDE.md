@@ -498,6 +498,11 @@ Bottlenecks have data before any walkthrough starts.
   `POST /checkpoint/autofill`) — read-only; "Apply" routes through `POST /checkpoint/edit` instead of
   `PUT /curriculum`/`PUT /config`, so it takes effect on the next Advance rather than immediately. The seat
   planner and `CapacityRecommendations` pick whichever mode matches whether a checkpoint session is active.
+  `CapacityRecommendations` (Bottlenecks) ranks courses by this run's regular-term seat denials but takes
+  its seat numbers from the latest matching seat plan (`IntakeContext.latestSeatPlan`), so it and the
+  planner always agree; with no seat plan it asks for one rather than inventing a figure. (It used to clear
+  each course's worst single term, which counts re-requests from students already turned away and
+  overstated: CSEL2 +105 where the planner said +45 at 120.)
   Covered by `tests/test_checkpoint_api.py::test_checkpoint_summary_carries_flow_timeline_shaped_data`.
 - **Frontend** (`web/src/lib/CheckpointContext.tsx`,
   `web/src/app/(dashboard)/walkthrough/page.tsx`, `web/src/components/checkpoint/CheckpointEditPanel.tsx`):

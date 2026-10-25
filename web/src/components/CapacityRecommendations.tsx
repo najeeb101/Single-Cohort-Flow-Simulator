@@ -2,24 +2,21 @@
 
 import Link from "next/link";
 import { useMemo } from "react";
-import type { Frame, MetaResponse } from "@/types/simulation";
+import { useIntake } from "@/lib/IntakeContext";
+import type { Frame, MetaResponse, SeatPlanResult } from "@/types/simulation";
 
 // Only these two fields are actually read below — narrowed so callers can pass either the
 // baseline MetaResponse or a lightweight stand-in built from an in-progress checkpoint session
 // (see web/src/app/(dashboard)/bottlenecks/page.tsx).
 type CapacityMeta = Pick<MetaResponse, "graph" | "mandatory_terms">;
 
-interface CourseRec {
+interface CourseRow {
   code: string;
   currentCapacity: number;
   totalDenied: number;
-  oversubscribedTerms: number;
-  peakShortfall: number;
-  seatsToAdd: number;
-  recommendedCapacity: number;
 }
 
-function buildRecommendations(frames: Frame[], meta: CapacityMeta, seatStep: number): CourseRec[] {
+function rankDenials(frames: Frame[], meta: CapacityMeta): CourseRow[] {
   const capacityByCode: Record<string, number> = {};
   for (const node of meta.graph.nodes) capacityByCode[node.code] = node.capacity;
 
@@ -28,54 +25,47 @@ function buildRecommendations(frames: Frame[], meta: CapacityMeta, seatStep: num
   // engine's capacity_block_counts_mandatory ranking, so this table and the "Capacity blocks" card
   // list the same courses.
   const mandatory = new Set(meta.mandatory_terms ?? ["Fall", "Spring"]);
-  const denied: Record<string, number[]> = {};
-
+  const denied: Record<string, number> = {};
   for (const frame of frames) {
     if (!mandatory.has(frame.season)) continue;
     for (const [code, stat] of Object.entries(frame.courses)) {
-      if (!denied[code]) denied[code] = [];
-      if (stat.denied > 0) denied[code].push(stat.denied);
+      if (stat.denied > 0) denied[code] = (denied[code] ?? 0) + stat.denied;
     }
   }
 
-  const recs: CourseRec[] = [];
-  for (const [code, termDenials] of Object.entries(denied)) {
-    if (termDenials.length === 0) continue;
-    const totalDenied = termDenials.reduce((s, d) => s + d, 0);
-    if (totalDenied === 0) continue;
-
-    const currentCapacity = capacityByCode[code] ?? 0;
-    const peakShortfall = Math.max(...termDenials);
-    // Enough seats to clear the worst term, rounded up to the seat step. Seats, not sections:
-    // sections vary in size and a course can grow by widening the ones it has.
-    const seatsToAdd = Math.ceil(peakShortfall / seatStep) * seatStep;
-
-    recs.push({
-      code,
-      currentCapacity,
-      totalDenied,
-      oversubscribedTerms: termDenials.length,
-      peakShortfall,
-      seatsToAdd,
-      recommendedCapacity: currentCapacity + seatsToAdd,
-    });
-  }
-
-  return recs.sort((a, b) => b.totalDenied - a.totalDenied).slice(0, 8);
+  return Object.entries(denied)
+    .map(([code, totalDenied]) => ({ code, totalDenied, currentCapacity: capacityByCode[code] ?? 0 }))
+    .sort((a, b) => b.totalDenied - a.totalDenied)
+    .slice(0, 8);
 }
 
+// Which courses turn students away, and how many seats they would need. The ranking comes from
+// this run's seat denials; the seat numbers come from the latest seat plan (the planner below:
+// demand at the planned intake, rounded to the seat step, checked against the policy limits), so
+// this card and the planner always agree. It used to size each course to clear its worst single
+// term here instead, which also counts students turned away earlier who asked again, so it
+// overstated (+105 seats for CSEL2 where the planner said +45 even for an intake of 120).
 export default function CapacityRecommendations({
   frames,
   meta,
-  seatStep,
+  source,
 }: {
   frames: Frame[];
   meta: CapacityMeta;
-  seatStep: number;
+  source: "plan" | "checkpoint";
 }) {
-  const recs = useMemo(() => buildRecommendations(frames, meta, seatStep), [frames, meta, seatStep]);
+  const { latestSeatPlan } = useIntake();
+  const rows = useMemo(() => rankDenials(frames, meta), [frames, meta]);
+  const plan =
+    latestSeatPlan?.source === source && latestSeatPlan.status === "done"
+      ? ((latestSeatPlan.result as SeatPlanResult | undefined) ?? null)
+      : null;
+  const needed = useMemo(
+    () => Object.fromEntries((plan?.changes ?? []).map((c) => [c.code, c.recommended])) as Record<string, number>,
+    [plan],
+  );
 
-  if (recs.length === 0) {
+  if (rows.length === 0) {
     return (
       <section className="py-6">
         <div className="rounded-2xl border border-border bg-surface p-5">
@@ -92,11 +82,17 @@ export default function CapacityRecommendations({
         <div className="p-5">
           <h2 className="mb-1 text-[15px] font-bold">Capacity recommendations</h2>
           <p className="max-w-3xl text-sm text-muted">
-            Courses ranked by total seat denials at the current intake. The suggestion adds enough seats (rounded up
-            to {seatStep}) to clear the worst single term&apos;s shortfall seen in this run, by widening sections or
-            opening one. For the seats a <i>larger</i> intake needs, use the seat planner below; to test one change first, ask the{" "}
-            <Link href="/advisor" className="font-semibold text-accent">Advisor</Link>; to change seats for good, edit the{" "}
-            <Link href="/data" className="font-semibold text-accent">Data</Link> page.
+            Courses ranked by how many students they turned away for lack of seats in this run.{" "}
+            {plan ? (
+              <>
+                The seat numbers are the seat planner&apos;s plan for an intake of {plan.target_intake} (below): what each
+                course needs, rounded up and checked against your limits, by widening sections or opening one.
+              </>
+            ) : (
+              <>Plan seats below to see how many seats each course would need for the intake you want.</>
+            )}{" "}
+            To test one change first, ask the <Link href="/advisor" className="font-semibold text-accent">Advisor</Link>; to
+            change seats for good, edit the <Link href="/data" className="font-semibold text-accent">Data</Link> page.
           </p>
         </div>
 
@@ -104,7 +100,7 @@ export default function CapacityRecommendations({
           <table className="w-full border-collapse text-sm">
             <thead>
               <tr>
-                {["Course", "Seats", "Total denied", "Suggested seats"].map((h) => (
+                {["Course", "Seats now", "Turned away", plan ? `Seats for ${plan.target_intake}` : "Seats needed"].map((h) => (
                   <th
                     key={h}
                     className="whitespace-nowrap border-b border-border bg-surface px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-muted"
@@ -115,25 +111,35 @@ export default function CapacityRecommendations({
               </tr>
             </thead>
             <tbody>
-              {recs.map((r) => (
-                <tr key={r.code} className="group border-b border-border transition-colors hover:bg-surface-2 last:border-0">
-                  <td className="whitespace-nowrap px-3 py-2.5 font-semibold">{r.code}</td>
-                  <td className="whitespace-nowrap px-3 py-2.5 tabular-nums text-muted">{r.currentCapacity}</td>
-                  <td className="whitespace-nowrap px-3 py-2.5 tabular-nums font-bold text-ink">
-                    {r.totalDenied.toLocaleString()}
-                  </td>
-                  <td className="whitespace-nowrap px-3 py-2.5 tabular-nums font-bold text-ink">
-                    {r.recommendedCapacity.toLocaleString()}{" "}
-                    <span className="ml-1 rounded bg-surface-2 px-1.5 py-0.5 text-xs font-medium text-muted">
-                      +{r.seatsToAdd} seats
-                    </span>
-                  </td>
-                </tr>
-              ))}
+              {rows.map((r) => {
+                const need = needed[r.code];
+                return (
+                  <tr key={r.code} className="group border-b border-border transition-colors hover:bg-surface-2 last:border-0">
+                    <td className="whitespace-nowrap px-3 py-2.5 font-semibold">{r.code}</td>
+                    <td className="whitespace-nowrap px-3 py-2.5 tabular-nums text-muted">{r.currentCapacity}</td>
+                    <td className="whitespace-nowrap px-3 py-2.5 tabular-nums font-bold text-ink">
+                      {r.totalDenied.toLocaleString()}
+                    </td>
+                    <td className="whitespace-nowrap px-3 py-2.5 tabular-nums">
+                      {!plan ? (
+                        <span className="text-muted">-</span>
+                      ) : need != null && need > r.currentCapacity ? (
+                        <span className="font-bold text-ink">
+                          {need.toLocaleString()}
+                          <span className="ml-2 rounded bg-surface-2 px-1.5 py-0.5 text-xs font-medium text-muted">
+                            +{need - r.currentCapacity} seats
+                          </span>
+                        </span>
+                      ) : (
+                        <span className="text-muted">enough</span>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
-
       </div>
     </section>
   );

@@ -42,7 +42,7 @@ export default function BottlenecksPage() {
         </p>
       )}
       <BottlenecksPanel bottlenecks={summary.top_bottlenecks} frames={frames} />
-      <CapacityRecommendations frames={frames} meta={capacityMeta} seatStep={meta.seat_step} />
+      <CapacityRecommendations frames={frames} meta={capacityMeta} source={session ? "checkpoint" : "plan"} />
       <Section title="Seat planner" meta={`Seats, rounded up to ${meta.seat_step}`} className="pb-6">
         <SeatPlanner />
       </Section>
