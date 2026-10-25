@@ -99,6 +99,8 @@ try {
   const target = page.locator("label", { hasText: "Target intake" }).locator("input");
   await target.fill("120");
   await page.getByRole("button", { name: "Plan seats for 120" }).click();
+  // Wait for this plan to start (the previous plan's result may still be on screen), then finish.
+  await page.getByText(/Seat plan for 120 running/).first().waitFor({ timeout: 20000 }).catch(() => {});
   await page.getByText(/Seat plan for 120 running/).first().waitFor({ state: "hidden", timeout: 600000 });
   const verdict = page.getByText(/needs \d+ more sections|already carry an intake of 120|still breaks a limit/).first();
   await verdict.waitFor({ timeout: 60000 });
@@ -156,11 +158,12 @@ try {
   }
   await page.screenshot({ path: shot(n++, "advisor"), fullPage: true });
 
-  // 7. Light theme renders the planner too.
+  // 7. Dark mode (the opt-in; light is the default) renders the planner too.
   await page.goto(BASE, { waitUntil: "domcontentloaded" });
-  await page.evaluate(() => { localStorage.setItem("theme", "light"); document.documentElement.classList.add("theme-light"); });
+  await page.getByRole("button", { name: /Switch to dark mode/ }).first().click();
+  ok("dark mode toggles on", await page.evaluate(() => document.documentElement.classList.contains("theme-dark")));
   await page.getByText(/Recommended for the/).waitFor({ timeout: 60000 }).catch(() => {});
-  await page.screenshot({ path: shot(n++, "planner-light"), fullPage: true });
+  await page.screenshot({ path: shot(n++, "planner-dark"), fullPage: true });
 
   ok("no uncaught page errors", pageErrors.length === 0, pageErrors.join(" | "));
 } catch (e) {

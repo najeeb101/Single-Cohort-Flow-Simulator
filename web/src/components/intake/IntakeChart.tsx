@@ -44,11 +44,9 @@ export default function IntakeChart({ result }: { result: IntakeSweepResult }) {
   const rec = result.recommendation;
 
   return (
-    <section className="rounded-2xl border border-border bg-surface p-5">
-      <h2 className="text-[15px] font-bold">What each intake would mean</h2>
-      <p className="mt-1 max-w-3xl text-sm text-muted">
-        If the department admits this many next year. Shaded bands show the range the simulations allow; the dotted line is
-        graduates per year (right axis).
+    <section className="rounded-xl border border-border bg-surface p-6">
+      <p className="max-w-3xl text-sm text-muted">
+        Shaded bands show the range the simulations allow; the dotted line is graduates per year (right axis).
       </p>
       <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted">
         {series.map((s) => (

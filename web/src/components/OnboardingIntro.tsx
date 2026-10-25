@@ -56,145 +56,75 @@ const PAGE_GROUPS = [
   },
 ];
 
-function CardGrid({ items }: { items: { label: string; desc: string; pages?: string }[] }) {
-  return (
-    <div className="mx-auto grid max-w-4xl justify-items-center gap-2 sm:grid-cols-3">
-      {items.map((c) => (
-        <article
-          key={c.label}
-          className="flex min-h-[110px] w-full max-w-[245px] flex-col rounded-xl border border-border bg-surface px-4 py-2.5 text-left transition-transform hover:-translate-y-0.5"
-        >
-          <div className="mb-1 text-[14px] font-semibold text-ink">{c.label}</div>
-          <div className="text-[12px] leading-5 text-muted">{c.desc}</div>
-          {c.pages && (
-            <div className="mt-auto pt-2 text-[11px] font-medium leading-4 text-accent">
-              {c.pages}
-            </div>
-          )}
-        </article>
-      ))}
-    </div>
-  );
-}
+const STEP_COPY: Record<Step, { title: string; lead: string; items: { label: string; desc: string; pages?: string }[] }> = {
+  welcome: {
+    title: "CS Intake Planner",
+    lead: "A planning tool for Qatar University's Computer Science department. It simulates students moving through the real CS roadmap, competing for the same course seats.",
+    items: WELCOME_POINTS,
+  },
+  how: { title: "How it decides", lead: "The full method is on the Methodology page.", items: HOW_IT_WORKS },
+  pages: { title: "Where to go", lead: "Everything on the site serves the intake decision.", items: PAGE_GROUPS },
+};
 
+// First-run welcome, styled like QU CoAdvisor's onboarding dialog: a step bar, a title, a short
+// list, and one full-width button.
 export default function OnboardingIntro({ onComplete, showSkip = true }: Props) {
   const [step, setStep] = useState<Step>("welcome");
   const idx = STEP_ORDER.indexOf(step);
-  const isFirst = idx === 0;
   const isLast = idx === STEP_ORDER.length - 1;
-
-  const back = () => setStep(STEP_ORDER[idx - 1]);
-  const forward = () => (isLast ? onComplete() : setStep(STEP_ORDER[idx + 1]));
+  const copy = STEP_COPY[step];
 
   return (
-    <main className="mx-auto flex min-h-[calc(100dvh-5rem)] w-full max-w-[1600px] flex-col justify-center px-5 py-4 sm:px-7">
-      <div className="my-auto w-full">
-        <section className="border-b border-border pb-2.5 pt-0">
-          <div className="mx-auto max-w-5xl">
-          <div className="flex flex-col items-center gap-2.5 text-center sm:flex-row sm:justify-center sm:gap-4 sm:text-left">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src="/qu-logo.png"
-              alt="Qatar University"
-              className="qu-mark h-15 w-auto shrink-0 object-contain sm:h-20"
-            />
-
-            <div className="max-w-2xl">
-              {step === "welcome" && (
-                <>
-                  <h1 className="text-[27px] font-extrabold leading-tight tracking-tight text-ink sm:text-[32px]">
-                    CS Intake Planner
-                  </h1>
-                  <p className="mt-1 text-[12px] leading-5 text-muted sm:text-[13px]">
-                    A planning tool for Qatar University&apos;s Computer Science department. It simulates
-                    students moving through the real CS roadmap, competing for the same limited course seats,
-                    so the department can see how large the next intake can be.
-                  </p>
-                </>
-              )}
-              {step === "how" && (
-                <>
-                  <h1 className="text-[25px] font-extrabold leading-tight tracking-tight text-ink">
-                    How it decides
-                  </h1>
-                  <p className="mt-1 text-[12px] leading-5 text-muted">
-                    The full method is on the Methodology page.
-                  </p>
-                </>
-              )}
-              {step === "pages" && (
-                <>
-                  <h1 className="text-[25px] font-extrabold leading-tight tracking-tight text-ink">
-                    Where to go
-                  </h1>
-                  <p className="mt-1 text-[12px] leading-5 text-muted">
-                    Everything on the site serves the intake decision.
-                  </p>
-                </>
-              )}
-            </div>
-          </div>
-
-          <nav className="mx-auto mt-2.5 flex w-full max-w-2xl flex-col gap-2 sm:grid sm:grid-cols-3" aria-label="Intro steps">
-            {STEP_ORDER.map((s, stepIdx) => (
-              <button
-                key={s}
-                type="button"
-                onClick={() => setStep(s)}
-                aria-current={s === step ? "step" : undefined}
-                className={[
-                  "rounded-xl border px-3 py-1.5 text-left text-sm font-semibold outline-none transition-all",
-                  s === step
-                    ? "border-accent bg-accent/10 text-ink shadow-sm"
-                    : "border-border bg-surface-2 text-muted hover:-translate-y-0.5 hover:border-border-2 hover:text-ink",
-                  "focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-background",
-                ].join(" ")}
-              >
-                <span className="mr-2 text-xs text-accent">{stepIdx + 1}</span>
-                {STEP_LABELS[s]}
-              </button>
-            ))}
-          </nav>
-        </div>
-        </section>
-
-        <section className="py-2" aria-live="polite">
-          <div key={step} className="w-full animate-in fade-in slide-in-from-bottom-2 duration-200">
-          {step === "welcome" && <CardGrid items={WELCOME_POINTS} />}
-          {step === "how" && <CardGrid items={HOW_IT_WORKS} />}
-          {step === "pages" && <CardGrid items={PAGE_GROUPS} />}
-          </div>
-        </section>
-
-        <div className="flex flex-col items-center gap-1 border-t border-border py-2 text-center">
-        <div className="flex items-center gap-2.5">
-          {!isFirst && (
+    <main className="flex min-h-[calc(100dvh-3rem)] items-center justify-center px-4 py-10">
+      <div className="w-full max-w-[520px] rounded-2xl border border-border bg-surface p-8 sm:p-10">
+        <div className="mx-auto mb-7 flex w-40 gap-1.5" aria-label={`Step ${idx + 1} of ${STEP_ORDER.length}`}>
+          {STEP_ORDER.map((s, i) => (
             <button
+              key={s}
               type="button"
-              onClick={back}
-              className="rounded-xl border border-border-2 bg-surface px-5 py-1.5 text-[14px] font-semibold text-ink outline-none transition-colors hover:border-accent focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-background"
-            >
+              onClick={() => setStep(s)}
+              aria-label={STEP_LABELS[s]}
+              aria-current={s === step ? "step" : undefined}
+              className={`h-1.5 flex-1 rounded-full ${i <= idx ? "bg-primary" : "bg-surface-2"}`}
+            />
+          ))}
+        </div>
+
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/qu-logo.png" alt="Qatar University" className="qu-mark mb-5 h-12 w-auto object-contain" />
+        <h1 className="text-[22px] font-semibold tracking-[-0.01em] text-ink">{copy.title}</h1>
+        <p className="mt-1.5 text-[14px] leading-relaxed text-muted">{copy.lead}</p>
+
+        <ul key={step} className="mt-6 flex flex-col gap-2.5">
+          {copy.items.map((item) => (
+            <li key={item.label} className="rounded-xl border border-border px-4 py-3">
+              <div className="text-[14px] font-medium text-ink">{item.label}</div>
+              <div className="mt-0.5 text-[13px] leading-relaxed text-muted">{item.desc}</div>
+              {item.pages && <div className="mt-1 text-[12px] font-medium text-accent">{item.pages}</div>}
+            </li>
+          ))}
+        </ul>
+
+        <button
+          type="button"
+          onClick={() => (isLast ? onComplete() : setStep(STEP_ORDER[idx + 1]))}
+          className="mt-7 w-full rounded-lg bg-primary py-2.5 text-[14px] font-medium text-primary-ink"
+        >
+          {isLast ? "Start planning" : "Continue"}
+        </button>
+        <div className="mt-3 flex items-center justify-between text-[13px]">
+          {idx > 0 ? (
+            <button type="button" onClick={() => setStep(STEP_ORDER[idx - 1])} className="text-muted hover:text-ink">
               Back
             </button>
+          ) : (
+            <span />
           )}
-          <button
-            type="button"
-            onClick={forward}
-            className="rounded-xl bg-accent px-6 py-2 text-[14px] font-semibold text-white outline-none transition-colors hover:bg-accent/90 focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-background"
-          >
-            {isLast ? "Start planning" : "Continue"}
-          </button>
-        </div>
-        <p className="text-xs text-muted">The full method is always on the Methodology page.</p>
-        {showSkip && (
-          <button
-            type="button"
-            onClick={onComplete}
-            className="text-sm text-muted underline underline-offset-2 transition-colors hover:text-ink focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-background"
-          >
-            Skip intro
-          </button>
-        )}
+          {showSkip && (
+            <button type="button" onClick={onComplete} className="text-muted underline-offset-2 hover:text-ink hover:underline">
+              Skip intro
+            </button>
+          )}
         </div>
       </div>
     </main>

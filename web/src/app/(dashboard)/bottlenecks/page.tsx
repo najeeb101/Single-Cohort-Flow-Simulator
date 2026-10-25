@@ -6,6 +6,7 @@ import { useCheckpoint } from "@/lib/CheckpointContext";
 import BottlenecksPanel from "@/components/BottlenecksPanel";
 import CapacityRecommendations from "@/components/CapacityRecommendations";
 import SeatPlanner from "@/components/intake/SeatPlanner";
+import { Section } from "@/components/ui";
 
 export default function BottlenecksPage() {
   const { data, meta } = useSimulation();
@@ -24,10 +25,10 @@ export default function BottlenecksPage() {
   const termsRun = session?.frames.length ?? 0;
 
   return (
-    <main className="mx-auto w-full max-w-[1600px] px-7 pb-16">
-      <header className="border-b border-border py-5">
-        <h1 className="text-[19px] font-bold tracking-tight">Bottlenecks</h1>
-        <p className="mt-0.5 max-w-2xl text-sm text-muted">
+    <main className="mx-auto w-full max-w-[1280px] px-5 pb-24 sm:px-8">
+      <header className="pb-4 pt-8">
+        <h1 className="text-[26px] font-semibold leading-tight tracking-[-0.02em] text-ink sm:text-[28px]">Bottlenecks</h1>
+        <p className="mt-2 max-w-2xl text-[14px] leading-relaxed text-muted">
           Which courses limit how many students the department can admit: where students are turned away for lack of
           seats, wait for a course that isn&apos;t offered, or fail. The seat planner below works out the sections a
           larger intake would need.
@@ -42,9 +43,9 @@ export default function BottlenecksPage() {
       )}
       <BottlenecksPanel bottlenecks={summary.top_bottlenecks} frames={frames} />
       <CapacityRecommendations frames={frames} meta={capacityMeta} sectionSize={meta.section_size} />
-      <div className="pb-6">
+      <Section title="Seat planner" meta={`Whole sections of ${meta.section_size} seats`} className="pb-6">
         <SeatPlanner />
-      </div>
+      </Section>
     </main>
   );
 }

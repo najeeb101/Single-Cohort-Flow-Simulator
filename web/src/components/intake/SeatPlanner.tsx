@@ -48,6 +48,7 @@ export default function SeatPlanner({ defaultTarget }: { defaultTarget?: number 
   const [error, setError] = useState<string | null>(null);
   const [applying, setApplying] = useState(false);
   const [applied, setApplied] = useState(false);
+  const [showAll, setShowAll] = useState(false);
 
   const mine = busy && job?.kind === "seat_plan" ? job : null;
   const shown = latestSeatPlan?.source === source ? latestSeatPlan : null;
@@ -92,9 +93,9 @@ export default function SeatPlanner({ defaultTarget }: { defaultTarget?: number 
   };
 
   return (
-    <section className="rounded-2xl border border-border bg-surface p-5">
-      <h2 className="text-[15px] font-bold">Seat planner: what would it take to admit more?</h2>
-      <p className="mb-3 mt-1 max-w-3xl text-sm text-muted">
+    <section className="rounded-xl border border-border bg-surface p-6">
+      <p className="mb-4 max-w-3xl text-sm text-muted">
+        What would it take to admit more?
         Enter the intake you would like. The planner works out how many sections each course would need, checks the result
         against your limits, and shows the outcomes before and after. Seats come in whole sections of {meta.section_size}.
         {checkpoint && " It uses your walkthrough's current settings, and Apply takes effect on the walkthrough's next step."}
@@ -117,7 +118,7 @@ export default function SeatPlanner({ defaultTarget }: { defaultTarget?: number 
           type="button"
           onClick={start}
           disabled={busy || target < 10 || target > 1000}
-          className="rounded-xl bg-accent px-5 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
+          className="rounded-xl bg-primary px-5 py-2 text-sm font-semibold text-primary-ink disabled:cursor-not-allowed disabled:opacity-50"
         >
           {mine ? "Planning..." : `Plan seats for ${target}`}
         </button>
@@ -133,7 +134,7 @@ export default function SeatPlanner({ defaultTarget }: { defaultTarget?: number 
 
       {plan && !mine && (
         <div className="mt-4 flex flex-col gap-3">
-          <div className={`rounded-xl border border-border border-l-[3px] px-4 py-3 ${plan.feasible ? "border-l-good" : "border-l-warn"}`}>
+          <div className={`rounded-lg border px-4 py-3 ${plan.feasible ? "border-good/25 bg-good/[0.07]" : "border-warn/25 bg-warn/[0.08]"}`}>
             <div className={`text-sm font-bold ${plan.feasible ? "text-good" : "text-warn"}`}>
               {plan.changes.length === 0
                 ? `Today's seats already carry an intake of ${plan.target_intake}`
@@ -161,7 +162,10 @@ export default function SeatPlanner({ defaultTarget }: { defaultTarget?: number 
                   </tr>
                 </thead>
                 <tbody>
-                  {plan.changes.map((c) => (
+                  {[...plan.changes]
+                    .sort((a, b) => b.sections_added - a.sections_added || a.code.localeCompare(b.code))
+                    .slice(0, showAll ? undefined : 8)
+                    .map((c) => (
                     <tr key={c.code} className="border-b border-border last:border-0">
                       <td className="px-3 py-2">
                         <span className="font-semibold">{c.code}</span> <span className="text-muted">{c.title}</span>
@@ -175,6 +179,15 @@ export default function SeatPlanner({ defaultTarget }: { defaultTarget?: number 
                   ))}
                 </tbody>
               </table>
+              {plan.changes.length > 8 && (
+                <button
+                  type="button"
+                  onClick={() => setShowAll((v) => !v)}
+                  className="no-print w-full border-t border-border px-3 py-2 text-left text-[13px] font-medium text-accent hover:bg-surface-2"
+                >
+                  {showAll ? "Show fewer" : `Show all ${plan.changes.length} courses`}
+                </button>
+              )}
             </div>
           )}
 
@@ -202,7 +215,7 @@ export default function SeatPlanner({ defaultTarget }: { defaultTarget?: number 
               type="button"
               onClick={apply}
               disabled={applying || applied}
-              className="rounded-xl bg-accent px-5 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
+              className="rounded-xl bg-primary px-5 py-2 text-sm font-semibold text-primary-ink disabled:cursor-not-allowed disabled:opacity-50"
             >
               {applying ? "Applying..." : checkpoint ? "Apply to walkthrough" : "Apply to plan"}
             </button>

@@ -108,10 +108,10 @@ export default function DataPage() {
   };
 
   return (
-    <main className="mx-auto w-full max-w-[1400px] px-5 pb-24 sm:px-7">
-      <header className="border-b border-border py-5">
-        <h1 className="text-[19px] font-bold tracking-tight">Data</h1>
-        <p className="mt-0.5 max-w-3xl text-sm text-muted">
+    <main className="mx-auto w-full max-w-[1280px] px-5 pb-24 sm:px-8">
+      <header className="pb-4 pt-8">
+        <h1 className="text-[26px] font-semibold leading-tight tracking-[-0.02em] text-ink sm:text-[28px]">Data</h1>
+        <p className="mt-2 max-w-3xl text-[14px] leading-relaxed text-muted">
           Everything the Intake Planner uses. Replace estimates with QU data as it becomes available and mark it so; results
           built mostly on estimates are labelled illustrative. Seats change every semester, so update them and re-run the
           analysis when the schedule changes.
@@ -129,7 +129,7 @@ export default function DataPage() {
         )}
       </header>
 
-      <nav className="sticky top-[57px] z-10 -mx-5 flex flex-wrap gap-1 border-b border-border bg-bg/90 px-5 py-2 backdrop-blur-sm sm:-mx-7 sm:px-7" aria-label="Data sections">
+      <nav className="sticky top-0 z-10 -mx-5 flex flex-wrap gap-1 border-b border-border bg-bg/95 px-5 py-2 backdrop-blur-sm sm:-mx-7 sm:px-7" aria-label="Data sections">
         {TABS.map((t) => (
           <button
             key={t.id}
@@ -412,7 +412,7 @@ function DataEditor({
               type="button"
               onClick={save}
               disabled={status === "saving" || !dirty}
-              className="rounded-xl bg-accent px-4 py-1.5 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
+              className="rounded-xl bg-primary px-4 py-1.5 text-sm font-semibold text-primary-ink disabled:cursor-not-allowed disabled:opacity-50"
             >
               {status === "saving" ? "Saving..." : "Save changes"}
             </button>

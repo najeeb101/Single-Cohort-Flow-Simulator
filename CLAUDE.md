@@ -106,6 +106,19 @@ web/                   # Next.js/TypeScript website — talks to src/api.py via 
                        # Methodology (/about). Figures, Scenarios and Run History pages were removed.
 ```
 
+**Visual design (QU CoAdvisor look)** (`web/src/app/globals.css`, `web/src/components/AppShell.tsx`,
+`web/src/components/ui.tsx`): the palette, type and frame copy QU CoAdvisor (coadvisor.qu.edu.qa) so the planner
+reads as part of the same family. Light is the default (`:root`); dark is the opt-in `.theme-dark` class written by
+`ThemeToggle` (localStorage `theme`). Tokens: maroon frame `--frame` #35121b around a rounded cream content panel
+(`--bg` #faf9f6), white cards with a 1px warm border (`--border`), creams for quiet fills (`--surface-2` #f2f0ea),
+filled buttons `bg-primary` (#35121b), links/highlights `accent` (QU maroon #8a1538), soft status colours, and the
+CoAdvisor chart palette as `--series-1..4`. Font: Inter. `AppShell` is the maroon sidebar (line icons, Programs
+group, dark-mode row, active-program card, collapsible, a slide-out menu below `lg`), the frame's notice strip, and
+the panel with the faint geometric `.panel-pattern`. Pages use `PageHeader` (context line, 28px title, one summary
+sentence, actions), `Section` (title above the card) and `Pill` from `ui.tsx`. Global rules in `globals.css` give
+every `section/div.bg-surface` the card look and every `thead th` the cream header band, so keep using the tokens
+rather than raw colours.
+
 **Start gate + roadmap layout (Walkthrough and baseline)** (`web/src/lib/SimulationContext.tsx`,
 `web/src/components/CurriculumGraph.tsx`, `web/src/lib/graphLayout.ts`): on load the dashboard
 fetches only the program structure (`GET /meta`). If the planner inputs still need setting up

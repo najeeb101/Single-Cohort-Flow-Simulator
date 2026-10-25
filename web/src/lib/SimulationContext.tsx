@@ -138,8 +138,8 @@ export function SimulationProvider({ children }: { children: ReactNode }) {
       <main className="mx-auto max-w-xl px-7 py-16">
         <div className="rounded-2xl border border-border border-l-[4px] border-l-bad bg-surface px-6 py-5 text-bad">
           Could not reach the planner&apos;s backend. Start the planner with{" "}
-          <code className="rounded bg-black/35 px-1.5 py-0.5">start.bat</code>, or run{" "}
-          <code className="rounded bg-black/35 px-1.5 py-0.5">py -m uvicorn src.api:app --port 8001</code>{" "}
+          <code className="rounded border border-border bg-surface-2 px-1 py-0.5 font-mono text-[12.5px]">start.bat</code>, or run{" "}
+          <code className="rounded border border-border bg-surface-2 px-1 py-0.5 font-mono text-[12.5px]">py -m uvicorn src.api:app --port 8001</code>{" "}
           from the project folder, then reload this page.
         </div>
       </main>
@@ -218,7 +218,7 @@ function StartingScreen({
                 type="button"
                 onClick={onRetry}
                 disabled={retrying}
-                className="mt-4 rounded-xl bg-accent px-6 py-2 text-[14px] font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
+                className="mt-4 rounded-xl bg-primary px-6 py-2 text-[14px] font-semibold text-primary-ink disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {retrying ? "Running…" : "Try again"}
               </button>
@@ -246,7 +246,7 @@ function StartingScreen({
 }
 
 // Fixed-position pill shown whenever the shared baseline is re-running after an edit (Data,
-// Plans, seat-plan Apply). Lives inside the provider because NavBar sits outside it and
+// Plans, seat-plan Apply). Lives inside the provider because AppShell sits outside it and
 // can't read this state.
 function UpdatingIndicator() {
   return (

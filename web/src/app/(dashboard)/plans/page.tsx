@@ -106,19 +106,25 @@ export default function PlansPage() {
   };
 
   return (
-    <main className="mx-auto w-full max-w-[1600px] px-7 pb-16">
-      <header className="flex items-center justify-between border-b border-border py-5">
-        <h1 className="text-[19px] font-bold tracking-tight">Plans</h1>
+    <main className="mx-auto w-full max-w-[1280px] px-5 pb-24 sm:px-8">
+      <header className="flex flex-wrap items-end justify-between gap-4 pb-4 pt-8">
+        <div>
+          <h1 className="text-[26px] font-semibold leading-tight tracking-[-0.02em] text-ink sm:text-[28px]">Plans</h1>
+          <p className="mt-2 max-w-3xl text-[14px] leading-relaxed text-muted">
+            Each program is a plan: its own courses, seats and settings. The active plan is the one every page works on.
+            Computer Science is the default; a Computer Engineering plan can be added later.
+          </p>
+        </div>
         <Link
           href="/plan-builder"
-          className="rounded-xl bg-accent px-4 py-2 text-sm font-semibold text-white"
+          className="rounded-lg bg-primary px-4 py-2 text-[14px] font-medium text-primary-ink"
         >
-          + New plan
+          New plan
         </Link>
       </header>
 
-      <section className="py-6">
-        <div>
+      <section className="py-4">
+        <div className="overflow-auto rounded-xl border border-border bg-surface">
           {plans === null ? (
             <p className="text-sm text-muted">Loading...</p>
           ) : (

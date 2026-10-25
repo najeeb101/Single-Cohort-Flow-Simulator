@@ -193,7 +193,7 @@ export default function AdvisorProposalCard({
             <button
               type="button"
               onClick={apply}
-              className="rounded-lg bg-accent px-3 py-1 text-sm font-semibold text-white hover:opacity-90"
+              className="rounded-lg bg-primary px-3 py-1 text-sm font-semibold text-primary-ink hover:opacity-90"
             >
               Confirm
             </button>

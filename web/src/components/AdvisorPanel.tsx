@@ -24,11 +24,12 @@ interface Advice {
 
 const SEVERITY_RANK: Record<Severity, number> = { critical: 0, warning: 1, info: 2, good: 3 };
 
-const SEVERITY_STYLE: Record<Severity, { dot: string; label: string; ring: string }> = {
-  critical: { dot: "bg-bad", label: "text-bad", ring: "border-l-bad" },
-  warning: { dot: "bg-warn", label: "text-warn", ring: "border-l-warn" },
-  info: { dot: "bg-accent", label: "text-accent", ring: "border-l-accent" },
-  good: { dot: "bg-good", label: "text-good", ring: "border-l-good" },
+// Soft status pills, as on QU CoAdvisor.
+const SEVERITY_STYLE: Record<Severity, { pill: string }> = {
+  critical: { pill: "border-bad/25 bg-bad/10 text-bad" },
+  warning: { pill: "border-warn/25 bg-warn/10 text-warn" },
+  info: { pill: "border-info/25 bg-info/10 text-info" },
+  good: { pill: "border-good/25 bg-good/10 text-good" },
 };
 
 const SEVERITY_WORD: Record<Severity, string> = {
@@ -191,20 +192,17 @@ export default function AdvisorPanel({
           return (
             <div
               key={a.id}
-              className={`rounded-2xl border border-border ${style.ring} border-l-[3px] bg-surface p-4`}
+              className="flex flex-col rounded-xl border border-border bg-surface p-5"
             >
-              <div className="mb-1.5 flex items-center gap-2">
-                <span className={`inline-block h-2 w-2 rounded-full ${style.dot}`} />
-                <span className={`text-[10.5px] font-semibold uppercase tracking-wide ${style.label}`}>
-                  {SEVERITY_WORD[a.severity]}
-                </span>
-              </div>
-              <div className="text-sm font-bold text-ink">{a.title}</div>
+              <span className={`mb-2.5 inline-flex w-fit rounded-full border px-2.5 py-0.5 text-[12px] font-medium ${style.pill}`}>
+                {SEVERITY_WORD[a.severity]}
+              </span>
+              <div className="text-[15px] font-semibold text-ink">{a.title}</div>
               <p className="mt-1 text-sm leading-relaxed text-muted">{a.body}</p>
               {a.action && (
                 <Link
                   href={a.action.href}
-                  className="mt-2 inline-block text-sm font-semibold text-accent hover:underline"
+                  className="mt-3 inline-block text-sm font-medium text-accent hover:underline"
                 >
                   {a.action.label}
                 </Link>

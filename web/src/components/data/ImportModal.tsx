@@ -251,7 +251,7 @@ export default function ImportModal<T>({ open, onClose, title, help, sampleCsv, 
             close();
           }}
           disabled={result.count === 0}
-          className="rounded-xl bg-accent px-3.5 py-1.5 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
+          className="rounded-xl bg-primary px-3.5 py-1.5 text-sm font-semibold text-primary-ink disabled:cursor-not-allowed disabled:opacity-50"
         >
           Apply
         </button>

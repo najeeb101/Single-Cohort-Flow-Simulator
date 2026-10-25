@@ -137,7 +137,7 @@ export default function CheckpointEditPanel({
           type="button"
           onClick={save}
           disabled={!isDirty || busy}
-          className="rounded-xl bg-accent px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
+          className="rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-primary-ink disabled:cursor-not-allowed disabled:opacity-50"
         >
           {busy ? "Saving…" : "Save changes"}
         </button>

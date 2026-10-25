@@ -1,130 +1,136 @@
 @import "tailwindcss";
 
-/* Palette ported from frontend/style.css for visual continuity with the existing
-   dependency-free dashboard — not pixel parity, just not a jarring switch.
-   This is the default (dark) theme; see .theme-light below for the opt-in light theme. */
+/* Palette taken from QU CoAdvisor (coadvisor.qu.edu.qa) so the planner looks like part of the
+   same family: warm cream neutrals, near-black text, the QU maroon, and a deep maroon frame.
+   Light is the default; .theme-dark (ThemeToggle) is a warm maroon-black variant. */
 :root {
-  --bg: #0b0f17;
-  --surface: #141a24;
-  --surface-2: #1b2330;
-  --border: rgba(255, 255, 255, 0.08);
-  --border-2: rgba(255, 255, 255, 0.14);
-  --ink: #e7ecf3;
-  --muted: #8b97ab;
-  --faint: #5d6878;
-  /* Maroon-forward identity: the primary interactive accent is the brand's maroon, lifted to a
-     legible crimson-rose on the dark canvas. The old blue is kept as --info for the few
-     genuinely informational highlights, not as the brand colour. */
-  --accent: #e05c81;
-  --info: #5b8cff;
-  --maroon: #a51c45;
-  --good: #51c878;
-  --warn: #e8b84b;
-  --bad: #e3725b;
-  /* Ambient elevation for cards ("Ethereal Glass" lite) — on a dark canvas a black
-     shadow is invisible, so elevation here reads as a soft glow + a hairline top
-     highlight instead of a drop shadow. */
-  --shadow-ambient: 0 1px 0 rgba(255, 255, 255, 0.05), 0 16px 40px -12px rgba(0, 0, 0, 0.75), 0 4px 12px -4px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.06);
-  --shadow-accent: 0 10px 24px -6px color-mix(in srgb, var(--accent) 65%, transparent);
+  --frame: #35121b; /* the maroon sidebar + frame around the content panel */
+  --frame-ink: #fbf7f5;
+  --frame-muted: rgba(251, 247, 245, 0.62);
+  --frame-hover: rgba(255, 255, 255, 0.08);
+  --frame-active: rgba(255, 255, 255, 0.14);
+  --bg: #faf9f6; /* the content panel */
+  --surface: #ffffff; /* cards */
+  --surface-2: #f2f0ea; /* table headers, inputs, quiet fills */
+  --border: #e9e6df;
+  --border-2: #d9d4c8;
+  --ink: #171717;
+  --muted: #6b6760;
+  --faint: #a19a8b;
+  --primary: #35121b; /* filled buttons */
+  --primary-ink: #fdfdfc;
+  --accent: #8a1538; /* QU maroon: links, highlights, active states */
+  --info: #35618c;
+  --maroon: #8a1538;
+  --good: #15803d;
+  --warn: #a16207;
+  --bad: #b91c1c;
+  --pattern: #f3e6ea;
+  --shadow-ambient: 0 1px 2px rgba(53, 18, 27, 0.04), 0 8px 24px -12px rgba(53, 18, 27, 0.12);
+  --shadow-accent: 0 8px 20px -8px color-mix(in srgb, var(--primary) 45%, transparent);
 
-  /* Dark mode node colors */
-  --cs-core-fill: rgba(30, 58, 95, 0.4);
-  --cs-core-border: #4d8ad4;
-  --cs-core-text: #bcd4ec;
-
-  --cs-elective-fill: rgba(85, 30, 20, 0.4);
-  --cs-elective-border: #cf7363;
-  --cs-elective-text: #e8b9b1;
-
-  --math-fill: rgba(85, 70, 20, 0.4);
-  --math-border: #d4a52c;
-  --math-text: #f3df9c;
-
-  --science-fill: rgba(55, 60, 70, 0.4);
-  --science-border: #8fa0b5;
-  --science-text: #d6dae1;
-
-  --english-fill: rgba(25, 65, 75, 0.4);
-  --english-border: #52a4b8;
-  --english-text: #d4ebf1;
-
-  --node-offered-muted: #5d6878;
-
-  /* Unified categorical/semantic palette for data charts (StageOverview, CohortFlowChart,
-     UniversityEnrollmentChart) — aliased to the same hues already coloring course-category
-     boxes on the roadmap, instead of each chart hardcoding its own ad hoc port of
-     matplotlib/seaborn defaults. --censored formalizes the soft plum already used for the
-     "hit the term horizon" outcome. */
-  --series-1: var(--cs-core-border);
-  --series-2: var(--english-border);
-  --series-3: var(--math-border);
-  --series-4: var(--cs-elective-border);
-  --censored: #b47cc7;
-}
-
-/* Light theme — warm monochrome + a single restrained accent (minimalist-ui skill):
-   off-white canvas (never pure white/black), ultra-light borders, no heavy shadows
-   anywhere in the app. Opt-in via the ThemeToggle in NavBar; toggled by adding this
-   class to <html> (see the anti-flash script in layout.tsx). */
-:root.theme-light {
-  --bg: #fbfbfa;
-  --surface: #ffffff;
-  --surface-2: #f7f6f3;
-  --border: rgba(0, 0, 0, 0.08);
-  --border-2: rgba(0, 0, 0, 0.14);
-  --ink: #2f3437;
-  --muted: #706f6c; /* AA: 4.67:1 on surface-2 (was #787774 = 4.14, below 4.5) */
-  --faint: #9b9a97; /* placeholder-only; informational text uses --muted */
-  /* On the off-white canvas the brand maroon carries full strength as the accent. */
-  --accent: #a51c45;
-  --info: #3b66d6;
-  --maroon: #a51c45;
-  --good: #2f7d4f;
-  --warn: #946800;
-  --bad: #b0392b;
-  /* Ambient elevation ("Soft Structuralism" lite) — diffused, low-opacity, neutral. */
-  --shadow-ambient: 0 1px 2px rgba(20, 20, 18, 0.06), 0 18px 36px -12px rgba(20, 20, 18, 0.16), 0 4px 10px -4px rgba(20, 20, 18, 0.08);
-  --shadow-accent: 0 10px 24px -6px color-mix(in srgb, var(--accent) 45%, transparent);
-
-  /* Light mode node colors */
-  --cs-core-fill: #bcd4ec;
-  --cs-core-border: #5f8cb8;
+  /* Roadmap course boxes, coloured by requirement type like the QU programme roadmap. */
+  --cs-core-fill: #dce8f4;
+  --cs-core-border: #5b93c4;
   --cs-core-text: #16202c;
 
-  --cs-elective-fill: #e8b9b1;
-  --cs-elective-border: #cf8a7c;
-  --cs-elective-text: #3a1c17;
+  --cs-elective-fill: #f3dde2;
+  --cs-elective-border: #b4566f;
+  --cs-elective-text: #3a1520;
 
-  --math-fill: #f3df9c;
-  --math-border: #d3b352;
-  --math-text: #3b3211;
+  --math-fill: #f6ead0;
+  --math-border: #ca8a04;
+  --math-text: #3b2c08;
 
-  --science-fill: #d6dae1;
-  --science-border: #9aa5b3;
-  --science-text: #242830;
+  --science-fill: #e7e9df;
+  --science-border: #8a9470;
+  --science-text: #262a1d;
 
-  --english-fill: #d4ebf1;
-  --english-border: #86b6c5;
-  --english-text: #162f36;
+  --english-fill: #e0eef0;
+  --english-border: #5f9ea8;
+  --english-text: #14303a;
 
-  --node-offered-muted: #7c8694;
+  --node-offered-muted: #a19a8b;
 
-  --series-1: var(--cs-core-border);
-  --series-2: var(--english-border);
-  --series-3: var(--math-border);
-  --series-4: var(--cs-elective-border);
-  --censored: #8b5fa3;
+  /* Chart palette (CoAdvisor's chart-1..5): maroon, steel blue, olive, amber, plum. */
+  --series-1: #8a1538;
+  --series-2: #5b93c4;
+  --series-3: #ca8a04;
+  --series-4: #596447;
+  --censored: #84377f;
 }
 
-/* The QU mark (nav emblem + full stacked wordmark) is a single-colour maroon PNG on a
-   transparent background. On the light theme it sits as-is over the near-white surface; on the
-   dark theme (the default) we invert it to white so it reads on the dark surface without the old
-   jarring white chip behind it. */
+:root.theme-dark {
+  --frame: #12070a;
+  --frame-ink: #f3ece9;
+  --frame-muted: rgba(243, 236, 233, 0.58);
+  --frame-hover: rgba(255, 255, 255, 0.06);
+  --frame-active: rgba(255, 255, 255, 0.11);
+  --bg: #1a1013;
+  --surface: #221619;
+  --surface-2: #2b1d21;
+  --border: rgba(255, 240, 240, 0.08);
+  --border-2: rgba(255, 240, 240, 0.15);
+  --ink: #f1ebe8;
+  --muted: #b3a6a6;
+  --faint: #7d6f71;
+  --primary: #a8274d;
+  --primary-ink: #ffffff;
+  --accent: #e4859f;
+  --info: #8ab6dd;
+  --maroon: #a8274d;
+  --good: #5cc98a;
+  --warn: #e3b450;
+  --bad: #ef7f6d;
+  --pattern: #2a171d;
+  --shadow-ambient: 0 1px 0 rgba(255, 255, 255, 0.03), 0 12px 32px -14px rgba(0, 0, 0, 0.7);
+  --shadow-accent: 0 8px 20px -8px color-mix(in srgb, var(--primary) 60%, transparent);
+
+  --cs-core-fill: rgba(91, 147, 196, 0.18);
+  --cs-core-border: #6fa3d1;
+  --cs-core-text: #d3e4f3;
+
+  --cs-elective-fill: rgba(180, 86, 111, 0.2);
+  --cs-elective-border: #d17890;
+  --cs-elective-text: #f3d3dc;
+
+  --math-fill: rgba(202, 138, 4, 0.18);
+  --math-border: #d9a52c;
+  --math-text: #f5e2b0;
+
+  --science-fill: rgba(138, 148, 112, 0.2);
+  --science-border: #a3ad88;
+  --science-text: #e2e6d6;
+
+  --english-fill: rgba(95, 158, 168, 0.2);
+  --english-border: #7ab6c0;
+  --english-text: #d5eaee;
+
+  --node-offered-muted: #7d6f71;
+
+  --series-1: #e4859f;
+  --series-2: #8ab6dd;
+  --series-3: #e3b450;
+  --series-4: #a3ad88;
+  --censored: #c58bc0;
+}
+
+/* The QU mark is a single-colour maroon PNG. It shows as-is on light surfaces, and white on the
+   maroon frame (.on-frame) and in dark mode. */
 .qu-mark {
+  filter: none;
+}
+.on-frame .qu-mark,
+:root.theme-dark .qu-mark {
   filter: brightness(0) invert(1);
 }
-:root.theme-light .qu-mark {
-  filter: none;
+
+/* CoAdvisor's faint geometric wash along the bottom of the content panel. */
+.panel-pattern {
+  background-image:
+    linear-gradient(to bottom, var(--bg) 0%, color-mix(in srgb, var(--bg) 70%, transparent) 55%, transparent 100%),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='56' height='56' viewBox='0 0 56 56'%3E%3Cg fill='none' stroke='%23b4566f' stroke-opacity='0.22' stroke-width='1'%3E%3Cpath d='M28 4l7 17 17 7-17 7-7 17-7-17-17-7 17-7z'/%3E%3Cpath d='M8 8h40v40H8z' transform='rotate(45 28 28)'/%3E%3C/g%3E%3C/svg%3E");
+  background-color: var(--pattern);
 }
 
 @theme inline {
@@ -137,6 +143,9 @@
   --color-muted: var(--muted);
   --color-faint: var(--faint);
   --color-accent: var(--accent);
+  --color-primary: var(--primary);
+  --color-primary-ink: var(--primary-ink);
+  --color-frame: var(--frame);
   --color-info: var(--info);
   --color-maroon: var(--maroon);
   --color-good: var(--good);
@@ -147,71 +156,70 @@
   --color-series-3: var(--series-3);
   --color-series-4: var(--series-4);
   --color-censored: var(--censored);
-  --font-sans: var(--font-geist-sans);
+  --font-sans: var(--font-inter);
   --font-mono: var(--font-geist-mono);
 }
 
 body {
-  /* A single soft maroon bloom anchored above the fold gives the flat canvas depth and
-     ties the whole surface to the brand, without the "even 45deg gradient" AI tell. */
-  background:
-    radial-gradient(1000px 460px at 50% -240px, color-mix(in srgb, var(--maroon) 13%, transparent), transparent 70%),
-    var(--bg);
-  background-attachment: fixed;
+  /* The maroon frame shows around the rounded content panel (see AppShell). */
+  background: var(--frame);
   color: var(--ink);
-  /* Numbers in a data-heavy dashboard must hold a fixed column width as they update
-     (a stat ticking from "92.5%" to "100%" shouldn't reflow its neighbors), so this is
-     on by default everywhere rather than opted into per-component. */
+  font-size: 14px;
+  /* Numbers in a data-heavy page must hold a fixed column width as they update, so tabular
+     figures are on everywhere. */
   font-variant-numeric: tabular-nums;
+  -webkit-font-smoothing: antialiased;
 }
 
-/* Minimalist-ui audit: no transitionless interactions, no missing press/focus feedback.
-   A spring-flavored cubic-bezier instead of plain ease — slight overshoot reads as
-   physical weight rather than a mechanical linear snap. */
 button,
 a,
 input,
 select {
-  transition: background-color 200ms cubic-bezier(0.34, 1.4, 0.64, 1), border-color 200ms cubic-bezier(0.34, 1.4, 0.64, 1),
-    color 200ms cubic-bezier(0.34, 1.4, 0.64, 1), transform 200ms cubic-bezier(0.34, 1.4, 0.64, 1),
-    box-shadow 200ms cubic-bezier(0.34, 1.4, 0.64, 1);
-}
-button:active {
-  transform: scale(0.97);
+  transition: background-color 150ms ease, border-color 150ms ease, color 150ms ease, box-shadow 150ms ease, opacity 150ms ease;
 }
 :focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
 
-/* High-end-visual-design, scaled down for a dense data dashboard rather than a
-   marketing page: every card gets real ambient elevation instead of a flat border,
-   and every primary CTA becomes a pill with a color-matched glow. Both are unlayered
-   here, so they win over the `rounded-[..]`/`shadow-none` utilities already authored
-   in components without having to touch ~30 files individually. */
-.bg-surface:not(nav) {
+/* CoAdvisor's card: white, 1px warm border, 12px corners, the faintest shadow. Unlayered, so it
+   wins over the older rounded-2xl utilities across the app without editing every file. */
+section.bg-surface,
+div.bg-surface,
+article.bg-surface {
+  border-radius: 12px;
   box-shadow: var(--shadow-ambient);
-  border-radius: 18px;
 }
-/* Give card titles more presence than the timid 15px they ship with. Unlayered, so it
-   wins over the per-component text-[15px] utilities without editing ~30 files. */
-.bg-surface:not(nav) h2 {
-  font-size: 1.0625rem;
-  line-height: 1.25;
-  letter-spacing: -0.012em;
+/* Table header rows: CoAdvisor's cream band. */
+thead th {
+  background-color: var(--surface-2) !important;
+  font-weight: 500 !important;
+  letter-spacing: 0.04em !important;
 }
-nav.bg-surface {
-  box-shadow: 0 8px 24px -16px rgba(0, 0, 0, 0.3);
+.bg-surface h2 {
+  font-size: 1rem;
+  font-weight: 600;
+  line-height: 1.4;
+  letter-spacing: -0.01em;
 }
-.bg-accent {
-  border-radius: 999px !important;
-  box-shadow: var(--shadow-accent);
+/* Rounded-xl/2xl controls inside cards read as CoAdvisor's 8-10px radius. */
+.rounded-xl {
+  border-radius: 10px;
 }
-.bg-accent:hover {
-  filter: brightness(1.08);
+.rounded-2xl {
+  border-radius: 12px;
 }
-.bg-accent:active {
-  transform: scale(0.97);
+
+/* Filled buttons: deep maroon, 8px corners, no glow (CoAdvisor's primary button). */
+.bg-primary {
+  border-radius: 8px !important;
+  color: var(--primary-ink);
+}
+.bg-primary:hover:not(:disabled) {
+  background-color: color-mix(in srgb, var(--primary) 86%, white);
+}
+:root.theme-dark .bg-primary:hover:not(:disabled) {
+  background-color: color-mix(in srgb, var(--primary) 85%, white);
 }
 
 /* accent-color alone leaves the thumb's size/shape up to the browser (and some
@@ -237,8 +245,8 @@ input[type="range"]::-webkit-slider-thumb {
   height: 14px;
   margin-top: -5px;
   border-radius: 50%;
-  background: var(--accent);
-  border: 2px solid var(--ink);
+  background: var(--primary);
+  border: 2px solid var(--surface);
   cursor: pointer;
 }
 input[type="range"]::-moz-range-track {
@@ -250,8 +258,8 @@ input[type="range"]::-moz-range-thumb {
   width: 14px;
   height: 14px;
   border-radius: 50%;
-  background: var(--accent);
-  border: 2px solid var(--ink);
+  background: var(--primary);
+  border: 2px solid var(--surface);
   cursor: pointer;
 }
 
@@ -267,10 +275,15 @@ input[type="range"]::-moz-range-thumb {
     --muted: #55544f;
   }
   nav,
+  aside,
   .no-print {
     display: none !important;
   }
   body {
     background: #ffffff;
+  }
+  .app-panel {
+    margin: 0 !important;
+    border-radius: 0 !important;
   }
 }

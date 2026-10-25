@@ -11,9 +11,9 @@ function show(name: string, v: number): string {
 // Policy & analysis tab). A flagged row means the gap is bigger than sampling noise explains.
 export default function CalibrationCard({ calibration }: { calibration: IntakeSweepResult["calibration"] }) {
   return (
-    <section className="rounded-2xl border border-border bg-surface p-5">
-      <h2 className="text-[15px] font-bold">Does the model match what you know?</h2>
-      <p className="mt-1 max-w-3xl text-sm text-muted">
+    <section className="rounded-xl border border-border bg-surface p-6">
+      <p className="max-w-3xl text-sm text-muted">
+        Does the model match what you know?
         The model at the usual intake of {calibration.usual_intake} compared with outcomes the department has
         recorded. {calibration.note}
       </p>

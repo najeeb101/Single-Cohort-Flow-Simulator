@@ -50,7 +50,7 @@ export default function SignalLegend({ signals = SIGNAL_ORDER, active, onToggle,
       </div>
       {showCaption && (
         <p className="max-w-3xl text-[10.5px] leading-snug text-muted">
-          Each signal uses a different unit — <b className="text-ink/80">don&apos;t compare raw counts across signals</b>.
+          Each signal uses a different unit, so <b className="text-ink/80">don&apos;t compare raw counts across signals</b>.
           Open a course&apos;s details to compare its own signals over time.
         </p>
       )}

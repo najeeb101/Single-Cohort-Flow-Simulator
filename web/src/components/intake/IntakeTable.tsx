@@ -26,8 +26,7 @@ export default function IntakeTable({ result }: { result: IntakeSweepResult }) {
     <section className="rounded-2xl border border-border bg-surface">
       <div className="flex flex-wrap items-baseline justify-between gap-3 p-5 pb-3">
         <div>
-          <h2 className="text-[15px] font-bold">Every intake tried</h2>
-          <p className="mt-1 text-sm text-muted">
+          <p className="max-w-3xl text-sm text-muted">
             If the department admits this many next year. Harm from seat shortages is the best estimate, with the cautious
             upper value in brackets. Red means over your limit; amber means it might be, so the limit can&apos;t be confirmed there. &quot;Today&apos;s students graduate&quot; is the effect on
             students already enrolled.

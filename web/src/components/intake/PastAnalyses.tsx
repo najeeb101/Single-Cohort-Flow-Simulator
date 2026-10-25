@@ -25,9 +25,8 @@ export default function PastAnalyses({
 }) {
   if (history.length === 0) return null;
   return (
-    <section className="no-print rounded-2xl border border-border bg-surface p-5">
-      <h2 className="text-[15px] font-bold">Past analyses</h2>
-      <p className="mt-1 text-sm text-muted">Every analysis keeps a copy of the data it ran on, so you can see what a decision was based on.</p>
+    <section className="no-print rounded-xl border border-border bg-surface p-6">
+      <p className="text-sm text-muted">Every analysis keeps a copy of the data it ran on, so you can see what a decision was based on.</p>
       <ul className="mt-3 divide-y divide-border">
         {history.map((r) => {
           const clickable = r.kind === "intake_sweep" && r.status === "done";

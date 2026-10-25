@@ -15,7 +15,8 @@ import SeatPlanner from "@/components/intake/SeatPlanner";
 import CalibrationCard from "@/components/intake/CalibrationCard";
 import PastAnalyses from "@/components/intake/PastAnalyses";
 import PolicyFields from "@/components/data/PolicyFields";
-import type { AnalysisRecord, IntakePolicy } from "@/types/simulation";
+import { PageHeader, Section, btnPrimary, btnSecondary } from "@/components/ui";
+import type { AnalysisRecord, IntakePolicy, IntakeRecommendation } from "@/types/simulation";
 
 // The home page: "How many students should we admit in the next CS intake, and what course seats
 // does that number need?" Runs the intake analysis (src/intake.py, a background job), shows the
@@ -55,98 +56,154 @@ export default function IntakePlannerPage() {
     }
   };
 
+  const rec = sweep?.result.recommendation;
+  const policy = meta.intake_policy;
+  const [limitsOpen, setLimitsOpen] = useState(false);
+
   return (
-    <main className="mx-auto w-full max-w-[1200px] px-5 pb-16 sm:px-7">
-      <header className="border-b border-border py-5">
-        <div className="text-xs font-semibold uppercase tracking-wide text-accent">{label}</div>
-        <h1 className="mt-0.5 text-[22px] font-extrabold tracking-tight">How many students should we admit?</h1>
-        <p className="mt-1 max-w-3xl text-sm text-muted">
-          The planner simulates today&apos;s students plus many possible intakes competing for the same course seats, and
-          finds the largest intake whose seat shortages stay within your limits. Update the inputs on the{" "}
-          <Link href="/data" className="font-semibold text-accent hover:underline">Data</Link> page.
-        </p>
-      </header>
-
-      <div className="mt-5 flex flex-col gap-5">
-        <DataQualityStrip quality={sweep?.result.data_quality} meta={meta} />
-
-        <p className="rounded-xl border border-info/40 bg-info/10 px-4 py-2.5 text-sm text-ink">
-          Sections and seats change every semester. This recommendation assumes the seats below stay roughly the same for
-          the next 6 years. Update the data and re-run when the schedule changes.
-        </p>
-
-        <PolicyCard
-          policy={meta.intake_policy}
-          onSaved={async () => {
-            try {
-              await refreshBaseline();
-            } catch {
-              // Saved; other pages pick it up on the next load.
-            }
-          }}
-        />
-
-        <section className="no-print flex flex-col gap-3 rounded-2xl border border-border bg-surface p-5">
-          <div className="flex flex-wrap items-center gap-3">
-            <button
-              type="button"
-              onClick={runAnalysis}
-              disabled={busy}
-              className="rounded-xl bg-accent px-6 py-2.5 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {sweepJob ? "Analysis running..." : sweep ? "Run analysis again" : "Run analysis"}
-            </button>
-            <span className="text-sm text-muted">
-              Takes about two to three minutes. You can keep using the other pages while it runs.
-            </span>
+    <main className="mx-auto w-full max-w-[1080px] px-5 pb-24 sm:px-8">
+      <PageHeader
+        context={<>Computer Science · {label}</>}
+        title="How many students should we admit?"
+        actions={
+          <>
             {sweep && (
-              <button type="button" onClick={() => window.print()} className="ml-auto text-sm font-semibold text-muted hover:text-ink">
+              <button type="button" onClick={() => window.print()} className={btnSecondary}>
                 Print
               </button>
             )}
-          </div>
-          {busy && !sweepJob && <p className="text-sm text-muted">A seat plan is running; the analysis can start when it finishes.</p>}
-          {sweepJob && <ProgressBar job={sweepJob} onCancel={cancel} />}
-          {(runError || error) && <p className="text-sm text-bad">{runError || error}</p>}
-        </section>
+            <button type="button" onClick={runAnalysis} disabled={busy} className={btnPrimary}>
+              {sweepJob ? "Analysis running..." : sweep ? "Run analysis again" : "Run analysis"}
+            </button>
+          </>
+        }
+      >
+        <Summary rec={rec ?? null} label={label} />
+      </PageHeader>
 
+      <div className="mt-4 flex flex-col gap-3">
+        <DataQualityStrip quality={sweep?.result.data_quality} meta={meta} />
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-[13px] text-muted">
+          <button
+            type="button"
+            onClick={() => setLimitsOpen((v) => !v)}
+            aria-expanded={limitsOpen}
+            className="no-print inline-flex items-center gap-1.5 rounded-full border border-border bg-surface px-3 py-1 text-[13px] text-ink hover:bg-surface-2"
+          >
+            Limits: {policy.max_grad_rate_loss_pts} pts graduation · {policy.max_on_time_loss_pts} pts on-time
+            <span className="text-accent">{limitsOpen ? "Close" : "Change"}</span>
+          </button>
+          <span>
+            Sections and seats change every semester; the answer assumes today&apos;s seats hold for the next 6 years.
+          </span>
+        </div>
+        {limitsOpen && (
+          <PolicyCard
+            policy={policy}
+            onSaved={async () => {
+              try {
+                await refreshBaseline();
+              } catch {
+                // Saved; other pages pick it up on the next load.
+              }
+              setLimitsOpen(false);
+            }}
+          />
+        )}
+        {busy && !sweepJob && <p className="text-sm text-muted">A seat plan is running; the analysis can start when it finishes.</p>}
+        {sweepJob && <ProgressBar job={sweepJob} onCancel={cancel} />}
+        {(runError || error) && <p className="text-sm text-bad">{runError || error}</p>}
+      </div>
+
+      <div className="mt-10 flex flex-col gap-10">
         {!sweep ? (
           !sweepJob && (
-            <div className="rounded-2xl border border-dashed border-border-2 bg-surface px-5 py-8 text-center text-sm text-muted">
-              No analysis yet. Check the inputs on the Data page, then press <b className="text-ink">Run analysis</b>.
+            <div className="rounded-xl border border-dashed border-border-2 bg-surface-2/50 px-5 py-12 text-center text-sm text-muted">
+              No analysis yet. Check the inputs on the{" "}
+              <Link href="/data" className="font-medium text-accent hover:underline">Data</Link> page, then press{" "}
+              <b className="font-medium text-ink">Run analysis</b>. It takes about two to three minutes.
             </div>
           )
         ) : (
           <>
-            <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted">
-              <span>
-                {selected ? "Viewing an earlier analysis" : "Latest analysis"}, finished {fmtDate(sweep.finished_at)} ·{" "}
-                {sweep.result.runs.toLocaleString()} simulations
-              </span>
-              {selected && (
-                <button type="button" onClick={() => setSelected(null)} className="font-semibold text-accent hover:underline">
-                  Back to the latest
-                </button>
+            <Section
+              title="Recommendation"
+              meta={
+                <>
+                  {selected ? (
+                    <button type="button" onClick={() => setSelected(null)} className="mr-2 font-medium text-accent hover:underline">
+                      Back to the latest
+                    </button>
+                  ) : null}
+                  {selected ? "Earlier analysis" : "Latest analysis"} · {fmtDate(sweep.finished_at)} ·{" "}
+                  {sweep.result.runs.toLocaleString()} simulations
+                </>
+              }
+            >
+              {stale.length > 0 && (
+                <p className="rounded-lg border border-warn/30 bg-warn/10 px-4 py-2.5 text-sm text-ink">
+                  The data has changed since this analysis ran ({stale.join(", ")}). Run it again for an up-to-date answer.
+                </p>
               )}
-            </div>
-            {stale.length > 0 && (
-              <p className="rounded-xl border border-warn/40 bg-warn/10 px-4 py-2.5 text-sm text-ink">
-                The data has changed since this analysis ran ({stale.join(", ")}). Run it again for an up-to-date answer.
-              </p>
-            )}
-            <RecommendationCard result={sweep.result} />
-            <IntakeChart result={sweep.result} />
-            <IntakeTable result={sweep.result} />
+              <RecommendationCard result={sweep.result} />
+            </Section>
+            <Section title="What each intake would mean" meta="If the department admits this many next year">
+              <IntakeChart result={sweep.result} />
+            </Section>
+            <Section title="Every intake tried">
+              <IntakeTable result={sweep.result} />
+            </Section>
           </>
         )}
 
-        <SeatPlanner defaultTarget={sweep?.result.recommendation.upper_limit ?? 120} />
+        <Section title="Seat planner" meta={`Whole sections of ${meta.section_size} seats`}>
+          <SeatPlanner defaultTarget={sweep?.result.recommendation.upper_limit ?? 120} />
+        </Section>
 
-        {sweep && <CalibrationCard calibration={sweep.result.calibration} />}
-
-        <PastAnalyses history={history} selectedId={sweep?.id ?? null} onSelect={viewPast} />
+        <div className="grid gap-10 lg:grid-cols-2">
+          {sweep && (
+            <Section title="Model check">
+              <CalibrationCard calibration={sweep.result.calibration} />
+            </Section>
+          )}
+          {history.length > 0 && (
+            <Section title="Past analyses" className={sweep ? "" : "lg:col-span-2"}>
+              <PastAnalyses history={history} selectedId={sweep?.id ?? null} onSelect={viewPast} />
+            </Section>
+          )}
+        </div>
       </div>
     </main>
+  );
+}
+
+// The CoAdvisor-style summary sentence under the title, in plain words.
+function Summary({ rec, label }: { rec: IntakeRecommendation | null; label: string }) {
+  if (!rec) {
+    return (
+      <p>
+        Run the analysis to see how many students the {label} can take. It simulates today&apos;s students plus many
+        possible intakes competing for the same course seats, and finds the largest intake whose seat shortages stay within
+        your limits.
+      </p>
+    );
+  }
+  if (rec.recommended_intake == null) {
+    return (
+      <p>
+        The latest analysis found <b className="font-medium text-ink">no intake that keeps your limits</b>
+        {rec.binding_course ? <>; {rec.binding_course} runs out of seats first</> : null}. The seat planner shows what
+        would make room.
+      </p>
+    );
+  }
+  return (
+    <p>
+      The latest analysis recommends admitting <b className="font-medium text-ink">{rec.recommended_intake} students</b> in
+      the {label}.
+      {rec.sustainable_intake != null && <> About {rec.sustainable_intake} a year is sustainable</>}
+      {rec.upper_limit != null ? <>, and beyond {rec.upper_limit} extra students mostly add delay.</> : rec.sustainable_intake != null ? "." : null}
+    </p>
   );
 }
 
@@ -183,7 +240,7 @@ function PolicyCard({ policy, onSaved }: { policy: IntakePolicy; onSaved: () => 
             type="button"
             onClick={save}
             disabled={saving || !dirty}
-            className="rounded-xl bg-accent px-4 py-1.5 text-sm font-semibold text-white disabled:opacity-50"
+            className="rounded-xl bg-primary px-4 py-1.5 text-sm font-semibold text-primary-ink disabled:opacity-50"
           >
             {saving ? "Saving..." : "Save limits"}
           </button>

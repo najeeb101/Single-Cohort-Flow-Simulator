@@ -151,19 +151,19 @@ export default function AdvisorChat({
           <ol className="ml-5 list-decimal">
             <li>
               Install Ollama, then run{" "}
-              <code className="rounded bg-black/20 px-1 py-0.5">ollama pull qwen3:4b-instruct-2507-q4_K_M</code>.
+              <code className="rounded border border-border bg-surface-2 px-1 py-0.5 font-mono text-[12.5px]">ollama pull qwen3:4b-instruct-2507-q4_K_M</code>.
             </li>
             <li>
-              Add these two lines to the <code className="rounded bg-black/20 px-1 py-0.5">.env</code> file in the project
-              folder (see <code className="rounded bg-black/20 px-1 py-0.5">.env.example</code>):
-              <pre className="mt-1 rounded bg-black/20 px-2 py-1 text-xs">
+              Add these two lines to the <code className="rounded border border-border bg-surface-2 px-1 py-0.5 font-mono text-[12.5px]">.env</code> file in the project
+              folder (see <code className="rounded border border-border bg-surface-2 px-1 py-0.5 font-mono text-[12.5px]">.env.example</code>):
+              <pre className="mt-1.5 rounded-lg border border-border bg-surface-2 px-3 py-2 text-xs">
                 LLM_BASE_URL=http://localhost:11434/v1{"\n"}LLM_MODEL=qwen3:4b-instruct-2507-q4_K_M
               </pre>
             </li>
             <li>Restart the planner (start.bat).</li>
           </ol>
           <p>
-            A larger model such as <code className="rounded bg-black/20 px-1 py-0.5">qwen3-coder:30b</code> needs a PC with
+            A larger model such as <code className="rounded border border-border bg-surface-2 px-1 py-0.5 font-mono text-[12.5px]">qwen3-coder:30b</code> needs a PC with
             about 32 GB of memory. A paid hosted model can be added as an optional backup (LLM_FALLBACK_* settings). The
             advice cards on this page work without any model.
           </p>
@@ -258,7 +258,7 @@ export default function AdvisorChat({
           <button
             type="submit"
             disabled={sending || !input.trim()}
-            className="rounded-xl bg-accent px-4 py-1.5 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
+            className="rounded-xl bg-primary px-4 py-1.5 text-sm font-semibold text-primary-ink disabled:cursor-not-allowed disabled:opacity-50"
           >
             Send
           </button>

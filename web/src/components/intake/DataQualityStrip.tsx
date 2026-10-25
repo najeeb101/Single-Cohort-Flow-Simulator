@@ -1,6 +1,7 @@
 "use client";
 
 import type { DataQuality, MetaResponse } from "@/types/simulation";
+import { Pill } from "@/components/ui";
 
 // How much of the input is real QU data vs an estimate. Uses the analysis's own record when one
 // is shown (what the result was built on), otherwise today's tags from /meta.
@@ -25,36 +26,24 @@ function fromMeta(meta: MetaResponse): DataQuality {
   };
 }
 
-function Tag({ qu }: { qu: boolean }) {
-  return (
-    <span className={`rounded px-1.5 py-0.5 text-[10.5px] font-semibold ${qu ? "bg-good/15 text-good" : "bg-warn/15 text-warn"}`}>
-      {qu ? "QU data" : "Estimate"}
-    </span>
-  );
-}
-
+// One row of soft pills: how much of the input is QU data, CoAdvisor-style.
 export default function DataQualityStrip({ quality, meta }: { quality?: DataQuality | null; meta: MetaResponse }) {
   const q = quality ?? fromMeta(meta);
+  const tone = (qu: boolean) => (qu ? "good" : "neutral") as "good" | "neutral";
   return (
-    <div className="flex flex-wrap items-center gap-x-5 gap-y-2 rounded-xl border border-border bg-surface px-4 py-2.5 text-sm">
-      {q.illustrative && (
-        <span className="rounded-full bg-warn/15 px-2.5 py-0.5 text-xs font-bold uppercase tracking-wide text-warn">
-          Illustrative
-        </span>
-      )}
-      <span className="text-muted">
-        Seats: <b className="text-ink">{q.capacity.qu}</b> of {q.capacity.total} QU data
-      </span>
-      <span className="text-muted">
-        Pass rates: <b className="text-ink">{q.pass_rate.qu}</b> of {q.pass_rate.total} QU data
-      </span>
-      <span className="flex items-center gap-1.5 text-muted">
-        Past intakes ({q.past_intakes.entered} entered) <Tag qu={q.past_intakes.source === "qu"} />
-      </span>
-      <span className="flex items-center gap-1.5 text-muted">
-        Other-program seats <Tag qu={q.occupancy === "qu"} />
-      </span>
-      {q.as_of && <span className="text-muted">Data as of: <b className="text-ink">{q.as_of}</b></span>}
+    <div className="flex flex-wrap items-center gap-2">
+      {q.illustrative ? <Pill tone="warn">Illustrative: mostly estimates</Pill> : <Pill tone="good">Mostly QU data</Pill>}
+      <Pill tone={tone(q.capacity.qu * 2 >= q.capacity.total)}>
+        Seats <b className="font-semibold">{`${q.capacity.qu}/${q.capacity.total}`}</b> QU data
+      </Pill>
+      <Pill tone={tone(q.pass_rate.qu * 2 >= q.pass_rate.total)}>
+        Pass rates <b className="font-semibold">{`${q.pass_rate.qu}/${q.pass_rate.total}`}</b> QU data
+      </Pill>
+      <Pill tone={tone(q.past_intakes.source === "qu")}>
+        {q.past_intakes.entered} past intakes · {q.past_intakes.source === "qu" ? "QU data" : "estimate"}
+      </Pill>
+      <Pill tone={tone(q.occupancy === "qu")}>Other-program seats · {q.occupancy === "qu" ? "QU data" : "estimate"}</Pill>
+      {q.as_of && <span className="text-[13px] text-muted">Data as of {q.as_of}</span>}
     </div>
   );
 }

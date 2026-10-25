@@ -46,23 +46,18 @@ export default function InitialStateGate({ meta, onComplete }: Props) {
   };
 
   return (
-    <main className="mx-auto w-full max-w-[1200px] px-5 pb-10 sm:px-7">
-      <div className="border-b border-border py-4">
-        <div className="mx-auto flex max-w-3xl flex-col items-center gap-3 text-center sm:flex-row sm:items-center sm:gap-5 sm:text-left">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/qu-logo.png" alt="Qatar University" className="qu-mark h-16 w-auto shrink-0 object-contain sm:h-20" />
-          <div className="max-w-2xl">
-            <h1 className="text-[24px] font-extrabold leading-tight tracking-tight text-ink sm:text-[28px]">
-              Tell the planner about today&apos;s department
-            </h1>
-            <p className="mt-1.5 text-[13px] leading-5 text-muted sm:text-[14px]">
-              Two things shape the answer: how many students were admitted in past intakes, and how many seats other
-              programs (for example Computer Engineering) use in shared courses. Enter what you know. Anything you are
-              unsure of can stay an estimate; it is labelled that way in every result.
-            </p>
-          </div>
-        </div>
-      </div>
+    <main className="mx-auto w-full max-w-[1080px] px-5 pb-12 sm:px-8">
+      <header className="pb-2 pt-8">
+        <div className="text-[13px] text-muted">First-time setup</div>
+        <h1 className="mt-1 text-[26px] font-semibold leading-tight tracking-[-0.02em] text-ink sm:text-[28px]">
+          Tell the planner about today&apos;s department
+        </h1>
+        <p className="mt-2 max-w-3xl text-[14px] leading-relaxed text-muted">
+          Two things shape the answer: how many students were admitted in past intakes, and how many seats other programs
+          (for example Computer Engineering) use in shared courses. Enter what you know. Anything you are unsure of can stay
+          an estimate; it is labelled that way in every result.
+        </p>
+      </header>
 
       <div className="flex flex-col gap-6 py-5">
         <PastIntakesEditor
@@ -91,7 +86,7 @@ export default function InitialStateGate({ meta, onComplete }: Props) {
           type="button"
           onClick={() => void save(false)}
           disabled={saving || courses === null}
-          className="rounded-xl bg-accent px-7 py-2.5 text-[14px] font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
+          className="rounded-lg bg-primary px-7 py-2.5 text-[14px] font-medium text-primary-ink disabled:cursor-not-allowed disabled:opacity-50"
         >
           {saving ? "Saving..." : "Save and continue"}
         </button>

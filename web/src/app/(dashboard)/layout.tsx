@@ -1,7 +1,7 @@
 import { SimulationProvider } from "@/lib/SimulationContext";
 import { CheckpointProvider } from "@/lib/CheckpointContext";
 import { IntakeProvider } from "@/lib/IntakeContext";
-import NavBar from "@/components/NavBar";
+import AppShell from "@/components/AppShell";
 
 export default function DashboardLayout({
   children,
@@ -9,8 +9,7 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <>
-      <NavBar />
+    <AppShell>
       <SimulationProvider>
         {/* CheckpointProvider and IntakeProvider live at the layout level (not on one page) so
             Bottlenecks, the seat planner and Capacity recommendations can read the in-progress
@@ -19,6 +18,6 @@ export default function DashboardLayout({
           <IntakeProvider>{children}</IntakeProvider>
         </CheckpointProvider>
       </SimulationProvider>
-    </>
+    </AppShell>
   );
 }

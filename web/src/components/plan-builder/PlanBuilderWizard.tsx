@@ -119,9 +119,9 @@ export default function PlanBuilderWizard() {
 
   return (
     <div className="flex flex-col gap-6">
-      <header className="border-b border-border py-5">
-        <h1 className="text-[19px] font-bold tracking-tight">Plan Builder</h1>
-        <p className="mt-0.5 text-sm text-muted">
+      <header className="pb-4 pt-8">
+        <h1 className="text-[26px] font-semibold leading-tight tracking-[-0.02em] text-ink sm:text-[28px]">Plan Builder</h1>
+        <p className="mt-2 max-w-3xl text-[14px] leading-relaxed text-muted">
           Build a new curriculum + configuration plan — clone the default to tweak it, or start
           from nothing and enter everything by hand.
         </p>
@@ -215,7 +215,7 @@ export default function PlanBuilderWizard() {
               loadingSeed ||
               (seedChoice === "import" && (!importCurriculumFile || !importConfigFile))
             }
-            className="self-start rounded-xl bg-accent px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
+            className="self-start rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-primary-ink disabled:cursor-not-allowed disabled:opacity-50"
           >
             {loadingSeed ? "Loading…" : "Continue"}
           </button>
@@ -245,7 +245,7 @@ export default function PlanBuilderWizard() {
               type="button"
               onClick={goToConfigStep}
               disabled={courses.length === 0}
-              className="rounded-xl bg-accent px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
+              className="rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-primary-ink disabled:cursor-not-allowed disabled:opacity-50"
             >
               Continue
             </button>
@@ -274,7 +274,7 @@ export default function PlanBuilderWizard() {
             <button
               type="button"
               onClick={() => setStep("review")}
-              className="rounded-xl bg-accent px-4 py-2 text-sm font-semibold text-white"
+              className="rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-primary-ink"
             >
               Continue
             </button>
@@ -338,7 +338,7 @@ export default function PlanBuilderWizard() {
               type="button"
               onClick={save}
               disabled={saving}
-              className="rounded-xl bg-accent px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
+              className="rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-primary-ink disabled:cursor-not-allowed disabled:opacity-50"
             >
               {saving ? "Saving…" : "Save plan"}
             </button>

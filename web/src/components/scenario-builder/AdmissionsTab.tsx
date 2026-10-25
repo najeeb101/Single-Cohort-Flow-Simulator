@@ -40,7 +40,7 @@ export default function AdmissionsTab({
 
   const segBtn = (active: boolean) =>
     `flex-1 rounded-md px-3 py-1.5 text-xs font-medium transition ${
-      active ? "bg-accent text-white shadow-sm" : "text-muted hover:text-ink"
+      active ? "bg-primary text-primary-ink shadow-sm" : "text-muted hover:text-ink"
     }`;
 
   return (

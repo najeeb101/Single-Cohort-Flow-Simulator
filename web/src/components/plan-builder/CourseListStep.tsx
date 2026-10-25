@@ -59,7 +59,7 @@ function CourseRow({ course, allCourseCodes, knownCategories, seasons, onSave, o
               onSave(draft);
               setEditing(false);
             }}
-            className="rounded-xl bg-accent px-3.5 py-1.5 font-semibold text-white"
+            className="rounded-xl bg-primary px-3.5 py-1.5 font-semibold text-primary-ink"
           >
             Save
           </button>
@@ -150,7 +150,7 @@ export default function CourseListStep({
             <button
               type="button"
               onClick={addCourse}
-              className="rounded-xl bg-accent px-3.5 py-1.5 text-sm font-semibold text-white"
+              className="rounded-xl bg-primary px-3.5 py-1.5 text-sm font-semibold text-primary-ink"
             >
               Add course
             </button>

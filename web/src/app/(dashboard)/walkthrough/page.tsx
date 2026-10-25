@@ -31,10 +31,10 @@ function DashboardBody() {
     useCheckpoint();
 
   return (
-    <main className="mx-auto w-full max-w-[1600px] px-7 pb-16">
-      <header className="border-b border-border py-5">
-        <h1 className="text-[19px] font-bold tracking-tight">Walkthrough</h1>
-        <p className="mt-0.5 max-w-2xl text-sm text-muted">
+    <main className="mx-auto w-full max-w-[1280px] px-5 pb-24 sm:px-8">
+      <header className="pb-4 pt-8">
+        <h1 className="text-[26px] font-semibold leading-tight tracking-[-0.02em] text-ink sm:text-[28px]">Walkthrough</h1>
+        <p className="mt-2 max-w-2xl text-[14px] leading-relaxed text-muted">
           Step the active plan forward one semester at a time and adjust seats, pass rates,
           other-program seats and the next intake between steps. Only future terms change, never the
           ones already run. For the intake recommendation itself, see the{" "}
@@ -82,7 +82,7 @@ function StartScreen({ busy, onStart }: { busy: boolean; onStart: () => Promise<
         type="button"
         onClick={onStart}
         disabled={busy}
-        className="rounded-xl bg-accent px-5 py-2.5 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
+        className="rounded-xl bg-primary px-5 py-2.5 text-sm font-semibold text-primary-ink disabled:cursor-not-allowed disabled:opacity-50"
       >
         {busy ? "Starting…" : "Start checkpoint walkthrough"}
       </button>
@@ -190,7 +190,7 @@ function SessionView({
                 type="button"
                 onClick={handleContinueFromHere}
                 disabled={busy}
-                className="rounded-xl bg-accent px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
+                className="rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-primary-ink disabled:cursor-not-allowed disabled:opacity-50"
               >
                 Continue from here
               </button>
@@ -209,7 +209,7 @@ function SessionView({
                 type="button"
                 onClick={onAdvance}
                 disabled={busy || session.is_finished}
-                className="rounded-xl bg-accent px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
+                className="rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-primary-ink disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {busy ? "Advancing…" : "Advance one term"}
               </button>
@@ -371,7 +371,7 @@ function TermHistoryStrip({
               isViewing
                 ? "rounded-full border-2 border-accent bg-surface px-3 py-1 text-xs font-semibold text-accent disabled:cursor-not-allowed"
                 : isCurrent
-                ? "rounded-full bg-accent px-3 py-1 text-xs font-semibold text-white disabled:cursor-not-allowed"
+                ? "rounded-full bg-primary px-3 py-1 text-xs font-semibold text-primary-ink disabled:cursor-not-allowed"
                 : "rounded-full border border-border-2 bg-surface px-3 py-1 text-xs font-semibold text-ink hover:border-accent disabled:cursor-not-allowed disabled:opacity-50"
             }
           >

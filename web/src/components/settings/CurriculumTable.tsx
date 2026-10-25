@@ -197,7 +197,7 @@ function CurriculumRow({ course, allCourseCodes, knownCategories, seasons, colSp
                 type="button"
                 onClick={save}
                 disabled={busy}
-                className="rounded-xl bg-accent px-3.5 py-1.5 font-semibold text-white disabled:opacity-50"
+                className="rounded-xl bg-primary px-3.5 py-1.5 font-semibold text-primary-ink disabled:opacity-50"
               >
                 {busy ? "Saving…" : "Save"}
               </button>
@@ -278,7 +278,7 @@ function AddCourseRow({
             type="button"
             onClick={add}
             disabled={busy}
-            className="rounded-xl bg-accent px-3.5 py-1.5 font-semibold text-white disabled:opacity-50"
+            className="rounded-xl bg-primary px-3.5 py-1.5 font-semibold text-primary-ink disabled:opacity-50"
           >
             {busy ? "Adding…" : "Add course"}
           </button>

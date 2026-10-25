@@ -57,7 +57,7 @@ export default function BottlenecksPanel({ bottlenecks, frames }: { bottlenecks:
           const info = SIGNAL_META[k];
           const list = bottlenecks[card.list];
           return (
-            <div key={k} className={`rounded-2xl border border-border border-l-[3px] bg-surface p-4 ${info.border}`}>
+            <div key={k} className="rounded-xl border border-border bg-surface p-5">
               <h4 className="mb-0.5 flex items-center gap-1.5 text-xs uppercase tracking-wide">
                 <span className={`h-2 w-2 rounded-full ${info.dot}`} aria-hidden />
                 <span className="text-ink">{card.title}</span>

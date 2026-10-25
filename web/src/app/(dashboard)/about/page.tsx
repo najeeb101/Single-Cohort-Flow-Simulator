@@ -64,11 +64,11 @@ export default function MethodologyPage() {
 
   return (
     <main className="mx-auto w-full max-w-[900px] px-5 pb-16 sm:px-7">
-      <header className="border-b border-border py-5">
-        <h1 className="text-[22px] font-extrabold tracking-tight">Methodology</h1>
-        <p className="mt-1 text-sm text-muted">
+      <header className="pb-4 pt-8">
+        <h1 className="text-[26px] font-semibold leading-tight tracking-[-0.02em] text-ink sm:text-[28px]">Methodology</h1>
+        <p className="mt-2 max-w-3xl text-[14px] leading-relaxed text-muted">
           How the CS Intake Planner turns the department&apos;s data into a recommended intake, and where it can be wrong. The
-          precise version is <code className="rounded bg-black/20 px-1 py-0.5">docs/methodology.md</code> in the project
+          precise version is <code className="rounded border border-border bg-surface-2 px-1 py-0.5 font-mono text-[12.5px]">docs/methodology.md</code> in the project
           folder.{" "}
           <button type="button" onClick={() => setIntro(true)} className="font-semibold text-accent hover:underline">
             Replay the intro
