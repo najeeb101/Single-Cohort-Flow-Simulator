@@ -64,7 +64,8 @@ export function changedInputs(record: AnalysisRecord, meta: MetaResponse): strin
   const snapPast = ((cfg.current_students as { past_intakes?: unknown[] } | undefined)?.past_intakes ?? []);
   if (stable(snapPast) !== stable(meta.current_students?.past_intakes ?? [])) changed.push("past intakes");
 
-  if ((cfg.section_size ?? 35) !== meta.section_size) changed.push("section size");
+  // Snapshots from before seat suggestions moved to seats have no seat_step; don't flag those.
+  if (cfg.seat_step !== undefined && cfg.seat_step !== meta.seat_step) changed.push("seat rounding");
   return changed;
 }
 

@@ -156,7 +156,7 @@ export default function IntakePlannerPage() {
           </>
         )}
 
-        <Section title="Seat planner" meta={`Whole sections of ${meta.section_size} seats`}>
+        <Section title="Seat planner" meta={`Seats, rounded up to ${meta.seat_step}`}>
           <SeatPlanner defaultTarget={sweep?.result.recommendation.upper_limit ?? 120} />
         </Section>
 

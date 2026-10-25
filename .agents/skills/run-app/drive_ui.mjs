@@ -102,7 +102,7 @@ try {
   // Wait for this plan to start (the previous plan's result may still be on screen), then finish.
   await page.getByText(/Seat plan for 120 running/).first().waitFor({ timeout: 20000 }).catch(() => {});
   await page.getByText(/Seat plan for 120 running/).first().waitFor({ state: "hidden", timeout: 600000 });
-  const verdict = page.getByText(/needs \d+ more sections|already carry an intake of 120|still breaks a limit/).first();
+  const verdict = page.getByText(/needs [\d,]+ more seats|already carry an intake of 120|still breaks a limit/).first();
   await verdict.waitFor({ timeout: 60000 });
   ok("seat plan result rendered", await verdict.isVisible());
   const apply = page.getByRole("button", { name: "Apply to plan" });
@@ -112,13 +112,17 @@ try {
     ok("seat plan says today's seats already carry 120", await page.getByText(/already carry an intake of 120/).isVisible());
   } else {
     const before = await (await api("/curriculum")).json();
-    const section = (await (await api("/meta")).json()).section_size ?? 35;
+    const step = (await (await api("/meta")).json()).seat_step ?? 5;
     await apply.click();
     await page.getByText(/Applied\. Re-run the analysis/).waitFor({ timeout: 60000 }).catch(() => {});
     const after = await (await api("/curriculum")).json();
     const raised = after.filter((c) => (before.find((b) => b.code === c.code)?.capacity ?? 0) < c.capacity);
     ok("Apply to plan raised course seats", raised.length > 0, `changed=${raised.length}`);
-    ok("raised seats are whole sections", raised.every((c) => (c.capacity - before.find((b) => b.code === c.code).capacity) % section === 0));
+    // Seats, not sections: a new seat count lands on the step, or a top-up adds whole steps.
+    ok("raised seats are rounded to the seat step", raised.every((c) => {
+      const added = c.capacity - before.find((b) => b.code === c.code).capacity;
+      return c.capacity % step === 0 || added % step === 0;
+    }));
     await page.waitForTimeout(1500);
     ok("stale-data banner after applying new seats",
        await page.getByText("The data has changed since this analysis ran").isVisible().catch(() => false));

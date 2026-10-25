@@ -36,7 +36,7 @@ export const BLANK_CONFIG: Record<string, unknown> = {
   scenarios: [{ name: "baseline" }],
   // Intake Planner inputs (src/intake.py). A new program starts with every input an estimate.
   intake_policy: { max_grad_rate_loss_pts: 2, max_on_time_loss_pts: 10, min_grad_rate: null },
-  section_size: 35,
+  seat_step: 5,
   planning: { next_intake_label: "Next intake" },
   current_students: { past_intakes: [] },
   historical_outcomes: {},
@@ -128,7 +128,7 @@ export function metaFromPlanExport(curriculum: CourseRecord[], config: Record<st
       grid_min: 20, grid_max: 200, grid_step: 10, seeds: 20, refine_step: 5, refine_seeds: 40,
       reference_runs: 8, min_history_years: 8,
     },
-    section_size: (config.section_size as number) ?? 35,
+    seat_step: (config.seat_step as number) ?? 5,
     planning: (config.planning as MetaResponse["planning"]) ?? {},
     current_students: (config.current_students as MetaResponse["current_students"]) ?? { past_intakes: [] },
     historical_outcomes: (config.historical_outcomes as MetaResponse["historical_outcomes"]) ?? {},

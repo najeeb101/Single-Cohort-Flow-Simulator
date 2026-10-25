@@ -21,7 +21,7 @@ function suggestions(recommended: number | null | undefined): string[] {
   return [
     recommended != null ? `Why is the recommendation ${recommended}?` : "Why does no intake meet the limits?",
     "What would it take to admit 120?",
-    "Which course should get the next extra section?",
+    "Which course most needs extra seats?",
   ];
 }
 

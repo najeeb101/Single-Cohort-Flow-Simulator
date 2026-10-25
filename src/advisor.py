@@ -164,7 +164,7 @@ def summarize_plan(curriculum: dict, config: dict) -> dict:
         "optional_terms_enabled": config.get("optional_terms_enabled", False),
         "intake_policy": config.get("intake_policy") or {},
         "past_intakes": [e.get("size") for e in (config.get("current_students") or {}).get("past_intakes") or []],
-        "section_size": config.get("section_size", 35),
+        "seat_step": config.get("seat_step", 5),
         "courses": courses,
     }
 
@@ -283,7 +283,8 @@ def build_system_prompt(context: dict) -> str:
         "have?\", \"when is Z taught?\") directly from that list.",
         "- You are read-only: you can't change anything yourself. To act, point them at the right tool: "
         "the Intake Planner page (run the analysis; its seat planner answers 'what would it take to "
-        "admit N?' in whole sections), the Data page (edit seats, pass rates, past intakes, other-program "
+        "admit N?' in seats per course, which the department can add by widening sections or opening "
+        "new ones), the Data page (edit seats, pass rates, past intakes, other-program "
         "seats, policy limits), Bottlenecks (which courses limit intake), the Test button on a proposal "
         "you emit below (a safe what-if run that predicts the effect before they Apply it), or the "
         "Walkthrough page (step term by term, editing capacity/pass rate/occupancy/intake between steps).",
@@ -343,7 +344,7 @@ def build_system_prompt(context: dict) -> str:
             lines.append(f"- Why: {analysis['why']}")
         if analysis.get("robustness_range"):
             lo, hi = analysis["robustness_range"]
-            lines.append(f"- Robustness range (one fewer section in tight courses / pass rates 5 pts lower): {lo}-{hi}.")
+            lines.append(f"- Robustness range (10% fewer seats in the tightest courses / pass rates 5 pts lower): {lo}-{hi}.")
         pol = analysis.get("policy") or {}
         lines.append(
             f"- Policy limits: seat shortages may cost at most {pol.get('max_grad_rate_loss_pts')} pts of "
@@ -400,8 +401,7 @@ def build_system_prompt(context: dict) -> str:
         if policy:
             lines.append("- Intake policy limits: " + ", ".join(f"{k}={v}" for k, v in policy.items()))
         if plan.get("past_intakes"):
-            lines.append(f"- Past intakes (most recent first): {plan['past_intakes']}; section size "
-                         f"{plan.get('section_size')} seats.")
+            lines.append(f"- Past intakes (most recent first): {plan['past_intakes']}.")
         courses = plan.get("courses") or []
         if courses:
             lines.append(

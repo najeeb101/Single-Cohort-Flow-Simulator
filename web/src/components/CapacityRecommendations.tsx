@@ -15,11 +15,11 @@ interface CourseRec {
   totalDenied: number;
   oversubscribedTerms: number;
   peakShortfall: number;
-  sectionsToAdd: number;
+  seatsToAdd: number;
   recommendedCapacity: number;
 }
 
-function buildRecommendations(frames: Frame[], meta: CapacityMeta, sectionSize: number): CourseRec[] {
+function buildRecommendations(frames: Frame[], meta: CapacityMeta, seatStep: number): CourseRec[] {
   const capacityByCode: Record<string, number> = {};
   for (const node of meta.graph.nodes) capacityByCode[node.code] = node.capacity;
 
@@ -46,8 +46,9 @@ function buildRecommendations(frames: Frame[], meta: CapacityMeta, sectionSize: 
 
     const currentCapacity = capacityByCode[code] ?? 0;
     const peakShortfall = Math.max(...termDenials);
-    // Seats come in whole sections, so round the worst term's shortfall up to sections.
-    const sectionsToAdd = Math.ceil(peakShortfall / sectionSize);
+    // Enough seats to clear the worst term, rounded up to the seat step. Seats, not sections:
+    // sections vary in size and a course can grow by widening the ones it has.
+    const seatsToAdd = Math.ceil(peakShortfall / seatStep) * seatStep;
 
     recs.push({
       code,
@@ -55,8 +56,8 @@ function buildRecommendations(frames: Frame[], meta: CapacityMeta, sectionSize: 
       totalDenied,
       oversubscribedTerms: termDenials.length,
       peakShortfall,
-      sectionsToAdd,
-      recommendedCapacity: currentCapacity + sectionsToAdd * sectionSize,
+      seatsToAdd,
+      recommendedCapacity: currentCapacity + seatsToAdd,
     });
   }
 
@@ -66,13 +67,13 @@ function buildRecommendations(frames: Frame[], meta: CapacityMeta, sectionSize: 
 export default function CapacityRecommendations({
   frames,
   meta,
-  sectionSize,
+  seatStep,
 }: {
   frames: Frame[];
   meta: CapacityMeta;
-  sectionSize: number;
+  seatStep: number;
 }) {
-  const recs = useMemo(() => buildRecommendations(frames, meta, sectionSize), [frames, meta, sectionSize]);
+  const recs = useMemo(() => buildRecommendations(frames, meta, seatStep), [frames, meta, seatStep]);
 
   if (recs.length === 0) {
     return (
@@ -91,9 +92,9 @@ export default function CapacityRecommendations({
         <div className="p-5">
           <h2 className="mb-1 text-[15px] font-bold">Capacity recommendations</h2>
           <p className="max-w-3xl text-sm text-muted">
-            Courses ranked by total seat denials at the current intake. The suggestion adds enough whole sections of{" "}
-            {sectionSize} to clear the worst single term&apos;s shortfall seen in this run. For the sections a{" "}
-            <i>larger</i> intake needs, use the seat planner below; to test one change first, ask the{" "}
+            Courses ranked by total seat denials at the current intake. The suggestion adds enough seats (rounded up
+            to {seatStep}) to clear the worst single term&apos;s shortfall seen in this run, by widening sections or
+            opening one. For the seats a <i>larger</i> intake needs, use the seat planner below; to test one change first, ask the{" "}
             <Link href="/advisor" className="font-semibold text-accent">Advisor</Link>; to change seats for good, edit the{" "}
             <Link href="/data" className="font-semibold text-accent">Data</Link> page.
           </p>
@@ -124,7 +125,7 @@ export default function CapacityRecommendations({
                   <td className="whitespace-nowrap px-3 py-2.5 tabular-nums font-bold text-ink">
                     {r.recommendedCapacity.toLocaleString()}{" "}
                     <span className="ml-1 rounded bg-surface-2 px-1.5 py-0.5 text-xs font-medium text-muted">
-                      +{r.sectionsToAdd} section{r.sectionsToAdd === 1 ? "" : "s"}
+                      +{r.seatsToAdd} seats
                     </span>
                   </td>
                 </tr>

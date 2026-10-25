@@ -35,7 +35,7 @@ estimates are marked **illustrative**.
 | Input | Source | Used for |
 |---|---|---|
 | Curriculum: courses, prerequisites, offered semesters | QU CS roadmap 2024 (loaded) | Who can take what, and when |
-| Seats per course per regular semester (sections times section size, default 35) | Class schedule or the department | How many students fit |
+| Seats per course per regular semester (all its sections together, whatever their sizes) | Class schedule or the department | How many students fit |
 | Pass rate per course | Registrar grade distributions, or an estimate | Repeats and delays |
 | Past intakes (last five or more years) | Admissions office | Rebuilds today's student body |
 | Seats used by other programs (for example Computer Engineering students in CMPS151 or MATH101) | Department or Registrar | A permanent load on shared courses (`initial_state.occupancy`) |
@@ -195,8 +195,9 @@ Seat shortages at low intakes cost on-time graduation, not graduation.
 5. **Why.** One sentence naming the first limit to break, the intake where it breaks, and the
    course with the most seat denials at that intake.
 6. **Robustness range.** The headline view is re-run on a window of intakes around the
-   recommendation under two harsher assumptions: (a) one fewer section (35 seats) in each of
-   the three tightest courses, and (b) every pass rate 5 points lower (with its own reference).
+   recommendation under two harsher assumptions: (a) the three tightest courses lose 10% of
+   their seats (at least one seat each), and (b) every pass rate 5 points lower (with its own
+   reference).
    The recommendation under each is shown together with the base one as a range, for example
    "72 to 80". A harsher input can move the answer in either direction (lower pass rates thin
    out later cohorts and can ease crowding), so the range spans both.
@@ -210,21 +211,28 @@ were padded.
 
 ## 6. The seat plan ("what would it take to admit 120?")
 
-The seat planner replaces the earlier greedy "Auto-fill". It works in three steps.
+The seat planner replaces the earlier greedy "Auto-fill". It answers in **seats**, not
+sections: QU sections vary in size (20, 35, 40 and more), and a course can often grow by
+widening the sections it already has instead of opening a new one. Suggestions are rounded up
+to a small step (`seat_step`, default 5 seats, set on the Data page) so they read as practical
+numbers. How to split the extra seats into sections is the department's call. It works in
+three steps.
 
 1. **Size from demand.** Run the target intake with unlimited *regular-term* seats (Summer keeps
    its normal small pool), 10 seeds on each view. For each course take the **90th percentile of
-   regular-term registrations**, add the seats used by other programs, and round up to whole
-   **sections** (default size 35). A course is only ever raised, never cut. Sizing from real-seat
-   shortfalls would miss demand that an upstream denial hides: students refused a gateway course
-   never show up asking for the next one.
+   regular-term registrations**, add the seats used by other programs, and round up to the seat
+   step. A course is only ever raised, never cut. Sizing from real-seat shortfalls would miss
+   demand that an upstream denial hides: students refused a gateway course never show up asking
+   for the next one.
 2. **Verify.** Re-run the target with the proposed seats, 20 seeds on both views, and check each
    policy limit at that single intake (mean loss plus a one-sided 95% margin, no smoothing).
-   If a limit still fails, add one section to the course with the most denials and check again,
-   up to a run budget (default 6 rounds, at most 20).
-3. **Report.** For each changed course: current seats, recommended seats, and sections added,
-   plus predicted outcomes before and after, and whether the limits are met. Seats are changed
-   as exact integers, never with multipliers, so rounding cannot lose a seat.
+   If a limit still fails, give the course with the most denials the seats it was short: the
+   90th percentile, across seeds, of its worst regular-term shortfall, rounded up to the step.
+   Then check again, up to a run budget (default 6 rounds, at most 20).
+3. **Report.** For each changed course: current seats, recommended seats, and seats added
+   (for example "CMPS303: 105 to 120, +15 seats"), plus predicted outcomes before and after,
+   and whether the limits are met. Seats are changed as exact integers, never with
+   multipliers, so rounding cannot lose a seat.
 
 The plan can be applied to the active plan, or to a walkthrough session's staged data. If the
 limits still fail after the budget, the plan says so; it does not claim the target is reachable.
@@ -282,15 +290,16 @@ outcome that is off and suggests checking pass rates and dropout settings.
   future, and that other-program seat use stays constant.
 - **Summer is a small bonus pool.** Summer seats are modeled as a fixed fraction (30%) of
   regular capacity for courses offered in Summer. Real Summer schedules vary.
-- **Section size.** One section size (default 35) is used to convert seats to sections.
-- **Negative loss at low intakes.** At small intakes the measured graduation loss comes out
-  slightly negative (real seats look up to about 3 points *better* than unlimited seats). This is
-  consistent across low intakes, so it is not only sampling noise: in this model, a few seat
-  denials spread a student's courses over more terms, which appears to lower early failures and
-  the dropouts they trigger. The decision rule only asks whether a loss exceeds its limit, so it
-  does not change the recommendation, and the site shows any loss at or below zero as "no
-  measurable loss". It is a reminder that the unlimited-seat reference is a clean yardstick, not
-  a guaranteed best case.
+- **Seats, not sections.** The model knows each course's total seats, not how they are split
+  into sections. Seat suggestions are totals rounded up to `seat_step`; whether to widen
+  sections or open one is left to the department.
+- **Negative loss at low intakes.** At small intakes the measured graduation loss can come out
+  slightly negative (on the default data, a 20-seed sweep showed real seats about 2.5 points
+  *better* than unlimited seats at intake 20). This is sampling noise: with 1,200 seeds the gap
+  is 0.3 points, and switching off each dropout mechanism in turn never produced a real gap.
+  It looks like a pattern because neighbouring intakes share seeds and students, so their
+  noise moves together (section 4.5). The decision rule only asks whether a loss exceeds its
+  limit, and the site shows any loss at or below zero as "no measurable loss".
 - **No back-test yet.** The calibration check compares aggregates. It is not a replay of a
   past year against the real outcome.
 

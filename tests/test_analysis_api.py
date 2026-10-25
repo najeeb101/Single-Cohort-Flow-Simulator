@@ -80,13 +80,15 @@ def test_recover_marks_interrupted_runs_failed():
 
 
 def test_config_migration_is_idempotent():
-    old = {"seed": 1, "admission_targets": {"target_grad_rate": 0.7}}
+    old = {"seed": 1, "admission_targets": {"target_grad_rate": 0.7}, "section_size": 35}
     once = normalize_config(old)
     assert "admission_targets" not in once and once["intake_policy"]["max_grad_rate_loss_pts"] == 2.0
     # The retired 0.70 target is not turned into an absolute floor.
     assert once["intake_policy"]["min_grad_rate"] is None
+    # Seat suggestions are in seats now: the fixed section size is dropped for a rounding step.
+    assert "section_size" not in once and once["seat_step"] == 5
     assert normalize_config(once) == once
-    assert old == {"seed": 1, "admission_targets": {"target_grad_rate": 0.7}}  # input untouched
+    assert old == {"seed": 1, "admission_targets": {"target_grad_rate": 0.7}, "section_size": 35}  # input untouched
 
     with SessionLocal() as session:
         migrate_plan_configs(session)
@@ -100,7 +102,10 @@ def test_put_config_rejects_retired_admission_targets():
 
 
 def test_put_config_validates_planner_keys():
-    assert client.put("/config", json={"section_size": 0}).status_code == 422
+    assert client.put("/config", json={"seat_step": 0}).status_code == 422
+    assert client.put("/config", json={"seat_step": 101}).status_code == 422
+    # Retired: sections vary in size, so there is no single section size to set.
+    assert client.put("/config", json={"section_size": 35}).status_code == 422
     assert client.put("/config", json={"current_students": {"past_intakes": [{"size": -5}]}}).status_code == 422
     assert client.put("/config", json={"historical_outcomes": {"grad_rate_6yr": 1.5}}).status_code == 422
 
@@ -108,6 +113,6 @@ def test_put_config_validates_planner_keys():
 def test_meta_exposes_planner_inputs():
     body = client.get("/meta").json()
     assert body["intake_policy"]["max_grad_rate_loss_pts"] == 2.0
-    assert body["section_size"] == 35
+    assert body["seat_step"] == 5 and "section_size" not in body
     assert "past_intakes" in body["current_students"]
     assert body["intake_job_running"] is False

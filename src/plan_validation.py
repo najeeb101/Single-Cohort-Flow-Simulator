@@ -138,7 +138,7 @@ def validate_plan_edits(curriculum: dict[str, Course], config: dict) -> None:
     validate_intake_analysis(config.get("intake_analysis"))
     validate_current_students(config.get("current_students"))
     validate_historical_outcomes(config.get("historical_outcomes"))
-    validate_section_size(config.get("section_size"))
+    validate_seat_step(config.get("seat_step"))
     # Curriculum topology guardrails (missing prereqs, cycles, unreachable depth).
     from src.curriculum_validation import validate_curriculum_topology
     try:
@@ -269,6 +269,6 @@ def validate_historical_outcomes(value: object) -> None:
             raise PlanValidationError(f"historical_outcomes.{key} must be null or a non-negative integer")
 
 
-def validate_section_size(value: object) -> None:
-    if value is not None and not (_is_int(value) and 1 <= value <= 500):
-        raise PlanValidationError("section_size must be an integer in [1, 500]")
+def validate_seat_step(value: object) -> None:
+    if value is not None and not (_is_int(value) and 1 <= value <= 100):
+        raise PlanValidationError("seat_step must be an integer in [1, 100]")

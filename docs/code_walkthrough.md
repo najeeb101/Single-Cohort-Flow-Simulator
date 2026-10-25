@@ -504,7 +504,7 @@ pieces, in the order a sweep uses them:
 
 - **Setup.** `IntakePolicy` / `policy_from_config` (defaults `DEFAULT_POLICY`), `analysis_params`
   (defaults `DEFAULT_ANALYSIS`, `base_seed` falls back to `config["seed"]`), `intake_grid`,
-  `section_size`, `resolve_incumbent_sizes` (past intakes, padded).
+  `seat_step`, `resolve_incumbent_sizes` (past intakes, padded).
 - **One simulation.** `_run_task(task)` is module-level (picklable). It builds a
   `SyntheticDataSource`, runs the `Simulator`, and returns compact counts for the measured
   cohorts (graduated, on-time, dropped, censored, time sum, regular/total denials, per-course
@@ -528,9 +528,9 @@ pieces, in the order a sweep uses them:
   `calibration_check` (`2*sqrt(p(1-p)/n_hist + SE^2)`), and returns the JSON-ready result.
 - **Seat plan.** `run_seat_plan(curriculum, config, target_intake, run_budget=6)` measures demand
   under `unlimited_seats: "regular"`, sizes each course at the 90th percentile of regular-term
-  registrations plus `initial_state.occupancy`, rounds up to whole sections, verifies both
-  views with `_single_point_check` (no smoothing), and adds one section to the worst course per
-  failing round. Capacity changes use `dataclasses.replace`, never multipliers.
+  registrations plus `initial_state.occupancy`, rounds up to `seat_step` seats, verifies both
+  views with `_single_point_check` (no smoothing), and gives the worst course its observed
+  shortfall (p90 of its worst regular-term denials, rounded up to the step) per failing round. Capacity changes use `dataclasses.replace`, never multipliers.
 - **Parallelism.** `src/parallel.py::make_pool(workers)` is a context manager (one pool per job;
   `SerialPool` for 1 worker); `iter_ordered` yields in input order with no silent serial fallback;
   `terminate_pool` stops in-flight work on cancel.

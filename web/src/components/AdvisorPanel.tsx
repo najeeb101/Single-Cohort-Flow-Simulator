@@ -59,7 +59,7 @@ function buildAdvice(summary: FlowTimelineSummary, analysis: IntakeSweepResult |
         id: "infeasible",
         severity: "critical",
         title: "No intake meets your limits",
-        body: `${rec.why} ${rec.binding_course ? `${rec.binding_course} is the tightest course. ` : ""}The seat planner shows how many sections would make room.`,
+        body: `${rec.why} ${rec.binding_course ? `${rec.binding_course} is the tightest course. ` : ""}The seat planner shows how many seats would make room.`,
         action: { label: "Plan seats", href: "/" },
       });
     } else {
@@ -84,7 +84,7 @@ function buildAdvice(summary: FlowTimelineSummary, analysis: IntakeSweepResult |
         id: "upper",
         severity: "info",
         title: `Beyond ${rec.upper_limit}, extra students barely add graduates`,
-        body: "Above the upper limit the seats are full, so more admissions mostly add delay. Growing past it needs more sections first.",
+        body: "Above the upper limit the seats are full, so more admissions mostly add delay. Growing past it needs more seats first.",
         action: { label: "Plan seats for a larger intake", href: "/bottlenecks" },
       });
     }
@@ -113,7 +113,7 @@ function buildAdvice(summary: FlowTimelineSummary, analysis: IntakeSweepResult |
         id: "summer",
         severity: "info",
         title: "Most seat shortages are in Summer",
-        body: `At ${at.intake} students, ${pct(at.summer_denial_share)} of seat denials happen in the small Summer catch-up sessions, which extra regular sections only partly relieve. On-time graduation lost: ${pts(at.on_time_loss_fit)}.`,
+        body: `At ${at.intake} students, ${pct(at.summer_denial_share)} of seat denials happen in the small Summer catch-up sessions, which extra regular-term seats only partly relieve. On-time graduation lost: ${pts(at.on_time_loss_fit)}.`,
       });
     }
   }
@@ -125,7 +125,7 @@ function buildAdvice(summary: FlowTimelineSummary, analysis: IntakeSweepResult |
       id: "cap",
       severity: "info",
       title: `${cap[0]} turns away the most students`,
-      body: `${cap[1].toLocaleString()} seat denials at today's intake. Adding a section here is the most direct relief. Ask the advisor below to test it before applying.`,
+      body: `${cap[1].toLocaleString()} seat denials at today's intake. Adding seats here (a wider section or a new one) is the most direct relief. Ask the advisor below to test it before applying.`,
       action: { label: "See bottlenecks", href: "/bottlenecks" },
     });
   }
@@ -136,7 +136,7 @@ function buildAdvice(summary: FlowTimelineSummary, analysis: IntakeSweepResult |
       id: "fail",
       severity: "info",
       title: `Don't add seats to ${fail[0]}`,
-      body: `It drives the most failures (${fail[1].toLocaleString()}), not the most denials. Failures are a pass-rate and support problem; extra sections do nothing for them.`,
+      body: `It drives the most failures (${fail[1].toLocaleString()}), not the most denials. Failures are a pass-rate and support problem; extra seats do nothing for them.`,
     });
   }
 

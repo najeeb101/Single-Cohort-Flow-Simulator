@@ -7,7 +7,7 @@ function describe(r: AnalysisRecord): string {
   const s = r.summary ?? {};
   if (r.status !== "done") return r.status === "failed" ? "Failed" : r.status === "cancelled" ? "Cancelled" : "Running";
   if (r.kind === "seat_plan") {
-    return `Seat plan for ${s.target_intake}: +${s.total_sections_added ?? 0} sections${s.feasible ? "" : " (limits not met)"}`;
+    return `Seat plan for ${s.target_intake}: +${(s.total_seats_added ?? 0).toLocaleString()} seats${s.feasible ? "" : " (limits not met)"}`;
   }
   if (s.recommended_intake == null) return "No intake meets the limits";
   return `Recommended ${s.recommended_intake}${s.sustainable_intake != null ? `, sustainable ${s.sustainable_intake}` : ""}${s.upper_limit != null ? `, upper limit ${s.upper_limit}` : ""}`;

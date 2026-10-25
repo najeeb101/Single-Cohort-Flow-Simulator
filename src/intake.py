@@ -47,7 +47,7 @@ from src.parallel import iter_ordered, make_pool, resolve_workers, terminate_poo
 from src.simulator import Simulator
 from src.utils import spaced_seeds
 
-ANALYSIS_VERSION = 1
+ANALYSIS_VERSION = 2
 
 DEFAULT_POLICY: dict = {
     "max_grad_rate_loss_pts": 2.0,   # 6-year graduation may drop at most this much because of seats
@@ -76,7 +76,11 @@ DEFAULT_ANALYSIS: dict = {
     "base_seed": None,               # None -> config["seed"]
 }
 
-DEFAULT_SECTION_SIZE = 35
+# Seat suggestions are whole seats rounded up to this step. Sections vary in size and a course
+# can grow by widening its sections, so nothing here assumes a section size.
+DEFAULT_SEAT_STEP = 5
+# Robustness: the tightest courses lose this share of their seats (at least one seat).
+ROBUSTNESS_SEAT_CUT = 0.10
 
 _LIMIT_LABELS = {
     "grad_rate_loss": "graduation-rate limit",
@@ -117,8 +121,12 @@ def analysis_params(config: dict, override: dict | None = None) -> dict:
     return params
 
 
-def section_size(config: dict) -> int:
-    return max(1, int(config.get("section_size", DEFAULT_SECTION_SIZE)))
+def seat_step(config: dict) -> int:
+    return max(1, int(config.get("seat_step", DEFAULT_SEAT_STEP)))
+
+
+def _round_up(n: float, step: int) -> int:
+    return int(math.ceil(n / step) * step)
 
 
 def intake_grid(params: dict) -> list[int]:
@@ -235,8 +243,19 @@ def _run_task(task: dict) -> dict:
             if row["global_term"] == -1 and row["cohort_id"] < 0
         )
 
+    # Each course's worst regular-term seat shortfall from the next intake on (the seat plan's
+    # top-up size when a limit still fails).
+    mandatory = get_mandatory_seasons(cfg)
+    peak: dict[str, int] = {}
+    for frame in history.timeline:
+        if frame["term"] < 0 or frame["season"] not in mandatory:
+            continue
+        for code, st in frame["courses"].items():
+            if st["denied"] > peak.get(code, 0):
+                peak[code] = st["denied"]
+    out["peak_denied"] = peak
+
     if task.get("want_demand"):
-        mandatory = get_mandatory_seasons(cfg)
         demand: dict[str, list[int]] = {}
         for frame in history.timeline:
             if frame["term"] < 0 or frame["season"] not in mandatory:
@@ -784,9 +803,9 @@ def calibration_check(steady_points: list[dict], next_points: list[dict], config
     return {"usual_intake": usual, "checks": checks, "note": note}
 
 
-def _robustness(runner, views, rec_n, next_points, params, policy, reference, section, other_intake, seeds):
-    """Re-run the decision under (a) one fewer section in each tight course and (b) pass rates
-    5 pts lower, on a window of intakes around the recommendation."""
+def _robustness(runner, views, rec_n, next_points, params, policy, reference, other_intake, seeds):
+    """Re-run the decision under (a) the tight courses losing ``ROBUSTNESS_SEAT_CUT`` of their
+    seats and (b) pass rates 5 pts lower, on a window of intakes around the recommendation."""
     step = int(params["grid_step"])
     window = [n for n in range(max(int(params["grid_min"]), rec_n - 4 * step), rec_n + step + 1, step)]
     at = next((p for p in next_points if p["intake"] == rec_n), next_points[0])
@@ -794,12 +813,12 @@ def _robustness(runner, views, rec_n, next_points, params, policy, reference, se
     out = {"window": window, "tight_courses": tight}
 
     cur = views.curriculum
-    fewer = {code: (dataclasses.replace(c, capacity=max(section, c.capacity - section))
-                    if code in tight and c.capacity > section else c) for code, c in cur.items()}
+    fewer = {code: (dataclasses.replace(c, capacity=max(1, c.capacity - max(1, round(c.capacity * ROBUSTNESS_SEAT_CUT))))
+                    if code in tight and c.capacity > 1 else c) for code, c in cur.items()}
     harder = {code: dataclasses.replace(c, pass_rate=max(0.05, round(c.pass_rate - 0.05, 4)))
               for code, c in cur.items()}
 
-    for key, curriculum, needs_ref in [("fewer_sections", fewer, False), ("lower_pass_rates", harder, True)]:
+    for key, curriculum, needs_ref in [("fewer_seats", fewer, False), ("lower_pass_rates", harder, True)]:
         ref = _reference(runner, views, spaced_seeds(params["base_seed"] + 7, max(2, int(params["reference_runs"]) // 2)),
                          curriculum) if needs_ref else reference
         rows: dict[int, list[dict]] = {}
@@ -811,8 +830,8 @@ def _robustness(runner, views, rec_n, next_points, params, policy, reference, se
         out[f"{key}_below_window"] = r["recommended_intake"] is None
     # The range spans every variant in both directions (a harsher input can move the answer up
     # as well as down — e.g. lower pass rates thin out later cohorts and ease crowding).
-    candidates = [rec_n] + [out[k] for k in ("fewer_sections", "lower_pass_rates") if out[k] is not None]
-    if out["fewer_sections_below_window"] or out["lower_pass_rates_below_window"]:
+    candidates = [rec_n] + [out[k] for k in ("fewer_seats", "lower_pass_rates") if out[k] is not None]
+    if out["fewer_seats_below_window"] or out["lower_pass_rates_below_window"]:
         candidates.append(window[0])
     out["range"] = [min(candidates), max(candidates)]
     return out
@@ -832,7 +851,6 @@ def run_intake_sweep(
     started = time.time()
     params = analysis_params(config, params_override)
     policy = policy or policy_from_config(config)
-    section = section_size(config)
     grid = intake_grid(params)
     seeds = spaced_seeds(params["base_seed"], int(params["seeds"]))
     extra_seeds = spaced_seeds(params["base_seed"], int(params["refine_seeds"]))[len(seeds):]
@@ -866,7 +884,7 @@ def run_intake_sweep(
         if params.get("robustness") and next_rec["recommended_intake"] is not None:
             runner.phase(0.85, 1.0, "Checking how sensitive the number is")
             robustness = _robustness(runner, views, next_rec["recommended_intake"], next_points, params,
-                                     policy, reference, section, other_intake, robust_seeds)
+                                     policy, reference, other_intake, robust_seeds)
         runner.progress(1.0, "Done")
         runs = runner.runs
     for p in next_points + steady_points:
@@ -890,7 +908,7 @@ def run_intake_sweep(
         binding_point = next((p for p in next_points if p["intake"] == binding["first_failing_intake"]), None)
     if binding_point and binding_point["summer_denial_share"] > 0.5:
         warnings.append(f"Most seat denials at {binding_point['intake']} happen in Summer catch-up terms, "
-                        f"which regular sections only partly relieve.")
+                        f"which extra regular-term seats only partly relieve.")
     quality = data_quality(config, curriculum)
     if quality["illustrative"]:
         warnings.append("Most inputs are still estimates, so treat this result as illustrative.")
@@ -903,7 +921,6 @@ def run_intake_sweep(
         "label": (config.get("planning") or {}).get("next_intake_label"),
         "policy": dataclasses.asdict(policy),
         "params": params,
-        "section_size": section,
         "reference": reference,
         "history": [{"size": s, "source": src} for s, src in incumbents],
         "views": {
@@ -978,20 +995,24 @@ def run_seat_plan(
     progress: ProgressFn | None = None,
     cancel: CancelFn | None = None,
 ) -> dict:
-    """Sections each course needs so the policy limits hold at ``target_intake``.
+    """Seats each course needs so the policy limits hold at ``target_intake``.
+
+    Answers in seats, rounded up to ``seat_step`` (default 5), not whole sections: sections vary
+    in size, and a course can grow by widening its sections as well as by opening one.
 
     1. Size from demand: run the target with unlimited regular-term seats and take each course's
-       90th-percentile regular-term registrations plus other-program seats, rounded up to whole
-       sections (never below today's seats). Sizing from congested shortfalls instead misses
-       demand an upstream denial hides downstream.
-    2. Verify on both views with real seats; while a limit still fails, add one section to the
-       course denying the most students and re-check, up to ``run_budget`` rounds.
+       90th-percentile regular-term registrations plus other-program seats, rounded up to the
+       step (never below today's seats). Sizing from congested shortfalls instead misses demand
+       an upstream denial hides downstream.
+    2. Verify on both views with real seats; while a limit still fails, give the course denying
+       the most students its observed shortfall (90th percentile across seeds of its worst
+       regular term, rounded up to the step) and re-check, up to ``run_budget`` rounds.
     Seats change with ``dataclasses.replace`` (exact integers — no multiplier rounding).
     """
     started = time.time()
     params = analysis_params(config, params_override)
     policy = policy or policy_from_config(config)
-    section = section_size(config)
+    step = seat_step(config)
     target = int(target_intake)
     seeds = spaced_seeds(params["base_seed"], int(params["seeds"]))
     demand_seeds = seeds[:10]
@@ -1007,7 +1028,11 @@ def run_seat_plan(
             rows: dict[int, list[dict]] = {}
             _sweep(runner, views, view, [target], seeds, rows, cur)
             point = _points(rows, other_intake)[0]
-            out[view] = {"point": point, "checks": _single_point_check(point, reference, policy)}
+            peaks = [r["peak_denied"] for r in rows[target]]
+            shortfall = {code: _percentile([p.get(code, 0) for p in peaks], 0.9)
+                         for code in {c for p in peaks for c in p}}
+            out[view] = {"point": point, "checks": _single_point_check(point, reference, policy),
+                         "shortfall": shortfall}
         return out
 
     def all_met(ev: dict) -> bool:
@@ -1031,7 +1056,7 @@ def run_seat_plan(
         planned = dict(curriculum)
         for code, course in curriculum.items():
             need = _percentile(demand.get(code, []), 0.9) + int(occupancy.get(code, 0))
-            seats = int(math.ceil(need / section) * section) if need > 0 else 0
+            seats = _round_up(need, step) if need > 0 else 0
             if seats > course.capacity:
                 planned[code] = dataclasses.replace(course, capacity=seats)
 
@@ -1053,8 +1078,9 @@ def run_seat_plan(
                 trace.append({"round": rounds, "action": "no course is short of seats; the limit isn't seat-driven"})
                 break
             code = top[0]["code"]
-            planned[code] = dataclasses.replace(planned[code], capacity=planned[code].capacity + section)
-            trace.append({"round": rounds, "action": "add section", "course": code,
+            add = _round_up(max(after[failing]["shortfall"].get(code, 0), 1), step)
+            planned[code] = dataclasses.replace(planned[code], capacity=planned[code].capacity + add)
+            trace.append({"round": rounds, "action": "add seats", "course": code, "seats": add,
                           "to": planned[code].capacity})
         runner.progress(1.0, "Done")
         runs = runner.runs
@@ -1063,11 +1089,9 @@ def run_seat_plan(
     for code, course in curriculum.items():
         new = planned[code].capacity
         if new != course.capacity:
-            added = new - course.capacity
             changes.append({"code": code, "title": course.title, "current": course.capacity,
-                            "recommended": new, "seats_added": added,
-                            "sections_added": math.ceil(added / section)})
-    changes.sort(key=lambda c: -c["seats_added"])
+                            "recommended": new, "seats_added": new - course.capacity})
+    changes.sort(key=lambda c: (-c["seats_added"], c["code"]))
 
     def strip(ev: dict) -> dict:
         return {v: {"grad_rate": ev[v]["point"]["grad_rate"], "on_time_rate": ev[v]["point"]["on_time_rate"],
@@ -1078,17 +1102,17 @@ def run_seat_plan(
     return {
         "analysis_version": ANALYSIS_VERSION,
         "target_intake": target,
-        "section_size": section,
+        "seat_step": step,
         "feasible": all_met(after),
         "changes": changes,
         "total_seats_added": sum(c["seats_added"] for c in changes),
-        "total_sections_added": sum(c["sections_added"] for c in changes),
         "before": strip(before),
         "after": strip(after),
         "reference": reference,
         "trace": trace,
         "runs": runs,
         "elapsed_s": round(time.time() - started, 1),
-        "note": ("Seats sized from demand at the target intake, then checked against the policy limits "
-                 "with real seats. Sections and seats change every semester; re-run when the schedule changes."),
+        "note": (f"Seats sized from demand at the target intake (rounded up to {step}), then checked against "
+                 "the policy limits with real seats. A course can grow by widening its sections or opening "
+                 "a new one. Sections and seats change every semester; re-run when the schedule changes."),
     }

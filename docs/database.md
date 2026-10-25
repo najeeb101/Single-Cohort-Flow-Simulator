@@ -66,7 +66,7 @@ Mirrors `src/models/course.py::Course` field-for-field. `code` is unique **only 
 ### `app_config`
 One row per plan, holding the full `simulation_config.json` shape (cohort size, seed, dropout
 knobs, `initial_state`, `scenarios`, and the Intake Planner keys `intake_policy`, `intake_analysis`,
-`section_size`, `planning`, `current_students.past_intakes`, `historical_outcomes`, `data_sources`,
+`seat_step`, `planning`, `current_students.past_intakes`, `historical_outcomes`, `data_sources`,
 etc.) as a single JSON blob — there's no per-key column
 because the config shape is meant to evolve without a migration each time a new knob is added.
 
@@ -166,8 +166,8 @@ courses never rewrites history.
 `src/api.py` runs these once at import, after `init_db()` and `get_or_create_default_plan()`:
 
 - **`migrate_plan_configs(session)`**: passes every stored `AppConfig.data` through
-  `normalize_config()`, which drops the retired `admission_targets` and fills any missing Intake
-  Planner key with its default (`planning`, `current_students`, `section_size`,
+  `normalize_config()`, which drops the retired `admission_targets` and `section_size` and fills any missing Intake
+  Planner key with its default (`planning`, `current_students`, `seat_step`,
   `historical_outcomes`, `data_sources`, `intake_policy`). It does **not** convert the old 0.70
   graduation target into `intake_policy.min_grad_rate` (that floor would fail every intake on the
   default plan). Idempotent. It assigns a fresh dict because JSON columns do not track in-place

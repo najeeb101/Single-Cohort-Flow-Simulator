@@ -55,7 +55,7 @@ Returns everything the dashboard needs before running a simulation, resolved fro
   "enrollment_priority_tiers": [...],
   "intake_policy": {"max_grad_rate_loss_pts": 2.0, "max_on_time_loss_pts": 10.0, "min_grad_rate": null},
   "intake_analysis": {"grid_min": 20, "grid_max": 200, "grid_step": 10, "seeds": 20, ...},  // sweep knobs, merged with defaults
-  "section_size": 35,
+  "seat_step": 5,
   "planning": {"next_intake_label": "Fall 2027 intake", "data_as_of": "..."},
   "current_students": {"past_intakes": [{"label": "Fall 2026", "size": 100}, ...]},  // most recent first
   "historical_outcomes": {"grad_rate_6yr": null, "on_time_rate_4yr": null, "n_students": null, "current_headcount": null},
@@ -159,7 +159,7 @@ Response (summary row, no `result` yet):
   "created_at": "...", "started_at": null, "finished_at": null,
   "summary": {                       // intake_sweep: recommended_intake, sustainable_intake, upper_limit,
     "recommended_intake": null,      //   feasible, binding_limit, illustrative
-    ...                              // seat_plan: target_intake, feasible, total_seats_added, total_sections_added
+    ...                              // seat_plan: target_intake, feasible, total_seats_added
   }
 }
 ```
@@ -180,7 +180,7 @@ The summary row plus `result` and `inputs_snapshot` (`{curriculum, config}` exac
 
 ```jsonc
 {
-  "analysis_version": 1, "label": "...", "policy": {...}, "params": {...}, "section_size": 35,
+  "analysis_version": 2, "label": "...", "policy": {...}, "params": {...},
   "reference": {"grad_rate", "on_time_rate", "se_grad", "se_on_time", "n_students", "runs", "denials": 0, ...},
   "history": [{"size": 100, "source": "entered"}, {"size": 100, "source": "padded"}],
   "views": {
@@ -190,7 +190,7 @@ The summary row plus `result` and `inputs_snapshot` (`{curriculum, config}` exac
   "recommendation": {
     "recommended_intake": 40, "sustainable_intake": 70, "upper_limit": 90, "feasible": true,
     "binding_limit": "on_time_loss", "binding_course": "CSEL2", "first_failing_intake": 50,
-    "why": "...", "robustness": {"range": [lo, hi], "fewer_sections": ..., "lower_pass_rates": ..., "window": [...]},
+    "why": "...", "robustness": {"range": [lo, hi], "fewer_seats": ..., "lower_pass_rates": ..., "window": [...]},
     "warnings": ["..."]
   },
   "calibration": {"usual_intake": 100, "checks": [{"label", "actual", "simulated", "gap", "allowed_gap", "flag"}], "note": "..."},
@@ -209,9 +209,9 @@ monotone-smoothed value and `_upper` the one-sided 95% bound), and, on the `next
 `status` (`ok|imprecise|infeasible`) and `precision_warning`. When no intake satisfies a limit,
 `recommended_intake` is `null` and `feasible` is `false`.
 
-`result` for `seat_plan`: `target_intake`, `section_size`, `feasible`, `changes`
-(`[{code, title, current, recommended, seats_added, sections_added}]`, largest first),
-`total_seats_added`, `total_sections_added`, `before`/`after` (per view: `grad_rate`, `on_time_rate`,
+`result` for `seat_plan`: `target_intake`, `seat_step` (suggestions round up to it), `feasible`, `changes`
+(`[{code, title, current, recommended, seats_added}]`, largest first),
+`total_seats_added`, `before`/`after` (per view: `grad_rate`, `on_time_rate`,
 `avg_time_to_degree`, `denials_per_student`, `checks`), `reference`, `trace` (one entry per
 verification round that added a section), `runs`, `elapsed_s`, `note`. A seat plan is read-only:
 apply it with `PUT /curriculum/{code}` (plan) or `POST /checkpoint/edit` (walkthrough session).
@@ -267,8 +267,9 @@ Validated fields: `registration_tier_thresholds` (must be a 5-int list), `option
 Planner keys `intake_policy` (loss limits in `(0, 50]` / `(0, 100]` points, `min_grad_rate` null or
 0..1), `intake_analysis` (sweep knobs within bounds, at most 60 grid points, `refine_seeds >= seeds`),
 `current_students` (`past_intakes`: at most 30 entries, `size` 0..2000), `historical_outcomes`
-(rates null or 0..1, counts non-negative) and `section_size` (1..500). **`admission_targets` is
-retired: a patch containing it returns `422`** ("set intake_policy instead"). Also runs the same
+(rates null or 0..1, counts non-negative) and `seat_step` (1..100). **`admission_targets` and `section_size` are
+retired: a patch containing either returns `422`** ("set intake_policy instead"; sections vary
+in size, so seat suggestions round to `seat_step`). Also runs the same
 cross-object guardrails as `PUT /curriculum` against the resulting (config, curriculum) pair:
 `cohort_size >= 1` and `initial_state.occupancy[code] <= capacity` for every course. `422` on any
 violation, nothing committed on failure. Everything else is stored as-is with no further

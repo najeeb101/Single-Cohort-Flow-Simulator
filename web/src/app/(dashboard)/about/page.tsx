@@ -39,8 +39,8 @@ const SECTIONS: { title: string; body: string[] }[] = [
     title: "What the recommendation card means",
     body: [
       "Recommended next intake: the largest intake that keeps every limit, given today's students. If none does, the card says so and names the course that runs out of seats, rather than inventing a number.",
-      "Sustainable every year: the intake the department could admit year after year. Upper limit: beyond it each extra student adds almost no graduates, because the seats are full. The range shows how the answer moves if three tight courses lose a section or pass rates are 5 pts lower.",
-      "The seat planner answers the other half of the question: how many whole sections each course would need for a larger intake, checked against the same limits.",
+      "Sustainable every year: the intake the department could admit year after year. Upper limit: beyond it each extra student adds almost no graduates, because the seats are full. The range shows how the answer moves if the three tightest courses lose 10% of their seats or pass rates are 5 pts lower.",
+      "The seat planner answers the other half of the question: how many seats each course would need for a larger intake, checked against the same limits. It suggests seats, not sections, because sections vary in size and a course can grow by widening the sections it has.",
     ],
   },
   {

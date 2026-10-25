@@ -40,11 +40,11 @@ Open the **Data** page. It has tabs:
 
 | Tab | What to enter |
 |---|---|
-| Courses & seats | For each course, the total seats per regular semester (all sections together). The page shows how many sections of the section size (default 35, set on Policy & analysis) that is. |
+| Courses & seats | For each course, the total seats per regular semester: all its sections together, whatever their sizes (for example one section of 20 plus one of 40 is 60 seats). |
 | Pass rates | The share of students who pass each course on an attempt. |
 | Current students | The past intakes, most recent first. |
 | Other-program seats | Seats per course used by other programs. |
-| Policy & analysis | The policy limits, the planning label (for example "Fall 2027 intake"), historical outcomes and enrolled headcount (optional, used for the calibration check), and analysis settings. |
+| Policy & analysis | The policy limits, the planning label (for example "Fall 2027 intake"), how seat suggestions are rounded (default: up to 5 seats), historical outcomes and enrolled headcount (optional, used for the calibration check), and analysis settings. |
 | Advanced | Dropout and registration rules, the baseline run's cohort settings, and the course structure. Leave these alone unless you know why you are changing them. |
 
 **Importing from CSV or Excel.** Each tab has an import button. Use a file with a code column
@@ -91,8 +91,8 @@ run is marked as interrupted and you simply run it again.
 - **Upper limit.** Beyond this number each extra student adds fewer than a quarter of a
   graduate per year, so more admits mostly add delay.
 - **Why.** One sentence naming the first limit to break and the course that runs out of seats.
-- **Range.** The recommendation re-checked with one fewer section in the tightest courses and
-  with pass rates 5 points lower, for example "72 to 80". A wide range means the answer is
+- **Range.** The recommendation re-checked with 10% fewer seats in the three tightest courses
+  and with pass rates 5 points lower, for example "72 to 80". A wide range means the answer is
   sensitive to the inputs.
 - **Warnings.** For example "some estimates are imprecise" (run again with more seeds) or "most
   inputs are estimates" (the **illustrative** badge).
@@ -120,8 +120,10 @@ Use it when you want to know what it would take to admit more than the card reco
 
 1. Type the target intake, for example 120, and press the plan button.
 2. Wait for the result (faster than a full analysis).
-3. Read the list, for example "CMPS303: +1 section (+35 seats)", together with predicted
-   graduation and on-time rates before and after, and whether your policy limits are then met.
+3. Read the list, for example "CMPS303: 105 seats now, 120 needed, +15", together with
+   predicted graduation and on-time rates before and after, and whether your policy limits are
+   then met. Suggestions are in seats, rounded up to 5 (you can change this on the Data page).
+   The department decides how to provide them: widen existing sections or open a new one.
 4. If you agree, press **Apply to plan**. The seats on the Data page are updated.
 5. Run the analysis again. The recommended intake should now be higher.
 
@@ -132,7 +134,7 @@ reachable; consider a lower target or relaxing a limit.
 
 ## 7. Other pages
 
-- **Bottlenecks**: which courses limit the intake, and how many sections they need.
+- **Bottlenecks**: which courses limit the intake, and how many extra seats they need.
 - **Walkthrough**: advance the department one semester at a time, changing seats, pass rates
   or the next intake between steps. Good for exploring "what if" ideas.
 - **Advisor**: see section 10.
@@ -175,7 +177,7 @@ Ollama is not running, the page says how to enable it; the rule-based advice sti
 Good questions: "Why 80?", "What would it take to admit 120?", "Which course is the problem?".
 
 **The AI explains; it never decides.** The intake number always comes from the simulation. The
-Advisor can suggest a change to test (for example one more section in a course). You can press
+Advisor can suggest a change to test (for example 15 more seats in a course). You can press
 **Test** to see the predicted effect without changing anything, and **Apply** only after you
 confirm. Under the chat box the site shows which model answered. Smaller local models can word
 things badly, so check any figure against the recommendation card.

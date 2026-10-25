@@ -77,7 +77,7 @@ def init_db() -> None:
 _PLANNER_DEFAULTS: dict = {
     "planning": {"next_intake_label": "Next intake", "data_as_of": None},
     "current_students": {"past_intakes": []},
-    "section_size": 35,
+    "seat_step": 5,
     "historical_outcomes": {"grad_rate_6yr": None, "on_time_rate_4yr": None,
                             "n_students": None, "current_headcount": None},
     "data_sources": {"capacity": {}, "pass_rate": {}, "past_intakes": "estimate", "occupancy": "estimate"},
@@ -91,10 +91,12 @@ def normalize_config(config: dict) -> dict:
     Drops `admission_targets` (the retired one-run admissions heuristic). Its old 0.70
     graduation target is deliberately NOT carried over as `intake_policy.min_grad_rate`: the
     default plan graduates ~66%, so that floor would fail every intake and hide the real answer.
-    Missing planner keys get their defaults. Idempotent.
+    Drops `section_size` too: seat suggestions are now in seats rounded to `seat_step`, since
+    real sections vary in size. Missing planner keys get their defaults. Idempotent.
     """
     out = copy.deepcopy(config)
     out.pop("admission_targets", None)
+    out.pop("section_size", None)
     for key, default in _PLANNER_DEFAULTS.items():
         if key not in out:
             out[key] = copy.deepcopy(default)

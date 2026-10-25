@@ -88,7 +88,7 @@ where scarcity only redistributes), not on the critical path.
 > single courses of 35 to 70 seats because of that squeeze. Real QU elective capacity is the sum
 > of all elective sections, so the default seats make electives look more crowded than they are
 > (in the default-data example CSEL2 is the first course to run out of seats). Replace them with
-> real figures. On the website, seats are entered as sections times `section_size` (default 35).
+> real figures. On the website, seats are entered as each course's total across all its sections.
 
 The residual bottleneck is now **timing, not seats**: with the required sequence seated to peak,
 what still binds is the once-a-year scheduling of the single-term upper cluster (CMPE355,
@@ -226,8 +226,8 @@ editable per plan (`intake_policy`, `intake_analysis`) or per run.
 | **Replications use spaced seeds** | `base + k x 10,000,019` | Consecutive seeds replay about 99% of the same students |
 | **Confidence** | One-sided 95% upper bound on the monotone-smoothed loss | Avoids recommending an intake on a lucky estimate |
 | **Diminishing returns** | An extra admitted student that adds fewer than 0.25 graduates per year marks the upper limit | Graduates per year often plateau rather than peak |
-| **Section size** | 35 seats (`section_size`) converts seats to sections | Typical QU lecture section; editable |
-| **Seat sizing from demand** | 90th percentile of regular-term registrations plus other-program seats, rounded up to whole sections, then verified | Greedy sizing from real-seat shortfalls misses demand an upstream denial hides |
+| **Seat step** | Seat suggestions round up to 5 seats (`seat_step`) | Sections vary in size and can be widened, so suggestions are seats, not sections; editable |
+| **Seat sizing from demand** | 90th percentile of regular-term registrations plus other-program seats, rounded up to the seat step, then verified | Greedy sizing from real-seat shortfalls misses demand an upstream denial hides |
 | **Robustness perturbations** | One fewer section (35 seats) in each of the 3 tightest courses; every pass rate 5 points lower | A coarse sensitivity range, not a full uncertainty analysis |
 | **Summer** | Optional term; seats are 30% of regular capacity (`optional_term_capacity_scale`) for courses whose offering includes Summer; a Summer course does not cost a mandatory semester | Matches how QU offers high-demand service courses; real Summer schedules vary |
 | **Calibration tolerance** | A simulated outcome is flagged only if its gap exceeds `2 x sqrt(p(1-p)/n_hist + SE^2)`; enrolled headcount within 10% | One historical cohort of 100 is itself noisy (about +/- 4.7 points) |

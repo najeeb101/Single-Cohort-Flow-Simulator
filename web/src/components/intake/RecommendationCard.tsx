@@ -59,13 +59,13 @@ export default function RecommendationCard({ result }: { result: IntakeSweepResu
       {n == null && (
         <p className="mt-2 max-w-3xl text-sm text-muted">
           {rec.binding_course ? `The tightest course is ${rec.binding_course}. ` : ""}
-          The seat planner below shows how many sections would make room, or you can relax the limits if the department
+          The seat planner below shows how many seats would make room, or you can relax the limits if the department
           accepts more delay.
         </p>
       )}
       {range && range[0] !== range[1] && (
         <p className="mt-2 max-w-3xl text-sm text-muted">
-          The range shows where the answer moves if the three tightest courses lose a section or pass rates are 5 pts lower.
+          The range shows where the answer moves if the three tightest courses lose 10% of their seats or pass rates are 5 pts lower.
         </p>
       )}
 

@@ -35,7 +35,8 @@ function OutcomeRow({ label, before, after }: { label: string; before: SeatPlanO
   );
 }
 
-// "What would it take to admit N?": sections to add per course, sized from demand and checked
+// "What would it take to admit N?": seats to add per course (rounded up to meta.seat_step, not
+// whole sections: sections vary in size and can be widened), sized from demand and checked
 // against the policy limits. Read-only until Apply, which writes capacities through PUT
 // /curriculum (or, during a walkthrough, POST /checkpoint/edit so it applies from the next step).
 export default function SeatPlanner({ defaultTarget }: { defaultTarget?: number }) {
@@ -69,7 +70,7 @@ export default function SeatPlanner({ defaultTarget }: { defaultTarget?: number 
     if (!plan) return;
     const msg = checkpoint
       ? "Stage these seats in the walkthrough? They take effect from the next step."
-      : `Add ${plan.total_sections_added} sections to your live plan? This changes the seats every analysis uses.`;
+      : `Add ${plan.total_seats_added.toLocaleString()} seats across ${plan.changes.length} course${plan.changes.length === 1 ? "" : "s"} to your live plan? This changes the seats every analysis uses.`;
     if (!window.confirm(msg)) return;
     setApplying(true);
     setError(null);
@@ -96,8 +97,9 @@ export default function SeatPlanner({ defaultTarget }: { defaultTarget?: number 
     <section className="rounded-xl border border-border bg-surface p-6">
       <p className="mb-4 max-w-3xl text-sm text-muted">
         What would it take to admit more?
-        Enter the intake you would like. The planner works out how many sections each course would need, checks the result
-        against your limits, and shows the outcomes before and after. Seats come in whole sections of {meta.section_size}.
+        Enter the intake you would like. The planner works out how many seats each course would need, checks the result
+        against your limits, and shows the outcomes before and after. Suggestions are in seats, rounded up to{" "}
+        {meta.seat_step}: a course can grow by widening its sections or by opening a new one.
         {checkpoint && " It uses your walkthrough's current settings, and Apply takes effect on the walkthrough's next step."}
       </p>
 
@@ -139,8 +141,8 @@ export default function SeatPlanner({ defaultTarget }: { defaultTarget?: number 
               {plan.changes.length === 0
                 ? `Today's seats already carry an intake of ${plan.target_intake}`
                 : plan.feasible
-                ? `Admitting ${plan.target_intake} needs ${plan.total_sections_added} more sections (${plan.total_seats_added.toLocaleString()} seats)`
-                : `Even with ${plan.total_sections_added} more sections, ${plan.target_intake} still breaks a limit`}
+                ? `Admitting ${plan.target_intake} needs ${plan.total_seats_added.toLocaleString()} more seats across ${plan.changes.length} course${plan.changes.length === 1 ? "" : "s"}`
+                : `Even with ${plan.total_seats_added.toLocaleString()} more seats, ${plan.target_intake} still breaks a limit`}
             </div>
             <p className="mt-1 text-sm text-muted">
               {plan.feasible
@@ -154,7 +156,7 @@ export default function SeatPlanner({ defaultTarget }: { defaultTarget?: number 
               <table className="w-full border-collapse text-sm">
                 <thead>
                   <tr>
-                    {["Course", "Seats now", "Seats needed", "Sections to add"].map((h) => (
+                    {["Course", "Seats now", "Seats needed", "Seats to add"].map((h) => (
                       <th key={h} className="whitespace-nowrap border-b border-border px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-muted">
                         {h}
                       </th>
@@ -163,7 +165,7 @@ export default function SeatPlanner({ defaultTarget }: { defaultTarget?: number 
                 </thead>
                 <tbody>
                   {[...plan.changes]
-                    .sort((a, b) => b.sections_added - a.sections_added || a.code.localeCompare(b.code))
+                    .sort((a, b) => b.seats_added - a.seats_added || a.code.localeCompare(b.code))
                     .slice(0, showAll ? undefined : 8)
                     .map((c) => (
                     <tr key={c.code} className="border-b border-border last:border-0">
@@ -172,9 +174,7 @@ export default function SeatPlanner({ defaultTarget }: { defaultTarget?: number 
                       </td>
                       <td className="px-3 py-2 tabular-nums text-muted">{c.current}</td>
                       <td className="px-3 py-2 font-semibold tabular-nums">{c.recommended}</td>
-                      <td className="px-3 py-2 tabular-nums">
-                        +{c.sections_added} <span className="text-xs text-muted">(+{c.seats_added} seats)</span>
-                      </td>
+                      <td className="px-3 py-2 font-semibold tabular-nums">+{c.seats_added}</td>
                     </tr>
                   ))}
                 </tbody>

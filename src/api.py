@@ -399,7 +399,7 @@ def meta(db: Session = Depends(get_db)) -> dict:
         # today's student body + labels how much of it is real QU data vs estimates.
         "intake_policy": {**DEFAULT_POLICY, **(config.get("intake_policy") or {})},
         "intake_analysis": {k: v for k, v in analysis_params(config).items() if k in DEFAULT_ANALYSIS},
-        "section_size": config.get("section_size", 35),
+        "seat_step": config.get("seat_step", 5),
         "planning": config.get("planning") or {},
         "current_students": config.get("current_students") or {"past_intakes": []},
         "historical_outcomes": config.get("historical_outcomes") or {},
@@ -566,7 +566,7 @@ def _analysis_to_dict(row: AnalysisRow, *, full: bool) -> dict:
         out["summary"]["illustrative"] = (result.get("data_quality") or {}).get("illustrative")
     else:
         out["summary"] = {k: result.get(k) for k in (
-            "target_intake", "feasible", "total_seats_added", "total_sections_added")}
+            "target_intake", "feasible", "total_seats_added")}
     if full:
         out["result"] = row.result
         out["inputs_snapshot"] = row.inputs_snapshot
@@ -823,6 +823,9 @@ def update_config(
 
     if "admission_targets" in patch:
         raise HTTPException(status_code=422, detail="admission_targets was retired; set intake_policy instead")
+    if "section_size" in patch:
+        raise HTTPException(status_code=422, detail="section_size was retired (sections vary in size); "
+                                                    "seat suggestions round to seat_step instead")
 
     plan_id = resolve_active_plan_id(db, get_current_user(db))
     row = db.query(AppConfigRow).filter_by(plan_id=plan_id).first()

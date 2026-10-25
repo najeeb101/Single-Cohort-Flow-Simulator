@@ -28,7 +28,7 @@ its pass rate, and compete with the students already enrolled and with other pro
 The analysis runs this for many intake sizes and many random replications, compares each against
 a no-seat-shortage reference, and finds the largest intake whose *seat-shortage harm* stays
 within limits the department sets. A second tool, the seat planner, answers the follow-up "what
-would it take to admit more?" in whole sections.
+would it take to admit more?" in seats per course.
 
 The tool is deliberately **not** a prediction for any named, real student, and it does not use
 real student records (none are loaded yet). It is a structural model: given the curriculum's

@@ -118,7 +118,7 @@
       "D": 0.03
     }
   },
-  "_planning_note": "The Intake Planner (src/intake.py). planning labels the decision being made and how current the data is. current_students.past_intakes (most recent first) rebuilds today's student body the next intake walks into; older years are padded with estimates up to intake_analysis.min_history_years. section_size converts seat plans into whole sections. data_sources tags each input 'qu' (QU data) or 'estimate' so every result says how much it rests on estimates. historical_outcomes (optional, 0..1 rates) powers the calibration check.",
+  "_planning_note": "The Intake Planner (src/intake.py). planning labels the decision being made and how current the data is. current_students.past_intakes (most recent first) rebuilds today's student body the next intake walks into; older years are padded with estimates up to intake_analysis.min_history_years. seat_step rounds seat suggestions up (seats, not sections: sections vary in size and a course can grow by widening them). data_sources tags each input 'qu' (QU data) or 'estimate' so every result says how much it rests on estimates. historical_outcomes (optional, 0..1 rates) powers the calibration check.",
   "planning": {
     "next_intake_label": "Fall 2027 intake",
     "data_as_of": "Default estimates (not yet QU data)"
@@ -132,7 +132,7 @@
       {"label": "Fall 2022", "size": 100}
     ]
   },
-  "section_size": 35,
+  "seat_step": 5,
   "historical_outcomes": {
     "grad_rate_6yr": null,
     "on_time_rate_4yr": null,

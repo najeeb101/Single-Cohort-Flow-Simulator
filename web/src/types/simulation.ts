@@ -217,7 +217,8 @@ export interface MetaResponse {
   // Intake Planner inputs (src/intake.py). See IntakePolicy etc. below.
   intake_policy: IntakePolicy;
   intake_analysis: IntakeAnalysisParams;
-  section_size: number;
+  // Seat suggestions round up to this many seats (sections vary in size, so none is assumed).
+  seat_step: number;
   planning: Planning;
   current_students: CurrentStudents;
   historical_outcomes: HistoricalOutcomes;
@@ -500,7 +501,7 @@ export interface IntakeView {
 
 export interface Robustness {
   range: [number, number];
-  fewer_sections: number | null;
+  fewer_seats?: number | null;
   lower_pass_rates: number | null;
   tight_courses?: string[];
 }
@@ -548,7 +549,6 @@ export interface DataQuality {
 export interface IntakeSweepResult {
   label: string | null;
   policy: IntakePolicy;
-  section_size: number;
   reference: IntakeReference;
   history: { size: number; source: "entered" | "padded" }[];
   views: { next: IntakeView; steady: IntakeView };
@@ -565,7 +565,6 @@ export interface SeatPlanChange {
   current: number;
   recommended: number;
   seats_added: number;
-  sections_added: number;
 }
 
 export interface SeatPlanOutcome {
@@ -578,11 +577,10 @@ export interface SeatPlanOutcome {
 
 export interface SeatPlanResult {
   target_intake: number;
-  section_size: number;
+  seat_step?: number; // absent on seat plans saved before suggestions moved from sections to seats
   feasible: boolean;
   changes: SeatPlanChange[];
   total_seats_added: number;
-  total_sections_added: number;
   before: { next: SeatPlanOutcome; steady: SeatPlanOutcome };
   after: { next: SeatPlanOutcome; steady: SeatPlanOutcome };
   reference: IntakeReference;
@@ -604,7 +602,6 @@ export interface AnalysisSummary {
   illustrative?: boolean | null;
   target_intake?: number | null;
   total_seats_added?: number | null;
-  total_sections_added?: number | null;
 }
 
 export interface AnalysisRecord {

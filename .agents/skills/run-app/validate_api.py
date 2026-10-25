@@ -59,11 +59,14 @@ check("reference has no denials", (sweep.get("result") or {}).get("reference", {
 r = client.post("/intake-analyses", json={"kind": "seat_plan", "target_intake": 120, "run_budget": 1, "params": TINY})
 plan = client.get(f"/intake-analyses/{r.json()['id']}").json()
 check("seat plan finished", plan["status"] == "done", plan.get("error") or "")
-section = meta.get("section_size", 35)
+step = meta.get("seat_step", 5)
 for ch in (plan.get("result") or {}).get("changes", []):
-    check(f"seat plan {ch['code']} adds whole sections", ch["seats_added"] > 0 and ch["seats_added"] % section == 0)
+    # Seats, not sections: the new count lands on the step, or a top-up added whole steps.
+    check(f"seat plan {ch['code']} adds seats in steps of {step}",
+          ch["seats_added"] > 0 and (ch["recommended"] % step == 0 or ch["seats_added"] % step == 0))
 check("seat plan without target -> 422", client.post("/intake-analyses", json={"kind": "seat_plan"}).status_code == 422)
 check("retired admission_targets -> 422", client.put("/config", json={"admission_targets": {}}).status_code == 422)
+check("retired section_size -> 422", client.put("/config", json={"section_size": 35}).status_code == 422)
 
 # Initial-state persist + reject
 r = client.put("/config", json={"initial_state": {"occupancy": {"CMPS151": 5}}})

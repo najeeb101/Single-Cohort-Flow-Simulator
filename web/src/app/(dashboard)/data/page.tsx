@@ -50,7 +50,7 @@ interface Draft {
   sources: DataSources;
   policy: IntakePolicy;
   analysis: Pick<IntakeAnalysisParams, "grid_min" | "grid_max" | "grid_step" | "seeds">;
-  sectionSize: number;
+  seatStep: number;
   planning: Planning;
   outcomes: HistoricalOutcomes;
 }
@@ -70,7 +70,7 @@ function draftFrom(courses: CourseRecord[], meta: ReturnType<typeof useSimulatio
     },
     policy: { ...meta.intake_policy },
     analysis: { grid_min: a.grid_min, grid_max: a.grid_max, grid_step: a.grid_step, seeds: a.seeds },
-    sectionSize: meta.section_size,
+    seatStep: meta.seat_step,
     planning: { ...(meta.planning ?? {}) },
     outcomes: { ...(meta.historical_outcomes ?? {}) },
   };
@@ -204,7 +204,7 @@ function DataEditor({
     if (!same(draft.sources, base.sources)) patch.data_sources = draft.sources;
     if (!same(draft.policy, base.policy)) patch.intake_policy = draft.policy;
     if (!same(draft.analysis, base.analysis)) patch.intake_analysis = { ...meta.intake_analysis, ...draft.analysis };
-    if (draft.sectionSize !== base.sectionSize) patch.section_size = draft.sectionSize;
+    if (draft.seatStep !== base.seatStep) patch.seat_step = draft.seatStep;
     if (!same(draft.planning, base.planning)) patch.planning = draft.planning;
     if (!same(draft.outcomes, base.outcomes)) patch.historical_outcomes = draft.outcomes;
     // Advanced: simulation settings (cohort layout, dropout, registration), same keys as before.
@@ -238,14 +238,12 @@ function DataEditor({
     }
   };
 
-  const section = draft.sectionSize || 35;
-
   return (
     <div className="flex flex-col gap-4 py-5">
       {tab === "seats" && (
         <CourseValuesTable
           title="Seats per course"
-          hint={`Seats offered in each course every regular term (all sections together). Sections hold ${section} seats; set the size on the Policy & analysis tab. For an elective slot, enter the total seats across every elective that can fill it.`}
+          hint="Seats offered in each course every regular term: all its sections together, whatever their sizes. For an elective slot, enter the total seats across every elective that can fill it."
           courses={courses}
           values={draft.capacity}
           baseline={base.capacity}
@@ -259,7 +257,6 @@ function DataEditor({
           step={1}
           min={1}
           max={2000}
-          extra={(_code, v) => `${(v / section).toFixed(1).replace(/\.0$/, "")} sections of ${section}`}
           importHelp="Two columns: a course code and its total seats per regular term (all sections)."
           sampleValue="105"
           parseCell={nonNegativeInt}
@@ -324,8 +321,8 @@ function DataEditor({
               <FieldRow label="Data as of" dirty={draft.planning.data_as_of !== base.planning.data_as_of}>
                 <TextBox value={draft.planning.data_as_of ?? ""} placeholder="Spring 2027 schedule" onChange={(v) => set("planning", { ...draft.planning, data_as_of: v })} />
               </FieldRow>
-              <FieldRow label="Seats per section" dirty={draft.sectionSize !== base.sectionSize}>
-                <NumberBox value={draft.sectionSize} min={1} max={500} step={1} onChange={(v) => set("sectionSize", Math.max(1, Math.round(v)))} />
+              <FieldRow label="Round seat suggestions up to (seats)" dirty={draft.seatStep !== base.seatStep}>
+                <NumberBox value={draft.seatStep} min={1} max={100} step={1} onChange={(v) => set("seatStep", Math.min(100, Math.max(1, Math.round(v))))} />
               </FieldRow>
             </div>
           </SectionCard>

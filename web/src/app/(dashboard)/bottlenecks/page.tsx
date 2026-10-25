@@ -30,7 +30,7 @@ export default function BottlenecksPage() {
         <h1 className="text-[26px] font-semibold leading-tight tracking-[-0.02em] text-ink sm:text-[28px]">Bottlenecks</h1>
         <p className="mt-2 max-w-2xl text-[14px] leading-relaxed text-muted">
           Which courses limit how many students the department can admit: where students are turned away for lack of
-          seats, wait for a course that isn&apos;t offered, or fail. The seat planner below works out the sections a
+          seats, wait for a course that isn&apos;t offered, or fail. The seat planner below works out the seats a
           larger intake would need.
         </p>
       </header>
@@ -42,8 +42,8 @@ export default function BottlenecksPage() {
         </p>
       )}
       <BottlenecksPanel bottlenecks={summary.top_bottlenecks} frames={frames} />
-      <CapacityRecommendations frames={frames} meta={capacityMeta} sectionSize={meta.section_size} />
-      <Section title="Seat planner" meta={`Whole sections of ${meta.section_size} seats`} className="pb-6">
+      <CapacityRecommendations frames={frames} meta={capacityMeta} seatStep={meta.seat_step} />
+      <Section title="Seat planner" meta={`Seats, rounded up to ${meta.seat_step}`} className="pb-6">
         <SeatPlanner />
       </Section>
     </main>
