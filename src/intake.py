@@ -339,11 +339,55 @@ def _summarize_point(n: int, rows: list[dict], other_intake: int) -> dict:
             {"code": code, "denials_per_student": k / measured_students} for code, k in top if k > 0
         ],
     }
+    # Per-seed rates, in seed order (every N runs the same seed list), so _block_se_df can
+    # measure how neighbouring points co-vary. Internal: stripped before results are stored.
+    if len(grad) == len(rows):
+        point["_per_seed"] = {"grad_rate": grad, "on_time_rate": on_time}
     if rows and "current_n" in rows[0]:
         cur_n = sum(r["current_n"] for r in rows) or 1
         point["current_students_grad_rate"] = sum(r["current_graduated"] for r in rows) / cur_n
         point["headcount_at_start"] = statistics.fmean(r["headcount_at_start"] for r in rows)
     return point
+
+
+def _seed_correlation(p: dict, q: dict, key: str) -> float:
+    """Correlation of two points' per-seed rates over the seeds they share, clamped to [0, 1].
+    Without per-seed data (or too few seeds, or a constant series) it assumes 1, the cautious
+    choice."""
+    xs, ys = (p.get("_per_seed") or {}).get(key), (q.get("_per_seed") or {}).get(key)
+    if xs is None or ys is None:
+        return 1.0
+    m = min(len(xs), len(ys))
+    if m < 3:
+        return 1.0
+    try:
+        r = statistics.correlation(xs[:m], ys[:m])
+    except statistics.StatisticsError:
+        return 1.0
+    return min(1.0, max(0.0, r))
+
+
+def _block_se_df(idx: list[int], se: list[float], weights: list[float], points: list[dict],
+                 key: str) -> tuple[float, int]:
+    """Standard error and t degrees of freedom of one isotonic block's pooled (weighted) mean.
+
+    The points in a block are not independent estimates: every N reuses the same seeds, and in
+    the next-intake view the new cohort's first students keep the same ids (hence the same random
+    draws) at every N. Measured neighbour correlations are ~0.4-0.8 there and ~0-0.4 in the
+    steady view, so the covariance is estimated per pair from the shared seeds rather than
+    assumed: Cov(mean_i, mean_j) = rho_ij * se_i * se_j * shared / sqrt(m_i * m_j). The shared
+    seeds are counted once in the degrees of freedom. A single-point block is unchanged (its own
+    SE, seeds - 1)."""
+    total = sum(weights[i] for i in idx)
+    var = 0.0
+    for i in idx:
+        for j in idx:
+            m_i, m_j = points[i]["seeds"], points[j]["seeds"]
+            rho = 1.0 if i == j else _seed_correlation(points[i], points[j], key)
+            var += (weights[i] / total) * (weights[j] / total) * rho * max(se[i], 0.05) * max(se[j], 0.05) \
+                * min(m_i, m_j) / math.sqrt(m_i * m_j)
+    df = max(points[i]["seeds"] for i in idx) - 1
+    return math.sqrt(var), df
 
 
 def _apply_limits(points: list[dict], reference: dict, policy: IntakePolicy) -> list[dict]:
@@ -363,8 +407,7 @@ def _apply_limits(points: list[dict], reference: dict, policy: IntakePolicy) -> 
         fitted, groups = isotonic_increasing(loss, weights)
         upper = [0.0] * len(points)
         for idx in groups:
-            block_se = math.sqrt(1.0 / sum(weights[i] for i in idx))
-            df = sum(points[i]["seeds"] for i in idx) - len(idx)
+            block_se, df = _block_se_df(idx, se, weights, points, mean_key)
             margin = t_quantile(0.95, df) * math.sqrt(block_se**2 + (100 * ref_se) ** 2)
             for i in idx:
                 upper[i] = fitted[i] + margin
@@ -382,8 +425,7 @@ def _apply_limits(points: list[dict], reference: dict, policy: IntakePolicy) -> 
         weights = [1.0 / max(s, 0.05) ** 2 for s in se]
         fitted, groups = isotonic_increasing(short, weights)
         for idx in groups:
-            block_se = math.sqrt(1.0 / sum(weights[i] for i in idx))
-            df = sum(points[i]["seeds"] for i in idx) - len(idx)
+            block_se, df = _block_se_df(idx, se, weights, points, "grad_rate")
             margin = t_quantile(0.95, df) * block_se
             for i in idx:
                 points[i]["grad_rate_fit"] = 100 - fitted[i]
@@ -827,6 +869,8 @@ def run_intake_sweep(
                                      policy, reference, section, other_intake, robust_seeds)
         runner.progress(1.0, "Done")
         runs = runner.runs
+    for p in next_points + steady_points:
+        p.pop("_per_seed", None)
 
     warnings = []
     rec_n, sus_n = next_rec["recommended_intake"], steady_rec["recommended_intake"]

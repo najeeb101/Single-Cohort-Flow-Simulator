@@ -155,6 +155,24 @@ for that point, `SE_reference` is the reference's standard error, and `t` is a o
 Student-t quantile. A limit counts as met at N only if this **upper bound** is within the limit,
 so the tool does not recommend an intake on a lucky estimate.
 
+Merged intakes are **not independent estimates**. Every N reuses the same seed list, and in the
+"admit N next year" view the next intake's first students keep the same random draws at every
+N, so neighbouring points move together. On the default data the correlation between
+neighbouring points is 0.4 to 0.8 in that view and about 0 to 0.4 in the sustainable view (whose
+student ids shift with N). Pooling correlated points as if they were independent would shrink
+the margin by up to a third. So `SE_block` is computed from the measured covariance: each pair
+of merged points is correlated over the seeds they share (clamped to 0..1), and the weighted
+mean's variance is `Σ a_i a_j ρ_ij SE_i SE_j · shared / sqrt(m_i m_j)`, with weights `a`, seed
+counts `m`, and `ρ_ii = 1`. `df` counts the shared seeds once (the largest seed count in the
+block, minus 1). An intake that is not merged keeps its own standard error and `seeds − 1`.
+On the default data this widens the merged blocks' bounds by 0.2 to 0.5 points and changes no
+recommendation.
+
+The same correlation explains why noise at low intakes can look like a pattern rather than
+scatter. On the default data the sweep's 20-seed estimate at intake 20 showed graduation 2.5
+points *above* the unlimited-seat reference; with 1,200 seeds the gap is 0.3 points, i.e. none.
+Seat shortages at low intakes cost on-time graduation, not graduation.
+
 ---
 
 ## 5. The decision rule

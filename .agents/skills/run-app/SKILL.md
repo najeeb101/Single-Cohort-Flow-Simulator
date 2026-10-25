@@ -72,7 +72,7 @@ any failure. **Always open the screenshots and look** — a passing assertion on
 still a failed launch.
 
 ## Non-browser checks (faster, no servers needed)
-- `py -m pytest tests/ -v` — full suite (279 tests, ~4 min).
+- `py -m pytest tests/ -v` — full suite (~280 tests, 2-4 min).
 - `cd web && npx tsc --noEmit -p .` — typecheck the dashboard.
 - `validate_api.py` (in this skill dir) — in-process API smoke test against a throwaway DB
   (exercises `/meta`, `/simulate`, `/intake-analyses` (sweep + seat plan), `/config` + 422 validation). Run from the repo

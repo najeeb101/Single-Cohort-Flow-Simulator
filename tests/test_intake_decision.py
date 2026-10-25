@@ -4,6 +4,9 @@ recommendation, and the diminishing-returns upper limit.
 """
 from __future__ import annotations
 
+import math
+import statistics
+
 import pytest
 
 from src.intake import (
@@ -33,6 +36,50 @@ def test_isotonic_pools_violations():
     assert groups == [[0], [1, 2], [3]]
     fitted, _ = isotonic_increasing([5.0, 4.0, 3.0], [1, 1, 1])
     assert fitted == pytest.approx([4.0, 4.0, 4.0])
+
+
+def _with_per_seed(point, on_time_by_seed):
+    point["_per_seed"] = {"grad_rate": [point["grad_rate"]] * len(on_time_by_seed),
+                          "on_time_rate": on_time_by_seed}
+    return point
+
+
+def test_pooled_intakes_without_per_seed_data_are_treated_as_correlated():
+    # 5 then 4 pts of on-time loss: the isotonic fit pools them at 4.5. Neighbouring intakes share
+    # seeds, so with no per-seed data to measure it, pooling must not shrink the margin as if the
+    # two estimates were independent: SE stays 1 pt, and the 20 shared seeds count once.
+    points = [_point(40, 0.70, 0.45, se=0.01, seeds=20), _point(50, 0.70, 0.46, se=0.01, seeds=20)]
+    _apply_limits(points, REFERENCE, POLICY)
+    margin = t_quantile(0.95, 19) * math.sqrt(1.0**2 + 0.4**2)
+    for p in points:
+        assert p["on_time_loss_fit"] == pytest.approx(4.5)
+        assert p["on_time_loss_upper"] == pytest.approx(4.5 + margin)
+
+
+def test_pooled_margin_uses_the_measured_seed_correlation():
+    a = [0.40, 0.50, 0.44, 0.47, 0.42, 0.49]
+    shuffled = [0.47, 0.42, 0.50, 0.40, 0.49, 0.44]  # same values, uncorrelated order
+    rho = max(0.0, statistics.correlation(a, shuffled))
+
+    def bound(other):
+        points = [_with_per_seed(_point(40, 0.70, 0.45, se=0.01, seeds=6), a),
+                  _with_per_seed(_point(50, 0.70, 0.46, se=0.01, seeds=6), other)]
+        _apply_limits(points, REFERENCE, POLICY)
+        return points[0]["on_time_loss_upper"]
+
+    t = t_quantile(0.95, 5)
+    # Identical per-seed series: correlation 1, the margin keeps each point's own SE.
+    assert bound(list(a)) == pytest.approx(4.5 + t * math.sqrt(1.0 + 0.16))
+    # Uncorrelated series: pooling two estimates does shrink the SE, by sqrt((1 + rho) / 2).
+    assert bound(shuffled) == pytest.approx(4.5 + t * math.sqrt((1 + rho) / 2 + 0.16))
+    assert bound(shuffled) < bound(list(a))
+
+
+def test_single_point_blocks_use_their_own_se():
+    points = [_point(40, 0.70, 0.46, se=0.01, seeds=20), _point(50, 0.70, 0.44, se=0.02, seeds=40)]
+    _apply_limits(points, REFERENCE, POLICY)
+    assert points[0]["on_time_loss_upper"] == pytest.approx(4.0 + t_quantile(0.95, 19) * math.sqrt(1.0 + 0.16))
+    assert points[1]["on_time_loss_upper"] == pytest.approx(6.0 + t_quantile(0.95, 39) * math.sqrt(4.0 + 0.16))
 
 
 def test_t_quantile_close_to_tables():
