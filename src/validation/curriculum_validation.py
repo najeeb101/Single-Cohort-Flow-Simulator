@@ -1,13 +1,13 @@
 """Prerequisite-cycle check for Settings' curriculum editor (docs/input_system_history.md §2.4).
 
 Pure function over a hypothetical post-edit dict[str, Course] — no DB/globals knowledge,
-so it's easy to unit test and to call from src/api.py before committing a PUT /curriculum
+so it's easy to unit test and to call from src/api/app.py before committing a PUT /curriculum
 edit.
 """
 from __future__ import annotations
 
-from src.models.course import Course
-from src.rules import gate_edges
+from src.domain.course import Course
+from src.domain.rules import gate_edges
 
 
 class CycleError(Exception):
@@ -17,8 +17,8 @@ class CycleError(Exception):
 
 
 class PlanImportError(Exception):
-    """Raised by src/db.py::import_plan on a malformed entry or a cyclic curriculum —
-    src/api.py turns this into a 422 with `str(exc)` as the detail."""
+    """Raised by src/storage/db.py::import_plan on a malformed entry or a cyclic curriculum —
+    src/api/app.py turns this into a 422 with `str(exc)` as the detail."""
 
 
 def check_no_cycle(curriculum: dict[str, Course]) -> None:
@@ -27,7 +27,7 @@ def check_no_cycle(curriculum: dict[str, Course]) -> None:
     Builds the graph fresh each call rather than caching — curriculum is small (38
     courses) and this only runs on a PUT /curriculum write, not on any hot path.
     """
-    import networkx as nx  # local import matches src/visualize.py:180's existing convention
+    import networkx as nx  # local import matches src/analysis/visualize.py:180's existing convention
 
     graph = nx.DiGraph()
     for course in curriculum.values():

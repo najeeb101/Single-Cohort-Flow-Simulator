@@ -1,5 +1,5 @@
 """Persistent scenarios + run history (docs/input_system_history.md §2.3) — every endpoint is
-scoped to the logged-in user (src/auth.py::get_current_user); cross-user access 404s rather
+scoped to the logged-in user (src/api/auth.py::get_current_user); cross-user access 404s rather
 than 403ing, so an attacker can't distinguish "not yours" from "doesn't exist"."""
 from __future__ import annotations
 
@@ -9,9 +9,9 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from src.auth import get_current_user
-from src.db import get_db
-from src.db_models import Run, Scenario, User
+from src.api.auth import get_current_user
+from src.storage.db import get_db
+from src.storage.db_models import Run, Scenario, User
 
 router = APIRouter()
 

@@ -3,10 +3,10 @@ from __future__ import annotations
 import random
 from typing import TYPE_CHECKING
 
-from src.rules import evaluate_rule
+from src.domain.rules import evaluate_rule
 
 if TYPE_CHECKING:
-    from src.models.course import Course
+    from src.domain.course import Course
 
 GRADE_POINTS: dict[str, float] = {
     "A": 4.0, "B+": 3.3, "B": 3.0,
@@ -183,7 +183,7 @@ class Student:
 
         Eligibility is *monotonic*: it depends only on courses passed (grades are never removed)
         and `completed_ch` (only increases), combined by `rule_expr`'s AND/OR of has_passed/min_ch
-        leaves — there is no negation or upper bound in the grammar (see src/rules.py). So once a
+        leaves — there is no negation or upper bound in the grammar (see src/domain/rules.py). So once a
         course is eligible it stays eligible; we cache that True and skip re-deriving it from the
         prerequisite lists on every subsequent term. A False is never cached — it's recomputed
         until it flips — so the result is identical to always computing fresh, just cheaper. This

@@ -14,7 +14,7 @@ heuristic:
      earlier intakes of N, then ``steady_cohorts`` more, measured on the first
      ``steady_measured``. This is the "sustainable standard intake" check.
 2. **Many independent replications** per N (``spaced_seeds`` — consecutive seeds would replay the
-   same students, see src/utils.py), so every number carries a confidence range.
+   same students, see src/engine/utils.py), so every number carries a confidence range.
 3. **An unlimited-seat reference.** With ``unlimited_seats="all"`` students never compete, so
    their outcomes don't depend on N; one pooled reference estimate (a few runs, ~10k students)
    stands in for every N. *Loss from seat shortages* = reference − real-seat outcome. That is
@@ -28,7 +28,7 @@ heuristic:
    graduates (marginal graduates per extra student < ``diminishing_returns``).
 
 Everything here is a pure in-memory layer over ``Simulator`` (no DB, no file I/O) so a background
-job (src/jobs.py) can drive it and tests can call it directly. Worker functions are module-level
+job (src/planner/jobs.py) can drive it and tests can call it directly. Worker functions are module-level
 and this module imports only engine code, so spawned pool workers never import the API.
 """
 from __future__ import annotations
@@ -41,11 +41,11 @@ import time
 from dataclasses import dataclass
 from typing import Callable
 
-from src.datasource import SyntheticDataSource
-from src.models.semester import admission_seasons, get_mandatory_seasons
-from src.parallel import iter_ordered, make_pool, resolve_workers, terminate_pool
-from src.simulator import Simulator
-from src.utils import spaced_seeds
+from src.engine.datasource import SyntheticDataSource
+from src.domain.semester import admission_seasons, get_mandatory_seasons
+from src.engine.parallel import iter_ordered, make_pool, resolve_workers, terminate_pool
+from src.engine.simulator import Simulator
+from src.engine.utils import spaced_seeds
 
 ANALYSIS_VERSION = 2
 

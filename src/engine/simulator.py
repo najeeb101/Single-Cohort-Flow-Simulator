@@ -4,17 +4,17 @@ import math
 from collections import defaultdict
 from dataclasses import dataclass, field
 
-from src.models.course import Course
-from src.models.semester import get_mandatory_seasons, mandatory_horizon_end_term, term_season, term_label
-from src.models.student import Student, registration_tier, curriculum_stage, stage_node_names
-from src.datasource import (
+from src.domain.course import Course
+from src.domain.semester import get_mandatory_seasons, mandatory_horizon_end_term, term_season, term_label
+from src.domain.student import Student, registration_tier, curriculum_stage, stage_node_names
+from src.engine.datasource import (
     CohortSpec,
     DataSource,
     EnrollmentRecord,
     OutcomeRecord,
     SyntheticDataSource,
 )
-from src.utils import grade_tier
+from src.engine.utils import grade_tier
 
 # Bumped whenever Simulator.snapshot()'s pickled payload shape changes, so a stale snapshot
 # (e.g. from a checkpoint session started before a deploy) fails loudly via from_snapshot
@@ -172,7 +172,7 @@ class Simulator:
         # caller that builds a Simulator directly (scripts, tests, a hand-edited config file
         # bypassing the API) can't silently run a whole simulation on a config that would hand
         # students a physically-impossible course load or an unbounded retake allowance.
-        from src.plan_validation import (
+        from src.validation.plan_validation import (
             PlanValidationError,
             validate_credit_load_bounds,
             validate_max_course_attempts,
@@ -667,7 +667,7 @@ class Simulator:
         # (`capacity_overrides` interpreted as a per-course multiplier).
         #
         # `unlimited_seats` ("all" | "regular") is the intake analysis's no-shortage reference
-        # (src/intake.py): it bypasses every seat limit — overrides, the optional-term scale and
+        # (src/planner/intake.py): it bypasses every seat limit — overrides, the optional-term scale and
         # occupancy included — so a reference run can never record a denial. "regular" lifts only
         # the mandatory seasons and leaves optional terms on their normal model.
         unlimited = self.scenario.get("unlimited_seats")

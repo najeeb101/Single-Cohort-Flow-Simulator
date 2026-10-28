@@ -1,6 +1,6 @@
 """One-time seed: data/curriculum.json + data/simulation_config.json -> data/app.db.
 
-src/api.py's seed_if_empty() already auto-runs this on a fresh DB at startup, so a clean
+src/api/app.py's seed_if_empty() already auto-runs this on a fresh DB at startup, so a clean
 clone "just works" with zero manual steps. Run this script explicitly when you've
 hand-edited the JSON files mid-development and need to resync the DB:
 
@@ -14,8 +14,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from src.db import SessionLocal, get_or_create_default_plan, init_db
-from src.db_models import AppConfig, Course, Plan
+from src.storage.db import SessionLocal, get_or_create_default_plan, init_db
+from src.storage.db_models import AppConfig, Course, Plan
 
 
 def main() -> int:

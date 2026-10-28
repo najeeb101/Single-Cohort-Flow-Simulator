@@ -25,8 +25,8 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 
-from src.models.semester import admission_seasons, term_season
-from src.models.student import Student
+from src.domain.semester import admission_seasons, term_season
+from src.domain.student import Student
 
 
 @dataclass(frozen=True)
@@ -95,7 +95,7 @@ class SyntheticDataSource(DataSource):
 
     def __init__(self, config: dict, *, incumbent_sizes: list[int] | None = None) -> None:
         """`incumbent_sizes` (most recent first) gives each warm-start cohort its own size — the
-        intake analysis passes the department's real past intakes here (src/intake.py) so the
+        intake analysis passes the department's real past intakes here (src/planner/intake.py) so the
         next cohort walks into a realistically-sized student body. It replaces
         `num_incumbent_cohorts` × cohort_size; leaving it None keeps the old behaviour exactly.
         """

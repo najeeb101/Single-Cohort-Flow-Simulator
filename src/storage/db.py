@@ -1,11 +1,11 @@
 """SQLAlchemy engine/session seam + DB<->engine-shape loaders, plan-scoped.
 
 `load_curriculum_from_db`/`load_config_from_db` are the only two functions allowed to know
-about both the ORM (src/db_models.py) and the engine's plain dict[str, Course] / dict shapes
-(src/models/course.py, src/service.py) — everything downstream of src/api.py's per-request
+about both the ORM (src/storage/db_models.py) and the engine's plain dict[str, Course] / dict shapes
+(src/domain/course.py, src/analysis/service.py) — everything downstream of src/api/app.py's per-request
 plan resolution stays unaware the data ever lived in a database.
 
-Every Course/AppConfig row belongs to a Plan (src/db_models.py::Plan) — the shared,
+Every Course/AppConfig row belongs to a Plan (src/storage/db_models.py::Plan) — the shared,
 system-seeded default plan (owner_user_id is None) plus however many a user has imported.
 """
 from __future__ import annotations
@@ -18,10 +18,10 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
-from src import db_models
-from src.curriculum_validation import CycleError, PlanImportError, check_no_cycle
-from src.models.course import Course, course_from_dict, load_curriculum
-from src.utils import load_json
+from src.storage import db_models
+from src.validation.curriculum_validation import CycleError, PlanImportError, check_no_cycle
+from src.domain.course import Course, course_from_dict, load_curriculum
+from src.engine.utils import load_json
 
 DB_URL = os.environ.get("DATABASE_URL", "sqlite:///data/app.db")
 
@@ -48,7 +48,7 @@ DEFAULT_PLAN_NAME = "QU CS Baseline (default)"
 
 # Config keys the engine reads unconditionally (bracket access, no default) on the
 # import -> activate -> /simulate path. Kept in sync with the `config["..."]` reads in
-# src/simulator.py, src/datasource.py, and src/models/student.py; `import_plan` checks
+# src/engine/simulator.py, src/engine/datasource.py, and src/domain/student.py; `import_plan` checks
 # these up front so a malformed upload fails fast at 422 instead of KeyError-ing into an
 # opaque 500 at the first simulation. Deliberately excludes keys with engine-side defaults
 # (terms_per_year, mandatory_terms, optional_terms_enabled, admission_terms, admission_sizes, ...).

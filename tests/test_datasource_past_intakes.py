@@ -1,4 +1,4 @@
-"""Past-intake warm start (src/datasource.py `incumbent_sizes` + src/intake.py
+"""Past-intake warm start (src/engine/datasource.py `incumbent_sizes` + src/planner/intake.py
 `resolve_incumbent_sizes`): today's student body is rebuilt from the department's real past
 intakes, padded with estimated older years. The baseline path (no incumbent_sizes) must stay
 exactly as before, and the next cohort must be the *same students* across candidate intakes so
@@ -8,9 +8,9 @@ from __future__ import annotations
 
 import pytest
 
-from src.datasource import SyntheticDataSource
-from src.intake import _config_for_intake, resolve_incumbent_sizes
-from src.utils import load_json
+from src.engine.datasource import SyntheticDataSource
+from src.planner.intake import _config_for_intake, resolve_incumbent_sizes
+from src.engine.utils import load_json
 
 
 def _config(**overrides) -> dict:

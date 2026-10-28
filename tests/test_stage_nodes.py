@@ -1,14 +1,14 @@
 """The flow-chart stage nodes are derived from `year_standing_thresholds`, not hardcoded to a
 4-year Year1..Year4 structure — so a program that isn't 4 years long produces matching stage
 nodes (and doesn't crash when a student reaches a year band beyond Year4).
-See src/models/student.py::stage_node_names.
+See src/domain/student.py::stage_node_names.
 """
 from __future__ import annotations
 
-from src.models.course import load_curriculum
-from src.models.student import stage_node_names
-from src.simulator import Simulator
-from src.utils import load_json
+from src.domain.course import load_curriculum
+from src.domain.student import stage_node_names
+from src.engine.simulator import Simulator
+from src.engine.utils import load_json
 
 
 def test_stage_node_names_scale_with_thresholds():

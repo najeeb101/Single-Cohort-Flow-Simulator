@@ -5,18 +5,18 @@ from collections import defaultdict
 
 import pytest
 
-from src.analytics import (
+from src.analysis.analytics import (
     build_course_utilization,
     build_curriculum_graph,
     compute_cohort_metrics,
     compute_metrics,
 )
-from src.datasource import DataSource
-from src.models.course import load_curriculum
-from src.models.semester import mandatory_horizon_end_term, term_season
-from src.montecarlo import run_monte_carlo
-from src.simulator import Simulator
-from src.utils import load_json
+from src.engine.datasource import DataSource
+from src.domain.course import load_curriculum
+from src.domain.semester import mandatory_horizon_end_term, term_season
+from src.analysis.montecarlo import run_monte_carlo
+from src.engine.simulator import Simulator
+from src.engine.utils import load_json
 
 SEED = 42
 
@@ -157,7 +157,7 @@ def test_effective_capacity_is_course_capacity():
 # ── Shared pool: seniors beat freshmen across cohorts ────────────── #
 
 def test_shared_pool_seniors_outrank_freshmen():
-    from src.models.student import Student, registration_tier
+    from src.domain.student import Student, registration_tier
     # two cohorts: 25 seniors (90 CH) + 25 freshmen (0 CH) compete for 25 seats
     seniors = [Student(i, SEED, cohort_id=0, entry_term=0) for i in range(25)]
     freshmen = [Student(100 + i, SEED, cohort_id=1, entry_term=2) for i in range(25)]

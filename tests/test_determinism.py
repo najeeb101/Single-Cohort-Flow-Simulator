@@ -6,10 +6,10 @@ import io
 
 import pytest
 
-from src.analytics import build_summary_csv, compute_metrics
-from src.models.course import load_curriculum
-from src.simulator import Simulator
-from src.utils import load_json
+from src.analysis.analytics import build_summary_csv, compute_metrics
+from src.domain.course import load_curriculum
+from src.engine.simulator import Simulator
+from src.engine.utils import load_json
 
 
 def _run_all_scenarios():

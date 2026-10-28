@@ -1,4 +1,4 @@
-"""Tests for the generic rule_expr evaluator (src/rules.py), independent of any one
+"""Tests for the generic rule_expr evaluator (src/domain/rules.py), independent of any one
 curriculum. CMPS493's specific compound rule is covered in test_prerequisites.py; these
 tests prove the evaluator itself handles arbitrary nesting, not just that one shape.
 """
@@ -6,8 +6,8 @@ from __future__ import annotations
 
 import pytest
 
-from src.models.student import Student
-from src.rules import evaluate_rule, gate_edges
+from src.domain.student import Student
+from src.domain.rules import evaluate_rule, gate_edges
 
 SEED = 42
 

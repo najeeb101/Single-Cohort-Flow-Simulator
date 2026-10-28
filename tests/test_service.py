@@ -1,4 +1,4 @@
-"""Tests for the engine-as-a-service boundary (src/service.py). run_simulation() must
+"""Tests for the engine-as-a-service boundary (src/analysis/service.py). run_simulation() must
 behave exactly like manually constructing Simulator + the analytics helpers, but as one
 call that returns everything as a dict and touches no disk (docs/roadmap.md §2.3).
 """
@@ -6,14 +6,14 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from src.analytics import (
+from src.analysis.analytics import (
     compute_cohort_metrics,
     compute_metrics,
 )
-from src.models.course import load_curriculum
-from src.service import run_simulation
-from src.simulator import Simulator
-from src.utils import load_json
+from src.domain.course import load_curriculum
+from src.analysis.service import run_simulation
+from src.engine.simulator import Simulator
+from src.engine.utils import load_json
 
 
 def _setup():

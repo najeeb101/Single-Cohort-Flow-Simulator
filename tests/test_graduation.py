@@ -3,11 +3,11 @@ from __future__ import annotations
 
 import pytest
 
-from src.analytics import compute_metrics
-from src.models.course import load_curriculum
-from src.models.student import Student, PASSING_GRADES, curriculum_stage
-from src.simulator import History, Simulator, SimulationResult
-from src.utils import load_json
+from src.analysis.analytics import compute_metrics
+from src.domain.course import load_curriculum
+from src.domain.student import Student, PASSING_GRADES, curriculum_stage
+from src.engine.simulator import History, Simulator, SimulationResult
+from src.engine.utils import load_json
 
 SEED = 42
 
@@ -51,7 +51,7 @@ def test_student_not_graduated_with_one_missing():
 
 def test_curriculum_stage_uses_year_standing_thresholds_config():
     """A plan with a different total credit-hour count sets its own year-standing bands
-    instead of QU's hardcoded 30/60/90 — see CLAUDE.md / src.models.student.curriculum_stage."""
+    instead of QU's hardcoded 30/60/90 — see CLAUDE.md / src.domain.student.curriculum_stage."""
     student = Student(student_id=0, seed=SEED)
     student.completed_ch = 40
 
@@ -61,7 +61,7 @@ def test_curriculum_stage_uses_year_standing_thresholds_config():
 
 def test_on_time_rate_uses_on_time_terms_config():
     """A plan with a different standard program length sets its own on-time cutoff
-    instead of QU's hardcoded 8 semesters — see src.analytics.compute_metrics."""
+    instead of QU's hardcoded 8 semesters — see src.analysis.analytics.compute_metrics."""
     student = Student(student_id=0, seed=SEED, entry_term=0)
     student.status = "GRADUATED"
     student.grad_semester = 10

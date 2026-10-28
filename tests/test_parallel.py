@@ -1,11 +1,11 @@
-"""src/parallel.py + the parallel Monte Carlo path must be order-preserving and byte-identical
+"""src/engine/parallel.py + the parallel Monte Carlo path must be order-preserving and byte-identical
 to the serial path — the property the aggregated CI numbers depend on (optimization plan item 2)."""
 from __future__ import annotations
 
-from src.models.course import load_curriculum
-from src.montecarlo import run_monte_carlo
-from src.parallel import ordered_map, resolve_workers
-from src.utils import load_json
+from src.domain.course import load_curriculum
+from src.analysis.montecarlo import run_monte_carlo
+from src.engine.parallel import ordered_map, resolve_workers
+from src.engine.utils import load_json
 
 
 def _square(x):  # module-level so it pickles for the process pool

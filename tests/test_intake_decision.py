@@ -1,4 +1,4 @@
-"""The intake analysis's decision math (src/intake.py), on synthetic tables — no simulation:
+"""The intake analysis's decision math (src/planner/intake.py), on synthetic tables — no simulation:
 isotonic smoothing, the t quantile, the per-limit verdicts (ok / infeasible / imprecise), the
 recommendation, and the diminishing-returns upper limit.
 """
@@ -9,7 +9,7 @@ import statistics
 
 import pytest
 
-from src.intake import (
+from src.planner.intake import (
     IntakePolicy,
     _apply_limits,
     _why,

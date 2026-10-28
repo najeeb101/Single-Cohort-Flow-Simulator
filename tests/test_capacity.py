@@ -6,9 +6,9 @@ from collections import defaultdict
 
 import pytest
 
-from src.models.course import load_curriculum
-from src.models.student import Student, registration_tier
-from src.simulator import Simulator
+from src.domain.course import load_curriculum
+from src.domain.student import Student, registration_tier
+from src.engine.simulator import Simulator
 
 
 SEED = 42

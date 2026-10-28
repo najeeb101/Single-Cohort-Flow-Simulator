@@ -5,16 +5,16 @@ Design (local, single-machine — see CLAUDE.md "Intake Planner"):
 - **One job at a time.** An analysis already saturates every CPU core through its own process
   pool, so a second concurrent job would only slow both down; the API answers 409 instead.
 - **Daemon thread** with its **own DB session** (sessions aren't thread-safe). The thread owns
-  the process pool for the job's whole life (src/parallel.py::make_pool).
+  the process pool for the job's whole life (src/engine/parallel.py::make_pool).
 - **Throttled progress writes** (at most ~1/s) so the job doesn't hammer SQLite while the
   frontend polls `GET /intake-analyses/{id}`.
 - **Cancellation** via a threading.Event the runner checks between simulations; on cancel the
-  pool's workers are terminated (src/intake.py::_Runner).
+  pool's workers are terminated (src/planner/intake.py::_Runner).
 - **Inline mode** (`INLINE = True`, used by tests) runs the job synchronously in the request.
-- A server killed mid-job leaves its row `running`; src/db.py::recover_interrupted_analyses
+- A server killed mid-job leaves its row `running`; src/storage/db.py::recover_interrupted_analyses
   marks it failed at the next startup.
 
-Worker processes import only src.intake (engine code) — never src.api — so spawning them never
+Worker processes import only src.planner.intake (engine code) — never src.api — so spawning them never
 re-runs the API's import-time DB setup.
 """
 from __future__ import annotations
@@ -24,9 +24,9 @@ import threading
 import time
 from datetime import datetime, timezone
 
-from src import intake
-from src.db import SessionLocal
-from src.db_models import Analysis
+from src.planner import intake
+from src.storage.db import SessionLocal
+from src.storage.db_models import Analysis
 
 # Tests run jobs synchronously (no thread), so assertions see the finished row — set via
 # INTAKE_JOBS_INLINE=1 (tests/conftest.py) or by assigning this flag.

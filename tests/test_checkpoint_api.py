@@ -383,8 +383,8 @@ def test_advance_backfills_history_for_a_pre_existing_session():
     # already partway through the walkthrough. The next advance must back-fill the CURRENT
     # (pre-advance) state as seq=0 rather than mislabeling "one step past where it already was"
     # as the start.
-    from src.db import SessionLocal
-    from src.db_models import CheckpointSnapshot
+    from src.storage.db import SessionLocal
+    from src.storage.db_models import CheckpointSnapshot
 
     _discard_any_session()
     client.post("/checkpoint")
@@ -412,8 +412,8 @@ def test_advance_backfills_history_for_a_pre_existing_session():
 
 
 def test_discard_purges_snapshot_history():
-    from src.db import SessionLocal
-    from src.db_models import CheckpointSnapshot
+    from src.storage.db import SessionLocal
+    from src.storage.db_models import CheckpointSnapshot
 
     _discard_any_session()
     created = client.post("/checkpoint").json()

@@ -1,10 +1,10 @@
-"""Tests for src.analytics.summarize_severe_terms: a retrospective, worst-first ranking of
+"""Tests for src.analysis.analytics.summarize_severe_terms: a retrospective, worst-first ranking of
 term-level seat shortfalls / offering blocks that already occurred in a run's own timeline —
 not a forecast (see the function's docstring for why "predictive" was the wrong name for this).
 """
 from __future__ import annotations
 
-from src.analytics import summarize_severe_terms
+from src.analysis.analytics import summarize_severe_terms
 
 
 def _result(timeline, config=None):

@@ -78,7 +78,7 @@ per-term demand; only interchangeable electives (`cs_elective`) are squeezed to 
 percentile** to keep a deliberate bottleneck. This policy changed when the real single-term
 offering schedule was restored: an all-Fall+Spring curriculum let a percentile squeeze on
 required courses be harmless (a missed seat just meant retaking next term, half a year), but with
-several once-a-year upper courses (§4.11 of technical_design.md) a missed seat in an *early*
+several once-a-year upper courses (see engine.md, "The four block signals") a missed seat in an *early*
 gateway knocks a student off the annual rhythm, so they reach a single-term upper course
 off-cycle and lose a full year — cascading into non-completion (CENSORED), not just delay.
 Deliberate scarcity therefore lives on electives (4 interchangeable slots, no prerequisites,
@@ -211,7 +211,7 @@ year/page numbers confirmed independently, not taken on faith from a prior draft
 
 ## L. Intake Analysis and Seat Plan Assumptions
 
-These apply to `src/intake.py`. Defaults are in `DEFAULT_POLICY` / `DEFAULT_ANALYSIS` and are
+These apply to `src/planner/intake.py`. Defaults are in `DEFAULT_POLICY` / `DEFAULT_ANALYSIS` and are
 editable per plan (`intake_policy`, `intake_analysis`) or per run.
 
 | Assumption | Value / meaning | Why |

@@ -1,7 +1,7 @@
-"""Thin HTTP wrapper around src.service.run_simulation.
+"""Thin HTTP wrapper around src.analysis.service.run_simulation.
 
-Curriculum/config live in a SQLite DB (src/db.py). Every request auto-resolves to a single
-shared demo user (src/auth.py::get_current_user) — no login required. The browser calls
+Curriculum/config live in a SQLite DB (src/storage/db.py). Every request auto-resolves to a single
+shared demo user (src/api/auth.py::get_current_user) — no login required. The browser calls
 this API through the Next.js dev server's rewrite (web/next.config.ts) to stay same-origin.
 
 Multi-plan support: curriculum/config are resolved fresh per request from the DB, keyed by
@@ -26,8 +26,8 @@ from pydantic import BaseModel, Field, field_validator
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from src import jobs
-from src.advisor import (
+from src.planner import jobs
+from src.planner.advisor import (
     AdvisorChatError,
     chat_enabled,
     extract_proposals,
@@ -37,13 +37,13 @@ from src.advisor import (
     summarize_plan,
     validate_proposals,
 )
-from src.analytics import (
+from src.analysis.analytics import (
     build_curriculum_graph,
     flow_timeline_payload,
 )
-from src.auth import get_current_user
-from src.curriculum_validation import CycleError, PlanImportError, check_no_cycle
-from src.db import (
+from src.api.auth import get_current_user
+from src.validation.curriculum_validation import CycleError, PlanImportError, check_no_cycle
+from src.storage.db import (
     SessionLocal,
     _course_to_row,
     get_db,
@@ -57,19 +57,19 @@ from src.db import (
     resolve_active_checkpoint_session,
     resolve_active_plan_id,
 )
-from src.db_models import Analysis as AnalysisRow
-from src.db_models import AppConfig as AppConfigRow
-from src.db_models import CheckpointSession as CheckpointSessionRow
-from src.db_models import CheckpointSnapshot as CheckpointSnapshotRow
-from src.db_models import Course as CourseRow
-from src.db_models import Plan as PlanRow
-from src.db_models import Run, User
-from src.models.course import Course, course_from_dict
-from src.models.semester import DEFAULT_TERMS, admission_seasons, get_mandatory_seasons, term_label
-from src.models.student import stage_node_names
-from src.intake import DEFAULT_ANALYSIS, DEFAULT_POLICY, analysis_params, policy_from_config
-from src.montecarlo import run_monte_carlo
-from src.plan_validation import (
+from src.storage.db_models import Analysis as AnalysisRow
+from src.storage.db_models import AppConfig as AppConfigRow
+from src.storage.db_models import CheckpointSession as CheckpointSessionRow
+from src.storage.db_models import CheckpointSnapshot as CheckpointSnapshotRow
+from src.storage.db_models import Course as CourseRow
+from src.storage.db_models import Plan as PlanRow
+from src.storage.db_models import Run, User
+from src.domain.course import Course, course_from_dict
+from src.domain.semester import DEFAULT_TERMS, admission_seasons, get_mandatory_seasons, term_label
+from src.domain.student import stage_node_names
+from src.planner.intake import DEFAULT_ANALYSIS, DEFAULT_POLICY, analysis_params, policy_from_config
+from src.analysis.montecarlo import run_monte_carlo
+from src.validation.plan_validation import (
     PlanValidationError,
     validate_admissions,
     validate_initial_state,
@@ -78,10 +78,10 @@ from src.plan_validation import (
     validate_plan_edits,
     validate_prerequisites_locked,
 )
-from src.rules import gate_edges
-from src.scenarios import router as scenarios_router
-from src.service import run_simulation
-from src.simulator import Simulator
+from src.domain.rules import gate_edges
+from src.api.scenarios import router as scenarios_router
+from src.analysis.service import run_simulation
+from src.engine.simulator import Simulator
 
 init_db()
 with SessionLocal() as _session:
@@ -148,7 +148,7 @@ class ScenarioRequest(BaseModel):
 # `terms_per_year` cycle. This is checked in the create/update-course handlers (which have the
 # active plan's config), not in a pydantic validator (which doesn't), so a typo'd or out-of-cycle
 # season fails fast with a clear 422 without hardcoding a season list. Course.category
-# (src/models/course.py) is free text — different plans use different taxonomies, so only
+# (src/domain/course.py) is free text — different plans use different taxonomies, so only
 # presence is checked, matching how bulk plan-import already treats it.
 def _valid_seasons(config: dict) -> list[str]:
     return list(config.get("terms_per_year") or DEFAULT_TERMS)
@@ -290,7 +290,7 @@ class AdvisorChatMessage(BaseModel):
 class AdvisorChatRequest(BaseModel):
     messages: list[AdvisorChatMessage]
     # Compact run-facts blob the frontend builds from its /simulate summary (headline/criteria/
-    # bottlenecks/scenario). The LLM is grounded in this — see src/advisor.py::build_system_prompt.
+    # bottlenecks/scenario). The LLM is grounded in this — see src/planner/advisor.py::build_system_prompt.
     context: dict = Field(default_factory=dict)
 
 
@@ -298,7 +298,7 @@ class AdvisorChatRequest(BaseModel):
 def advisor_chat(req: AdvisorChatRequest, db: Session = Depends(get_db)) -> dict:
     """Phase B: LLM chat grounded in one run's numbers PLUS the active plan's full curriculum and
     settings PLUS the latest intake analysis. Dormant (200, configured=False) when no model is
-    configured (see src/advisor.py), so the frontend can hide the box without a failed request."""
+    configured (see src/planner/advisor.py), so the frontend can hide the box without a failed request."""
     if not chat_enabled():
         return {"configured": False, "reply": None}
     # Only forward real turns, cap history so prompts stay small, and require a trailing user turn.
@@ -349,7 +349,7 @@ def meta(db: Session = Depends(get_db)) -> dict:
         "num_cohorts": config.get("num_cohorts"),
         "num_incumbent_cohorts": config.get("num_incumbent_cohorts", 0),
         # Initial-state warm start (replaces incumbent cohorts) — per-course occupied seats.
-        # See src/simulator.py::_effective_capacity / CLAUDE.md.
+        # See src/engine/simulator.py::_effective_capacity / CLAUDE.md.
         "initial_state": config.get("initial_state", {"occupancy": {}}),
         # Which seasons admit a new study cohort (Fall-only by default; add Spring for a second
         # yearly intake). Replaces the old admit_interval_terms knob — admission cadence is now a
@@ -359,7 +359,7 @@ def meta(db: Session = Depends(get_db)) -> dict:
         # what the simulator will do, even for a plan seeded before these keys existed.
         "admission_terms": admission_seasons(config),
         "admission_sizes": config.get("admission_sizes", {}),
-        # True is the engine's own fallback (src/models/semester.py) when the key is absent —
+        # True is the engine's own fallback (src/domain/semester.py) when the key is absent —
         # mirrored here so a plan seeded before this flag existed reports its *actual* behavior
         # rather than a hardcoded value that could disagree with what the engine just ran.
         "optional_terms_enabled": config.get("optional_terms_enabled", True),
@@ -384,7 +384,7 @@ def meta(db: Session = Depends(get_db)) -> dict:
         "registration_tier_thresholds": config.get("registration_tier_thresholds", []),
         "enrollment_priority_tiers": config.get("enrollment_priority_tiers", []),
         # Phase B advisor: whether the optional LLM chat is configured (LLM_API_KEY set). The
-        # frontend uses this to show the chat box or a "not configured" note — see src/advisor.py.
+        # frontend uses this to show the chat box or a "not configured" note — see src/planner/advisor.py.
         "llm_chat_enabled": chat_enabled(),
         # Which model answers the chat ("qwen3-coder:30b · on this PC"), shown under the chat box.
         "llm_model": model_label(),
@@ -394,7 +394,7 @@ def meta(db: Session = Depends(get_db)) -> dict:
         # reports its actual computed behavior.
         "year_standing_thresholds": config.get("year_standing_thresholds", [30, 60, 90]),
         "on_time_terms": config.get("on_time_terms", 8),
-        # Intake Planner inputs (src/intake.py): the policy limits, the sweep knobs (merged with
+        # Intake Planner inputs (src/planner/intake.py): the policy limits, the sweep knobs (merged with
         # their defaults so the frontend always sees every key), and the data that rebuilds
         # today's student body + labels how much of it is real QU data vs estimates.
         "intake_policy": {**DEFAULT_POLICY, **(config.get("intake_policy") or {})},
@@ -522,7 +522,7 @@ def simulate(
 
 
 # ---------------------------------------------------------------------------- #
-# Intake Planner: background analyses (src/intake.py via src/jobs.py)           #
+# Intake Planner: background analyses (src/planner/intake.py via src/planner/jobs.py)           #
 # ---------------------------------------------------------------------------- #
 # "How many students should we admit next?" (kind=intake_sweep) and "what seats would it take
 # to admit N?" (kind=seat_plan). Each runs as a background job — one at a time, since a job

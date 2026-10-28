@@ -1,7 +1,7 @@
 """Entry point: load → run scenario(s) → analyze → render → CSV + outputs/.
-`py run.py --intake` also runs the intake analysis (src/intake.py).
+`py run.py --intake` also runs the intake analysis (src/planner/intake.py).
 
-The dashboard (web/) doesn't read this script's output directly — it talks to src/api.py
+The dashboard (web/) doesn't read this script's output directly — it talks to src/api/app.py
 in memory via POST /simulate — but this is still how outputs/figures/ and
 outputs/reports/ (CSVs, flow_timeline.json) get written for the static report and README.
 """
@@ -11,7 +11,7 @@ import json
 import sys
 from pathlib import Path
 
-from src.analytics import (
+from src.analysis.analytics import (
     build_cohort_flow_csv,
     build_cohort_summary_csv,
     build_course_utilization_csv,
@@ -19,12 +19,12 @@ from src.analytics import (
     build_monte_carlo_csv,
     build_summary_csv,
 )
-from src.intake import run_intake_sweep
-from src.models.course import load_curriculum
-from src.montecarlo import run_monte_carlo
-from src.service import run_simulation
-from src.visualize import save_all_figures
-from src.utils import load_json
+from src.planner.intake import run_intake_sweep
+from src.domain.course import load_curriculum
+from src.analysis.montecarlo import run_monte_carlo
+from src.analysis.service import run_simulation
+from src.analysis.visualize import save_all_figures
+from src.engine.utils import load_json
 
 
 def main(run_intake: bool = False) -> None:

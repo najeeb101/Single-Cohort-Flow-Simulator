@@ -1,15 +1,15 @@
 """HTTP layer of the Intake Planner (POST/GET /intake-analyses + cancel) and the job plumbing
-(src/jobs.py, src/db.py recovery/migration). Jobs run inline and serial under test
+(src/planner/jobs.py, src/storage/db.py recovery/migration). Jobs run inline and serial under test
 (tests/conftest.py), with tiny sweep params so each analysis is a handful of simulations.
 """
 from __future__ import annotations
 
 from fastapi.testclient import TestClient
 
-from src import jobs
+from src.planner import jobs
 from src.api import app
-from src.db import SessionLocal, migrate_plan_configs, normalize_config, recover_interrupted_analyses
-from src.db_models import Analysis, AppConfig
+from src.storage.db import SessionLocal, migrate_plan_configs, normalize_config, recover_interrupted_analyses
+from src.storage.db_models import Analysis, AppConfig
 
 client = TestClient(app)
 

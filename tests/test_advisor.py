@@ -1,4 +1,4 @@
-"""Tests for the Phase B advisor chat (src/advisor.py + the /advisor/chat endpoint).
+"""Tests for the Phase B advisor chat (src/planner/advisor.py + the /advisor/chat endpoint).
 
 No real network: the enabled path is exercised by monkeypatching httpx.post, so the grounding,
 the dormant-without-a-key behavior, and the endpoint contract are all covered offline.
@@ -8,7 +8,7 @@ from __future__ import annotations
 import pytest
 from fastapi.testclient import TestClient
 
-from src import advisor
+from src.planner import advisor
 from src.api import app
 
 client = TestClient(app)
@@ -82,7 +82,7 @@ def test_prompt_survives_empty_context():
 # --- plan grounding (see-more / step 1) -------------------------------------------------
 
 def test_summarize_plan_flattens_curriculum_and_settings():
-    from src.models.course import Course
+    from src.domain.course import Course
 
     curriculum = {
         "CMPS151": Course(
@@ -318,7 +318,7 @@ def test_extract_proposals_tolerates_trailing_comma():
 
 
 def test_validate_proposals_normalizes_and_drops_bad():
-    from src.models.course import Course
+    from src.domain.course import Course
 
     curriculum = {
         "CMPS303": Course(
@@ -348,7 +348,7 @@ def test_validate_proposals_normalizes_and_drops_bad():
 
 
 def test_validate_proposals_drops_offering_seasons_not_in_plan():
-    from src.models.course import Course
+    from src.domain.course import Course
 
     curriculum = {"C": Course(code="C", title="", credits=3, prerequisites=(), pass_rate=0.8,
                               offering=("Fall",), category="cs_core", capacity=10, study_plan_term=1)}
@@ -376,7 +376,7 @@ def test_endpoint_returns_validated_proposals(monkeypatch):
 
 def test_validate_proposals_drops_no_op_changes():
     # A small local model sometimes "proposes" exactly what the plan already has.
-    from src.models.course import Course
+    from src.domain.course import Course
 
     curriculum = {"CSEL2": Course(code="CSEL2", title="Elective 2", credits=3, prerequisites=(),
                                   pass_rate=0.85, offering=("Fall", "Spring"), category="cs_elective",

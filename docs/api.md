@@ -5,7 +5,7 @@ Next.js dashboard never calls this directly — it goes through `web/next.config
 `/api/backend/*` rewrite so the browser stays same-origin.
 
 **No login required.** Every request resolves to a single shared, auto-provisioned demo user
-(`src/auth.py`) — auth was built in an earlier phase and deliberately removed as part of a
+(`src/api/auth.py`) — auth was built in an earlier phase and deliberately removed as part of a
 scope-simplification pass (the planner runs locally on a department PC). All endpoints below therefore act on
 that one user's data; there is no per-user isolation except at the `Plan` level (a plan with
 `owner_user_id != null` is private in principle, but since there's only ever one user in
@@ -126,7 +126,7 @@ endpoints remain).
 
 ## Intake Planner: background analyses
 
-`src/intake.py` run through `src/jobs.py`; see [methodology.md](methodology.md) for the method.
+`src/planner/intake.py` run through `src/planner/jobs.py`; see [methodology.md](methodology.md) for the method.
 An analysis is a background job stored as an `Analysis` row ([database.md](database.md)) with an
 exact snapshot of the inputs it ran on. **Only one runs at a time** (an analysis already uses
 every CPU core): starting a second returns `409`. Analyses are scoped to the caller and the
@@ -243,7 +243,7 @@ Partial update — any subset of the `CourseCreate` fields **except `prerequisit
 which are write-once (settable only at creation, via `POST /curriculum` or Plan Builder) and
 permanently locked afterward — a patch that actually *changes* either 422s (diff-based: resending
 the same unchanged value is fine). `404` if not found; `422` on a prerequisite-lock violation, a
-cycle, or a value `src/plan_validation.py::validate_plan_edits` rejects (e.g. capacity dropped
+cycle, or a value `src/validation/plan_validation.py::validate_plan_edits` rejects (e.g. capacity dropped
 below existing `initial_state.occupancy` for that course).
 
 ### `DELETE /curriculum/{code}`
@@ -376,7 +376,7 @@ Marks the session `discarded`. `404` if no session exists.
 
 The website no longer has Scenarios or Run History pages; these endpoints remain for API users.
 
-`src/scenarios.py` — every route below is scoped to the demo user (cross-user access 404s rather
+`src/api/scenarios.py` — every route below is scoped to the demo user (cross-user access 404s rather
 than 403ing, so an attacker can't distinguish "not yours" from "doesn't exist" — a leftover
 guarantee from when auth existed and worth keeping if it's ever reintroduced).
 
@@ -394,7 +394,7 @@ guarantee from when auth existed and worth keeping if it's ever reintroduced).
 
 ## Advisor chat (optional LLM)
 
-`src/advisor.py`. Provider-agnostic, selected by env
+`src/planner/advisor.py`. Provider-agnostic, selected by env
 vars. **The default setup is a local model through Ollama** (`LLM_BASE_URL=http://localhost:11434/v1`,
 `LLM_MODEL=qwen3:4b-instruct-2507-q4_K_M`, tested at about 25 s per grounded answer; a larger model such as `qwen3-coder:30b` needs a PC with about 32 GB RAM and is set via `LLM_MODEL`); a localhost base URL needs no `LLM_API_KEY`, and the timeout rises to
 120 s (`LLM_TIMEOUT`). A hosted provider needs `LLM_API_KEY`. An optional `LLM_FALLBACK_BASE_URL`/

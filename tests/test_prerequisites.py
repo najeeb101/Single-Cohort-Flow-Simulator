@@ -3,8 +3,8 @@ from __future__ import annotations
 
 import pytest
 
-from src.models.course import Course, load_curriculum
-from src.models.student import Student
+from src.domain.course import Course, load_curriculum
+from src.domain.student import Student
 
 SEED = 42
 

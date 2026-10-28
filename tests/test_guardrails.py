@@ -1,32 +1,32 @@
 """Tests for the cross-cutting guardrails that protect the engine/API from a config or AI
 proposal that would silently corrupt a run:
 
-  - Curriculum topology (src/curriculum_validation.py): missing prerequisites, cycles,
+  - Curriculum topology (src/validation/curriculum_validation.py): missing prerequisites, cycles,
     unreachable prerequisite depth.
-  - Plan-edit bounds (src/plan_validation.py): intake size, credit-load ceilings, max
+  - Plan-edit bounds (src/validation/plan_validation.py): intake size, credit-load ceilings, max
     course-attempt bounds, all wired into validate_plan_edits (the single entry point every
     write path calls).
-  - Student progression (src/models/student.py): the retake-attempt cap, tracked on the model
+  - Student progression (src/domain/student.py): the retake-attempt cap, tracked on the model
     and enforced both defensively (get_desired_courses) and authoritatively (Simulator).
-  - Simulator (src/simulator.py): fail-fast construction on an out-of-bounds config, and the
+  - Simulator (src/engine/simulator.py): fail-fast construction on an out-of-bounds config, and the
     hard end-of-term drop once a student exhausts a course's attempt cap.
-  - AI proposal integrity (src/advisor.py): conflicting proposals collapse to one, and a
+  - AI proposal integrity (src/planner/advisor.py): conflicting proposals collapse to one, and a
     pass-rate increase is capped.
 """
 from __future__ import annotations
 
 import pytest
 
-from src.models.course import Course
-from src.models.student import Student
-from src.simulator import Simulator
-from src.utils import load_json
+from src.domain.course import Course
+from src.domain.student import Student
+from src.engine.simulator import Simulator
+from src.engine.utils import load_json
 
 SEED = 1
 
 
 # ─────────────────────────────────────────────────────────────────────────── #
-# Curriculum topology (src/curriculum_validation.py)                         #
+# Curriculum topology (src/validation/curriculum_validation.py)                         #
 # ─────────────────────────────────────────────────────────────────────────── #
 
 def _course(code, prereqs=(), credits=3, study_plan_term=1):
@@ -39,14 +39,14 @@ def _course(code, prereqs=(), credits=3, study_plan_term=1):
 
 class TestCurriculumTopology:
     def test_missing_prerequisite_rejected(self):
-        from src.curriculum_validation import PlanImportError, validate_missing_prerequisites
+        from src.validation.curriculum_validation import PlanImportError, validate_missing_prerequisites
 
         curriculum = {"A": _course("A", prereqs=("GHOST",))}
         with pytest.raises(PlanImportError, match="GHOST"):
             validate_missing_prerequisites(curriculum)
 
     def test_present_prerequisite_accepted(self):
-        from src.curriculum_validation import validate_missing_prerequisites
+        from src.validation.curriculum_validation import validate_missing_prerequisites
 
         curriculum = {"A": _course("A"), "B": _course("B", prereqs=("A",))}
         validate_missing_prerequisites(curriculum)  # no raise
@@ -55,7 +55,7 @@ class TestCurriculumTopology:
         """Regression: the raise used to sit inside a `try/except Exception: pass`, so this
         guardrail silently never fired. A 5-course straight-line chain needs 5 terms; a plan
         capped at max_terms=2 can never actually complete it."""
-        from src.curriculum_validation import PlanImportError, validate_unreachable_prereq_depth
+        from src.validation.curriculum_validation import PlanImportError, validate_unreachable_prereq_depth
 
         chain = {}
         prev = None
@@ -68,13 +68,13 @@ class TestCurriculumTopology:
             validate_unreachable_prereq_depth(chain, {"max_terms": 2})
 
     def test_unreachable_depth_accepted_within_max_terms(self):
-        from src.curriculum_validation import validate_unreachable_prereq_depth
+        from src.validation.curriculum_validation import validate_unreachable_prereq_depth
 
         chain = {"A": _course("A"), "B": _course("B", prereqs=("A",))}
         validate_unreachable_prereq_depth(chain, {"max_terms": 12})  # no raise
 
     def test_validate_curriculum_topology_runs_all_three_checks(self):
-        from src.curriculum_validation import PlanImportError, validate_curriculum_topology
+        from src.validation.curriculum_validation import PlanImportError, validate_curriculum_topology
 
         # Missing-prereq is checked first, so it's what surfaces here even though this
         # curriculum would also fail the depth check.
@@ -84,12 +84,12 @@ class TestCurriculumTopology:
 
 
 # ─────────────────────────────────────────────────────────────────────────── #
-# Plan-edit bounds (src/plan_validation.py)                                  #
+# Plan-edit bounds (src/validation/plan_validation.py)                                  #
 # ─────────────────────────────────────────────────────────────────────────── #
 
 class TestPlanValidationBounds:
     def test_cohort_size_out_of_bounds_rejected(self):
-        from src.plan_validation import PlanValidationError, validate_cohort_size
+        from src.validation.plan_validation import PlanValidationError, validate_cohort_size
 
         with pytest.raises(PlanValidationError):
             validate_cohort_size({"cohort_size": 5})  # below the 10 floor
@@ -97,13 +97,13 @@ class TestPlanValidationBounds:
             validate_cohort_size({"cohort_size": 5000})  # above the 1000 ceiling
 
     def test_cohort_size_within_bounds_accepted(self):
-        from src.plan_validation import validate_cohort_size
+        from src.validation.plan_validation import validate_cohort_size
 
         validate_cohort_size({"cohort_size": 100})  # no raise
         validate_cohort_size({})  # absent -> skipped, no raise
 
     def test_credit_load_bounds_rejects_out_of_range(self):
-        from src.plan_validation import PlanValidationError, validate_credit_load_bounds
+        from src.validation.plan_validation import PlanValidationError, validate_credit_load_bounds
 
         with pytest.raises(PlanValidationError):
             validate_credit_load_bounds({"normal_load_ch": 30})  # above the 24 ceiling
@@ -113,19 +113,19 @@ class TestPlanValidationBounds:
     def test_credit_load_bounds_rejects_probation_exceeding_normal(self):
         """A probation load cap higher than the normal load cap would give a student in poor
         standing MORE credits than one in good standing — backwards from the policy's intent."""
-        from src.plan_validation import PlanValidationError, validate_credit_load_bounds
+        from src.validation.plan_validation import PlanValidationError, validate_credit_load_bounds
 
         with pytest.raises(PlanValidationError, match="probation_load_ch"):
             validate_credit_load_bounds({"normal_load_ch": 12, "probation_load_ch": 15})
 
     def test_credit_load_bounds_accepts_realistic_values(self):
-        from src.plan_validation import validate_credit_load_bounds
+        from src.validation.plan_validation import validate_credit_load_bounds
 
         validate_credit_load_bounds({"normal_load_ch": 18, "probation_load_ch": 12})  # no raise
         validate_credit_load_bounds({})  # absent -> skipped, no raise
 
     def test_max_course_attempts_bounds(self):
-        from src.plan_validation import PlanValidationError, validate_max_course_attempts
+        from src.validation.plan_validation import PlanValidationError, validate_max_course_attempts
 
         with pytest.raises(PlanValidationError):
             validate_max_course_attempts({"max_course_attempts": 0})
@@ -137,7 +137,7 @@ class TestPlanValidationBounds:
     def test_validate_plan_edits_wires_in_curriculum_topology(self):
         """validate_plan_edits (the single entry point every write path calls) must reject a
         curriculum whose prerequisite graph is broken, not just bad config scalars."""
-        from src.plan_validation import PlanValidationError, validate_plan_edits
+        from src.validation.plan_validation import PlanValidationError, validate_plan_edits
 
         curriculum = {"A": _course("A", prereqs=("GHOST",))}
         config = {"cohort_size": 100, "max_terms": 12}
@@ -145,7 +145,7 @@ class TestPlanValidationBounds:
             validate_plan_edits(curriculum, config)
 
     def test_validate_plan_edits_accepts_a_healthy_plan(self):
-        from src.plan_validation import validate_plan_edits
+        from src.validation.plan_validation import validate_plan_edits
 
         curriculum = {"A": _course("A"), "B": _course("B", prereqs=("A",))}
         config = {
@@ -157,7 +157,7 @@ class TestPlanValidationBounds:
 
 
 # ─────────────────────────────────────────────────────────────────────────── #
-# Student progression: attempt tracking (src/models/student.py)              #
+# Student progression: attempt tracking (src/domain/student.py)              #
 # ─────────────────────────────────────────────────────────────────────────── #
 
 class TestStudentAttemptTracking:
@@ -208,7 +208,7 @@ class TestStudentAttemptTracking:
 
 
 # ─────────────────────────────────────────────────────────────────────────── #
-# Simulator: credit load ceilings + max attempt enforcement (src/simulator.py) #
+# Simulator: credit load ceilings + max attempt enforcement (src/engine/simulator.py) #
 # ─────────────────────────────────────────────────────────────────────────── #
 
 def _minimal_config(**overrides) -> dict:
@@ -290,12 +290,12 @@ class TestSimulatorMaxAttemptEnforcement:
 
 
 # ─────────────────────────────────────────────────────────────────────────── #
-# AI proposal integrity (src/advisor.py)                                     #
+# AI proposal integrity (src/planner/advisor.py)                                     #
 # ─────────────────────────────────────────────────────────────────────────── #
 
 class TestAdvisorProposalIntegrity:
     def test_conflicting_proposals_for_the_same_course_collapse_to_first(self):
-        from src import advisor
+        from src.planner import advisor
 
         curriculum = {"C": Course(code="C", title="C", credits=3, prerequisites=(),
                                    pass_rate=0.8, offering=("Fall",), category="cs_core",
@@ -310,7 +310,7 @@ class TestAdvisorProposalIntegrity:
         assert out[0]["value"] == 60
 
     def test_pass_rate_increase_is_capped(self):
-        from src import advisor
+        from src.planner import advisor
 
         curriculum = {"C": Course(code="C", title="C", credits=3, prerequisites=(),
                                    pass_rate=0.5, offering=("Fall",), category="cs_core",
@@ -322,7 +322,7 @@ class TestAdvisorProposalIntegrity:
         assert out[0]["value"] == pytest.approx(0.65)  # 0.5 + _MAX_PASS_RATE_DELTA (0.15)
 
     def test_pass_rate_increase_within_cap_is_untouched(self):
-        from src import advisor
+        from src.planner import advisor
 
         curriculum = {"C": Course(code="C", title="C", credits=3, prerequisites=(),
                                    pass_rate=0.5, offering=("Fall",), category="cs_core",

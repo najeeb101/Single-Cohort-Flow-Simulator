@@ -18,10 +18,10 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from src.analytics import compute_metrics
-from src.models.course import load_curriculum
-from src.simulator import Simulator
-from src.utils import load_json
+from src.analysis.analytics import compute_metrics
+from src.domain.course import load_curriculum
+from src.engine.simulator import Simulator
+from src.engine.utils import load_json
 
 
 # Anchor data/output paths to the repo ROOT (not the current working directory) so the script

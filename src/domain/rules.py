@@ -17,7 +17,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from src.models.student import Student
+    from src.domain.student import Student
 
 RuleExpr = Any  # str | {"all": [RuleExpr]} | {"any": [RuleExpr]} | {"min_ch": int}
 

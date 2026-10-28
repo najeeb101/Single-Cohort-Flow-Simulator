@@ -4,10 +4,10 @@ replication seeds don't replay the same students.
 """
 from __future__ import annotations
 
-from src.intake import _Views, _run_task, analysis_params, estimate_reference, resolve_incumbent_sizes
-from src.models.course import load_curriculum
-from src.simulator import Simulator
-from src.utils import SEED_STRIDE, load_json, spaced_seeds
+from src.planner.intake import _Views, _run_task, analysis_params, estimate_reference, resolve_incumbent_sizes
+from src.domain.course import load_curriculum
+from src.engine.simulator import Simulator
+from src.engine.utils import SEED_STRIDE, load_json, spaced_seeds
 
 CURRICULUM = load_curriculum("data/curriculum.json")
 CONFIG = load_json("data/simulation_config.json")

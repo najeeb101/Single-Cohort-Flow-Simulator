@@ -1,13 +1,13 @@
-"""Seat plan (src/intake.py::run_seat_plan): "what would it take to admit N?" — answered in seats
+"""Seat plan (src/planner/intake.py::run_seat_plan): "what would it take to admit N?" — answered in seats
 rounded up to ``seat_step`` (not whole sections: sections vary in size and a course can grow by
 widening them), never by rounding multipliers, and never cutting today's seats. Runs on a tiny
 three-course chain so it stays fast.
 """
 from __future__ import annotations
 
-from src.intake import IntakePolicy, run_seat_plan
-from src.models.course import Course
-from src.utils import load_json
+from src.planner.intake import IntakePolicy, run_seat_plan
+from src.domain.course import Course
+from src.engine.utils import load_json
 
 STEP = 5
 

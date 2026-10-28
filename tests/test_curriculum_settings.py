@@ -9,8 +9,8 @@ from __future__ import annotations
 from fastapi.testclient import TestClient
 
 from src.api import app
-from src.curriculum_validation import CycleError, check_no_cycle
-from src.db import SessionLocal, get_or_create_default_plan, load_curriculum_from_db
+from src.validation.curriculum_validation import CycleError, check_no_cycle
+from src.storage.db import SessionLocal, get_or_create_default_plan, load_curriculum_from_db
 
 client = TestClient(app)
 
@@ -84,7 +84,7 @@ def test_update_curriculum_allows_resubmitting_unchanged_prerequisites():
 
 
 def test_check_no_cycle_detects_real_cycle():
-    """Pure-function coverage of the cycle detector itself (src/curriculum_validation.py),
+    """Pure-function coverage of the cycle detector itself (src/validation/curriculum_validation.py),
     using the same genuine edge the API-level test above used to exercise before the
     prerequisite lock made that path unreachable: CMPS493's rule_expr already requires
     CMPS310, so giving CMPS310 a prerequisite on CMPS493 closes a real cycle."""

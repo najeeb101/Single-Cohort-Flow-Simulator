@@ -36,10 +36,10 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from src.models.course import load_curriculum
-from src.models.semester import get_mandatory_seasons
-from src.simulator import Simulator
-from src.utils import load_json
+from src.domain.course import load_curriculum
+from src.domain.semester import get_mandatory_seasons
+from src.engine.simulator import Simulator
+from src.engine.utils import load_json
 
 CONFIG_PATH = Path("data/simulation_config.json")
 CURRIC_PATH = Path("data/curriculum.json")

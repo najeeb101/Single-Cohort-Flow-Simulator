@@ -1,4 +1,4 @@
-"""Tests for src/scenarios.py — persistent scenarios + run history."""
+"""Tests for src/api/scenarios.py — persistent scenarios + run history."""
 from __future__ import annotations
 
 from fastapi.testclient import TestClient

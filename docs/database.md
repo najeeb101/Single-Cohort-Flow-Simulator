@@ -1,7 +1,7 @@
 # Database Schema
 
-`src/db_models.py` (SQLAlchemy ORM) → SQLite at `data/app.db` (gitignored; `DATABASE_URL` env
-var can point it at Postgres instead — `src/db.py` only special-cases SQLite connection args).
+`src/storage/db_models.py` (SQLAlchemy ORM) → SQLite at `data/app.db` (gitignored; `DATABASE_URL` env
+var can point it at Postgres instead — `src/storage/db.py` only special-cases SQLite connection args).
 
 `data/curriculum.json` and `data/simulation_config.json` are a **one-time seed**, not a live
 source: `get_or_create_default_plan()` loads them into the DB on first API startup, creating the
@@ -44,7 +44,7 @@ imported it via `POST /plans/import`.
 | `created_at` | datetime | |
 
 ### `courses`
-Mirrors `src/models/course.py::Course` field-for-field. `code` is unique **only within a plan**
+Mirrors `src/domain/course.py::Course` field-for-field. `code` is unique **only within a plan**
 (`uq_course_plan_code` on `(plan_id, code)`), not globally — two plans can each define their own
 `CMPS151` with different prerequisites/capacity.
 
@@ -59,7 +59,7 @@ Mirrors `src/models/course.py::Course` field-for-field. `code` is unique **only 
 | `offering` | JSON list[str] | subset of `Fall/Spring/Summer/Winter` |
 | `category` | string | one of `cs_core/cs_elective/college_req/math/science/english/gen_ed` |
 | `capacity` | int | seats/term, auto-calibrated by `scripts/size_capacity.py` |
-| `rule_expr` | JSON, nullable | compound eligibility expression (see `src/rules.py`) |
+| `rule_expr` | JSON, nullable | compound eligibility expression (see `src/domain/rules.py`) |
 | `study_plan_order` | int | tiebreak ordering for `/curriculum` listing |
 | `study_plan_term` | int | recommended semester column (1..N) for the roadmap layout; backfilled via `_ensure_columns()` for DBs created before this column existed |
 
@@ -118,7 +118,7 @@ in-progress session.
 | `plan_id` | FK → `plans.id` | provenance only — which plan this session started from |
 | `status` | string | `active` \| `completed` \| `discarded`; the resolver treats anything not `discarded` as "the caller's current session" |
 | `next_term` | int | the resume cursor, mirrored from the pickled snapshot for cheap reads without unpickling |
-| `snapshot` | binary (`LargeBinary`) | `Simulator.snapshot()`'s pickled dynamic state (students, `History`, cursor) — see `src/simulator.py` |
+| `snapshot` | binary (`LargeBinary`) | `Simulator.snapshot()`'s pickled dynamic state (students, `History`, cursor) — see `src/engine/simulator.py` |
 | `working_curriculum` | JSON list | plan-export-shaped course list, mutated in place by edits |
 | `working_config` | JSON | full config dict, mutated in place by edits |
 | `created_at`, `updated_at` | datetime | |
@@ -138,7 +138,7 @@ Nth advance. `POST /checkpoint/rewind` restores one and deletes every later row 
 | `created_at` | datetime | |
 
 ### `analyses`
-One row per Intake Planner job (`src/jobs.py`): an **intake sweep** ("how many should we admit?")
+One row per Intake Planner job (`src/planner/jobs.py`): an **intake sweep** ("how many should we admit?")
 or a **seat plan** ("what would it take to admit N?"). Each row keeps an exact snapshot of the
 inputs it ran on, so a recommendation can always be traced back to the data behind it (seats and
 sections change every semester). Not stored in the plan's own tables, so editing or deleting
@@ -156,14 +156,14 @@ courses never rewrites history.
 | `progress`, `progress_note` | float, string | 0..1 and a short phase description; written about once a second |
 | `params` | JSON | the request (`policy`, `params`, `target_intake`, `run_budget`) with the effective policy |
 | `inputs_snapshot` | JSON | `{curriculum: [course dicts], config}` exactly as run |
-| `result` | JSON, nullable | the `src/intake.py` result (see `docs/api.md`) |
+| `result` | JSON, nullable | the `src/planner/intake.py` result (see `docs/api.md`) |
 | `error` | string, nullable | set when `status = failed` |
-| `analysis_version` | int | `src/intake.py::ANALYSIS_VERSION` at creation (column default 1) |
+| `analysis_version` | int | `src/planner/intake.py::ANALYSIS_VERSION` at creation (column default 1) |
 | `created_at`, `started_at`, `finished_at` | datetime | |
 
 ## Startup migration and recovery
 
-`src/api.py` runs these once at import, after `init_db()` and `get_or_create_default_plan()`:
+`src/api/app.py` runs these once at import, after `init_db()` and `get_or_create_default_plan()`:
 
 - **`migrate_plan_configs(session)`**: passes every stored `AppConfig.data` through
   `normalize_config()`, which drops the retired `admission_targets` and `section_size` and fills any missing Intake
@@ -181,7 +181,7 @@ courses never rewrites history.
 ## Migrations
 
 There's no migration framework (Alembic, etc.) — schema changes are additive and handled by
-`src/db.py::_ensure_columns()`, which runs a guarded `ALTER TABLE ... ADD COLUMN` for any column
+`src/storage/db.py::_ensure_columns()`, which runs a guarded `ALTER TABLE ... ADD COLUMN` for any column
 introduced after a DB was first created (SQLAlchemy's `create_all()` only creates missing
 *tables*, never alters existing ones). Adding a new column means: add it to the `db_models.py`
 class, then add a `(table, column, DDL)` tuple to `_ensure_columns()`'s `additions` list.

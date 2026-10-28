@@ -20,14 +20,14 @@ from dataclasses import asdict
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from src.datasource import StudentRecord
-from src.models.semester import get_mandatory_seasons
-from src.models.student import stage_node_names
-from src.rules import gate_edges
+from src.engine.datasource import StudentRecord
+from src.domain.semester import get_mandatory_seasons
+from src.domain.student import stage_node_names
+from src.domain.rules import gate_edges
 
 if TYPE_CHECKING:
-    from src.simulator import SimulationResult
-    from src.models.course import Course
+    from src.engine.simulator import SimulationResult
+    from src.domain.course import Course
 
 
 # ------------------------------------------------------------------ #

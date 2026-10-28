@@ -3,8 +3,8 @@ multi-plan support (each `Plan` is a distinct curriculum + baseline config; `Use
 makes plan selection per-user rather than a single global).
 
 `Course`/`AppConfig` mirror data/curriculum.json and data/simulation_config.json exactly —
-`src/db.py`'s loaders reconstruct the same dict[str, Course] / plain-dict shapes
-src/simulator.py and src/analytics.py have always consumed, so neither of those files change.
+`src/storage/db.py`'s loaders reconstruct the same dict[str, Course] / plain-dict shapes
+src/engine/simulator.py and src/analysis/analytics.py have always consumed, so neither of those files change.
 """
 from __future__ import annotations
 
@@ -46,7 +46,7 @@ class Plan(Base):
 
 
 class Course(Base):
-    """Mirrors src/models/course.py::Course field-for-field; `code` is unique only within
+    """Mirrors src/domain/course.py::Course field-for-field; `code` is unique only within
     a plan (multiple plans can each have their own "CMPS151"), hence the surrogate `id`."""
 
     __tablename__ = "courses"
@@ -111,7 +111,7 @@ class CheckpointSession(Base):
     pickled dynamic engine state from `Simulator.snapshot()` (students/history/resume cursor);
     `next_term` mirrors the same cursor in a queryable column for cheap reads without unpickling.
     One active session per user, mirroring `User.active_plan_id` — see
-    `src/db.py::resolve_active_checkpoint_session`."""
+    `src/storage/db.py::resolve_active_checkpoint_session`."""
 
     __tablename__ = "checkpoint_sessions"
 
@@ -149,14 +149,14 @@ class CheckpointSnapshot(Base):
 
 
 class Analysis(Base):
-    """One Intake Planner job (src/jobs.py): an intake sweep ("how many should we admit?") or a
+    """One Intake Planner job (src/planner/jobs.py): an intake sweep ("how many should we admit?") or a
     seat plan ("what would it take to admit N?"). Each row keeps an exact snapshot of the inputs
     it ran on, so a recommendation can always be traced back to the data behind it — seats and
     sections change every semester, and the committee needs to know which version was used.
 
     status: queued | running | done | failed | cancelled. A row left `running` by a server that
     was killed mid-job (e.g. `uvicorn --reload`) is marked failed at the next startup
-    (src/db.py::recover_interrupted_analyses).
+    (src/storage/db.py::recover_interrupted_analyses).
     """
     __tablename__ = "analyses"
 

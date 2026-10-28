@@ -1,4 +1,4 @@
-"""Tests for the FastAPI wrapper (src/api.py) — the HTTP boundary over run_simulation
+"""Tests for the FastAPI wrapper (src/api/app.py) — the HTTP boundary over run_simulation
 (ACIP plan §2.3/§3.2). Parity with run_simulation() mirrors the pattern in
 tests/test_service.py::test_matches_manual_construction.
 """
@@ -7,13 +7,13 @@ from __future__ import annotations
 from fastapi.testclient import TestClient
 
 from src.api import app
-from src.db import (
+from src.storage.db import (
     SessionLocal,
     get_or_create_default_plan,
     load_config_from_db,
     load_curriculum_from_db,
 )
-from src.service import run_simulation
+from src.analysis.service import run_simulation
 
 client = TestClient(app)
 

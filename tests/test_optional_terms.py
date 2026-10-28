@@ -7,16 +7,16 @@ from __future__ import annotations
 
 import math
 
-from src.models.course import course_from_dict
-from src.models.semester import (
+from src.domain.course import course_from_dict
+from src.domain.semester import (
     admission_seasons,
     get_mandatory_seasons,
     get_terms,
     mandatory_horizon_end_term,
     term_season,
 )
-from src.models.student import Student
-from src.simulator import Simulator
+from src.domain.student import Student
+from src.engine.simulator import Simulator
 
 FOUR_SEASON_CONFIG_BASE = {
     "seed": 1,

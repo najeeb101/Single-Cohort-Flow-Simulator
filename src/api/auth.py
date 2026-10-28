@@ -8,8 +8,8 @@ from __future__ import annotations
 from fastapi import Depends
 from sqlalchemy.orm import Session
 
-from src.db import get_db, get_or_create_default_plan
-from src.db_models import User
+from src.storage.db import get_db, get_or_create_default_plan
+from src.storage.db_models import User
 
 DEMO_USER_EMAIL = "demo@local"
 

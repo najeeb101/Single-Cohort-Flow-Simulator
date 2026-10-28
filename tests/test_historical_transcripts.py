@@ -5,10 +5,10 @@ StudentRecord / EnrollmentRecord / OutcomeRecord shape.
 """
 from __future__ import annotations
 
-from src.analytics import compute_historical_transcripts, compute_metrics
-from src.models.course import load_curriculum
-from src.simulator import Simulator
-from src.utils import load_json
+from src.analysis.analytics import compute_historical_transcripts, compute_metrics
+from src.domain.course import load_curriculum
+from src.engine.simulator import Simulator
+from src.engine.utils import load_json
 
 
 def _setup():

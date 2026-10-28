@@ -4,7 +4,7 @@ seam an API layer calls; `run.py` is a thin disk-writing wrapper around it, and
 analytics.py's CSV/JSON writers + visualize.py's figure writers remain optional
 serializers callers can still apply to the `SimulationResult` this returns.
 
-Monte Carlo (src.montecarlo.run_monte_carlo) is a separate, optional, expensive layer —
+Monte Carlo (src.analysis.montecarlo.run_monte_carlo) is a separate, optional, expensive layer —
 deliberately not folded in here — that a caller invokes itself when it wants confidence
 intervals (re-running one scenario dozens of times isn't something every caller wants
 paid for by default).
@@ -13,16 +13,16 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from src.analytics import (
+from src.analysis.analytics import (
     compute_cohort_metrics,
     compute_metrics,
     flow_timeline_payload,
 )
-from src.simulator import Simulator
+from src.engine.simulator import Simulator
 
 if TYPE_CHECKING:
-    from src.datasource import DataSource
-    from src.models.course import Course
+    from src.engine.datasource import DataSource
+    from src.domain.course import Course
 
 
 def run_simulation(

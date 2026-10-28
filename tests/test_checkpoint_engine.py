@@ -14,10 +14,10 @@ import pickle
 
 import pytest
 
-from src.models.course import load_curriculum
-from src.models.semester import get_mandatory_seasons, term_season
-from src.simulator import Simulator, SnapshotVersionError
-from src.utils import load_json
+from src.domain.course import load_curriculum
+from src.domain.semester import get_mandatory_seasons, term_season
+from src.engine.simulator import Simulator, SnapshotVersionError
+from src.engine.utils import load_json
 
 
 def _fixture():

@@ -1,20 +1,20 @@
-"""Tests for src/db.py — the shape-preservation guarantee the DB swap depends on
-(everything downstream of src/api.py's module load must see the same dict[str, Course] /
+"""Tests for src/storage/db.py — the shape-preservation guarantee the DB swap depends on
+(everything downstream of src/api/app.py's module load must see the same dict[str, Course] /
 plain-dict shapes it always has)."""
 from __future__ import annotations
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from src import db_models
-from src.db import (
+from src.storage import db_models
+from src.storage.db import (
     DEFAULT_PLAN_NAME,
     get_or_create_default_plan,
     load_config_from_db,
     load_curriculum_from_db,
 )
-from src.models.course import load_curriculum
-from src.utils import load_json
+from src.domain.course import load_curriculum
+from src.engine.utils import load_json
 
 
 def _fresh_session():

@@ -1,7 +1,7 @@
 """Phase B of the hybrid advisor: an optional LLM chat box grounded in the plan, the latest
 intake analysis, and one run's numbers.
 
-**The model never produces the intake number** — src/intake.py does. The chat explains the
+**The model never produces the intake number** — src/planner/intake.py does. The chat explains the
 recommendation and proposes changes to *test*; nothing is written without the admin's click.
 
 Provider-agnostic: it POSTs to any OpenAI-compatible ``/chat/completions`` endpoint selected by
@@ -34,7 +34,7 @@ import re
 
 import httpx
 
-from src.models.semester import admission_seasons
+from src.domain.semester import admission_seasons
 
 DEFAULT_BASE_URL = "https://api.groq.com/openai/v1"
 DEFAULT_MODEL = "llama-3.3-70b-versatile"
@@ -170,7 +170,7 @@ def summarize_plan(curriculum: dict, config: dict) -> dict:
 
 
 def summarize_analysis(result: dict | None, *, label: str | None = None, when: str | None = None) -> dict:
-    """Compact, LLM-groundable view of one completed intake analysis (src/intake.py)."""
+    """Compact, LLM-groundable view of one completed intake analysis (src/planner/intake.py)."""
     if not result:
         return {}
     rec = result.get("recommendation") or {}

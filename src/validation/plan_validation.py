@@ -1,23 +1,23 @@
 """Single entry point for cross-object guardrails against edits that would silently corrupt a
 run — as opposed to the cheap, single-field checks pydantic's `Field(ge=..., le=...)` already
-does on `CourseUpdate`/`CourseCreate`/`ScenarioRequest` (src/api.py), which can't see across a
+does on `CourseUpdate`/`CourseCreate`/`ScenarioRequest` (src/api/app.py), which can't see across a
 `Course` and the plan's `config`.
 
 Every write path that can change capacity, occupancy, or intake calls `validate_plan_edits`
 against the POST-patch `(curriculum, config)`: `PUT /curriculum/{code}`, `POST /curriculum`,
-and `PUT /config` (src/api.py). `validate_initial_state`/`validate_admissions` are the
+and `PUT /config` (src/api/app.py). `validate_initial_state`/`validate_admissions` are the
 narrower, patch-shaped checks `PUT /config` already ran before this module existed (moved
 here, not rewritten, so their behavior is unchanged) — they validate one key's shape against
 the plan rather than reasoning across the whole curriculum.
 """
 from __future__ import annotations
 
-from src.models.course import Course
-from src.models.semester import get_mandatory_seasons
+from src.domain.course import Course
+from src.domain.semester import get_mandatory_seasons
 
 
 class PlanValidationError(Exception):
-    """Raised on a guardrail violation. Callers (src/api.py) map this to HTTP 422."""
+    """Raised on a guardrail violation. Callers (src/api/app.py) map this to HTTP 422."""
 
 
 # Intake bounds — realistic institutional limits.
@@ -55,7 +55,7 @@ def validate_credit_load_bounds(config: dict) -> None:
     good standing, or let either load cap climb to a value no real term of course offerings
     could satisfy. Only checked when present, so a minimal engine-level config that doesn't set
     them is untouched (Simulator.__init__ re-runs this same check as a fail-fast guard for
-    direct/non-API callers — see src/simulator.py)."""
+    direct/non-API callers — see src/engine/simulator.py)."""
     normal = config.get("normal_load_ch")
     probation = config.get("probation_load_ch")
     for name, value in (("normal_load_ch", normal), ("probation_load_ch", probation)):
@@ -140,7 +140,7 @@ def validate_plan_edits(curriculum: dict[str, Course], config: dict) -> None:
     validate_historical_outcomes(config.get("historical_outcomes"))
     validate_seat_step(config.get("seat_step"))
     # Curriculum topology guardrails (missing prereqs, cycles, unreachable depth).
-    from src.curriculum_validation import validate_curriculum_topology
+    from src.validation.curriculum_validation import validate_curriculum_topology
     try:
         validate_curriculum_topology(curriculum, config)
     except Exception as e:
@@ -185,7 +185,7 @@ def validate_admissions(patch: dict, config: dict) -> None:
 
 
 # ------------------------------------------------------------------ #
-# Intake Planner keys (src/intake.py)                                 #
+# Intake Planner keys (src/planner/intake.py)                                 #
 # ------------------------------------------------------------------ #
 
 def _is_number(v: object) -> bool:

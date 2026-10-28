@@ -4,7 +4,7 @@ The canonical animation/timeline is built from the single base-seed run (determi
 the frontend); these confidence intervals only annotate the headline metrics so the reported
 numbers carry uncertainty instead of being a single-seed point estimate.
 
-The seeds are independent full simulations, so they fan across CPU cores via `src.parallel`
+The seeds are independent full simulations, so they fan across CPU cores via `src.engine.parallel`
 (optimization plan item 2). Results are collected **in seed order**, so the aggregated
 mean/stdev/CI are byte-identical whether the run was serial or parallel — see
 `tests/test_multicohort.py`'s determinism check and `tests/test_parallel.py`.
@@ -15,11 +15,11 @@ import copy
 import math
 import statistics
 
-from src.analytics import compute_metrics
-from src.models.course import Course
-from src.parallel import ordered_map, resolve_workers
-from src.simulator import Simulator
-from src.utils import spaced_seeds
+from src.analysis.analytics import compute_metrics
+from src.domain.course import Course
+from src.engine.parallel import ordered_map, resolve_workers
+from src.engine.simulator import Simulator
+from src.engine.utils import spaced_seeds
 
 _METRICS = [
     "graduation_rate", "academic_dropout_rate", "censored_rate",

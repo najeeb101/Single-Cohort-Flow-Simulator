@@ -2,8 +2,8 @@
 
 This document explains how the CS Intake Planner turns the department's data into a
 recommended intake, what it assumes, and where it can be wrong. It is written for the
-committee and for technical reviewers. The code behind it is `src/intake.py` (analysis),
-`src/jobs.py` (background runner) and the unchanged simulation engine in `src/simulator.py`.
+committee and for technical reviewers. The code behind it is `src/planner/intake.py` (analysis),
+`src/planner/jobs.py` (background runner) and the unchanged simulation engine in `src/engine/simulator.py`.
 Setup instructions are in the [README](../README.md) and [user guide](user_guide.md).
 
 ---
@@ -97,7 +97,7 @@ independent replications.
 seeds differ by 1 therefore replay about 99% of the same students, shifted by one id. Averaging
 over consecutive seeds gives a spread that is far too narrow (measured: 0.83 points instead of
 1.39 points). Replication seeds are therefore spaced `10,000,019` apart (`spaced_seeds()`,
-`SEED_STRIDE` in `src/utils.py`), larger than any run's student count, so replications are
+`SEED_STRIDE` in `src/engine/utils.py`), larger than any run's student count, so replications are
 genuinely independent. The same helper now drives the Monte Carlo module.
 
 Default effort: 20 seeds per intake for the headline view, 12 for the sustainable view (it
@@ -313,7 +313,7 @@ outcome that is off and suggests checking pass rates and dropout settings.
 - the *real* current student body as the starting point instead of one rebuilt from intake sizes;
 - a true back-test: replay, say, Fall 2019 and compare with what actually happened.
 
-**How it would work.** The engine already has the seam for it: `src/datasource.py` defines the
+**How it would work.** The engine already has the seam for it: `src/engine/datasource.py` defines the
 `StudentRecord`, `EnrollmentRecord` and `OutcomeRecord` schema and a `RealDataSource` placeholder.
 The route is a **de-identified Registrar export** (hashed IDs, no names) that the department
 imports locally.

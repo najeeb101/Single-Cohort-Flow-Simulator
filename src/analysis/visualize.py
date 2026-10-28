@@ -9,12 +9,12 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import matplotlib.ticker as mticker
 
-from src.analytics import _study_students
-from src.rules import gate_edges
+from src.analysis.analytics import _study_students
+from src.domain.rules import gate_edges
 
 if TYPE_CHECKING:
-    from src.simulator import SimulationResult
-    from src.models.course import Course
+    from src.engine.simulator import SimulationResult
+    from src.domain.course import Course
 
 
 # ------------------------------------------------------------------ #
@@ -490,7 +490,7 @@ def plot_cohort_bottleneck_comparison(
 # ------------------------------------------------------------------ #
 
 def plot_utilization_heatmap(result: SimulationResult, output_path: Path) -> None:
-    from src.analytics import build_course_utilization
+    from src.analysis.analytics import build_course_utilization
     rows = build_course_utilization(result)
     if not rows:
         return

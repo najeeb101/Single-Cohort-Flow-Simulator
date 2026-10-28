@@ -6,9 +6,9 @@ from copy import deepcopy
 from fastapi.testclient import TestClient
 
 from src.api import app
-from src.db import DEFAULT_PLAN_NAME
-from src.models.course import load_curriculum
-from src.utils import load_json
+from src.storage.db import DEFAULT_PLAN_NAME
+from src.domain.course import load_curriculum
+from src.engine.utils import load_json
 
 
 client = TestClient(app)

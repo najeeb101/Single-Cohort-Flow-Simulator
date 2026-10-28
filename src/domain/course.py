@@ -16,7 +16,7 @@ class Course:
     offering: tuple[str, ...]          # ('Fall',), ('Spring',), or ('Fall','Spring')
     category: str                       # cs_core|cs_elective|college_req|math|science|english|gen_ed
     capacity: int                       # seats per offering-instance
-    rule_expr: Optional[dict] = None    # compound gate (see src/rules.py); None = plain prerequisites
+    rule_expr: Optional[dict] = None    # compound gate (see src/domain/rules.py); None = plain prerequisites
     study_plan_order: int = 99          # lower = earlier in the study plan
     study_plan_term: int = 0            # recommended semester column (1..N) for the flow chart;
                                         # 0 = unassigned (rendered in a trailing "Unscheduled" column)
@@ -25,7 +25,7 @@ class Course:
 def course_from_dict(entry: dict) -> Course:
     """Parse one curriculum.json-shaped entry into a Course. Raises ValueError (not
     KeyError) with the entry's code (if present) on a missing required field, so callers
-    parsing untrusted/uploaded data (src/db.py::import_plan) can surface a clean message
+    parsing untrusted/uploaded data (src/storage/db.py::import_plan) can surface a clean message
     instead of a bare traceback."""
     try:
         return Course(
