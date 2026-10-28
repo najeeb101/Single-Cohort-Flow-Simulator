@@ -15,7 +15,7 @@ export function PageHeader({
   actions?: ReactNode;
 }) {
   return (
-    <header className="flex flex-col gap-4 pb-2 pt-8 sm:flex-row sm:items-end sm:justify-between">
+    <header className="flex flex-col gap-4 pb-4 pt-8 sm:flex-row sm:items-end sm:justify-between">
       <div className="min-w-0 max-w-3xl">
         {context && <div className="text-[13px] text-muted">{context}</div>}
         <h1 className="mt-1 text-[26px] font-semibold leading-tight tracking-[-0.02em] text-ink sm:text-[28px]">{title}</h1>

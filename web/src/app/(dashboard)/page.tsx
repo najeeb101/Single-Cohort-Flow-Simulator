@@ -61,7 +61,7 @@ export default function IntakePlannerPage() {
   const [limitsOpen, setLimitsOpen] = useState(false);
 
   return (
-    <main className="mx-auto w-full max-w-[1080px] px-5 pb-24 sm:px-8">
+    <main className="mx-auto w-full max-w-[1280px] px-5 pb-24 sm:px-8">
       <PageHeader
         context={<>Computer Science · {label}</>}
         title="How many students should we admit?"
@@ -115,7 +115,9 @@ export default function IntakePlannerPage() {
         {(runError || error) && <p className="text-sm text-bad">{runError || error}</p>}
       </div>
 
-      <div className="mt-10 flex flex-col gap-10">
+      {/* Same vertical rhythm as the other pages, whose sections are py-6: 24px below the header
+          block, 48px between sections. */}
+      <div className="mt-6 flex flex-col gap-12">
         {!sweep ? (
           !sweepJob && (
             <div className="rounded-xl border border-dashed border-border-2 bg-surface-2/50 px-5 py-12 text-center text-sm text-muted">
@@ -160,7 +162,7 @@ export default function IntakePlannerPage() {
           <SeatPlanner defaultTarget={sweep?.result.recommendation.upper_limit ?? 120} />
         </Section>
 
-        <div className="grid gap-10 lg:grid-cols-2">
+        <div className="grid gap-x-6 gap-y-12 lg:grid-cols-2">
           {sweep && (
             <Section title="Model check">
               <CalibrationCard calibration={sweep.result.calibration} />
