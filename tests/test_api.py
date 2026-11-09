@@ -47,7 +47,7 @@ def test_meta_shape():
         "registration_tier_thresholds", "enrollment_priority_tiers",
         "year_standing_thresholds", "on_time_terms",
         "intake_policy", "intake_analysis", "seat_step", "planning", "current_students",
-        "historical_outcomes", "data_sources", "intake_job_running",
+        "historical_outcomes", "data_sources", "intake_job_running", "demo_mode",
         "llm_chat_enabled", "llm_model",
         "checkpoint_active", "checkpoint_next_term",
     }

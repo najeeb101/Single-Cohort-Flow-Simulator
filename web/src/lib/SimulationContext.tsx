@@ -19,6 +19,7 @@ const ONBOARDING_INTRO_DONE_KEY = "onboarding-intro-done";
 // dismissed once (localStorage flag) while those inputs are still unset or only estimates; both
 // may be left as estimates, the screen only asks.
 function plannerSetupNeeded(meta: MetaResponse): boolean {
+  if (meta.demo_mode) return false; // the public demo is read-only, so it skips the data-entry screen
   const intakes = meta.current_students?.past_intakes ?? [];
   return intakes.length === 0 || meta.data_sources?.past_intakes !== "qu";
 }

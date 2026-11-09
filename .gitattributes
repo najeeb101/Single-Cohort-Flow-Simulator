@@ -1,2 +1,4 @@
 # Windows batch files must keep CRLF line endings.
 *.bat text eol=crlf
+*.sh text eol=lf
+Dockerfile text eol=lf

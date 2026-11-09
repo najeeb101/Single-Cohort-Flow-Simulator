@@ -224,6 +224,8 @@ export interface MetaResponse {
   historical_outcomes: HistoricalOutcomes;
   data_sources: DataSources;
   intake_job_running?: boolean;
+  // True on the public read-only demo (DEMO_MODE=1): edits to the saved plan are refused.
+  demo_mode?: boolean;
   // Phase B: whether the optional LLM advisor chat is configured (a local model URL or an API key).
   llm_chat_enabled?: boolean;
   // Which model answers the chat, e.g. "qwen3:4b-instruct-2507-q4_K_M · on this PC".

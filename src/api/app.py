@@ -41,6 +41,7 @@ from src.analysis.analytics import (
     build_curriculum_graph,
     flow_timeline_payload,
 )
+from src.api import demo
 from src.api.auth import get_current_user
 from src.validation.curriculum_validation import CycleError, PlanImportError, check_no_cycle
 from src.storage.db import (
@@ -93,6 +94,7 @@ with SessionLocal() as _session:
 
 app = FastAPI(title="CS Intake Planner API")
 app.include_router(scenarios_router)
+demo.install(app)   # public read-only demo guard; a no-op unless DEMO_MODE=1 (src/api/demo.py)
 
 # The Next.js dev server (web/, npm run dev on :3000) proxies to this API via
 # next.config.ts rewrites, so the browser only ever calls its own origin — this middleware is
@@ -405,6 +407,8 @@ def meta(db: Session = Depends(get_db)) -> dict:
         "historical_outcomes": config.get("historical_outcomes") or {},
         "data_sources": config.get("data_sources") or {},
         "intake_job_running": jobs.is_busy(),
+        # Public read-only demo (src/api/demo.py): the site shows a banner and explains why edits are refused.
+        "demo_mode": demo.enabled(),
         # Whether the caller has an in-progress Semester Checkpoint Mode session (see
         # /checkpoint below) — lets the nav/dashboard reflect it without a separate request.
         "checkpoint_active": checkpoint_session is not None,
@@ -587,6 +591,8 @@ def start_intake_analysis(req: IntakeAnalysisRequest, db: Session = Depends(get_
         raise HTTPException(status_code=422, detail="target_intake is required for a seat plan")
     if jobs.is_busy():
         raise HTTPException(status_code=409, detail="Another analysis is already running; wait or cancel it")
+    if demo.enabled():
+        req.params = demo.lite_params(req.params)   # the demo host is too small for a full sweep
 
     current_user = get_current_user(db)
     plan_id = resolve_active_plan_id(db, current_user)

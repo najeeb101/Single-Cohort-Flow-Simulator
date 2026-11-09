@@ -484,6 +484,22 @@ Bottlenecks have data before any walkthrough starts.
   `admission_sizes`/initial state, so a small purpose-built control was simpler and safer than
   forcing that fit.
 
+## Public Demo (`DEMO_MODE=1`)
+
+A free-tier, read-only deployment for recruiters (Hugging Face Space, Docker; steps in
+[docs/deploy.md](docs/deploy.md)). Off by default: the department-PC setup is unchanged. `src/api/demo.py` is an
+HTTP middleware that, per request, gives each visitor a `demo_sid` cookie (`src/api/auth.py` then resolves a
+**per-visitor user**, so Walkthrough sessions and analyses are private), answers **403** to anything that would
+change the saved plan (`/config`, `/curriculum*`, `/plans*`, `/scenarios*`; `/simulate`, `/advisor/chat`, intake
+analyses and the `/checkpoint` family stay allowed because they never touch the stored plan), rate limits the heavy
+POSTs per client, and forces `POST /intake-analyses` onto `LITE_ANALYSIS_PARAMS` (grid 20..120 step 20, 12 seeds, no
+robustness pass; a full sweep is ~570 sims, too slow on 2 vCPUs). A new visitor is seeded with the precomputed full
+analysis + seat plan from `data/demo_showcase.json`, built by `py scripts/build_demo_showcase.py` in a throwaway DB;
+**rebuild and commit it whenever `data/*.json` or the planner logic changes** (`tests/test_demo_mode.py` fails when it
+is stale). `/meta.demo_mode` makes the site show a banner and skip the first-run data-setup gate. The `Dockerfile`
+runs `scripts/start_demo.sh` (API on 127.0.0.1:8001, Next.js on `$PORT` proxying to it); `scripts/deploy_hf_space.sh`
+pushes a one-commit snapshot to the Space with `deploy/hf-space/README.md` swapped in as its README.
+
 ## Parallel Workloads
 
 - A single simulation is cheap (~0.75s / ~10 MB for the 800-student baseline). What was slow was

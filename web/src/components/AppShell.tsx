@@ -4,7 +4,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import ThemeToggle from "@/components/ThemeToggle";
-import { listPlans } from "@/lib/api";
+import { getMeta, listPlans } from "@/lib/api";
 import type { PlanRecord } from "@/types/simulation";
 
 // The app frame, modelled on QU CoAdvisor: a deep maroon sidebar with the white QU mark and line
@@ -193,6 +193,14 @@ export default function AppShell({ children }: { children: ReactNode }) {
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [plan, setPlan] = useState<PlanRecord | null>(null);
+  const [demo, setDemo] = useState(false);
+
+  // The public demo shows a banner explaining what is and isn't editable.
+  useEffect(() => {
+    getMeta()
+      .then((m) => setDemo(!!m.demo_mode))
+      .catch(() => setDemo(false));
+  }, []);
 
   // Read after mount (localStorage isn't available during the server render).
   useEffect(() => {
@@ -264,6 +272,14 @@ export default function AppShell({ children }: { children: ReactNode }) {
           <span className="font-semibold text-[var(--frame-ink)]">Planning tool</span> · Results built on estimates are
           marked illustrative. Re-run the analysis when the schedule changes.
         </div>
+        {demo && (
+          <div className="no-print mx-2 mb-1.5 rounded-lg bg-[var(--frame-hover)] px-3 py-1.5 text-center text-[12px] text-[var(--frame-ink)] lg:ml-0">
+            <span className="font-semibold">Live demo</span>
+            {" · "}Read-only, on illustrative estimates. Explore the
+            Intake Planner, Bottlenecks, Walkthrough and Advisor; saved data can&apos;t be edited here. Your
+            Walkthrough and analyses are private to your browser.
+          </div>
+        )}
 
         <div className="app-panel relative mx-2 mb-2 min-h-[calc(100dvh-2.75rem)] flex-1 overflow-clip rounded-2xl bg-bg lg:ml-0">
           <div className="relative z-[1]">{children}</div>
