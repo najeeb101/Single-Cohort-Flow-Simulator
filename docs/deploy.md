@@ -1,9 +1,14 @@
 # Deploying the public demo (free)
 
 The department runs the planner locally (`start.bat`). For recruiters and anyone else who should be
-able to try it without installing anything, the same code runs as a **read-only demo** on a free
-Hugging Face Space. Nothing about the local setup changes; demo behaviour is switched on by
+able to try it without installing anything, the same code runs as a **read-only demo** from one
+Docker image. Nothing about the local setup changes; demo behaviour is switched on by
 `DEMO_MODE=1`, which only the Docker image sets.
+
+**Status (2026-11): hosting options.** Hugging Face Docker Spaces now need a PRO plan (creating one
+returns HTTP 402), Google Cloud Run needs a billing card, and a student Azure account cannot create
+resource groups. The zero-cost route that works with no card is the
+[Cloudflare quick tunnel](#free-no-card-run-it-on-your-pc-behind-a-cloudflare-tunnel) below.
 
 ## What the demo does differently
 
@@ -20,10 +25,24 @@ Hugging Face Space. Nothing about the local setup changes; demo behaviour is swi
 Code: `src/api/demo.py` (guard, sessions, lite settings), `src/api/auth.py` (per-visitor user),
 `scripts/build_demo_showcase.py` (the precomputed result), `tests/test_demo_mode.py`.
 
-## One-time setup
+## Free, no card: run it on your PC behind a Cloudflare tunnel
 
-1. Create a free account at huggingface.co, then **New Space**: SDK **Docker**, template **Blank**,
-   hardware **CPU basic** (free), visibility **Public**.
+```bash
+docker build -t cs-intake-planner .
+docker run -d --name cs-demo --restart unless-stopped -p 127.0.0.1:7860:7860 cs-intake-planner
+cloudflared tunnel --url http://127.0.0.1:7860 --protocol http2
+```
+
+`cloudflared` prints a `https://<random>.trycloudflare.com` link. Use `--protocol http2` if the
+default QUIC connection times out. The demo is up only while the PC, the container and the tunnel
+run, and the URL changes on every tunnel restart, so share it for a live demo, not as a permanent
+CV link. Analyses run at full speed on the PC's cores.
+
+## Hugging Face Space (needs a PRO plan)
+
+
+1. On a Hugging Face account with PRO, create a **New Space**: SDK **Docker**, template **Blank**,
+   hardware **CPU basic**, visibility **Public**.
 2. Create an access token with **write** access (Settings, Access Tokens).
 3. Deploy from the repo root:
 
@@ -60,7 +79,7 @@ OpenAI-compatible free tier, for example Groq: `LLM_BASE_URL=https://api.groq.co
 `LLM_MODEL=llama-3.3-70b-versatile`, `LLM_API_KEY=<your key>`. Only aggregate plan and result
 numbers are sent, never student records. Free tiers have their own rate limits.
 
-## Behaviour to expect on the free tier
+## Behaviour to expect on a Space
 
 - The Space **sleeps after 48 hours without visitors** and wakes in about a minute on the next
   visit (the site retries while it starts).
@@ -81,5 +100,4 @@ docker run --rm -p 7860:7860 cs-intake-planner     # then open http://localhost:
 
 The same image works anywhere that runs a container and routes one port (set `PORT` if the host
 requires it): Google Cloud Run (free tier, scales to zero, needs a card), Koyeb, or Render's free
-web service (512 MB RAM is tight for the analysis pool). Hugging Face Spaces is the easiest because
-it needs no card and gives 2 vCPUs and 16 GB.
+web service (0.1 vCPU and 512 MB: browsing works, but "Run analysis" would take tens of minutes).
