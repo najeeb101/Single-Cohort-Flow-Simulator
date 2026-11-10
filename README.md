@@ -1,5 +1,8 @@
 # CS Intake Planner
 
+**[Try the live demo](https://najeeb101.github.io/Single-Cohort-Flow-Simulator/)** (read-only, on illustrative
+estimates; it runs from the developer's PC, so if it shows "offline", [see how to run it yourself](docs/deploy.md)).
+
 A decision tool for Qatar University's Computer Science department. It answers one question:
 
 > **How many students should we admit into the next CS intake, and what course seats does that number need?**

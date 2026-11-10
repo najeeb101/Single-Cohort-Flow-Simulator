@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CS Intake Planner - live demo</title>
+<style>
+  :root { --bg:#faf9f6; --ink:#1f1a1c; --muted:#6b6266; --card:#fff; --border:#e4e0d8; --accent:#8a1538; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#1a1214; --ink:#f3eeee; --muted:#b5a9ad; --card:#241a1d; --border:#3a2b30; --accent:#e0698a; } }
+  body { margin:0; font:16px/1.55 Inter, system-ui, sans-serif; background:var(--bg); color:var(--ink); display:grid; place-items:center; min-height:100vh; }
+  main { max-width:34rem; margin:0 16px; padding:28px; background:var(--card); border:1px solid var(--border); border-radius:16px; }
+  h1 { margin:0 0 8px; font-size:22px; }
+  p { margin:10px 0; color:var(--muted); }
+  a.btn { display:inline-block; margin-top:8px; padding:10px 18px; border-radius:10px; background:var(--accent); color:#fff; text-decoration:none; font-weight:600; }
+  a { color:var(--accent); }
+  .hide { display:none; }
+</style>
+</head>
+<body>
+<main>
+  <h1>CS Intake Planner</h1>
+  <div id="checking"><p>Looking for the live demo...</p></div>
+  <div id="on" class="hide">
+    <p>The live demo is up. Taking you there now.</p>
+    <a id="go" class="btn" href="#">Open the live demo</a>
+  </div>
+  <div id="off" class="hide">
+    <p>The live demo runs from the developer's own PC, and it is switched off right now.</p>
+    <p>Read about the project and see how it works on <a href="https://github.com/najeeb101/Single-Cohort-Flow-Simulator">GitHub</a>,
+       or email to ask for a time when it will be on.</p>
+  </div>
+</main>
+<script>
+  fetch("demo.json", { cache: "no-store" })
+    .then(function (r) { return r.json(); })
+    .then(function (d) {
+      document.getElementById("checking").classList.add("hide");
+      if (d.online && d.url) {
+        document.getElementById("go").href = d.url;
+        document.getElementById("on").classList.remove("hide");
+        setTimeout(function () { location.replace(d.url); }, 1200);
+      } else {
+        document.getElementById("off").classList.remove("hide");
+      }
+    })
+    .catch(function () {
+      document.getElementById("checking").classList.add("hide");
+      document.getElementById("off").classList.remove("hide");
+    });
+</script>
+</body>
+</html>
