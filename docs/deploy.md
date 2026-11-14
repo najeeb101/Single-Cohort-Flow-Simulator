@@ -38,6 +38,22 @@ default QUIC connection times out. The demo is up only while the PC, the contain
 run, and the URL changes on every tunnel restart, so share it for a live demo, not as a permanent
 CV link. Analyses run at full speed on the PC's cores.
 
+## Render free web service (Blueprint)
+
+`render.yaml` defines one free Docker web service, `cs-intake-planner`, built from the repo's
+`Dockerfile`, tracking the `deploy/render` branch with auto-deploy off. In Render: New > Blueprint,
+pick the repo and the `deploy/render` branch, Apply. Render must be told the Blueprint file lives on
+that branch (it reads `render.yaml` from the branch you select).
+
+- Health check: `/api/backend/health` on the public port (Next.js proxies to the API's `/health`).
+  The site only starts after the API answers, so the port opens a few seconds after boot.
+- First boot seeds a fresh SQLite database from `data/*.json` (measured locally: about 1.5 s, 68 KB;
+  the 165 MB `data/app.db` on the dev PC is gitignored and excluded by `.dockerignore`).
+- The API process measured about 86 MB peak after boot on Windows; the Next.js server's footprint on
+  the 512 MB plan is unverified. `INTAKE_WORKERS=1` keeps the analysis to one worker process.
+- The free plan has 0.1 vCPU, sleeps when idle and wakes in about a minute. Browsing and the
+  precomputed result work; "Run analysis" will be slow (unmeasured on this plan).
+
 ## Hugging Face Space (needs a PRO plan)
 
 

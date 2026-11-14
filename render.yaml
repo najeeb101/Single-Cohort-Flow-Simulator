@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: cs-intake-planner
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    branch: deploy/render
+    autoDeployTrigger: "off"
+    healthCheckPath: /api/backend/health
+    envVars:
+      - key: INTAKE_WORKERS
+        value: "1"
